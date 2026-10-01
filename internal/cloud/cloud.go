@@ -21,8 +21,10 @@ import (
 
 // Clients 汇总全部外部服务客户端。
 type Clients struct {
-	SMS        sms.Sender
-	AI         ai.Client
+	SMS sms.Sender
+	AI  ai.Client
+	// AIAlt 是对照平台（可为空）。
+	AIAlt      ai.Client
 	OCR        ocr.Recognizer
 	PDF        ocr.PDFParser
 	ASR        asr.Transcriber
@@ -47,7 +49,19 @@ func New(cfg *config.Config) (*Clients, error) {
 		}
 	}
 	pick("SMS", cfg.SMS.Provider, func() { c.SMS = sms.NewMock() })
-	pick("AI", cfg.AI.Provider, func() { c.AI = ai.NewMock() })
+	if cfg.AI.Provider == "bailian" {
+		// 百炼的 OpenAI 兼容接口（dev-spec 第七节）。地址与密钥只从环境变量读。
+		if cfg.AI.BailianBaseURL == "" || cfg.AI.BailianAPIKey == "" {
+			errs = append(errs, errors.New("AI_PROVIDER=bailian 需要设置 BAILIAN_BASE_URL 与 BAILIAN_API_KEY"))
+		}
+		c.AI = ai.NewOpenAI(cfg.AI.BailianBaseURL, cfg.AI.BailianAPIKey)
+	} else {
+		pick("AI", cfg.AI.Provider, func() { c.AI = ai.NewMock() })
+	}
+	if cfg.AI.AltBaseURL != "" && cfg.AI.AltAPIKey != "" {
+		// 对照平台：评测与故障时备用。
+		c.AIAlt = ai.NewOpenAI(cfg.AI.AltBaseURL, cfg.AI.AltAPIKey)
+	}
 	pick("OCR", cfg.OCR.Provider, func() { c.OCR, c.PDF = ocr.NewMock(), ocr.NewMock() })
 	pick("ASR", cfg.ASR.Provider, func() { c.ASR = asr.NewMock() })
 	pick("MODERATION", cfg.Moderation.Provider, func() { c.Moderation = moderation.NewMock() })

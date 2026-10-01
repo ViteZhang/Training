@@ -5766,6 +5766,21 @@ type Grading struct {
 	FinishedAt     sql.NullTime
 }
 
+// 导入中只有答案的条目，待配对
+type ImportAnswer struct {
+	ID          uint64
+	OwnerUserID uint64
+	JobID       uint64
+	MaterialID  uint64
+	ExamYear    sql.NullInt16
+	QuestionNo  string
+	Answer      string
+	Page        uint32
+	// 同一任务重跑时防止重复写入
+	DedupeKey string
+	CreatedAt time.Time
+}
+
 // AI 产出的待确认条目（1.7）
 type ImportItem struct {
 	ID          uint64
