@@ -1,0 +1,2015 @@
+openapi: 3.0.3
+info:
+  title: 考研Training API
+  version: 0.1.0
+  description: |
+    考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
+
+    约定（详见 docs/dev-spec.md 与 CLAUDE.md）：
+    - 路由前缀 /api/v1，后台接口 /api/v1/admin
+    - 鉴权：`Authorization: Bearer <access_token>`；标了 `security: []` 的接口不需要登录
+    - 错误响应统一为 Error：{ code, message, detail }，错误码见 Error.code 说明
+    - 写接口支持 `Idempotency-Key` 请求头：同一个键重复提交返回第一次的结果，不重复扣额度
+    - 用户内容只有本人可见：访问别人的 ID 一律返回 404
+    - 功能开关关闭时，相关接口返回 404
+    - 时间字段为 RFC 3339（UTC）；日期字段（如复习日）为北京时间的 YYYY-MM-DD
+    - 列表分页用游标：响应里的 next_cursor 为空表示没有更多
+
+    契约版本：
+    - api-v0.1：模块 0 账号、模块 1 引导与导入、模块 3 题库、额度、功能开关
+    - 其余模块随对应任务卡增量加入，10/11 冻结 api-v1.0
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+tags:
+  - name: system
+    description: 健康检查与启动配置
+  - name: auth
+    description: 模块 0 · 登录、令牌、协议
+  - name: account
+    description: 6.11–6.12 账号与安全、注销
+  - name: profile
+    description: 1.1–1.3、6.9 专业课与备考档案
+  - name: quota
+    description: 额度（PRD 13.1）
+  - name: import
+    description: 1.4–1.8 上传资料、AI 解析、确认入库
+  - name: bank
+    description: 模块 3 题库：知识点、题目、资料
+paths:
+  /health:
+    get:
+      tags: [system]
+      operationId: getHealth
+      summary: 健康检查
+      description: 返回版本号与 MySQL、Redis 的连通状态；不暴露连接细节。任一依赖不通时返回 503。
+      security: []
+      responses:
+        "200":
+          description: 全部依赖正常
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+        "503":
+          description: 至少一个依赖异常
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+
+  /bootstrap:
+    get:
+      tags: [system]
+      operationId: getBootstrap
+      summary: 启动配置（0.1）
+      description: |
+        App 每次启动调用。返回版本更新（0.6 / 0.6b）、需要重新同意的协议（0.4b）、功能开关、初试倒计时。
+        未登录也可调用；登录后带上令牌，会额外返回用户维度的开关与协议状态。
+      security: [{}, { bearerAuth: [] }]
+      parameters:
+        - { name: platform, in: query, required: true, schema: { $ref: "#/components/schemas/Platform" } }
+        - { name: app_version, in: query, required: true, schema: { type: string, example: 1.0.3 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Bootstrap" }
+
+  /auth/sms-codes:
+    post:
+      tags: [auth]
+      operationId: sendSmsCode
+      summary: 发送短信验证码（0.2、0.3、6.11）
+      description: |
+        6 位验证码，5 分钟有效；同一手机号 60 秒一次、每天最多 10 次。
+        purpose=login 时必须 agree=true（0.2b 未同意协议时不发码）。
+        purpose=change_phone_old / change_phone_new 需要登录。
+      security: [{}, { bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SendSmsCodeRequest" }
+      responses:
+        "200":
+          description: 已发送
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SendSmsCodeResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: 手机号 + 验证码登录（未注册自动创建账号）
+      description: |
+        验证码错误返回 400，detail.remaining_attempts 为剩余次数；连续错 5 次该码失效（detail.code_expired=true）。
+        注销冷静期内登录会撤销注销申请。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: 登录成功
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      operationId: refreshToken
+      summary: 刷新访问令牌
+      description: 刷新令牌按设备存储，每次刷新都会换发新的刷新令牌（旧的立即失效）。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefreshRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenPair" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: 退出登录（作废本设备的刷新令牌）
+      responses:
+        "204": { description: 已退出 }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /agreements/{kind}:
+    get:
+      tags: [auth]
+      operationId: getAgreement
+      summary: 协议正文（0.4）
+      security: []
+      parameters:
+        - { name: kind, in: path, required: true, schema: { $ref: "#/components/schemas/AgreementKind" } }
+      responses:
+        "200":
+          description: 当前生效版本
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Agreement" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /me:
+    get:
+      tags: [account]
+      operationId: getMe
+      summary: 当前用户
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    patch:
+      tags: [account]
+      operationId: updateMe
+      summary: 修改昵称或记录引导进度
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateMeRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /me/agreements:
+    post:
+      tags: [account]
+      operationId: acceptAgreements
+      summary: 同意协议新版本（0.4b「同意并继续」）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agreement_ids]
+              properties:
+                agreement_ids: { type: array, items: { type: integer, format: int64 }, minItems: 1 }
+      responses:
+        "204": { description: 已记录 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /me/devices:
+    get:
+      tags: [account]
+      operationId: listDevices
+      summary: 登录设备列表（6.11）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Device" } }
+
+  /me/devices/{deviceId}:
+    delete:
+      tags: [account]
+      operationId: removeDevice
+      summary: 移除其他设备（该设备需重新登录）
+      parameters:
+        - { name: deviceId, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: 已移除 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /me/phone:
+    put:
+      tags: [account]
+      operationId: changePhone
+      summary: 更换手机号（新旧号码都要验证）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangePhoneRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /me/deletion:
+    post:
+      tags: [account]
+      operationId: requestDeletion
+      summary: 申请注销（6.12），进入 7 天冷静期
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmed]
+              properties:
+                confirmed: { type: boolean, description: 必须为 true（勾选确认） }
+      responses:
+        "200":
+          description: 已申请
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deletion_due_at]
+                properties:
+                  deletion_due_at: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/BadRequest" }
+    delete:
+      tags: [account]
+      operationId: cancelDeletion
+      summary: 撤销注销申请
+      responses:
+        "204": { description: 已撤销 }
+
+  /feature-flags:
+    get:
+      tags: [system]
+      operationId: getFeatureFlags
+      summary: 当前用户可见的功能开关
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FeatureFlags" }
+
+  /exam-years:
+    get:
+      tags: [profile]
+      operationId: listExamYears
+      summary: 可选的考试年份与初试日期（1.1）
+      security: [{}, { bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/ExamYear" } }
+
+  /profile:
+    get:
+      tags: [profile]
+      operationId: getProfile
+      summary: 备考档案（1.3、6.9）
+      description: 还没建档案时返回 404，App 进入 1.1。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StudyProfile" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [profile]
+      operationId: upsertProfile
+      summary: 创建或修改备考档案
+      description: 改阶段或每日时长从明天起生效（pending_* 字段）；第一次创建时立即生效。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StudyProfileInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StudyProfile" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /subjects:
+    get:
+      tags: [profile]
+      operationId: listSubjects
+      summary: 我的专业课
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SubjectList" }
+    post:
+      tags: [profile]
+      operationId: createSubject
+      summary: 添加专业课（同时建好它的自建题库）
+      description: 最多 4 门；免费版最多 3 门，第 4 门返回 402 QUOTA_EXCEEDED（detail.reason=subject_limit），App 引导到 6.5。
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubjectInput" }
+      responses:
+        "201":
+          description: 已创建
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Subject" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "402": { $ref: "#/components/responses/QuotaExceeded" }
+
+  /subjects/{subjectId}:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    patch:
+      tags: [profile]
+      operationId: updateSubject
+      summary: 修改专业课（名称、代码、满分、目标分、是否作文课）
+      description: 改目标分立即生效（2.1f）；target_score 传 null 表示清除目标。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubjectPatch" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Subject" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [profile]
+      operationId: deleteSubject
+      summary: 删除专业课（连同它的题库、资料和学习记录）
+      responses:
+        "204": { description: 已删除 }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /quota:
+    get:
+      tags: [quota]
+      operationId: getQuota
+      summary: 会员状态与各项额度（3.1c、6.3、4.9）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QuotaSummary" }
+
+  /materials/upload-requests:
+    post:
+      tags: [import]
+      operationId: createUploadRequests
+      summary: 申请上传（1.5）
+      description: |
+        为每个文件返回 OSS 预签名直传地址。必须 right_confirmed=true。
+        同一用户已上传过相同内容（sha256 相同）的文件，返回 duplicate_material_id，不再上传、不重复扣额度。
+        超过单次上限返回 400；解析额度不足返回 402（detail 给出所需与剩余页数），在开始前提示。
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UploadRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadRequestResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "402": { $ref: "#/components/responses/QuotaExceeded" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /materials/{materialId}/uploaded:
+    parameters:
+      - $ref: "#/components/parameters/MaterialId"
+    post:
+      tags: [import]
+      operationId: confirmMaterialUploaded
+      summary: 客户端直传完成后回调
+      description: 服务端核对对象存在、大小一致，并计算页数与计费页数。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Material" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /materials/paste:
+    post:
+      tags: [import]
+      operationId: createPastedMaterial
+      summary: 粘贴文字导入（1.5b），单次最多 2 万字
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasteMaterialRequest" }
+      responses:
+        "201":
+          description: 已创建
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Material" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /import-jobs:
+    get:
+      tags: [import]
+      operationId: listImportJobs
+      summary: 我的导入任务（首页 2.1b 用 active=true）
+      parameters:
+        - { name: active, in: query, schema: { type: boolean }, description: 只返回解析中或待确认的任务 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/ImportJob" } }
+    post:
+      tags: [import]
+      operationId: createImportJob
+      summary: 开始解析（1.5 → 1.6）
+      description: 按计费页数预占解析额度，失败页在解析结束后退回。
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateImportJobRequest" }
+      responses:
+        "201":
+          description: 已开始
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportJob" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "402": { $ref: "#/components/responses/QuotaExceeded" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /import-jobs/{jobId}:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      tags: [import]
+      operationId: getImportJob
+      summary: 解析进度（1.6、1.6b）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportJob" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /import-jobs/{jobId}/materials/{materialId}/retry:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+      - $ref: "#/components/parameters/MaterialId"
+    post:
+      tags: [import]
+      operationId: retryImportMaterial
+      summary: 重新解析失败的文件（1.6b，如重新拍照后）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportJob" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /import-jobs/{jobId}/materials/{materialId}:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+      - $ref: "#/components/parameters/MaterialId"
+    delete:
+      tags: [import]
+      operationId: removeImportMaterial
+      summary: 从任务里移除文件（1.6b「移除」），已预占的额度退回
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportJob" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /import-jobs/{jobId}/items:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      tags: [import]
+      operationId: listImportItems
+      summary: 待确认条目（1.7）
+      parameters:
+        - name: filter
+          in: query
+          schema: { type: string, enum: [all, needs_review, subjective, objective], default: all }
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportItemPage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /import-jobs/{jobId}/confirm:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    post:
+      tags: [import]
+      operationId: confirmImportJob
+      summary: 确认入库（1.7「确认入库 N 题」）
+      description: |
+        除已删除的条目外全部入库；需核对的条目带标记入库。可多次调用（部分完成时先确认已识别的部分）。
+        入库后立即生成今日计划（1.8）。
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                item_ids:
+                  type: array
+                  items: { type: integer, format: int64 }
+                  description: 只确认这些条目；不传表示全部未删除的条目
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConfirmImportResult" }
+        "402": { $ref: "#/components/responses/QuotaExceeded" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /import-items/{itemId}:
+    parameters:
+      - $ref: "#/components/parameters/ItemId"
+    get:
+      tags: [import]
+      operationId: getImportItem
+      summary: 单个待确认条目（1.7b）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportItem" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [import]
+      operationId: updateImportItem
+      summary: 修改或删除待确认条目（1.7、1.7b）
+      description: 主观题采分点分值合计必须等于题目分值，否则返回 400（detail.reason=rubric_sum_mismatch）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportItemPatch" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportItem" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /import-items/{itemId}/generate-answer:
+    parameters:
+      - $ref: "#/components/parameters/ItemId"
+    post:
+      tags: [import]
+      operationId: generateImportItemAnswer
+      summary: 缺答案时让 AI 生成参考答案与采分点（标「AI 生成」），计入每日 AI 出题额度
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportItem" }
+        "402": { $ref: "#/components/responses/QuotaExceeded" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/AIFailed" }
+
+  /subjects/{subjectId}/bank:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [bank]
+      operationId: getBankOverview
+      summary: 题库概况（题库页头部、2.1「我的题库」卡）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankOverview" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /subjects/{subjectId}/knowledge-tree:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [bank]
+      operationId: getKnowledgeTree
+      summary: 知识点树（3.1）
+      parameters:
+        - name: filter
+          in: query
+          schema: { type: string, enum: [all, unmastered, exam, needs_review], default: all }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sections, needs_review_count]
+                properties:
+                  sections: { type: array, items: { $ref: "#/components/schemas/KnowledgeNode" } }
+                  needs_review_count: { type: integer, description: 「N 处待核对」提醒条 }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /subjects/{subjectId}/knowledge-points:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    post:
+      tags: [bank]
+      operationId: createKnowledgeNode
+      summary: 新建板块、章节或知识点（用户手动调整树结构）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/KnowledgeNodeInput" }
+      responses:
+        "201":
+          description: 已创建
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KnowledgePointDetail" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /knowledge-points/{kpId}:
+    parameters:
+      - $ref: "#/components/parameters/KpId"
+    get:
+      tags: [bank]
+      operationId: getKnowledgePoint
+      summary: 知识点卡片（3.4）
+      description: 第一次打开时同步生成并缓存 AI 解读（≤ 5 秒）；生成失败时 ai_explanation 为空、不影响其他字段。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KnowledgePointDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [bank]
+      operationId: updateKnowledgePoint
+      summary: 编辑知识点（3.6）或调整归属
+      description: 改了采分点后，相关题目之后按新采分点批改，AI 解读重新生成，历史批改不变。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/KnowledgePointPatch" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KnowledgePointDetail" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [bank]
+      operationId: deleteKnowledgePoint
+      summary: 删除知识点（3.5）
+      responses:
+        "204": { description: 已删除 }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /knowledge-points/{kpId}/merge:
+    parameters:
+      - $ref: "#/components/parameters/KpId"
+    post:
+      tags: [bank]
+      operationId: mergeKnowledgePoint
+      summary: 合并到其他知识点（3.5），题目关联、掌握度与作答记录一并迁移
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_id]
+              properties:
+                target_id: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: 合并后的目标知识点
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KnowledgePointDetail" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /knowledge-points/{kpId}/split:
+    parameters:
+      - $ref: "#/components/parameters/KpId"
+    post:
+      tags: [bank]
+      operationId: splitKnowledgePoint
+      summary: 拆分为多个知识点（3.5）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [parts]
+              properties:
+                parts:
+                  type: array
+                  minItems: 2
+                  items:
+                    type: object
+                    required: [name]
+                    properties:
+                      name: { type: string, maxLength: 128 }
+                      original_text: { type: string }
+      responses:
+        "200":
+          description: 拆分出的知识点
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/KnowledgePointDetail" } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /knowledge-points/{kpId}/explanation:
+    parameters:
+      - $ref: "#/components/parameters/KpId"
+    post:
+      tags: [bank]
+      operationId: regenerateExplanation
+      summary: AI 解读不准，重新生成（3.5）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KnowledgePointDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/AIFailed" }
+
+  /knowledge-points/{kpId}/self-assessment:
+    parameters:
+      - $ref: "#/components/parameters/KpId"
+    put:
+      tags: [bank]
+      operationId: selfAssessKnowledgePoint
+      summary: 三档自评（3.4，只作参考）
+      description: 只对还没有作答记录的知识点设定掌握分（D16），已有作答记录时只记录。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [level]
+              properties:
+                level: { $ref: "#/components/schemas/SelfAssessLevel" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Mastery" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /subjects/{subjectId}/questions:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [bank]
+      operationId: listQuestions
+      summary: 题目列表（3.1b）
+      parameters:
+        - { name: qtype, in: query, schema: { $ref: "#/components/schemas/QuestionType" } }
+        - { name: source, in: query, schema: { $ref: "#/components/schemas/QuestionSource" } }
+        - { name: exam_year, in: query, schema: { type: integer } }
+        - { name: kp_id, in: query, schema: { type: integer, format: int64 }, description: 某知识点（含子节点）下的题 }
+        - { name: status, in: query, schema: { type: string, enum: [mastered, wrong, needs_review, unanswered] } }
+        - { name: sort, in: query, schema: { type: string, enum: [chapter, recent], default: chapter } }
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QuestionPage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [bank]
+      operationId: createQuestion
+      summary: 手动添加一道题
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QuestionInput" }
+      responses:
+        "201":
+          description: 已创建
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QuestionDetail" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "402": { $ref: "#/components/responses/QuotaExceeded" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /questions/{questionId}:
+    parameters:
+      - $ref: "#/components/parameters/QuestionId"
+    get:
+      tags: [bank]
+      operationId: getQuestion
+      summary: 题目详情（3.3）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QuestionDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [bank]
+      operationId: updateQuestion
+      summary: 编辑题目（3.3 右上角编辑）
+      description: 改了采分点后之后的批改按新采分点，历史批改不变；采分点分值合计必须等于题目分值。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QuestionPatch" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QuestionDetail" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [bank]
+      operationId: deleteQuestion
+      summary: 删除题目（连同作答记录与错题）
+      responses:
+        "204": { description: 已删除 }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /subjects/{subjectId}/materials:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [bank]
+      operationId: listMaterials
+      summary: 资料列表（3.1c、6.3）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Material" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /materials/{materialId}:
+    parameters:
+      - $ref: "#/components/parameters/MaterialId"
+    get:
+      tags: [bank]
+      operationId: getMaterial
+      summary: 单份资料
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Material" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [bank]
+      operationId: deleteMaterial
+      summary: 删除资料（3.1d），连带规则见 PRD 11.12
+      responses:
+        "204": { description: 已删除 }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /materials/{materialId}/deletion-impact:
+    parameters:
+      - $ref: "#/components/parameters/MaterialId"
+    get:
+      tags: [bank]
+      operationId: getMaterialDeletionImpact
+      summary: 删除前说明连带影响（3.1d）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MaterialDeletionImpact" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /materials/{materialId}/pages/{pageNo}:
+    parameters:
+      - $ref: "#/components/parameters/MaterialId"
+      - { name: pageNo, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      tags: [bank]
+      operationId: getMaterialPage
+      summary: 原文查看（3.7）
+      parameters:
+        - { name: highlight, in: query, schema: { type: string }, description: 要定位高亮的文字（如知识点原文表述） }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MaterialPage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /subjects/{subjectId}/search:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [bank]
+      operationId: searchBank
+      summary: 在当前专业课内搜索（3.2）
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SearchResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: 客户端为每次写操作生成的唯一键（UUID），重试时保持不变
+      schema: { type: string, minLength: 8, maxLength: 64 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+      description: 上一页响应里的 next_cursor
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    SubjectId:
+      name: subjectId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    MaterialId:
+      name: materialId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    KpId:
+      name: kpId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    QuestionId:
+      name: questionId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+
+  responses:
+    BadRequest:
+      description: 参数不正确（BAD_REQUEST）
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: 未登录或令牌失效（UNAUTHORIZED）
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: 无权操作或账号被封禁（FORBIDDEN）
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: 不存在、不属于当前用户，或功能开关关闭（NOT_FOUND）
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Conflict:
+      description: 状态冲突（CONFLICT）
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    QuotaExceeded:
+      description: 额度不足（QUOTA_EXCEEDED），detail.quota_type 为额度类型，App 弹出 4.9 同款弹层
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    TooManyRequests:
+      description: 频率限制（TOO_MANY_REQUESTS），detail.retry_after_seconds 为需要等待的秒数
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    AIFailed:
+      description: AI 生成失败（AI_FAILED），未扣除次数，可重试
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: |
+            机器可读的错误码（internal/http/errors.go）：BAD_REQUEST、UNAUTHORIZED、FORBIDDEN、NOT_FOUND、CONFLICT、
+            TOO_MANY_REQUESTS、QUOTA_EXCEEDED、AI_FAILED、INTERNAL、SERVICE_UNAVAILABLE、NOT_IMPLEMENTED
+          example: NOT_FOUND
+        message: { type: string, description: 面向用户的简体中文说明, example: 内容不存在 }
+        detail:
+          type: object
+          additionalProperties: true
+          description: 补充信息（如 remaining_attempts、retry_after_seconds、quota_type、reason）
+
+    Health:
+      type: object
+      required: [status, version, mysql, redis]
+      properties:
+        status: { $ref: "#/components/schemas/HealthStatus" }
+        version: { type: string, description: 构建版本号, example: v0.1.0 }
+        mysql: { $ref: "#/components/schemas/HealthStatus" }
+        redis: { $ref: "#/components/schemas/HealthStatus" }
+    HealthStatus:
+      type: string
+      enum: [ok, error]
+
+    Platform:
+      type: string
+      enum: [ios, android]
+
+    Origin:
+      type: string
+      description: 内容来源，界面据此标注（PRD 2.3「标明来源」）
+      enum: [user_confirmed, ai_extracted, ai_generated, imported, official]
+
+    FeatureFlags:
+      type: object
+      required: [flags]
+      properties:
+        flags:
+          type: object
+          description: 开关名 → 是否对当前用户打开。online_payment、official_bank、oral_recite、voice_answer、scanned_pdf、invite
+          additionalProperties: { type: boolean }
+
+    AppUpdate:
+      type: object
+      required: [latest_version, min_version, download_url, force]
+      properties:
+        latest_version: { type: string }
+        min_version: { type: string }
+        download_url: { type: string, description: 内测期安卓为安装包地址、iOS 为 TestFlight }
+        release_notes: { type: string }
+        force: { type: boolean, description: 当前版本低于最低版本，强制更新（0.6b） }
+        has_update: { type: boolean, description: 有新版本（0.6，每个版本提示一次由客户端记录） }
+
+    Bootstrap:
+      type: object
+      required: [server_time, flags, app_name]
+      properties:
+        server_time: { type: string, format: date-time }
+        app_name: { type: string, description: App 显示名，由配置读取, example: 考研Training }
+        update: { $ref: "#/components/schemas/AppUpdate" }
+        flags:
+          type: object
+          additionalProperties: { type: boolean }
+        agreements_to_accept:
+          type: array
+          description: 已登录用户需要重新同意的协议（0.4b）；为空或缺省表示不需要
+          items: { $ref: "#/components/schemas/AgreementSummary" }
+        logged_in: { type: boolean }
+        onboarding_step: { type: string, description: 已登录用户的引导进度；done 表示已完成 }
+
+    SmsPurpose:
+      type: string
+      enum: [login, change_phone_old, change_phone_new]
+    SendSmsCodeRequest:
+      type: object
+      required: [phone, purpose]
+      properties:
+        phone: { type: string, pattern: "^1[3-9][0-9]{9}$", description: 11 位手机号 }
+        purpose: { $ref: "#/components/schemas/SmsPurpose" }
+        agree: { type: boolean, description: purpose=login 时必须为 true }
+    SendSmsCodeResponse:
+      type: object
+      required: [resend_after_seconds, remaining_today]
+      properties:
+        resend_after_seconds: { type: integer, example: 60 }
+        remaining_today: { type: integer, description: 今天还能发几次 }
+
+    DeviceInfo:
+      type: object
+      required: [device_id, platform]
+      properties:
+        device_id: { type: string, minLength: 8, maxLength: 64 }
+        device_name: { type: string, maxLength: 64, example: iPhone 15 }
+        platform: { type: string, enum: [ios, android, web] }
+    LoginRequest:
+      type: object
+      required: [phone, code, device]
+      properties:
+        phone: { type: string, pattern: "^1[3-9][0-9]{9}$" }
+        code: { type: string, pattern: "^[0-9]{6}$" }
+        device: { $ref: "#/components/schemas/DeviceInfo" }
+        invite_code: { type: string, description: 被邀请时填写（邀请开关打开后生效） }
+    TokenPair:
+      type: object
+      required: [access_token, access_expires_at, refresh_token, refresh_expires_at]
+      properties:
+        access_token: { type: string }
+        access_expires_at: { type: string, format: date-time }
+        refresh_token: { type: string }
+        refresh_expires_at: { type: string, format: date-time }
+    LoginResponse:
+      allOf:
+        - $ref: "#/components/schemas/TokenPair"
+        - type: object
+          required: [user, is_new_user]
+          properties:
+            user: { $ref: "#/components/schemas/Me" }
+            is_new_user: { type: boolean, description: true 进入 1.1；false 进入 2.1 或中断的引导步骤 }
+            deletion_canceled: { type: boolean, description: 本次登录撤销了注销申请 }
+    RefreshRequest:
+      type: object
+      required: [refresh_token, device_id]
+      properties:
+        refresh_token: { type: string }
+        device_id: { type: string }
+
+    AgreementKind:
+      type: string
+      enum: [user, privacy, membership]
+    AgreementSummary:
+      type: object
+      required: [id, kind, version, title]
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { $ref: "#/components/schemas/AgreementKind" }
+        version: { type: string }
+        title: { type: string }
+        change_summary: { type: string }
+    Agreement:
+      allOf:
+        - $ref: "#/components/schemas/AgreementSummary"
+        - type: object
+          required: [body, effective_at, updated_at]
+          properties:
+            body: { type: string, description: 正文（Markdown） }
+            effective_at: { type: string, format: date-time }
+            updated_at: { type: string, format: date-time }
+
+    MembershipStatus:
+      type: object
+      required: [is_member]
+      properties:
+        is_member: { type: boolean }
+        tier: { type: string, enum: [sprint, season, monthly, gift] }
+        ends_at: { type: string, format: date-time }
+    Me:
+      type: object
+      required: [id, phone_masked, nickname, invite_code, onboarding_step, membership]
+      properties:
+        id: { type: integer, format: int64 }
+        phone_masked: { type: string, example: 138****5678 }
+        nickname: { type: string }
+        avatar_url: { type: string }
+        invite_code: { type: string }
+        onboarding_step:
+          type: string
+          description: 引导中断的步骤（1.1–1.8）；done 表示已完成
+          example: done
+        membership: { $ref: "#/components/schemas/MembershipStatus" }
+        deletion_due_at: { type: string, format: date-time, description: 注销冷静期结束时间；为空表示没有注销申请 }
+    UpdateMeRequest:
+      type: object
+      properties:
+        nickname: { type: string, minLength: 1, maxLength: 16 }
+        onboarding_step: { type: string, enum: ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", done] }
+    Device:
+      type: object
+      required: [device_id, device_name, platform, last_used_at, current]
+      properties:
+        device_id: { type: string }
+        device_name: { type: string }
+        platform: { type: string, enum: [ios, android, web] }
+        last_used_at: { type: string, format: date-time }
+        current: { type: boolean, description: 是否本机 }
+    ChangePhoneRequest:
+      type: object
+      required: [old_code, new_phone, new_code]
+      properties:
+        old_code: { type: string, pattern: "^[0-9]{6}$" }
+        new_phone: { type: string, pattern: "^1[3-9][0-9]{9}$" }
+        new_code: { type: string, pattern: "^[0-9]{6}$" }
+
+    Stage:
+      type: string
+      description: 基础期 / 强化期 / 冲刺期 / 考前期
+      enum: [foundation, strengthen, sprint, final]
+    ExamYear:
+      type: object
+      required: [exam_year, label, first_exam_start, first_exam_end, subject_exam_date]
+      properties:
+        exam_year: { type: integer, example: 2027 }
+        label: { type: string, example: 2027 研考 · 今年 12 月初试 }
+        first_exam_start: { type: string, format: date }
+        first_exam_end: { type: string, format: date }
+        subject_exam_date: { type: string, format: date, description: 专业课考试日，倒计时以它为准 }
+    StudyProfileInput:
+      type: object
+      required: [exam_year, stage, daily_minutes]
+      properties:
+        exam_year: { type: integer }
+        stage: { $ref: "#/components/schemas/Stage" }
+        stage_manual: { type: boolean, description: 用户手动改了系统推荐的阶段 }
+        daily_minutes: { type: integer, enum: [30, 45, 60, 90] }
+        reminder_times:
+          type: array
+          maxItems: 3
+          items: { type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$" }
+        target_school_major: { type: string, maxLength: 64, nullable: true }
+        essay_weekly_goal: { type: integer, minimum: 0, maximum: 14 }
+        mock_time_reminders: { type: boolean }
+        notify_daily: { type: boolean }
+        notify_review_due: { type: boolean }
+        notify_task_done: { type: boolean }
+    StudyProfile:
+      type: object
+      required: [exam_year, stage, stage_manual, suggested_stage, days_to_exam, subject_exam_date, daily_minutes, reminder_times, essay_weekly_goal, mock_time_reminders, notify_daily, notify_review_due, notify_task_done]
+      properties:
+        exam_year: { type: integer }
+        stage: { $ref: "#/components/schemas/Stage" }
+        stage_manual: { type: boolean }
+        suggested_stage: { $ref: "#/components/schemas/Stage" }
+        suggested_reason: { type: string, description: 系统建议的理由（6.9） }
+        days_to_exam: { type: integer, description: 距专业课考试天数 }
+        subject_exam_date: { type: string, format: date }
+        daily_minutes: { type: integer }
+        pending_stage: { $ref: "#/components/schemas/Stage" }
+        pending_daily_minutes: { type: integer }
+        pending_effective_on: { type: string, format: date, description: 待生效的修改从这天起生效 }
+        reminder_times: { type: array, items: { type: string } }
+        target_school_major: { type: string }
+        essay_weekly_goal: { type: integer }
+        mock_time_reminders: { type: boolean }
+        notify_daily: { type: boolean }
+        notify_review_due: { type: boolean }
+        notify_task_done: { type: boolean }
+
+    SubjectInput:
+      type: object
+      required: [name, full_score]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 64 }
+        code: { type: string, maxLength: 16, nullable: true }
+        full_score: { type: integer, enum: [100, 150, 300] }
+        target_score: { type: integer, minimum: 0, nullable: true, description: 不设目标传 null }
+    SubjectPatch:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 64 }
+        code: { type: string, maxLength: 16, nullable: true }
+        full_score: { type: integer, enum: [100, 150, 300] }
+        target_score: { type: integer, minimum: 0, nullable: true }
+        is_essay: { type: boolean, description: 用户纠正作文课判断（1.7），之后不再自动改 }
+    Subject:
+      type: object
+      required: [id, name, full_score, is_essay, bank_id, question_count, kp_count, material_count]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        code: { type: string }
+        full_score: { type: integer }
+        target_score: { type: integer }
+        is_essay: { type: boolean, description: 作文课（如 908），题库页显示为 3.10 }
+        bank_id: { type: integer, format: int64 }
+        question_count: { type: integer }
+        kp_count: { type: integer }
+        material_count: { type: integer }
+    SubjectList:
+      type: object
+      required: [items, max_subjects, can_add]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Subject" } }
+        max_subjects: { type: integer, description: 当前身份最多几门（免费 3、会员 4） }
+        can_add: { type: boolean }
+
+    QuotaType:
+      type: string
+      enum: [parse_pages, import_questions, grading, ai_questions, paper_grading, essay_grading, subjects]
+    QuotaItem:
+      type: object
+      required: [quota_type, used, period]
+      properties:
+        quota_type: { $ref: "#/components/schemas/QuotaType" }
+        used: { type: integer }
+        limit: { type: integer, nullable: true, description: 为空表示不限 }
+        period: { type: string, enum: [total, monthly, daily, weekly], description: 重置周期 }
+        resets_at: { type: string, format: date-time, description: 下次重置时间；累计额度为空 }
+    QuotaSummary:
+      type: object
+      required: [membership, items]
+      properties:
+        membership: { $ref: "#/components/schemas/MembershipStatus" }
+        items: { type: array, items: { $ref: "#/components/schemas/QuotaItem" } }
+
+    MaterialCategory:
+      type: string
+      description: 题目类 / 参考类 / 作文类
+      enum: [question, reference, essay]
+    MaterialFormat:
+      type: string
+      enum: [docx, xlsx, pdf, image, text]
+    MaterialStatus:
+      type: string
+      enum: [uploading, uploaded, parsing, parsed, partial, failed, rejected]
+    Material:
+      type: object
+      required: [id, subject_id, file_name, format, status, page_count, billed_pages, question_count, kp_count, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        subject_id: { type: integer, format: int64 }
+        category: { $ref: "#/components/schemas/MaterialCategory" }
+        sub_type: { type: string, description: 真题汇编、习题集、参考书、讲义、笔记、作文真题、范文、写作笔记、评分细则 }
+        file_name: { type: string }
+        format: { $ref: "#/components/schemas/MaterialFormat" }
+        status: { $ref: "#/components/schemas/MaterialStatus" }
+        fail_reason: { type: string }
+        page_count: { type: integer }
+        billed_pages: { type: integer }
+        question_count: { type: integer }
+        kp_count: { type: integer }
+        paper_count: { type: integer, description: 组成的真题卷数（6.3） }
+        needs_review_count: { type: integer }
+        incomplete: { type: boolean, description: 识别不完整，提醒用户 }
+        created_at: { type: string, format: date-time }
+    UploadFile:
+      type: object
+      required: [file_name, format, size_bytes, sha256]
+      properties:
+        file_name: { type: string, maxLength: 255 }
+        format: { $ref: "#/components/schemas/MaterialFormat" }
+        size_bytes: { type: integer, format: int64, minimum: 1 }
+        sha256: { type: string, pattern: "^[0-9a-f]{64}$" }
+        page_count: { type: integer, minimum: 1, description: 客户端已知的页数（PDF）；服务端会复核 }
+        content_type: { type: string, example: application/pdf }
+    UploadRequest:
+      type: object
+      required: [subject_id, files, right_confirmed]
+      properties:
+        subject_id: { type: integer, format: int64 }
+        category: { $ref: "#/components/schemas/MaterialCategory" }
+        files: { type: array, minItems: 1, maxItems: 30, items: { $ref: "#/components/schemas/UploadFile" } }
+        right_confirmed: { type: boolean, description: 「我确认对这些资料有合法的使用权，仅用于本人学习」，必须为 true }
+    UploadTarget:
+      type: object
+      required: [index, material_id]
+      properties:
+        index: { type: integer, description: 对应请求 files 的下标 }
+        material_id: { type: integer, format: int64 }
+        upload_url: { type: string, description: OSS 预签名 PUT 地址；重复文件为空 }
+        upload_headers:
+          type: object
+          additionalProperties: { type: string }
+        expires_at: { type: string, format: date-time }
+        duplicate: { type: boolean, description: 已上传过相同内容的文件，material_id 指向它，不需要上传 }
+    UploadRequestResponse:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/UploadTarget" } }
+    PasteMaterialRequest:
+      type: object
+      required: [subject_id, text, right_confirmed]
+      properties:
+        subject_id: { type: integer, format: int64 }
+        category: { $ref: "#/components/schemas/MaterialCategory" }
+        title: { type: string, maxLength: 64 }
+        text: { type: string, minLength: 1, maxLength: 20000 }
+        right_confirmed: { type: boolean }
+
+    ImportMode:
+      type: string
+      description: 1.4 选的导入方式：题目 / 资料（拆成知识点） / 作文资料
+      enum: [question, reference, essay]
+    CreateImportJobRequest:
+      type: object
+      required: [subject_id, mode, material_ids]
+      properties:
+        subject_id: { type: integer, format: int64 }
+        mode: { $ref: "#/components/schemas/ImportMode" }
+        material_ids: { type: array, minItems: 1, maxItems: 30, items: { type: integer, format: int64 } }
+    ImportStep:
+      type: string
+      description: 识别文字 · 拆分题目 · 配答案和采分点（1.6）
+      enum: [queued, extract, moderate, split, structure, match, rubric, tag, dedupe, done]
+    ImportJobMaterial:
+      type: object
+      required: [material_id, file_name, step, status]
+      properties:
+        material_id: { type: integer, format: int64 }
+        file_name: { type: string }
+        step: { $ref: "#/components/schemas/ImportStep" }
+        status: { type: string, enum: [pending, running, done, partial, failed] }
+        fail_reason: { type: string, description: 如「照片模糊」「只识别出 4 题」 }
+        recognized_count: { type: integer }
+        eta_seconds: { type: integer }
+    ImportJob:
+      type: object
+      required: [id, subject_id, mode, status, materials, reserved_pages, counts, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        subject_id: { type: integer, format: int64 }
+        mode: { $ref: "#/components/schemas/ImportMode" }
+        status: { type: string, enum: [queued, running, reviewing, confirmed, failed, canceled] }
+        materials: { type: array, items: { $ref: "#/components/schemas/ImportJobMaterial" } }
+        reserved_pages: { type: integer }
+        billed_pages: { type: integer }
+        eta_seconds: { type: integer, description: 预计剩余时间 }
+        detected_essay: { type: boolean, description: AI 判断这批资料是作文类（1.7 显示，可改） }
+        counts: { $ref: "#/components/schemas/ImportCounts" }
+        created_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time }
+    ImportCounts:
+      type: object
+      required: [questions, knowledge_points, needs_review, subjective, objective, confirmed]
+      properties:
+        questions: { type: integer }
+        knowledge_points: { type: integer }
+        needs_review: { type: integer }
+        subjective: { type: integer }
+        objective: { type: integer }
+        confirmed: { type: integer }
+        essay_items: { type: integer, description: 作文资料条目（评分标准、写作方法、素材、范文） }
+
+    ReviewReason:
+      type: string
+      enum: [low_confidence, missing_answer, rubric_unconfirmed, rubric_sum_mismatch, duplicate]
+    ImportItemStatus:
+      type: string
+      enum: [pending, confirmed, edited, deleted]
+    ImportItemType:
+      type: string
+      enum: [question, knowledge_point, essay_topic, essay_rubric, writing_method, essay_material, model_essay]
+    SourceRef:
+      type: object
+      description: 出处：文件 + 页码
+      required: [material_id, file_name]
+      properties:
+        material_id: { type: integer, format: int64 }
+        file_name: { type: string }
+        page: { type: integer }
+    RubricPointInput:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string, minLength: 1 }
+        score: { type: number, minimum: 0 }
+        keywords: { type: array, items: { type: string } }
+    RubricPoint:
+      type: object
+      required: [id, seq, content, origin]
+      properties:
+        id: { type: integer, format: int64 }
+        seq: { type: integer }
+        content: { type: string }
+        score: { type: number }
+        keywords: { type: array, items: { type: string } }
+        origin: { $ref: "#/components/schemas/Origin" }
+    QuestionDraft:
+      type: object
+      description: 待确认题目的内容（import_items.payload）
+      required: [qtype, stem]
+      properties:
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        stem: { type: string }
+        options: { type: array, items: { $ref: "#/components/schemas/ChoiceOption" } }
+        answer: { type: string }
+        answer_origin: { $ref: "#/components/schemas/Origin" }
+        analysis: { type: string }
+        score: { type: number }
+        source: { $ref: "#/components/schemas/QuestionSource" }
+        exam_year: { type: integer }
+        question_no: { type: string }
+        is_recollection: { type: boolean }
+        rubric_points: { type: array, items: { $ref: "#/components/schemas/RubricPointInput" } }
+        rubric_origin: { $ref: "#/components/schemas/Origin" }
+        kp_path: { type: array, items: { type: string }, description: 板块 / 章节 / 知识点名称 }
+        kp_id: { type: integer, format: int64, description: 用户改了归属时指向已有知识点 }
+    KnowledgePointDraft:
+      type: object
+      required: [name, kp_path]
+      properties:
+        name: { type: string }
+        original_text: { type: string }
+        kp_path: { type: array, items: { type: string } }
+        rubric_points: { type: array, items: { $ref: "#/components/schemas/RubricPointInput" } }
+    ImportItem:
+      type: object
+      required: [id, job_id, item_type, status, needs_review, review_reasons]
+      properties:
+        id: { type: integer, format: int64 }
+        job_id: { type: integer, format: int64 }
+        item_type: { $ref: "#/components/schemas/ImportItemType" }
+        status: { $ref: "#/components/schemas/ImportItemStatus" }
+        needs_review: { type: boolean }
+        review_reasons: { type: array, items: { $ref: "#/components/schemas/ReviewReason" } }
+        confidence: { type: number }
+        source: { $ref: "#/components/schemas/SourceRef" }
+        question: { $ref: "#/components/schemas/QuestionDraft" }
+        knowledge_point: { $ref: "#/components/schemas/KnowledgePointDraft" }
+        essay:
+          type: object
+          additionalProperties: true
+          description: 作文资料条目内容（评分标准、写作方法、素材、范文），结构见 T11
+        duplicate_of_question_id: { type: integer, format: int64, description: 疑似重复的已有题目 }
+    ImportItemPatch:
+      type: object
+      properties:
+        status: { type: string, enum: [confirmed, deleted, pending] }
+        question: { $ref: "#/components/schemas/QuestionDraft" }
+        knowledge_point: { $ref: "#/components/schemas/KnowledgePointDraft" }
+        essay:
+          type: object
+          additionalProperties: true
+    ImportItemPage:
+      type: object
+      required: [items, counts]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/ImportItem" } }
+        counts: { $ref: "#/components/schemas/ImportCounts" }
+        next_cursor: { type: string }
+    ConfirmImportResult:
+      type: object
+      required: [question_count, kp_count, needs_review_count, plan_ready]
+      properties:
+        question_count: { type: integer }
+        kp_count: { type: integer }
+        needs_review_count: { type: integer }
+        paper_count: { type: integer, description: 按年份组成的真题卷数 }
+        plan_ready: { type: boolean, description: 今日计划已生成（1.8） }
+        subjects_without_import:
+          type: array
+          description: 还没导入的专业课，1.8 提示继续导入
+          items: { type: integer, format: int64 }
+
+    MasteryState:
+      type: string
+      description: 未学习 / 学习中 / 待巩固 / 已掌握
+      enum: [unlearned, learning, consolidating, mastered]
+    SelfAssessLevel:
+      type: string
+      description: 不会 / 模糊 / 掌握
+      enum: [unknown, vague, mastered]
+    Mastery:
+      type: object
+      required: [m, state]
+      properties:
+        m: { type: number, description: 掌握分 0–100 }
+        state: { $ref: "#/components/schemas/MasteryState" }
+        next_review_on: { type: string, format: date }
+        last_self_assess: { $ref: "#/components/schemas/SelfAssessLevel" }
+    KnowledgeLevel:
+      type: string
+      enum: [section, chapter, point]
+    KnowledgeNode:
+      type: object
+      required: [id, level, name, children]
+      properties:
+        id: { type: integer, format: int64 }
+        level: { $ref: "#/components/schemas/KnowledgeLevel" }
+        name: { type: string }
+        kp_count: { type: integer, description: 板块与章节：知识点数 }
+        consolidating_count: { type: integer, description: 板块与章节：待巩固数 }
+        avg_mastery: { type: number, description: 板块：平均掌握度 0–100 }
+        is_weak: { type: boolean, description: 板块掌握度低于 40%，标「短板」 }
+        exam_count: { type: integer, description: 知识点：真题出现次数 }
+        state: { $ref: "#/components/schemas/MasteryState" }
+        needs_review: { type: boolean }
+        official: { type: boolean, description: 来自官方题库 }
+        children: { type: array, items: { $ref: "#/components/schemas/KnowledgeNode" } }
+    KnowledgeNodeInput:
+      type: object
+      required: [level, name]
+      properties:
+        level: { $ref: "#/components/schemas/KnowledgeLevel" }
+        name: { type: string, minLength: 1, maxLength: 128 }
+        parent_id: { type: integer, format: int64, nullable: true }
+        original_text: { type: string }
+    QuestionBrief:
+      type: object
+      required: [id, qtype, stem, source]
+      properties:
+        id: { type: integer, format: int64 }
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        stem: { type: string }
+        source: { $ref: "#/components/schemas/QuestionSource" }
+        exam_year: { type: integer }
+    KnowledgePointDetail:
+      type: object
+      required: [id, level, name, origin, path, mastery, exam_count, rubric_points, related_questions, needs_review]
+      properties:
+        id: { type: integer, format: int64 }
+        level: { $ref: "#/components/schemas/KnowledgeLevel" }
+        name: { type: string }
+        path: { type: array, items: { type: string }, description: 板块 / 章节 }
+        parent_id: { type: integer, format: int64 }
+        original_text: { type: string, description: 原文表述，采分关键词由 rubric_points.keywords 标出 }
+        source: { $ref: "#/components/schemas/SourceRef" }
+        origin: { $ref: "#/components/schemas/Origin" }
+        exam_count: { type: integer }
+        mastery: { $ref: "#/components/schemas/Mastery" }
+        rubric_points: { type: array, items: { $ref: "#/components/schemas/RubricPoint" } }
+        ai_explanation: { type: string, description: AI 解读，标「AI 生成」 }
+        related_questions: { type: array, items: { $ref: "#/components/schemas/QuestionBrief" } }
+        needs_review: { type: boolean }
+        official: { type: boolean }
+    KnowledgePointPatch:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 128 }
+        original_text: { type: string }
+        parent_id: { type: integer, format: int64 }
+        rubric_points: { type: array, items: { $ref: "#/components/schemas/RubricPointInput" } }
+        needs_review: { type: boolean, description: 传 false 表示核对完成 }
+
+    QuestionType:
+      type: string
+      description: |
+        single_choice 单选、multi_choice 多选、true_false 判断、fill_blank 填空、term 名词解释、short_answer 简答、
+        discussion 论述、essay 作文、calculation 计算（只能自评）、other 其他
+      enum: [single_choice, multi_choice, true_false, fill_blank, term, short_answer, discussion, essay, calculation, other]
+    QuestionSource:
+      type: string
+      description: 真题 / 习题 / AI 出题 / 官方
+      enum: [exam, exercise, ai_generated, official]
+    ChoiceOption:
+      type: object
+      required: [key, text]
+      properties:
+        key: { type: string, example: A }
+        text: { type: string }
+    QuestionStatusTag:
+      type: string
+      description: 已掌握 / 错题 / 待核对 / 还没做过 / 已做过
+      enum: [mastered, wrong, needs_review, unanswered, answered]
+    QuestionSummary:
+      type: object
+      required: [id, qtype, stem, source, status_tag, attempt_count, path]
+      properties:
+        id: { type: integer, format: int64 }
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        stem: { type: string, description: 题干（列表中截断到 120 字） }
+        score: { type: number }
+        source: { $ref: "#/components/schemas/QuestionSource" }
+        exam_year: { type: integer }
+        status_tag: { $ref: "#/components/schemas/QuestionStatusTag" }
+        last_score: { type: number }
+        attempt_count: { type: integer }
+        path: { type: array, items: { type: string }, description: 所属板块 / 章节 }
+        generated_from_kp: { type: string, description: AI 出题依据的知识点名称 }
+    QuestionPage:
+      type: object
+      required: [items, facets]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/QuestionSummary" } }
+        facets:
+          type: object
+          required: [by_qtype, by_source, exam_years]
+          properties:
+            by_qtype:
+              type: object
+              additionalProperties: { type: integer }
+              description: 各题型题数
+            by_source:
+              type: object
+              additionalProperties: { type: integer }
+            exam_years: { type: array, items: { type: integer } }
+        next_cursor: { type: string }
+    AttemptHistory:
+      type: object
+      required: [attempt_id, answered_at]
+      properties:
+        attempt_id: { type: integer, format: int64 }
+        answered_at: { type: string, format: date-time }
+        score: { type: number }
+        full_score: { type: number }
+        is_correct: { type: boolean }
+        missed_points: { type: array, items: { type: string }, description: 遗漏的采分点 }
+        loss_types:
+          type: array
+          items: { type: string, enum: [knowledge, norm, time] }
+    QuestionDetail:
+      type: object
+      required: [id, qtype, stem, source, origin_tags, rubric_points, rubric_version, knowledge_points, attempts, in_wrong_book, needs_review]
+      properties:
+        id: { type: integer, format: int64 }
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        stem: { type: string }
+        options: { type: array, items: { $ref: "#/components/schemas/ChoiceOption" } }
+        answer: { type: string }
+        answer_origin: { $ref: "#/components/schemas/Origin" }
+        analysis: { type: string }
+        score: { type: number }
+        source: { $ref: "#/components/schemas/QuestionSource" }
+        exam_year: { type: integer }
+        source_ref: { $ref: "#/components/schemas/SourceRef" }
+        origin_tags:
+          type: array
+          description: 界面标注，如 ai_generated（AI 出题）、official（官方）
+          items: { type: string }
+        generated_from_kp_id: { type: integer, format: int64 }
+        rubric_points: { type: array, items: { $ref: "#/components/schemas/RubricPoint" } }
+        rubric_version: { type: integer }
+        knowledge_points:
+          type: array
+          items:
+            type: object
+            required: [id, name, is_primary]
+            properties:
+              id: { type: integer, format: int64 }
+              name: { type: string }
+              is_primary: { type: boolean }
+        attempts: { type: array, items: { $ref: "#/components/schemas/AttemptHistory" } }
+        in_wrong_book: { type: boolean }
+        needs_review: { type: boolean }
+        review_reasons: { type: array, items: { $ref: "#/components/schemas/ReviewReason" } }
+    QuestionInput:
+      type: object
+      required: [qtype, stem]
+      properties:
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        stem: { type: string, minLength: 1 }
+        options: { type: array, items: { $ref: "#/components/schemas/ChoiceOption" } }
+        answer: { type: string }
+        analysis: { type: string }
+        score: { type: number, minimum: 0 }
+        source: { type: string, enum: [exam, exercise] }
+        exam_year: { type: integer }
+        kp_ids: { type: array, items: { type: integer, format: int64 }, description: 第一个为主知识点 }
+        rubric_points: { type: array, items: { $ref: "#/components/schemas/RubricPointInput" } }
+    QuestionPatch:
+      type: object
+      properties:
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        stem: { type: string, minLength: 1 }
+        options: { type: array, items: { $ref: "#/components/schemas/ChoiceOption" } }
+        answer: { type: string }
+        analysis: { type: string }
+        score: { type: number, minimum: 0 }
+        exam_year: { type: integer, nullable: true }
+        kp_ids: { type: array, items: { type: integer, format: int64 } }
+        rubric_points: { type: array, items: { $ref: "#/components/schemas/RubricPointInput" } }
+        needs_review: { type: boolean }
+
+    BankOverview:
+      type: object
+      required: [subject_id, bank_id, question_count, kp_count, needs_review_count, material_count, mastery_distribution, has_official]
+      properties:
+        subject_id: { type: integer, format: int64 }
+        bank_id: { type: integer, format: int64 }
+        question_count: { type: integer }
+        kp_count: { type: integer }
+        needs_review_count: { type: integer }
+        material_count: { type: integer }
+        paper_count: { type: integer }
+        mastery_distribution:
+          type: object
+          required: [unlearned, learning, consolidating, mastered]
+          properties:
+            unlearned: { type: integer }
+            learning: { type: integer }
+            consolidating: { type: integer }
+            mastered: { type: integer }
+        has_official: { type: boolean, description: 已添加官方题库 }
+        is_essay: { type: boolean }
+
+    MaterialDeletionImpact:
+      type: object
+      required: [question_count, attempt_count, wrong_count, kp_delete_count, kp_keep_count, paper_session_count]
+      properties:
+        question_count: { type: integer, description: 从它识别出的题（连同作答记录和错题一起删除） }
+        attempt_count: { type: integer }
+        wrong_count: { type: integer }
+        kp_delete_count: { type: integer, description: 只来自这份资料的知识点，删除 }
+        kp_keep_count: { type: integer, description: 其他资料也有的知识点，保留 }
+        paper_session_count: { type: integer, description: 用它做过的整卷，成绩保留、预估分重算 }
+    TextRange:
+      type: object
+      required: [start, end]
+      properties:
+        start: { type: integer, description: 按字符（Unicode 码点）计 }
+        end: { type: integer }
+    MaterialPage:
+      type: object
+      required: [material_id, file_name, page_no, page_count, text, highlights, low_confidence, knowledge_points]
+      properties:
+        material_id: { type: integer, format: int64 }
+        file_name: { type: string }
+        page_no: { type: integer }
+        page_count: { type: integer }
+        text: { type: string }
+        highlights: { type: array, items: { $ref: "#/components/schemas/TextRange" } }
+        low_confidence: { type: array, items: { $ref: "#/components/schemas/TextRange" } }
+        knowledge_points:
+          type: array
+          description: 本页还识别出的知识点
+          items:
+            type: object
+            required: [id, name]
+            properties:
+              id: { type: integer, format: int64 }
+              name: { type: string }
+
+    SearchHit:
+      type: object
+      required: [text, highlights]
+      properties:
+        text: { type: string, description: 命中片段 }
+        highlights: { type: array, items: { $ref: "#/components/schemas/TextRange" } }
+    SearchResult:
+      type: object
+      required: [knowledge_points, questions, material_pages]
+      properties:
+        knowledge_points:
+          type: array
+          items:
+            type: object
+            required: [id, name, hit]
+            properties:
+              id: { type: integer, format: int64 }
+              name: { type: string }
+              path: { type: array, items: { type: string } }
+              hit: { $ref: "#/components/schemas/SearchHit" }
+        questions:
+          type: array
+          items:
+            type: object
+            required: [id, qtype, hit]
+            properties:
+              id: { type: integer, format: int64 }
+              qtype: { $ref: "#/components/schemas/QuestionType" }
+              hit: { $ref: "#/components/schemas/SearchHit" }
+        material_pages:
+          type: array
+          items:
+            type: object
+            required: [material_id, file_name, page_no, hit]
+            properties:
+              material_id: { type: integer, format: int64 }
+              file_name: { type: string }
+              page_no: { type: integer }
+              hit: { $ref: "#/components/schemas/SearchHit" }
