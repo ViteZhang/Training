@@ -15,11 +15,15 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
 
+	"peetraining-server/internal/auth"
 	"peetraining-server/internal/cloud"
 	"peetraining-server/internal/config"
+	"peetraining-server/internal/dbq"
+	"peetraining-server/internal/flags"
 	apihttp "peetraining-server/internal/http"
 	"peetraining-server/internal/jobs"
 	"peetraining-server/internal/logx"
+	"peetraining-server/internal/params"
 	"peetraining-server/internal/store"
 )
 
@@ -43,6 +47,9 @@ type Base struct {
 	Redis  *redis.Client
 	Cloud  *cloud.Clients
 	Queue  *asynq.Client
+	Params *params.Store
+	Flags  *flags.Service
+	Auth   *auth.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -61,6 +68,8 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 		_ = db.Close()
 		return nil, err
 	}
+	q := dbq.New(db)
+	ps := params.New(q)
 	return &Base{
 		Config: cfg,
 		Logger: log,
@@ -68,6 +77,13 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 		Redis:  rdb,
 		Cloud:  clients,
 		Queue:  asynq.NewClientFromRedisClient(rdb),
+		Params: ps,
+		Flags:  flags.New(q),
+		Auth: auth.New(auth.Deps{
+			DB: db, Redis: rdb, SMS: clients.SMS, OSS: clients.OSS, Params: ps,
+			JWTSecret: cfg.JWTSecret, Logger: log,
+			LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock,
+		}),
 	}, nil
 }
 
@@ -81,13 +97,24 @@ func asynqRedisOpt(cfg *config.Config) asynq.RedisClientOpt {
 	return asynq.RedisClientOpt{Addr: cfg.RedisAddr, Password: cfg.RedisPassword, DB: cfg.RedisDB}
 }
 
+// AppName 是 App 显示名，由环境变量 APP_NAME 配置（不写死）。
+func appName() string {
+	if v := os.Getenv("APP_NAME"); v != "" {
+		return v
+	}
+	return "考研Training"
+}
+
 // Handler 组装 API 的 HTTP 处理器。
-func (b *Base) Handler() http.Handler {
+func (b *Base) Handler() (http.Handler, error) {
 	return apihttp.NewRouter(apihttp.Deps{
 		Logger:  b.Logger,
 		Version: Version,
+		AppName: appName(),
 		MySQL:   store.SQLPinger{DB: b.DB},
 		Redis:   store.RedisPinger{Client: b.Redis},
+		Auth:    b.Auth,
+		Flags:   b.Flags,
 	})
 }
 
@@ -99,7 +126,11 @@ func RunAPI(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 	}
 	defer b.Close()
 
-	srv := apihttp.NewServer(cfg.HTTPAddr, b.Handler())
+	h, err := b.Handler()
+	if err != nil {
+		return err
+	}
+	srv := apihttp.NewServer(cfg.HTTPAddr, h)
 	errCh := make(chan error, 1)
 	go func() {
 		log.Info("api listening", "addr", cfg.HTTPAddr)
@@ -147,7 +178,7 @@ func NewWorker(b *Base) (*Worker, error) {
 	if err := jobs.RegisterSchedules(scheduler); err != nil {
 		return nil, fmt.Errorf("注册定时任务：%w", err)
 	}
-	h := &jobs.Handlers{Logger: b.Logger}
+	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth}
 	return &Worker{server: server, scheduler: scheduler, mux: h.Mux()}, nil
 }
 

@@ -20,6 +20,7 @@ func mockConfig() *config.Config {
 		SMS:    config.SMSConfig{Provider: config.ProviderMock},
 		AI:     config.AIConfig{Provider: config.ProviderMock},
 		OCR:    p, ASR: p, Moderation: p, Pay: p,
+		OSS: config.OSSConfig{Provider: config.ProviderMock},
 	}
 }
 
@@ -28,7 +29,7 @@ func TestNewAllMock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.SMS == nil || c.AI == nil || c.OCR == nil || c.ASR == nil || c.Moderation == nil || c.Pay == nil {
+	if c.SMS == nil || c.AI == nil || c.OCR == nil || c.ASR == nil || c.Moderation == nil || c.Pay == nil || c.OSS == nil {
 		t.Fatalf("有客户端为空：%+v", c)
 	}
 }

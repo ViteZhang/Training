@@ -74,7 +74,11 @@ func TestIntegrationHealthAndMigrations(t *testing.T) {
 		t.Errorf("会话时区应为 UTC，got %q %v", tz, err)
 	}
 
-	srv := httptest.NewServer(b.Handler())
+	handler, err := b.Handler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(handler)
 	defer srv.Close()
 	resp, err := http.Get(srv.URL + "/api/v1/health")
 	if err != nil {
@@ -156,5 +160,93 @@ func TestIntegrationRunAPIGracefulShutdown(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("RunAPI 没有在 10 秒内停止")
+	}
+}
+
+// T06：经 HTTP 走一遍登录 → 带令牌访问 → 退出。
+func TestIntegrationLoginOverHTTP(t *testing.T) {
+	cfg := testConfig(t)
+	ctx := context.Background()
+	log := logx.New(io.Discard, slog.LevelDebug)
+	if err := Migrate(ctx, cfg, log, "up"); err != nil {
+		t.Fatal(err)
+	}
+	b, err := Open(ctx, cfg, log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	b.Redis.FlushDB(ctx)
+	handler, err := b.Handler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	post := func(path, token, body string) *http.Response {
+		req, _ := http.NewRequest(http.MethodPost, srv.URL+path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp
+	}
+	get := func(path, token string) *http.Response {
+		req, _ := http.NewRequest(http.MethodGet, srv.URL+path, nil)
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp
+	}
+
+	resp := post("/api/v1/auth/sms-codes", "", `{"phone":"13812345678","purpose":"login","agree":true}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("发码：%d", resp.StatusCode)
+	}
+	code, _ := b.Cloud.SMS.(interface{ LastCode(string) (string, bool) }).LastCode("13812345678")
+	resp = post("/api/v1/auth/login", "", `{"phone":"13812345678","code":"`+code+`","device":{"device_id":"device-0001","platform":"ios","device_name":"iPhone"}}`)
+	var login gen.LoginResponse
+	_ = json.NewDecoder(resp.Body).Decode(&login)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !login.IsNewUser || login.User.PhoneMasked != "138****5678" {
+		t.Fatalf("登录：%d %+v", resp.StatusCode, login)
+	}
+
+	if r := get("/api/v1/me", ""); r.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("没带令牌应 401：%d", r.StatusCode)
+	}
+	r := get("/api/v1/me", login.AccessToken)
+	var me gen.Me
+	_ = json.NewDecoder(r.Body).Decode(&me)
+	r.Body.Close()
+	if r.StatusCode != http.StatusOK || me.Id != login.User.Id {
+		t.Fatalf("/me：%d %+v", r.StatusCode, me)
+	}
+	r = get("/api/v1/bootstrap?platform=ios&app_version=1.0.0", login.AccessToken)
+	var boot gen.Bootstrap
+	_ = json.NewDecoder(r.Body).Decode(&boot)
+	r.Body.Close()
+	if r.StatusCode != http.StatusOK || boot.LoggedIn == nil || !*boot.LoggedIn || boot.AppName == "" {
+		t.Fatalf("/bootstrap：%d %+v", r.StatusCode, boot)
+	}
+	if r := get("/api/v1/bootstrap?platform=ios&app_version=1.0.0", ""); r.StatusCode != http.StatusOK {
+		t.Fatalf("/bootstrap 未登录也可调用：%d", r.StatusCode)
+	}
+	if r := post("/api/v1/auth/logout", login.AccessToken, ""); r.StatusCode != http.StatusNoContent {
+		t.Fatalf("退出：%d", r.StatusCode)
+	}
+	r = post("/api/v1/auth/refresh", "", `{"refresh_token":"`+login.RefreshToken+`","device_id":"device-0001"}`)
+	if r.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("退出后刷新应 401：%d", r.StatusCode)
 	}
 }

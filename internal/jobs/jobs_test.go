@@ -51,8 +51,10 @@ func TestQueuesAndSchedules(t *testing.T) {
 	if Queues[QueueCritical] <= Queues[QueueDefault] || Queues[QueueDefault] <= Queues[QueueLow] {
 		t.Error("队列权重应 critical > default > low")
 	}
-	if err := RegisterSchedules(nil); err != nil {
-		t.Error(err)
+	for _, sc := range Schedules {
+		if sc.Cron == "" || sc.Type == "" {
+			t.Errorf("定时任务配置不完整：%+v", sc)
+		}
 	}
 	var buf bytes.Buffer
 	l := AsynqLogger{L: logx.New(&buf, slog.LevelDebug)}

@@ -97,3 +97,7 @@ PAY_PROVIDER、WECHAT_PAY_*、ALIPAY_*、APPLE_IAP_*
 - [ ] 逐条对照卡片「验收」写出结果
 - [ ] 涉及的文档已更新（runbook、adr、open-questions、docs/tasks/README.md 的卡片状态）
 - [ ] 列出需要在真机或生产环境手动验证的步骤
+
+## 踩过的坑
+
+- 处理器里调用业务服务一律传 `c.Request.Context()`，不要把 `*gin.Context` 当 context 传下去：gin 会复用 Context 对象，database/sql 在后台 goroutine 里还持有它，会产生数据竞争（T06 用 -race 测出来的）
