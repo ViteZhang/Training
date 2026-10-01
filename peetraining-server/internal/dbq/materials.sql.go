@@ -134,6 +134,22 @@ func (q *Queries) DeleteMaterial(ctx context.Context, arg DeleteMaterialParams) 
 	return result.RowsAffected()
 }
 
+const deleteMaterialPagesAfter = `-- name: DeleteMaterialPagesAfter :exec
+DELETE FROM material_pages WHERE material_id = ? AND owner_user_id = ? AND page_no > ?
+`
+
+type DeleteMaterialPagesAfterParams struct {
+	MaterialID  uint64
+	OwnerUserID uint64
+	PageNo      uint32
+}
+
+// 重跑取文本时删掉多出来的旧页（这次页数变少）。
+func (q *Queries) DeleteMaterialPagesAfter(ctx context.Context, arg DeleteMaterialPagesAfterParams) error {
+	_, err := q.db.ExecContext(ctx, deleteMaterialPagesAfter, arg.MaterialID, arg.OwnerUserID, arg.PageNo)
+	return err
+}
+
 const deleteQuestionsFromMaterial = `-- name: DeleteQuestionsFromMaterial :exec
 DELETE FROM questions WHERE source_material_id = ? AND bank_id = ?
 `

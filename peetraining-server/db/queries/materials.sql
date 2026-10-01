@@ -89,3 +89,7 @@ JOIN (
 SET k.source_material_id = alt.alt_material_id,
     k.source_page = (SELECT MIN(s2.page_no) FROM kp_sources s2 WHERE s2.kp_id = k.id AND s2.material_id = alt.alt_material_id)
 WHERE k.bank_id = ? AND k.source_material_id = ?;
+
+-- name: DeleteMaterialPagesAfter :exec
+-- 重跑取文本时删掉多出来的旧页（这次页数变少）。
+DELETE FROM material_pages WHERE material_id = ? AND owner_user_id = ? AND page_no > ?;
