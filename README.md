@@ -53,3 +53,24 @@ API_BASE_URL=http://<本机局域网 IP>:4010 npx expo run:android   # 需要 An
 
 - 字体：`python scripts/subset-fonts.py <NotoSerifSC_900Black.ttf> <NotoSerifSC_700Bold.ttf>`（ADR 0010）
 - 图标：`python scripts/gen-icons.py`（按 VI 第 06 板；拿到 Logo 源文件后替换脚本里的 MARK 重新生成）
+
+## 发布（T05）
+
+版本号规则：`apps/mobile/app.config.ts` 的 `version` 用语义化版本（如 0.2.0），每周发版时手动加；
+iOS buildNumber 与安卓 versionCode 由 EAS 生产配置自动递增。App 启动时把版本号传给 `GET /bootstrap`，
+低于后台 7.8 配置的最低版本时强制更新（0.6b），有新版本时提示一次（0.6）。
+
+| 配置 | 用途 | 命令 |
+| --- | --- | --- |
+| development | 开发用 development build（包名带 .development，可和正式版共存） | `pnpm --filter mobile build:dev` |
+| preview | 内测：安卓 APK 上传 OSS，iOS 上传 TestFlight | `pnpm --filter mobile build:preview`，然后 `scripts/upload-apk.sh <apk> <版本号>`、`pnpm --filter mobile submit:testflight` |
+| production | 正式上架（应用商店、App Store） | `pnpm --filter mobile build:prod` |
+
+首次使用前：`npx eas-cli@latest login` 登录 Expo 账号，`cd apps/mobile && npx eas-cli@latest init` 生成 projectId；
+iOS 需要 Apple 开发者账号（公司主体），在 eas.json 里填 `ascAppId`；EAS Update 在国内的下载速度见 open-questions Q08。
+
+真机调试：iPhone 插线后 `npx expo run:ios --device`；安卓打开 USB 调试后 `npx expo run:android --device`；
+或装 development 配置打出的包后 `pnpm --filter mobile start` 连接本机开发服务器。
+
+管理后台：合并到 main 后由云效流水线执行 `scripts/deploy-admin.sh`（构建后同步到应用机 `/opt/training/admin`），
+也可以本机执行 `scripts/deploy-admin.sh <应用机 SSH 地址>`。
