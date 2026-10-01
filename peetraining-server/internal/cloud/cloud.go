@@ -13,6 +13,7 @@ import (
 	"peetraining-server/internal/cloud/asr"
 	"peetraining-server/internal/cloud/moderation"
 	"peetraining-server/internal/cloud/ocr"
+	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/cloud/pay"
 	"peetraining-server/internal/cloud/sms"
 	"peetraining-server/internal/config"
@@ -26,6 +27,7 @@ type Clients struct {
 	ASR        asr.Transcriber
 	Moderation moderation.Checker
 	Pay        pay.Gateway
+	OSS        oss.Store
 }
 
 // ErrUnknownProvider 表示 *_PROVIDER 配置了还没实现的服务商。
@@ -49,6 +51,7 @@ func New(cfg *config.Config) (*Clients, error) {
 	pick("ASR", cfg.ASR.Provider, func() { c.ASR = asr.NewMock() })
 	pick("MODERATION", cfg.Moderation.Provider, func() { c.Moderation = moderation.NewMock() })
 	pick("PAY", cfg.Pay.Provider, func() { c.Pay = pay.NewMock() })
+	pick("OSS", cfg.OSS.Provider, func() { c.OSS = oss.NewMock() })
 
 	if cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock {
 		errs = append(errs, errors.New("生产环境不能使用 mock 短信"))

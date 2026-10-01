@@ -54,6 +54,22 @@ func (ns NullAdminUsersStatus) Value() (driver.Value, error) {
 	return string(ns.AdminUsersStatus), nil
 }
 
+func (e AdminUsersStatus) Valid() bool {
+	switch e {
+	case AdminUsersStatusActive,
+		AdminUsersStatusDisabled:
+		return true
+	}
+	return false
+}
+
+func AllAdminUsersStatusValues() []AdminUsersStatus {
+	return []AdminUsersStatus{
+		AdminUsersStatusActive,
+		AdminUsersStatusDisabled,
+	}
+}
+
 type AgreementsKind string
 
 const (
@@ -97,6 +113,24 @@ func (ns NullAgreementsKind) Value() (driver.Value, error) {
 	return string(ns.AgreementsKind), nil
 }
 
+func (e AgreementsKind) Valid() bool {
+	switch e {
+	case AgreementsKindUser,
+		AgreementsKindPrivacy,
+		AgreementsKindMembership:
+		return true
+	}
+	return false
+}
+
+func AllAgreementsKindValues() []AgreementsKind {
+	return []AgreementsKind{
+		AgreementsKindUser,
+		AgreementsKindPrivacy,
+		AgreementsKindMembership,
+	}
+}
+
 type AppVersionsPlatform string
 
 const (
@@ -137,6 +171,22 @@ func (ns NullAppVersionsPlatform) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.AppVersionsPlatform), nil
+}
+
+func (e AppVersionsPlatform) Valid() bool {
+	switch e {
+	case AppVersionsPlatformIos,
+		AppVersionsPlatformAndroid:
+		return true
+	}
+	return false
+}
+
+func AllAppVersionsPlatformValues() []AppVersionsPlatform {
+	return []AppVersionsPlatform{
+		AppVersionsPlatformIos,
+		AppVersionsPlatformAndroid,
+	}
 }
 
 type AttemptsAnswerMode string
@@ -184,6 +234,28 @@ func (ns NullAttemptsAnswerMode) Value() (driver.Value, error) {
 	return string(ns.AttemptsAnswerMode), nil
 }
 
+func (e AttemptsAnswerMode) Valid() bool {
+	switch e {
+	case AttemptsAnswerModeChoice,
+		AttemptsAnswerModeTyped,
+		AttemptsAnswerModeVoice,
+		AttemptsAnswerModePhoto,
+		AttemptsAnswerModeSelfAssess:
+		return true
+	}
+	return false
+}
+
+func AllAttemptsAnswerModeValues() []AttemptsAnswerMode {
+	return []AttemptsAnswerMode{
+		AttemptsAnswerModeChoice,
+		AttemptsAnswerModeTyped,
+		AttemptsAnswerModeVoice,
+		AttemptsAnswerModePhoto,
+		AttemptsAnswerModeSelfAssess,
+	}
+}
+
 type AttemptsSelfAssess string
 
 const (
@@ -225,6 +297,24 @@ func (ns NullAttemptsSelfAssess) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.AttemptsSelfAssess), nil
+}
+
+func (e AttemptsSelfAssess) Valid() bool {
+	switch e {
+	case AttemptsSelfAssessUnknown,
+		AttemptsSelfAssessVague,
+		AttemptsSelfAssessMastered:
+		return true
+	}
+	return false
+}
+
+func AllAttemptsSelfAssessValues() []AttemptsSelfAssess {
+	return []AttemptsSelfAssess{
+		AttemptsSelfAssessUnknown,
+		AttemptsSelfAssessVague,
+		AttemptsSelfAssessMastered,
+	}
 }
 
 type BanksSource string
@@ -269,6 +359,22 @@ func (ns NullBanksSource) Value() (driver.Value, error) {
 	return string(ns.BanksSource), nil
 }
 
+func (e BanksSource) Valid() bool {
+	switch e {
+	case BanksSourceUser,
+		BanksSourceOfficial:
+		return true
+	}
+	return false
+}
+
+func AllBanksSourceValues() []BanksSource {
+	return []BanksSource{
+		BanksSourceUser,
+		BanksSourceOfficial,
+	}
+}
+
 type ContentAccessGrantsSource string
 
 const (
@@ -309,6 +415,22 @@ func (ns NullContentAccessGrantsSource) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.ContentAccessGrantsSource), nil
+}
+
+func (e ContentAccessGrantsSource) Valid() bool {
+	switch e {
+	case ContentAccessGrantsSourceDispute,
+		ContentAccessGrantsSourceFeedback:
+		return true
+	}
+	return false
+}
+
+func AllContentAccessGrantsSourceValues() []ContentAccessGrantsSource {
+	return []ContentAccessGrantsSource{
+		ContentAccessGrantsSourceDispute,
+		ContentAccessGrantsSourceFeedback,
+	}
 }
 
 type DailyPlansStage string
@@ -355,6 +477,26 @@ func (ns NullDailyPlansStage) Value() (driver.Value, error) {
 	return string(ns.DailyPlansStage), nil
 }
 
+func (e DailyPlansStage) Valid() bool {
+	switch e {
+	case DailyPlansStageFoundation,
+		DailyPlansStageStrengthen,
+		DailyPlansStageSprint,
+		DailyPlansStageFinal:
+		return true
+	}
+	return false
+}
+
+func AllDailyPlansStageValues() []DailyPlansStage {
+	return []DailyPlansStage{
+		DailyPlansStageFoundation,
+		DailyPlansStageStrengthen,
+		DailyPlansStageSprint,
+		DailyPlansStageFinal,
+	}
+}
+
 type DisputesAttribution string
 
 const (
@@ -396,6 +538,24 @@ func (ns NullDisputesAttribution) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.DisputesAttribution), nil
+}
+
+func (e DisputesAttribution) Valid() bool {
+	switch e {
+	case DisputesAttributionRubricIncomplete,
+		DisputesAttributionModelError,
+		DisputesAttributionAnswerInsufficient:
+		return true
+	}
+	return false
+}
+
+func AllDisputesAttributionValues() []DisputesAttribution {
+	return []DisputesAttribution{
+		DisputesAttributionRubricIncomplete,
+		DisputesAttributionModelError,
+		DisputesAttributionAnswerInsufficient,
+	}
 }
 
 type DisputesReason string
@@ -440,6 +600,26 @@ func (ns NullDisputesReason) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.DisputesReason), nil
+}
+
+func (e DisputesReason) Valid() bool {
+	switch e {
+	case DisputesReasonHitMissed,
+		DisputesReasonRubricWrong,
+		DisputesReasonScoreUnfair,
+		DisputesReasonOther:
+		return true
+	}
+	return false
+}
+
+func AllDisputesReasonValues() []DisputesReason {
+	return []DisputesReason{
+		DisputesReasonHitMissed,
+		DisputesReasonRubricWrong,
+		DisputesReasonScoreUnfair,
+		DisputesReasonOther,
+	}
 }
 
 type DisputesStatus string
@@ -487,6 +667,28 @@ func (ns NullDisputesStatus) Value() (driver.Value, error) {
 	return string(ns.DisputesStatus), nil
 }
 
+func (e DisputesStatus) Valid() bool {
+	switch e {
+	case DisputesStatusRechecking,
+		DisputesStatusRechecked,
+		DisputesStatusSampled,
+		DisputesStatusManualChanged,
+		DisputesStatusClosed:
+		return true
+	}
+	return false
+}
+
+func AllDisputesStatusValues() []DisputesStatus {
+	return []DisputesStatus{
+		DisputesStatusRechecking,
+		DisputesStatusRechecked,
+		DisputesStatusSampled,
+		DisputesStatusManualChanged,
+		DisputesStatusClosed,
+	}
+}
+
 type EssayMaterialsOrigin string
 
 const (
@@ -529,6 +731,26 @@ func (ns NullEssayMaterialsOrigin) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.EssayMaterialsOrigin), nil
+}
+
+func (e EssayMaterialsOrigin) Valid() bool {
+	switch e {
+	case EssayMaterialsOriginUserConfirmed,
+		EssayMaterialsOriginAiExtracted,
+		EssayMaterialsOriginAiGenerated,
+		EssayMaterialsOriginOfficial:
+		return true
+	}
+	return false
+}
+
+func AllEssayMaterialsOriginValues() []EssayMaterialsOrigin {
+	return []EssayMaterialsOrigin{
+		EssayMaterialsOriginUserConfirmed,
+		EssayMaterialsOriginAiExtracted,
+		EssayMaterialsOriginAiGenerated,
+		EssayMaterialsOriginOfficial,
+	}
 }
 
 type EssayRubricsOrigin string
@@ -574,6 +796,24 @@ func (ns NullEssayRubricsOrigin) Value() (driver.Value, error) {
 	return string(ns.EssayRubricsOrigin), nil
 }
 
+func (e EssayRubricsOrigin) Valid() bool {
+	switch e {
+	case EssayRubricsOriginUserConfirmed,
+		EssayRubricsOriginAiExtracted,
+		EssayRubricsOriginOfficial:
+		return true
+	}
+	return false
+}
+
+func AllEssayRubricsOriginValues() []EssayRubricsOrigin {
+	return []EssayRubricsOrigin{
+		EssayRubricsOriginUserConfirmed,
+		EssayRubricsOriginAiExtracted,
+		EssayRubricsOriginOfficial,
+	}
+}
+
 type EssayRubricsSource string
 
 const (
@@ -614,6 +854,22 @@ func (ns NullEssayRubricsSource) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.EssayRubricsSource), nil
+}
+
+func (e EssayRubricsSource) Valid() bool {
+	switch e {
+	case EssayRubricsSourceUserMaterial,
+		EssayRubricsSourceGeneric:
+		return true
+	}
+	return false
+}
+
+func AllEssayRubricsSourceValues() []EssayRubricsSource {
+	return []EssayRubricsSource{
+		EssayRubricsSourceUserMaterial,
+		EssayRubricsSourceGeneric,
+	}
 }
 
 type EssaysStatus string
@@ -661,6 +917,28 @@ func (ns NullEssaysStatus) Value() (driver.Value, error) {
 	return string(ns.EssaysStatus), nil
 }
 
+func (e EssaysStatus) Valid() bool {
+	switch e {
+	case EssaysStatusDraft,
+		EssaysStatusQueuedQuota,
+		EssaysStatusGrading,
+		EssaysStatusGraded,
+		EssaysStatusFailed:
+		return true
+	}
+	return false
+}
+
+func AllEssaysStatusValues() []EssaysStatus {
+	return []EssaysStatus{
+		EssaysStatusDraft,
+		EssaysStatusQueuedQuota,
+		EssaysStatusGrading,
+		EssaysStatusGraded,
+		EssaysStatusFailed,
+	}
+}
+
 type EssaysTopicSource string
 
 const (
@@ -702,6 +980,24 @@ func (ns NullEssaysTopicSource) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.EssaysTopicSource), nil
+}
+
+func (e EssaysTopicSource) Valid() bool {
+	switch e {
+	case EssaysTopicSourceExam,
+		EssaysTopicSourceAi,
+		EssaysTopicSourceCustom:
+		return true
+	}
+	return false
+}
+
+func AllEssaysTopicSourceValues() []EssaysTopicSource {
+	return []EssaysTopicSource{
+		EssaysTopicSourceExam,
+		EssaysTopicSourceAi,
+		EssaysTopicSourceCustom,
+	}
 }
 
 type ExportJobsFormat string
@@ -746,6 +1042,22 @@ func (ns NullExportJobsFormat) Value() (driver.Value, error) {
 	return string(ns.ExportJobsFormat), nil
 }
 
+func (e ExportJobsFormat) Valid() bool {
+	switch e {
+	case ExportJobsFormatPdf,
+		ExportJobsFormatDocx:
+		return true
+	}
+	return false
+}
+
+func AllExportJobsFormatValues() []ExportJobsFormat {
+	return []ExportJobsFormat{
+		ExportJobsFormatPdf,
+		ExportJobsFormatDocx,
+	}
+}
+
 type ExportJobsStatus string
 
 const (
@@ -788,6 +1100,26 @@ func (ns NullExportJobsStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.ExportJobsStatus), nil
+}
+
+func (e ExportJobsStatus) Valid() bool {
+	switch e {
+	case ExportJobsStatusQueued,
+		ExportJobsStatusRunning,
+		ExportJobsStatusDone,
+		ExportJobsStatusFailed:
+		return true
+	}
+	return false
+}
+
+func AllExportJobsStatusValues() []ExportJobsStatus {
+	return []ExportJobsStatus{
+		ExportJobsStatusQueued,
+		ExportJobsStatusRunning,
+		ExportJobsStatusDone,
+		ExportJobsStatusFailed,
+	}
 }
 
 type FeedbacksFtype string
@@ -835,6 +1167,28 @@ func (ns NullFeedbacksFtype) Value() (driver.Value, error) {
 	return string(ns.FeedbacksFtype), nil
 }
 
+func (e FeedbacksFtype) Valid() bool {
+	switch e {
+	case FeedbacksFtypeSuggestion,
+		FeedbacksFtypeRecognition,
+		FeedbacksFtypeGrading,
+		FeedbacksFtypeBug,
+		FeedbacksFtypeInfringement:
+		return true
+	}
+	return false
+}
+
+func AllFeedbacksFtypeValues() []FeedbacksFtype {
+	return []FeedbacksFtype{
+		FeedbacksFtypeSuggestion,
+		FeedbacksFtypeRecognition,
+		FeedbacksFtypeGrading,
+		FeedbacksFtypeBug,
+		FeedbacksFtypeInfringement,
+	}
+}
+
 type FeedbacksStatus string
 
 const (
@@ -878,6 +1232,24 @@ func (ns NullFeedbacksStatus) Value() (driver.Value, error) {
 	return string(ns.FeedbacksStatus), nil
 }
 
+func (e FeedbacksStatus) Valid() bool {
+	switch e {
+	case FeedbacksStatusOpen,
+		FeedbacksStatusReplied,
+		FeedbacksStatusClosed:
+		return true
+	}
+	return false
+}
+
+func AllFeedbacksStatusValues() []FeedbacksStatus {
+	return []FeedbacksStatus{
+		FeedbacksStatusOpen,
+		FeedbacksStatusReplied,
+		FeedbacksStatusClosed,
+	}
+}
+
 type GradingsKind string
 
 const (
@@ -918,6 +1290,22 @@ func (ns NullGradingsKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.GradingsKind), nil
+}
+
+func (e GradingsKind) Valid() bool {
+	switch e {
+	case GradingsKindSubjective,
+		GradingsKindNorm:
+		return true
+	}
+	return false
+}
+
+func AllGradingsKindValues() []GradingsKind {
+	return []GradingsKind{
+		GradingsKindSubjective,
+		GradingsKindNorm,
+	}
 }
 
 type GradingsStatus string
@@ -965,6 +1353,28 @@ func (ns NullGradingsStatus) Value() (driver.Value, error) {
 	return string(ns.GradingsStatus), nil
 }
 
+func (e GradingsStatus) Valid() bool {
+	switch e {
+	case GradingsStatusQueuedQuota,
+		GradingsStatusPending,
+		GradingsStatusProcessing,
+		GradingsStatusDone,
+		GradingsStatusFailed:
+		return true
+	}
+	return false
+}
+
+func AllGradingsStatusValues() []GradingsStatus {
+	return []GradingsStatus{
+		GradingsStatusQueuedQuota,
+		GradingsStatusPending,
+		GradingsStatusProcessing,
+		GradingsStatusDone,
+		GradingsStatusFailed,
+	}
+}
+
 type GradingsTriggerReason string
 
 const (
@@ -1008,6 +1418,28 @@ func (ns NullGradingsTriggerReason) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.GradingsTriggerReason), nil
+}
+
+func (e GradingsTriggerReason) Valid() bool {
+	switch e {
+	case GradingsTriggerReasonSubmit,
+		GradingsTriggerReasonPendingResubmit,
+		GradingsTriggerReasonDisputeRecheck,
+		GradingsTriggerReasonRubricChanged,
+		GradingsTriggerReasonManualReview:
+		return true
+	}
+	return false
+}
+
+func AllGradingsTriggerReasonValues() []GradingsTriggerReason {
+	return []GradingsTriggerReason{
+		GradingsTriggerReasonSubmit,
+		GradingsTriggerReasonPendingResubmit,
+		GradingsTriggerReasonDisputeRecheck,
+		GradingsTriggerReasonRubricChanged,
+		GradingsTriggerReasonManualReview,
+	}
 }
 
 type ImportItemsItemType string
@@ -1057,6 +1489,32 @@ func (ns NullImportItemsItemType) Value() (driver.Value, error) {
 	return string(ns.ImportItemsItemType), nil
 }
 
+func (e ImportItemsItemType) Valid() bool {
+	switch e {
+	case ImportItemsItemTypeQuestion,
+		ImportItemsItemTypeKnowledgePoint,
+		ImportItemsItemTypeEssayTopic,
+		ImportItemsItemTypeEssayRubric,
+		ImportItemsItemTypeWritingMethod,
+		ImportItemsItemTypeEssayMaterial,
+		ImportItemsItemTypeModelEssay:
+		return true
+	}
+	return false
+}
+
+func AllImportItemsItemTypeValues() []ImportItemsItemType {
+	return []ImportItemsItemType{
+		ImportItemsItemTypeQuestion,
+		ImportItemsItemTypeKnowledgePoint,
+		ImportItemsItemTypeEssayTopic,
+		ImportItemsItemTypeEssayRubric,
+		ImportItemsItemTypeWritingMethod,
+		ImportItemsItemTypeEssayMaterial,
+		ImportItemsItemTypeModelEssay,
+	}
+}
+
 type ImportItemsStatus string
 
 const (
@@ -1099,6 +1557,26 @@ func (ns NullImportItemsStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.ImportItemsStatus), nil
+}
+
+func (e ImportItemsStatus) Valid() bool {
+	switch e {
+	case ImportItemsStatusPending,
+		ImportItemsStatusConfirmed,
+		ImportItemsStatusEdited,
+		ImportItemsStatusDeleted:
+		return true
+	}
+	return false
+}
+
+func AllImportItemsStatusValues() []ImportItemsStatus {
+	return []ImportItemsStatus{
+		ImportItemsStatusPending,
+		ImportItemsStatusConfirmed,
+		ImportItemsStatusEdited,
+		ImportItemsStatusDeleted,
+	}
 }
 
 type ImportJobMaterialsStatus string
@@ -1144,6 +1622,28 @@ func (ns NullImportJobMaterialsStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.ImportJobMaterialsStatus), nil
+}
+
+func (e ImportJobMaterialsStatus) Valid() bool {
+	switch e {
+	case ImportJobMaterialsStatusPending,
+		ImportJobMaterialsStatusRunning,
+		ImportJobMaterialsStatusDone,
+		ImportJobMaterialsStatusPartial,
+		ImportJobMaterialsStatusFailed:
+		return true
+	}
+	return false
+}
+
+func AllImportJobMaterialsStatusValues() []ImportJobMaterialsStatus {
+	return []ImportJobMaterialsStatus{
+		ImportJobMaterialsStatusPending,
+		ImportJobMaterialsStatusRunning,
+		ImportJobMaterialsStatusDone,
+		ImportJobMaterialsStatusPartial,
+		ImportJobMaterialsStatusFailed,
+	}
 }
 
 type ImportJobMaterialsStep string
@@ -1196,6 +1696,38 @@ func (ns NullImportJobMaterialsStep) Value() (driver.Value, error) {
 	return string(ns.ImportJobMaterialsStep), nil
 }
 
+func (e ImportJobMaterialsStep) Valid() bool {
+	switch e {
+	case ImportJobMaterialsStepQueued,
+		ImportJobMaterialsStepExtract,
+		ImportJobMaterialsStepModerate,
+		ImportJobMaterialsStepSplit,
+		ImportJobMaterialsStepStructure,
+		ImportJobMaterialsStepMatch,
+		ImportJobMaterialsStepRubric,
+		ImportJobMaterialsStepTag,
+		ImportJobMaterialsStepDedupe,
+		ImportJobMaterialsStepDone:
+		return true
+	}
+	return false
+}
+
+func AllImportJobMaterialsStepValues() []ImportJobMaterialsStep {
+	return []ImportJobMaterialsStep{
+		ImportJobMaterialsStepQueued,
+		ImportJobMaterialsStepExtract,
+		ImportJobMaterialsStepModerate,
+		ImportJobMaterialsStepSplit,
+		ImportJobMaterialsStepStructure,
+		ImportJobMaterialsStepMatch,
+		ImportJobMaterialsStepRubric,
+		ImportJobMaterialsStepTag,
+		ImportJobMaterialsStepDedupe,
+		ImportJobMaterialsStepDone,
+	}
+}
+
 type ImportJobsMode string
 
 const (
@@ -1237,6 +1769,24 @@ func (ns NullImportJobsMode) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.ImportJobsMode), nil
+}
+
+func (e ImportJobsMode) Valid() bool {
+	switch e {
+	case ImportJobsModeQuestion,
+		ImportJobsModeReference,
+		ImportJobsModeEssay:
+		return true
+	}
+	return false
+}
+
+func AllImportJobsModeValues() []ImportJobsMode {
+	return []ImportJobsMode{
+		ImportJobsModeQuestion,
+		ImportJobsModeReference,
+		ImportJobsModeEssay,
+	}
 }
 
 type ImportJobsStatus string
@@ -1285,6 +1835,30 @@ func (ns NullImportJobsStatus) Value() (driver.Value, error) {
 	return string(ns.ImportJobsStatus), nil
 }
 
+func (e ImportJobsStatus) Valid() bool {
+	switch e {
+	case ImportJobsStatusQueued,
+		ImportJobsStatusRunning,
+		ImportJobsStatusReviewing,
+		ImportJobsStatusConfirmed,
+		ImportJobsStatusFailed,
+		ImportJobsStatusCanceled:
+		return true
+	}
+	return false
+}
+
+func AllImportJobsStatusValues() []ImportJobsStatus {
+	return []ImportJobsStatus{
+		ImportJobsStatusQueued,
+		ImportJobsStatusRunning,
+		ImportJobsStatusReviewing,
+		ImportJobsStatusConfirmed,
+		ImportJobsStatusFailed,
+		ImportJobsStatusCanceled,
+	}
+}
+
 type KnowledgePointsLevel string
 
 const (
@@ -1326,6 +1900,24 @@ func (ns NullKnowledgePointsLevel) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.KnowledgePointsLevel), nil
+}
+
+func (e KnowledgePointsLevel) Valid() bool {
+	switch e {
+	case KnowledgePointsLevelSection,
+		KnowledgePointsLevelChapter,
+		KnowledgePointsLevelPoint:
+		return true
+	}
+	return false
+}
+
+func AllKnowledgePointsLevelValues() []KnowledgePointsLevel {
+	return []KnowledgePointsLevel{
+		KnowledgePointsLevelSection,
+		KnowledgePointsLevelChapter,
+		KnowledgePointsLevelPoint,
+	}
 }
 
 type KnowledgePointsOrigin string
@@ -1373,6 +1965,28 @@ func (ns NullKnowledgePointsOrigin) Value() (driver.Value, error) {
 	return string(ns.KnowledgePointsOrigin), nil
 }
 
+func (e KnowledgePointsOrigin) Valid() bool {
+	switch e {
+	case KnowledgePointsOriginUserConfirmed,
+		KnowledgePointsOriginAiExtracted,
+		KnowledgePointsOriginAiGenerated,
+		KnowledgePointsOriginImported,
+		KnowledgePointsOriginOfficial:
+		return true
+	}
+	return false
+}
+
+func AllKnowledgePointsOriginValues() []KnowledgePointsOrigin {
+	return []KnowledgePointsOrigin{
+		KnowledgePointsOriginUserConfirmed,
+		KnowledgePointsOriginAiExtracted,
+		KnowledgePointsOriginAiGenerated,
+		KnowledgePointsOriginImported,
+		KnowledgePointsOriginOfficial,
+	}
+}
+
 type KpMasteryLastSelfAssess string
 
 const (
@@ -1414,6 +2028,24 @@ func (ns NullKpMasteryLastSelfAssess) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.KpMasteryLastSelfAssess), nil
+}
+
+func (e KpMasteryLastSelfAssess) Valid() bool {
+	switch e {
+	case KpMasteryLastSelfAssessUnknown,
+		KpMasteryLastSelfAssessVague,
+		KpMasteryLastSelfAssessMastered:
+		return true
+	}
+	return false
+}
+
+func AllKpMasteryLastSelfAssessValues() []KpMasteryLastSelfAssess {
+	return []KpMasteryLastSelfAssess{
+		KpMasteryLastSelfAssessUnknown,
+		KpMasteryLastSelfAssessVague,
+		KpMasteryLastSelfAssessMastered,
+	}
 }
 
 type KpMasteryState string
@@ -1460,6 +2092,26 @@ func (ns NullKpMasteryState) Value() (driver.Value, error) {
 	return string(ns.KpMasteryState), nil
 }
 
+func (e KpMasteryState) Valid() bool {
+	switch e {
+	case KpMasteryStateUnlearned,
+		KpMasteryStateLearning,
+		KpMasteryStateConsolidating,
+		KpMasteryStateMastered:
+		return true
+	}
+	return false
+}
+
+func AllKpMasteryStateValues() []KpMasteryState {
+	return []KpMasteryState{
+		KpMasteryStateUnlearned,
+		KpMasteryStateLearning,
+		KpMasteryStateConsolidating,
+		KpMasteryStateMastered,
+	}
+}
+
 type KpRelationsOrigin string
 
 const (
@@ -1501,6 +2153,24 @@ func (ns NullKpRelationsOrigin) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.KpRelationsOrigin), nil
+}
+
+func (e KpRelationsOrigin) Valid() bool {
+	switch e {
+	case KpRelationsOriginUserConfirmed,
+		KpRelationsOriginAiGenerated,
+		KpRelationsOriginOfficial:
+		return true
+	}
+	return false
+}
+
+func AllKpRelationsOriginValues() []KpRelationsOrigin {
+	return []KpRelationsOrigin{
+		KpRelationsOriginUserConfirmed,
+		KpRelationsOriginAiGenerated,
+		KpRelationsOriginOfficial,
+	}
 }
 
 type KpRelationsRelationType string
@@ -1547,6 +2217,26 @@ func (ns NullKpRelationsRelationType) Value() (driver.Value, error) {
 	return string(ns.KpRelationsRelationType), nil
 }
 
+func (e KpRelationsRelationType) Valid() bool {
+	switch e {
+	case KpRelationsRelationTypeContrast,
+		KpRelationsRelationTypeComponent,
+		KpRelationsRelationTypeSibling,
+		KpRelationsRelationTypeRelated:
+		return true
+	}
+	return false
+}
+
+func AllKpRelationsRelationTypeValues() []KpRelationsRelationType {
+	return []KpRelationsRelationType{
+		KpRelationsRelationTypeContrast,
+		KpRelationsRelationTypeComponent,
+		KpRelationsRelationTypeSibling,
+		KpRelationsRelationTypeRelated,
+	}
+}
+
 type MaterialsCategory string
 
 const (
@@ -1588,6 +2278,24 @@ func (ns NullMaterialsCategory) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.MaterialsCategory), nil
+}
+
+func (e MaterialsCategory) Valid() bool {
+	switch e {
+	case MaterialsCategoryQuestion,
+		MaterialsCategoryReference,
+		MaterialsCategoryEssay:
+		return true
+	}
+	return false
+}
+
+func AllMaterialsCategoryValues() []MaterialsCategory {
+	return []MaterialsCategory{
+		MaterialsCategoryQuestion,
+		MaterialsCategoryReference,
+		MaterialsCategoryEssay,
+	}
 }
 
 type MaterialsFormat string
@@ -1633,6 +2341,28 @@ func (ns NullMaterialsFormat) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.MaterialsFormat), nil
+}
+
+func (e MaterialsFormat) Valid() bool {
+	switch e {
+	case MaterialsFormatDocx,
+		MaterialsFormatXlsx,
+		MaterialsFormatPdf,
+		MaterialsFormatImage,
+		MaterialsFormatText:
+		return true
+	}
+	return false
+}
+
+func AllMaterialsFormatValues() []MaterialsFormat {
+	return []MaterialsFormat{
+		MaterialsFormatDocx,
+		MaterialsFormatXlsx,
+		MaterialsFormatPdf,
+		MaterialsFormatImage,
+		MaterialsFormatText,
+	}
 }
 
 type MaterialsStatus string
@@ -1682,6 +2412,32 @@ func (ns NullMaterialsStatus) Value() (driver.Value, error) {
 	return string(ns.MaterialsStatus), nil
 }
 
+func (e MaterialsStatus) Valid() bool {
+	switch e {
+	case MaterialsStatusUploading,
+		MaterialsStatusUploaded,
+		MaterialsStatusParsing,
+		MaterialsStatusParsed,
+		MaterialsStatusPartial,
+		MaterialsStatusFailed,
+		MaterialsStatusRejected:
+		return true
+	}
+	return false
+}
+
+func AllMaterialsStatusValues() []MaterialsStatus {
+	return []MaterialsStatus{
+		MaterialsStatusUploading,
+		MaterialsStatusUploaded,
+		MaterialsStatusParsing,
+		MaterialsStatusParsed,
+		MaterialsStatusPartial,
+		MaterialsStatusFailed,
+		MaterialsStatusRejected,
+	}
+}
+
 type MembershipsSource string
 
 const (
@@ -1727,6 +2483,28 @@ func (ns NullMembershipsSource) Value() (driver.Value, error) {
 	return string(ns.MembershipsSource), nil
 }
 
+func (e MembershipsSource) Valid() bool {
+	switch e {
+	case MembershipsSourceRedeem,
+		MembershipsSourceOrder,
+		MembershipsSourceInvite,
+		MembershipsSourceSurvey,
+		MembershipsSourceAdmin:
+		return true
+	}
+	return false
+}
+
+func AllMembershipsSourceValues() []MembershipsSource {
+	return []MembershipsSource{
+		MembershipsSourceRedeem,
+		MembershipsSourceOrder,
+		MembershipsSourceInvite,
+		MembershipsSourceSurvey,
+		MembershipsSourceAdmin,
+	}
+}
+
 type MembershipsTier string
 
 const (
@@ -1769,6 +2547,26 @@ func (ns NullMembershipsTier) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.MembershipsTier), nil
+}
+
+func (e MembershipsTier) Valid() bool {
+	switch e {
+	case MembershipsTierSprint,
+		MembershipsTierSeason,
+		MembershipsTierMonthly,
+		MembershipsTierGift:
+		return true
+	}
+	return false
+}
+
+func AllMembershipsTierValues() []MembershipsTier {
+	return []MembershipsTier{
+		MembershipsTierSprint,
+		MembershipsTierSeason,
+		MembershipsTierMonthly,
+		MembershipsTierGift,
+	}
 }
 
 type MessagesMtype string
@@ -1825,6 +2623,46 @@ func (ns NullMessagesMtype) Value() (driver.Value, error) {
 	return string(ns.MessagesMtype), nil
 }
 
+func (e MessagesMtype) Valid() bool {
+	switch e {
+	case MessagesMtypeImportDone,
+		MessagesMtypeReviewNeeded,
+		MessagesMtypeReviewDue,
+		MessagesMtypeGradingDone,
+		MessagesMtypePaperGraded,
+		MessagesMtypeEssayGraded,
+		MessagesMtypeExportReady,
+		MessagesMtypeAgreementUpdate,
+		MessagesMtypeAnnouncement,
+		MessagesMtypeSupportReply,
+		MessagesMtypeContentAccessed,
+		MessagesMtypeMembership,
+		MessagesMtypeStageChange,
+		MessagesMtypeOfficialBank:
+		return true
+	}
+	return false
+}
+
+func AllMessagesMtypeValues() []MessagesMtype {
+	return []MessagesMtype{
+		MessagesMtypeImportDone,
+		MessagesMtypeReviewNeeded,
+		MessagesMtypeReviewDue,
+		MessagesMtypeGradingDone,
+		MessagesMtypePaperGraded,
+		MessagesMtypeEssayGraded,
+		MessagesMtypeExportReady,
+		MessagesMtypeAgreementUpdate,
+		MessagesMtypeAnnouncement,
+		MessagesMtypeSupportReply,
+		MessagesMtypeContentAccessed,
+		MessagesMtypeMembership,
+		MessagesMtypeStageChange,
+		MessagesMtypeOfficialBank,
+	}
+}
+
 type OfficialDraftsChangeType string
 
 const (
@@ -1871,6 +2709,30 @@ func (ns NullOfficialDraftsChangeType) Value() (driver.Value, error) {
 	return string(ns.OfficialDraftsChangeType), nil
 }
 
+func (e OfficialDraftsChangeType) Valid() bool {
+	switch e {
+	case OfficialDraftsChangeTypeAdd,
+		OfficialDraftsChangeTypeSupplement,
+		OfficialDraftsChangeTypeRevise,
+		OfficialDraftsChangeTypeMerge,
+		OfficialDraftsChangeTypeSplit,
+		OfficialDraftsChangeTypeOffline:
+		return true
+	}
+	return false
+}
+
+func AllOfficialDraftsChangeTypeValues() []OfficialDraftsChangeType {
+	return []OfficialDraftsChangeType{
+		OfficialDraftsChangeTypeAdd,
+		OfficialDraftsChangeTypeSupplement,
+		OfficialDraftsChangeTypeRevise,
+		OfficialDraftsChangeTypeMerge,
+		OfficialDraftsChangeTypeSplit,
+		OfficialDraftsChangeTypeOffline,
+	}
+}
+
 type OfficialDraftsEntityType string
 
 const (
@@ -1913,6 +2775,26 @@ func (ns NullOfficialDraftsEntityType) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.OfficialDraftsEntityType), nil
+}
+
+func (e OfficialDraftsEntityType) Valid() bool {
+	switch e {
+	case OfficialDraftsEntityTypeKnowledgePoint,
+		OfficialDraftsEntityTypeQuestion,
+		OfficialDraftsEntityTypePaper,
+		OfficialDraftsEntityTypeProfile:
+		return true
+	}
+	return false
+}
+
+func AllOfficialDraftsEntityTypeValues() []OfficialDraftsEntityType {
+	return []OfficialDraftsEntityType{
+		OfficialDraftsEntityTypeKnowledgePoint,
+		OfficialDraftsEntityTypeQuestion,
+		OfficialDraftsEntityTypePaper,
+		OfficialDraftsEntityTypeProfile,
+	}
 }
 
 type OfficialDraftsStatus string
@@ -1958,6 +2840,28 @@ func (ns NullOfficialDraftsStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.OfficialDraftsStatus), nil
+}
+
+func (e OfficialDraftsStatus) Valid() bool {
+	switch e {
+	case OfficialDraftsStatusDraft,
+		OfficialDraftsStatusSubmitted,
+		OfficialDraftsStatusApproved,
+		OfficialDraftsStatusRejected,
+		OfficialDraftsStatusPublished:
+		return true
+	}
+	return false
+}
+
+func AllOfficialDraftsStatusValues() []OfficialDraftsStatus {
+	return []OfficialDraftsStatus{
+		OfficialDraftsStatusDraft,
+		OfficialDraftsStatusSubmitted,
+		OfficialDraftsStatusApproved,
+		OfficialDraftsStatusRejected,
+		OfficialDraftsStatusPublished,
+	}
 }
 
 type OfficialProjectsStage string
@@ -2006,6 +2910,30 @@ func (ns NullOfficialProjectsStage) Value() (driver.Value, error) {
 	return string(ns.OfficialProjectsStage), nil
 }
 
+func (e OfficialProjectsStage) Valid() bool {
+	switch e {
+	case OfficialProjectsStageInitiated,
+		OfficialProjectsStageMaterials,
+		OfficialProjectsStageFramework,
+		OfficialProjectsStageProducing,
+		OfficialProjectsStageReviewing,
+		OfficialProjectsStagePublished:
+		return true
+	}
+	return false
+}
+
+func AllOfficialProjectsStageValues() []OfficialProjectsStage {
+	return []OfficialProjectsStage{
+		OfficialProjectsStageInitiated,
+		OfficialProjectsStageMaterials,
+		OfficialProjectsStageFramework,
+		OfficialProjectsStageProducing,
+		OfficialProjectsStageReviewing,
+		OfficialProjectsStagePublished,
+	}
+}
+
 type OrdersChannel string
 
 const (
@@ -2047,6 +2975,24 @@ func (ns NullOrdersChannel) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.OrdersChannel), nil
+}
+
+func (e OrdersChannel) Valid() bool {
+	switch e {
+	case OrdersChannelWechat,
+		OrdersChannelAlipay,
+		OrdersChannelAppleIap:
+		return true
+	}
+	return false
+}
+
+func AllOrdersChannelValues() []OrdersChannel {
+	return []OrdersChannel{
+		OrdersChannelWechat,
+		OrdersChannelAlipay,
+		OrdersChannelAppleIap,
+	}
 }
 
 type OrdersStatus string
@@ -2094,6 +3040,28 @@ func (ns NullOrdersStatus) Value() (driver.Value, error) {
 	return string(ns.OrdersStatus), nil
 }
 
+func (e OrdersStatus) Valid() bool {
+	switch e {
+	case OrdersStatusCreated,
+		OrdersStatusPaid,
+		OrdersStatusClosed,
+		OrdersStatusRefunding,
+		OrdersStatusRefunded:
+		return true
+	}
+	return false
+}
+
+func AllOrdersStatusValues() []OrdersStatus {
+	return []OrdersStatus{
+		OrdersStatusCreated,
+		OrdersStatusPaid,
+		OrdersStatusClosed,
+		OrdersStatusRefunding,
+		OrdersStatusRefunded,
+	}
+}
+
 type OrdersTier string
 
 const (
@@ -2135,6 +3103,24 @@ func (ns NullOrdersTier) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.OrdersTier), nil
+}
+
+func (e OrdersTier) Valid() bool {
+	switch e {
+	case OrdersTierSprint,
+		OrdersTierSeason,
+		OrdersTierMonthly:
+		return true
+	}
+	return false
+}
+
+func AllOrdersTierValues() []OrdersTier {
+	return []OrdersTier{
+		OrdersTierSprint,
+		OrdersTierSeason,
+		OrdersTierMonthly,
+	}
 }
 
 type PaperSessionsMode string
@@ -2179,6 +3165,22 @@ func (ns NullPaperSessionsMode) Value() (driver.Value, error) {
 	return string(ns.PaperSessionsMode), nil
 }
 
+func (e PaperSessionsMode) Valid() bool {
+	switch e {
+	case PaperSessionsModePractice,
+		PaperSessionsModeMock:
+		return true
+	}
+	return false
+}
+
+func AllPaperSessionsModeValues() []PaperSessionsMode {
+	return []PaperSessionsMode{
+		PaperSessionsModePractice,
+		PaperSessionsModeMock,
+	}
+}
+
 type PaperSessionsPaperKind string
 
 const (
@@ -2221,6 +3223,26 @@ func (ns NullPaperSessionsPaperKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.PaperSessionsPaperKind), nil
+}
+
+func (e PaperSessionsPaperKind) Valid() bool {
+	switch e {
+	case PaperSessionsPaperKindRealExam,
+		PaperSessionsPaperKindAiStandard,
+		PaperSessionsPaperKindAiTargeted,
+		PaperSessionsPaperKindOfficialMock:
+		return true
+	}
+	return false
+}
+
+func AllPaperSessionsPaperKindValues() []PaperSessionsPaperKind {
+	return []PaperSessionsPaperKind{
+		PaperSessionsPaperKindRealExam,
+		PaperSessionsPaperKindAiStandard,
+		PaperSessionsPaperKindAiTargeted,
+		PaperSessionsPaperKindOfficialMock,
+	}
 }
 
 type PaperSessionsStatus string
@@ -2268,6 +3290,28 @@ func (ns NullPaperSessionsStatus) Value() (driver.Value, error) {
 	return string(ns.PaperSessionsStatus), nil
 }
 
+func (e PaperSessionsStatus) Valid() bool {
+	switch e {
+	case PaperSessionsStatusInProgress,
+		PaperSessionsStatusPaused,
+		PaperSessionsStatusGrading,
+		PaperSessionsStatusGraded,
+		PaperSessionsStatusAbandoned:
+		return true
+	}
+	return false
+}
+
+func AllPaperSessionsStatusValues() []PaperSessionsStatus {
+	return []PaperSessionsStatus{
+		PaperSessionsStatusInProgress,
+		PaperSessionsStatusPaused,
+		PaperSessionsStatusGrading,
+		PaperSessionsStatusGraded,
+		PaperSessionsStatusAbandoned,
+	}
+}
+
 type PapersKind string
 
 const (
@@ -2310,6 +3354,26 @@ func (ns NullPapersKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.PapersKind), nil
+}
+
+func (e PapersKind) Valid() bool {
+	switch e {
+	case PapersKindRealExam,
+		PapersKindAiStandard,
+		PapersKindAiTargeted,
+		PapersKindOfficialMock:
+		return true
+	}
+	return false
+}
+
+func AllPapersKindValues() []PapersKind {
+	return []PapersKind{
+		PapersKindRealExam,
+		PapersKindAiStandard,
+		PapersKindAiTargeted,
+		PapersKindOfficialMock,
+	}
 }
 
 type PracticeSessionsKind string
@@ -2360,6 +3424,34 @@ func (ns NullPracticeSessionsKind) Value() (driver.Value, error) {
 	return string(ns.PracticeSessionsKind), nil
 }
 
+func (e PracticeSessionsKind) Valid() bool {
+	switch e {
+	case PracticeSessionsKindDaily,
+		PracticeSessionsKindTypeDrill,
+		PracticeSessionsKindCustom,
+		PracticeSessionsKindWrongRedo,
+		PracticeSessionsKindPlacement,
+		PracticeSessionsKindHighFreq,
+		PracticeSessionsKindRecite,
+		PracticeSessionsKindSingle:
+		return true
+	}
+	return false
+}
+
+func AllPracticeSessionsKindValues() []PracticeSessionsKind {
+	return []PracticeSessionsKind{
+		PracticeSessionsKindDaily,
+		PracticeSessionsKindTypeDrill,
+		PracticeSessionsKindCustom,
+		PracticeSessionsKindWrongRedo,
+		PracticeSessionsKindPlacement,
+		PracticeSessionsKindHighFreq,
+		PracticeSessionsKindRecite,
+		PracticeSessionsKindSingle,
+	}
+}
+
 type PracticeSessionsStatus string
 
 const (
@@ -2401,6 +3493,24 @@ func (ns NullPracticeSessionsStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.PracticeSessionsStatus), nil
+}
+
+func (e PracticeSessionsStatus) Valid() bool {
+	switch e {
+	case PracticeSessionsStatusInProgress,
+		PracticeSessionsStatusFinished,
+		PracticeSessionsStatusAbandoned:
+		return true
+	}
+	return false
+}
+
+func AllPracticeSessionsStatusValues() []PracticeSessionsStatus {
+	return []PracticeSessionsStatus{
+		PracticeSessionsStatusInProgress,
+		PracticeSessionsStatusFinished,
+		PracticeSessionsStatusAbandoned,
+	}
 }
 
 type QuestionsAnswerOrigin string
@@ -2447,6 +3557,26 @@ func (ns NullQuestionsAnswerOrigin) Value() (driver.Value, error) {
 	return string(ns.QuestionsAnswerOrigin), nil
 }
 
+func (e QuestionsAnswerOrigin) Valid() bool {
+	switch e {
+	case QuestionsAnswerOriginImported,
+		QuestionsAnswerOriginAiGenerated,
+		QuestionsAnswerOriginUserConfirmed,
+		QuestionsAnswerOriginOfficial:
+		return true
+	}
+	return false
+}
+
+func AllQuestionsAnswerOriginValues() []QuestionsAnswerOrigin {
+	return []QuestionsAnswerOrigin{
+		QuestionsAnswerOriginImported,
+		QuestionsAnswerOriginAiGenerated,
+		QuestionsAnswerOriginUserConfirmed,
+		QuestionsAnswerOriginOfficial,
+	}
+}
+
 type QuestionsDifficulty string
 
 const (
@@ -2488,6 +3618,24 @@ func (ns NullQuestionsDifficulty) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.QuestionsDifficulty), nil
+}
+
+func (e QuestionsDifficulty) Valid() bool {
+	switch e {
+	case QuestionsDifficultyEasy,
+		QuestionsDifficultyMedium,
+		QuestionsDifficultyHard:
+		return true
+	}
+	return false
+}
+
+func AllQuestionsDifficultyValues() []QuestionsDifficulty {
+	return []QuestionsDifficulty{
+		QuestionsDifficultyEasy,
+		QuestionsDifficultyMedium,
+		QuestionsDifficultyHard,
+	}
 }
 
 type QuestionsQtype string
@@ -2540,6 +3688,38 @@ func (ns NullQuestionsQtype) Value() (driver.Value, error) {
 	return string(ns.QuestionsQtype), nil
 }
 
+func (e QuestionsQtype) Valid() bool {
+	switch e {
+	case QuestionsQtypeSingleChoice,
+		QuestionsQtypeMultiChoice,
+		QuestionsQtypeTrueFalse,
+		QuestionsQtypeFillBlank,
+		QuestionsQtypeTerm,
+		QuestionsQtypeShortAnswer,
+		QuestionsQtypeDiscussion,
+		QuestionsQtypeEssay,
+		QuestionsQtypeCalculation,
+		QuestionsQtypeOther:
+		return true
+	}
+	return false
+}
+
+func AllQuestionsQtypeValues() []QuestionsQtype {
+	return []QuestionsQtype{
+		QuestionsQtypeSingleChoice,
+		QuestionsQtypeMultiChoice,
+		QuestionsQtypeTrueFalse,
+		QuestionsQtypeFillBlank,
+		QuestionsQtypeTerm,
+		QuestionsQtypeShortAnswer,
+		QuestionsQtypeDiscussion,
+		QuestionsQtypeEssay,
+		QuestionsQtypeCalculation,
+		QuestionsQtypeOther,
+	}
+}
+
 type QuestionsSource string
 
 const (
@@ -2584,6 +3764,26 @@ func (ns NullQuestionsSource) Value() (driver.Value, error) {
 	return string(ns.QuestionsSource), nil
 }
 
+func (e QuestionsSource) Valid() bool {
+	switch e {
+	case QuestionsSourceExam,
+		QuestionsSourceExercise,
+		QuestionsSourceAiGenerated,
+		QuestionsSourceOfficial:
+		return true
+	}
+	return false
+}
+
+func AllQuestionsSourceValues() []QuestionsSource {
+	return []QuestionsSource{
+		QuestionsSourceExam,
+		QuestionsSourceExercise,
+		QuestionsSourceAiGenerated,
+		QuestionsSourceOfficial,
+	}
+}
+
 type QuestionsStatus string
 
 const (
@@ -2625,6 +3825,24 @@ func (ns NullQuestionsStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.QuestionsStatus), nil
+}
+
+func (e QuestionsStatus) Valid() bool {
+	switch e {
+	case QuestionsStatusActive,
+		QuestionsStatusOffline,
+		QuestionsStatusDeleted:
+		return true
+	}
+	return false
+}
+
+func AllQuestionsStatusValues() []QuestionsStatus {
+	return []QuestionsStatus{
+		QuestionsStatusActive,
+		QuestionsStatusOffline,
+		QuestionsStatusDeleted,
+	}
 }
 
 type QuotaCountersQuotaType string
@@ -2673,6 +3891,30 @@ func (ns NullQuotaCountersQuotaType) Value() (driver.Value, error) {
 	return string(ns.QuotaCountersQuotaType), nil
 }
 
+func (e QuotaCountersQuotaType) Valid() bool {
+	switch e {
+	case QuotaCountersQuotaTypeParsePages,
+		QuotaCountersQuotaTypeImportQuestions,
+		QuotaCountersQuotaTypeGrading,
+		QuotaCountersQuotaTypeAiQuestions,
+		QuotaCountersQuotaTypePaperGrading,
+		QuotaCountersQuotaTypeEssayGrading:
+		return true
+	}
+	return false
+}
+
+func AllQuotaCountersQuotaTypeValues() []QuotaCountersQuotaType {
+	return []QuotaCountersQuotaType{
+		QuotaCountersQuotaTypeParsePages,
+		QuotaCountersQuotaTypeImportQuestions,
+		QuotaCountersQuotaTypeGrading,
+		QuotaCountersQuotaTypeAiQuestions,
+		QuotaCountersQuotaTypePaperGrading,
+		QuotaCountersQuotaTypeEssayGrading,
+	}
+}
+
 type QuotaLedgerAction string
 
 const (
@@ -2717,6 +3959,30 @@ func (ns NullQuotaLedgerAction) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.QuotaLedgerAction), nil
+}
+
+func (e QuotaLedgerAction) Valid() bool {
+	switch e {
+	case QuotaLedgerActionReserve,
+		QuotaLedgerActionSettle,
+		QuotaLedgerActionRelease,
+		QuotaLedgerActionConsume,
+		QuotaLedgerActionRefund,
+		QuotaLedgerActionGrant:
+		return true
+	}
+	return false
+}
+
+func AllQuotaLedgerActionValues() []QuotaLedgerAction {
+	return []QuotaLedgerAction{
+		QuotaLedgerActionReserve,
+		QuotaLedgerActionSettle,
+		QuotaLedgerActionRelease,
+		QuotaLedgerActionConsume,
+		QuotaLedgerActionRefund,
+		QuotaLedgerActionGrant,
+	}
 }
 
 type QuotaLedgerQuotaType string
@@ -2765,6 +4031,30 @@ func (ns NullQuotaLedgerQuotaType) Value() (driver.Value, error) {
 	return string(ns.QuotaLedgerQuotaType), nil
 }
 
+func (e QuotaLedgerQuotaType) Valid() bool {
+	switch e {
+	case QuotaLedgerQuotaTypeParsePages,
+		QuotaLedgerQuotaTypeImportQuestions,
+		QuotaLedgerQuotaTypeGrading,
+		QuotaLedgerQuotaTypeAiQuestions,
+		QuotaLedgerQuotaTypePaperGrading,
+		QuotaLedgerQuotaTypeEssayGrading:
+		return true
+	}
+	return false
+}
+
+func AllQuotaLedgerQuotaTypeValues() []QuotaLedgerQuotaType {
+	return []QuotaLedgerQuotaType{
+		QuotaLedgerQuotaTypeParsePages,
+		QuotaLedgerQuotaTypeImportQuestions,
+		QuotaLedgerQuotaTypeGrading,
+		QuotaLedgerQuotaTypeAiQuestions,
+		QuotaLedgerQuotaTypePaperGrading,
+		QuotaLedgerQuotaTypeEssayGrading,
+	}
+}
+
 type ReciteRecordsMode string
 
 const (
@@ -2806,6 +4096,24 @@ func (ns NullReciteRecordsMode) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.ReciteRecordsMode), nil
+}
+
+func (e ReciteRecordsMode) Valid() bool {
+	switch e {
+	case ReciteRecordsModeCloze,
+		ReciteRecordsModeDictation,
+		ReciteRecordsModeOral:
+		return true
+	}
+	return false
+}
+
+func AllReciteRecordsModeValues() []ReciteRecordsMode {
+	return []ReciteRecordsMode{
+		ReciteRecordsModeCloze,
+		ReciteRecordsModeDictation,
+		ReciteRecordsModeOral,
+	}
 }
 
 type ReciteRecordsResult string
@@ -2851,6 +4159,24 @@ func (ns NullReciteRecordsResult) Value() (driver.Value, error) {
 	return string(ns.ReciteRecordsResult), nil
 }
 
+func (e ReciteRecordsResult) Valid() bool {
+	switch e {
+	case ReciteRecordsResultForgot,
+		ReciteRecordsResultVague,
+		ReciteRecordsResultRemembered:
+		return true
+	}
+	return false
+}
+
+func AllReciteRecordsResultValues() []ReciteRecordsResult {
+	return []ReciteRecordsResult{
+		ReciteRecordsResultForgot,
+		ReciteRecordsResultVague,
+		ReciteRecordsResultRemembered,
+	}
+}
+
 type RedeemBatchesStatus string
 
 const (
@@ -2891,6 +4217,22 @@ func (ns NullRedeemBatchesStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.RedeemBatchesStatus), nil
+}
+
+func (e RedeemBatchesStatus) Valid() bool {
+	switch e {
+	case RedeemBatchesStatusActive,
+		RedeemBatchesStatusDisabled:
+		return true
+	}
+	return false
+}
+
+func AllRedeemBatchesStatusValues() []RedeemBatchesStatus {
+	return []RedeemBatchesStatus{
+		RedeemBatchesStatusActive,
+		RedeemBatchesStatusDisabled,
+	}
 }
 
 type RedeemBatchesTier string
@@ -2937,6 +4279,26 @@ func (ns NullRedeemBatchesTier) Value() (driver.Value, error) {
 	return string(ns.RedeemBatchesTier), nil
 }
 
+func (e RedeemBatchesTier) Valid() bool {
+	switch e {
+	case RedeemBatchesTierSprint,
+		RedeemBatchesTierSeason,
+		RedeemBatchesTierMonthly,
+		RedeemBatchesTierGift:
+		return true
+	}
+	return false
+}
+
+func AllRedeemBatchesTierValues() []RedeemBatchesTier {
+	return []RedeemBatchesTier{
+		RedeemBatchesTierSprint,
+		RedeemBatchesTierSeason,
+		RedeemBatchesTierMonthly,
+		RedeemBatchesTierGift,
+	}
+}
+
 type RedeemCodesStatus string
 
 const (
@@ -2980,6 +4342,24 @@ func (ns NullRedeemCodesStatus) Value() (driver.Value, error) {
 	return string(ns.RedeemCodesStatus), nil
 }
 
+func (e RedeemCodesStatus) Valid() bool {
+	switch e {
+	case RedeemCodesStatusUnused,
+		RedeemCodesStatusUsed,
+		RedeemCodesStatusVoid:
+		return true
+	}
+	return false
+}
+
+func AllRedeemCodesStatusValues() []RedeemCodesStatus {
+	return []RedeemCodesStatus{
+		RedeemCodesStatusUnused,
+		RedeemCodesStatusUsed,
+		RedeemCodesStatusVoid,
+	}
+}
+
 type RefreshTokensPlatform string
 
 const (
@@ -3021,6 +4401,24 @@ func (ns NullRefreshTokensPlatform) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.RefreshTokensPlatform), nil
+}
+
+func (e RefreshTokensPlatform) Valid() bool {
+	switch e {
+	case RefreshTokensPlatformIos,
+		RefreshTokensPlatformAndroid,
+		RefreshTokensPlatformWeb:
+		return true
+	}
+	return false
+}
+
+func AllRefreshTokensPlatformValues() []RefreshTokensPlatform {
+	return []RefreshTokensPlatform{
+		RefreshTokensPlatformIos,
+		RefreshTokensPlatformAndroid,
+		RefreshTokensPlatformWeb,
+	}
 }
 
 type RefundsStatus string
@@ -3067,6 +4465,26 @@ func (ns NullRefundsStatus) Value() (driver.Value, error) {
 	return string(ns.RefundsStatus), nil
 }
 
+func (e RefundsStatus) Valid() bool {
+	switch e {
+	case RefundsStatusPending,
+		RefundsStatusApproved,
+		RefundsStatusRejected,
+		RefundsStatusDone:
+		return true
+	}
+	return false
+}
+
+func AllRefundsStatusValues() []RefundsStatus {
+	return []RefundsStatus{
+		RefundsStatusPending,
+		RefundsStatusApproved,
+		RefundsStatusRejected,
+		RefundsStatusDone,
+	}
+}
+
 type ReviewTasksDecision string
 
 const (
@@ -3111,6 +4529,26 @@ func (ns NullReviewTasksDecision) Value() (driver.Value, error) {
 	return string(ns.ReviewTasksDecision), nil
 }
 
+func (e ReviewTasksDecision) Valid() bool {
+	switch e {
+	case ReviewTasksDecisionPending,
+		ReviewTasksDecisionApproved,
+		ReviewTasksDecisionRejected,
+		ReviewTasksDecisionEdited:
+		return true
+	}
+	return false
+}
+
+func AllReviewTasksDecisionValues() []ReviewTasksDecision {
+	return []ReviewTasksDecision{
+		ReviewTasksDecisionPending,
+		ReviewTasksDecisionApproved,
+		ReviewTasksDecisionRejected,
+		ReviewTasksDecisionEdited,
+	}
+}
+
 type ReviewTasksMode string
 
 const (
@@ -3152,6 +4590,24 @@ func (ns NullReviewTasksMode) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.ReviewTasksMode), nil
+}
+
+func (e ReviewTasksMode) Valid() bool {
+	switch e {
+	case ReviewTasksModeFull,
+		ReviewTasksModeSampled,
+		ReviewTasksModeSkipped:
+		return true
+	}
+	return false
+}
+
+func AllReviewTasksModeValues() []ReviewTasksMode {
+	return []ReviewTasksMode{
+		ReviewTasksModeFull,
+		ReviewTasksModeSampled,
+		ReviewTasksModeSkipped,
+	}
 }
 
 type RubricPointsOrigin string
@@ -3198,6 +4654,26 @@ func (ns NullRubricPointsOrigin) Value() (driver.Value, error) {
 	return string(ns.RubricPointsOrigin), nil
 }
 
+func (e RubricPointsOrigin) Valid() bool {
+	switch e {
+	case RubricPointsOriginUserConfirmed,
+		RubricPointsOriginAiExtracted,
+		RubricPointsOriginAiGenerated,
+		RubricPointsOriginOfficial:
+		return true
+	}
+	return false
+}
+
+func AllRubricPointsOriginValues() []RubricPointsOrigin {
+	return []RubricPointsOrigin{
+		RubricPointsOriginUserConfirmed,
+		RubricPointsOriginAiExtracted,
+		RubricPointsOriginAiGenerated,
+		RubricPointsOriginOfficial,
+	}
+}
+
 type StudyProfilesPendingStage string
 
 const (
@@ -3240,6 +4716,26 @@ func (ns NullStudyProfilesPendingStage) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.StudyProfilesPendingStage), nil
+}
+
+func (e StudyProfilesPendingStage) Valid() bool {
+	switch e {
+	case StudyProfilesPendingStageFoundation,
+		StudyProfilesPendingStageStrengthen,
+		StudyProfilesPendingStageSprint,
+		StudyProfilesPendingStageFinal:
+		return true
+	}
+	return false
+}
+
+func AllStudyProfilesPendingStageValues() []StudyProfilesPendingStage {
+	return []StudyProfilesPendingStage{
+		StudyProfilesPendingStageFoundation,
+		StudyProfilesPendingStageStrengthen,
+		StudyProfilesPendingStageSprint,
+		StudyProfilesPendingStageFinal,
+	}
 }
 
 type StudyProfilesStage string
@@ -3286,6 +4782,26 @@ func (ns NullStudyProfilesStage) Value() (driver.Value, error) {
 	return string(ns.StudyProfilesStage), nil
 }
 
+func (e StudyProfilesStage) Valid() bool {
+	switch e {
+	case StudyProfilesStageFoundation,
+		StudyProfilesStageStrengthen,
+		StudyProfilesStageSprint,
+		StudyProfilesStageFinal:
+		return true
+	}
+	return false
+}
+
+func AllStudyProfilesStageValues() []StudyProfilesStage {
+	return []StudyProfilesStage{
+		StudyProfilesStageFoundation,
+		StudyProfilesStageStrengthen,
+		StudyProfilesStageSprint,
+		StudyProfilesStageFinal,
+	}
+}
+
 type SubjectsEssaySetBy string
 
 const (
@@ -3326,6 +4842,22 @@ func (ns NullSubjectsEssaySetBy) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.SubjectsEssaySetBy), nil
+}
+
+func (e SubjectsEssaySetBy) Valid() bool {
+	switch e {
+	case SubjectsEssaySetByAuto,
+		SubjectsEssaySetByUser:
+		return true
+	}
+	return false
+}
+
+func AllSubjectsEssaySetByValues() []SubjectsEssaySetBy {
+	return []SubjectsEssaySetBy{
+		SubjectsEssaySetByAuto,
+		SubjectsEssaySetByUser,
+	}
 }
 
 type SurveyResponsesAdmission string
@@ -3372,6 +4904,26 @@ func (ns NullSurveyResponsesAdmission) Value() (driver.Value, error) {
 	return string(ns.SurveyResponsesAdmission), nil
 }
 
+func (e SurveyResponsesAdmission) Valid() bool {
+	switch e {
+	case SurveyResponsesAdmissionAdmitted,
+		SurveyResponsesAdmissionAdjusted,
+		SurveyResponsesAdmissionRejected,
+		SurveyResponsesAdmissionPending:
+		return true
+	}
+	return false
+}
+
+func AllSurveyResponsesAdmissionValues() []SurveyResponsesAdmission {
+	return []SurveyResponsesAdmission{
+		SurveyResponsesAdmissionAdmitted,
+		SurveyResponsesAdmissionAdjusted,
+		SurveyResponsesAdmissionRejected,
+		SurveyResponsesAdmissionPending,
+	}
+}
+
 type SurveyResponsesRetestResult string
 
 const (
@@ -3415,6 +4967,24 @@ func (ns NullSurveyResponsesRetestResult) Value() (driver.Value, error) {
 	return string(ns.SurveyResponsesRetestResult), nil
 }
 
+func (e SurveyResponsesRetestResult) Valid() bool {
+	switch e {
+	case SurveyResponsesRetestResultIn,
+		SurveyResponsesRetestResultOut,
+		SurveyResponsesRetestResultUnknown:
+		return true
+	}
+	return false
+}
+
+func AllSurveyResponsesRetestResultValues() []SurveyResponsesRetestResult {
+	return []SurveyResponsesRetestResult{
+		SurveyResponsesRetestResultIn,
+		SurveyResponsesRetestResultOut,
+		SurveyResponsesRetestResultUnknown,
+	}
+}
+
 type UsersStatus string
 
 const (
@@ -3456,6 +5026,24 @@ func (ns NullUsersStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.UsersStatus), nil
+}
+
+func (e UsersStatus) Valid() bool {
+	switch e {
+	case UsersStatusActive,
+		UsersStatusBanned,
+		UsersStatusDeleting:
+		return true
+	}
+	return false
+}
+
+func AllUsersStatusValues() []UsersStatus {
+	return []UsersStatus{
+		UsersStatusActive,
+		UsersStatusBanned,
+		UsersStatusDeleting,
+	}
 }
 
 type WritingMethodsMasteryState string
@@ -3502,6 +5090,26 @@ func (ns NullWritingMethodsMasteryState) Value() (driver.Value, error) {
 	return string(ns.WritingMethodsMasteryState), nil
 }
 
+func (e WritingMethodsMasteryState) Valid() bool {
+	switch e {
+	case WritingMethodsMasteryStateUnlearned,
+		WritingMethodsMasteryStateLearning,
+		WritingMethodsMasteryStateConsolidating,
+		WritingMethodsMasteryStateMastered:
+		return true
+	}
+	return false
+}
+
+func AllWritingMethodsMasteryStateValues() []WritingMethodsMasteryState {
+	return []WritingMethodsMasteryState{
+		WritingMethodsMasteryStateUnlearned,
+		WritingMethodsMasteryStateLearning,
+		WritingMethodsMasteryStateConsolidating,
+		WritingMethodsMasteryStateMastered,
+	}
+}
+
 type WritingMethodsOrigin string
 
 const (
@@ -3544,6 +5152,26 @@ func (ns NullWritingMethodsOrigin) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.WritingMethodsOrigin), nil
+}
+
+func (e WritingMethodsOrigin) Valid() bool {
+	switch e {
+	case WritingMethodsOriginUserConfirmed,
+		WritingMethodsOriginAiExtracted,
+		WritingMethodsOriginAiGenerated,
+		WritingMethodsOriginOfficial:
+		return true
+	}
+	return false
+}
+
+func AllWritingMethodsOriginValues() []WritingMethodsOrigin {
+	return []WritingMethodsOrigin{
+		WritingMethodsOriginUserConfirmed,
+		WritingMethodsOriginAiExtracted,
+		WritingMethodsOriginAiGenerated,
+		WritingMethodsOriginOfficial,
+	}
 }
 
 type WrongBookAddedReason string
@@ -3589,6 +5217,24 @@ func (ns NullWrongBookAddedReason) Value() (driver.Value, error) {
 	return string(ns.WrongBookAddedReason), nil
 }
 
+func (e WrongBookAddedReason) Valid() bool {
+	switch e {
+	case WrongBookAddedReasonWrong,
+		WrongBookAddedReasonPartial,
+		WrongBookAddedReasonRevealed:
+		return true
+	}
+	return false
+}
+
+func AllWrongBookAddedReasonValues() []WrongBookAddedReason {
+	return []WrongBookAddedReason{
+		WrongBookAddedReasonWrong,
+		WrongBookAddedReasonPartial,
+		WrongBookAddedReasonRevealed,
+	}
+}
+
 type WrongBookLastLossType string
 
 const (
@@ -3632,6 +5278,24 @@ func (ns NullWrongBookLastLossType) Value() (driver.Value, error) {
 	return string(ns.WrongBookLastLossType), nil
 }
 
+func (e WrongBookLastLossType) Valid() bool {
+	switch e {
+	case WrongBookLastLossTypeKnowledge,
+		WrongBookLastLossTypeNorm,
+		WrongBookLastLossTypeTime:
+		return true
+	}
+	return false
+}
+
+func AllWrongBookLastLossTypeValues() []WrongBookLastLossType {
+	return []WrongBookLastLossType{
+		WrongBookLastLossTypeKnowledge,
+		WrongBookLastLossTypeNorm,
+		WrongBookLastLossTypeTime,
+	}
+}
+
 type WrongBookStatus string
 
 const (
@@ -3673,6 +5337,24 @@ func (ns NullWrongBookStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.WrongBookStatus), nil
+}
+
+func (e WrongBookStatus) Valid() bool {
+	switch e {
+	case WrongBookStatusActive,
+		WrongBookStatusEliminated,
+		WrongBookStatusRemoved:
+		return true
+	}
+	return false
+}
+
+func AllWrongBookStatusValues() []WrongBookStatus {
+	return []WrongBookStatus{
+		WrongBookStatusActive,
+		WrongBookStatusEliminated,
+		WrongBookStatusRemoved,
+	}
 }
 
 // 后台操作日志，保留 180 天，不提供删除接口

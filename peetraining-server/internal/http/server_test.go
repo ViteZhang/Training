@@ -19,17 +19,31 @@ import (
 
 type fakePinger struct{ err error }
 
+// fakeTokens 把 "user-<id>" 当作有效令牌。
+type fakeTokens struct{}
+
+func (fakeTokens) ParseAccess(token string) (uint64, string, error) {
+	if token == "user-1" {
+		return 1, "dev-1", nil
+	}
+	return 0, "", errors.New("invalid")
+}
+
 func (f fakePinger) Ping(context.Context) error { return f.err }
 
 func newTestRouter(t *testing.T, mysql, redis Pinger) (*gin.Engine, *bytes.Buffer) {
 	t.Helper()
 	var buf bytes.Buffer
-	r := NewRouter(Deps{
+	r, err := NewRouter(Deps{
 		Logger:  logx.New(&buf, slog.LevelDebug),
 		Version: "test-version",
 		MySQL:   mysql,
 		Redis:   redis,
+		Tokens:  fakeTokens{},
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	return r, &buf
 }
 

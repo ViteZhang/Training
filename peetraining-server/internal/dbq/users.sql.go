@@ -7,14 +7,217 @@ package dbq
 
 import (
 	"context"
+	"database/sql"
+	"time"
 )
+
+const acceptAgreement = `-- name: AcceptAgreement :exec
+INSERT IGNORE INTO agreement_acceptances (user_id, agreement_id) VALUES (?, ?)
+`
+
+type AcceptAgreementParams struct {
+	UserID      uint64
+	AgreementID uint64
+}
+
+func (q *Queries) AcceptAgreement(ctx context.Context, arg AcceptAgreementParams) error {
+	_, err := q.db.ExecContext(ctx, acceptAgreement, arg.UserID, arg.AgreementID)
+	return err
+}
+
+const cancelUserDeletion = `-- name: CancelUserDeletion :execrows
+UPDATE users SET status = 'active', deletion_requested_at = NULL, deletion_due_at = NULL WHERE id = ? AND status = 'deleting'
+`
+
+func (q *Queries) CancelUserDeletion(ctx context.Context, id uint64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, cancelUserDeletion, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const createUser = `-- name: CreateUser :execlastid
+INSERT INTO users (phone, invite_code) VALUES (?, ?)
+`
+
+type CreateUserParams struct {
+	Phone      string
+	InviteCode string
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, createUser, arg.Phone, arg.InviteCode)
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
+}
+
+const deleteUser = `-- name: DeleteUser :exec
+DELETE FROM users WHERE id = ? AND status = 'deleting'
+`
+
+func (q *Queries) DeleteUser(ctx context.Context, id uint64) error {
+	_, err := q.db.ExecContext(ctx, deleteUser, id)
+	return err
+}
+
+const getAppVersion = `-- name: GetAppVersion :one
+SELECT platform, latest_version, min_version, download_url, release_notes, updated_at FROM app_versions WHERE platform = ?
+`
+
+func (q *Queries) GetAppVersion(ctx context.Context, platform AppVersionsPlatform) (AppVersion, error) {
+	row := q.db.QueryRowContext(ctx, getAppVersion, platform)
+	var i AppVersion
+	err := row.Scan(
+		&i.Platform,
+		&i.LatestVersion,
+		&i.MinVersion,
+		&i.DownloadUrl,
+		&i.ReleaseNotes,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getCurrentMembership = `-- name: GetCurrentMembership :one
+SELECT id, owner_user_id, tier, source, source_ref, starts_at, ends_at, revoked_at, created_at FROM memberships
+WHERE owner_user_id = ? AND revoked_at IS NULL AND starts_at <= ? AND ends_at > ?
+ORDER BY ends_at DESC LIMIT 1
+`
+
+type GetCurrentMembershipParams struct {
+	OwnerUserID uint64
+	StartsAt    time.Time
+	EndsAt      time.Time
+}
+
+// 覆盖此刻、未收回的会员时段。
+func (q *Queries) GetCurrentMembership(ctx context.Context, arg GetCurrentMembershipParams) (Membership, error) {
+	row := q.db.QueryRowContext(ctx, getCurrentMembership, arg.OwnerUserID, arg.StartsAt, arg.EndsAt)
+	var i Membership
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerUserID,
+		&i.Tier,
+		&i.Source,
+		&i.SourceRef,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.RevokedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getLatestAgreement = `-- name: GetLatestAgreement :one
+SELECT id, kind, version, title, body, change_summary, effective_at, published_at, created_at FROM agreements
+WHERE kind = ? AND published_at IS NOT NULL AND published_at <= ?
+ORDER BY effective_at DESC, id DESC LIMIT 1
+`
+
+type GetLatestAgreementParams struct {
+	Kind        AgreementsKind
+	PublishedAt sql.NullTime
+}
+
+func (q *Queries) GetLatestAgreement(ctx context.Context, arg GetLatestAgreementParams) (Agreement, error) {
+	row := q.db.QueryRowContext(ctx, getLatestAgreement, arg.Kind, arg.PublishedAt)
+	var i Agreement
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.Version,
+		&i.Title,
+		&i.Body,
+		&i.ChangeSummary,
+		&i.EffectiveAt,
+		&i.PublishedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getLatestMembershipEnd = `-- name: GetLatestMembershipEnd :one
+SELECT id, owner_user_id, tier, source, source_ref, starts_at, ends_at, revoked_at, created_at FROM memberships
+WHERE owner_user_id = ? AND revoked_at IS NULL AND ends_at > ?
+ORDER BY ends_at DESC LIMIT 1
+`
+
+type GetLatestMembershipEndParams struct {
+	OwnerUserID uint64
+	EndsAt      time.Time
+}
+
+// 时长叠加后的最晚结束时间（会员条上显示「有效期至」）。
+func (q *Queries) GetLatestMembershipEnd(ctx context.Context, arg GetLatestMembershipEndParams) (Membership, error) {
+	row := q.db.QueryRowContext(ctx, getLatestMembershipEnd, arg.OwnerUserID, arg.EndsAt)
+	var i Membership
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerUserID,
+		&i.Tier,
+		&i.Source,
+		&i.SourceRef,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.RevokedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getPublishedAgreementByID = `-- name: GetPublishedAgreementByID :one
+SELECT id, kind, version, title, body, change_summary, effective_at, published_at, created_at FROM agreements WHERE id = ? AND published_at IS NOT NULL
+`
+
+func (q *Queries) GetPublishedAgreementByID(ctx context.Context, id uint64) (Agreement, error) {
+	row := q.db.QueryRowContext(ctx, getPublishedAgreementByID, id)
+	var i Agreement
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.Version,
+		&i.Title,
+		&i.Body,
+		&i.ChangeSummary,
+		&i.EffectiveAt,
+		&i.PublishedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getRefreshTokenByHash = `-- name: GetRefreshTokenByHash :one
+SELECT id, user_id, device_id, device_name, platform, token_hash, expires_at, revoked_at, last_used_at, created_at FROM refresh_tokens WHERE token_hash = ?
+`
+
+func (q *Queries) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error) {
+	row := q.db.QueryRowContext(ctx, getRefreshTokenByHash, tokenHash)
+	var i RefreshToken
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.DeviceID,
+		&i.DeviceName,
+		&i.Platform,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.LastUsedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
 
 const getUserByID = `-- name: GetUserByID :one
 
 SELECT id, phone, nickname, avatar_key, invite_code, status, onboarding_step, deletion_requested_at, deletion_due_at, last_active_at, created_at, updated_at FROM users WHERE id = ?
 `
 
-// 用户与刷新令牌。规矩：查询用户内容一律带 owner_user_id 条件（CLAUDE.md 必须遵守第 4 条）。
+// 用户、刷新令牌、协议、App 版本、会员状态（T06）。
+// 规矩：查询用户内容一律带归属条件（CLAUDE.md 必须遵守第 4 条）；这里的表以 user_id / id 为归属。
 func (q *Queries) GetUserByID(ctx context.Context, id uint64) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByID, id)
 	var i User
@@ -57,4 +260,298 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phone string) (User, error
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const insertRefreshToken = `-- name: InsertRefreshToken :exec
+INSERT INTO refresh_tokens (user_id, device_id, device_name, platform, token_hash, expires_at, last_used_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+`
+
+type InsertRefreshTokenParams struct {
+	UserID     uint64
+	DeviceID   string
+	DeviceName string
+	Platform   RefreshTokensPlatform
+	TokenHash  string
+	ExpiresAt  time.Time
+	LastUsedAt sql.NullTime
+}
+
+func (q *Queries) InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error {
+	_, err := q.db.ExecContext(ctx, insertRefreshToken,
+		arg.UserID,
+		arg.DeviceID,
+		arg.DeviceName,
+		arg.Platform,
+		arg.TokenHash,
+		arg.ExpiresAt,
+		arg.LastUsedAt,
+	)
+	return err
+}
+
+const listAcceptedAgreementIDs = `-- name: ListAcceptedAgreementIDs :many
+SELECT agreement_id FROM agreement_acceptances WHERE user_id = ?
+`
+
+func (q *Queries) ListAcceptedAgreementIDs(ctx context.Context, userID uint64) ([]uint64, error) {
+	rows, err := q.db.QueryContext(ctx, listAcceptedAgreementIDs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uint64{}
+	for rows.Next() {
+		var agreement_id uint64
+		if err := rows.Scan(&agreement_id); err != nil {
+			return nil, err
+		}
+		items = append(items, agreement_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLatestAgreements = `-- name: ListLatestAgreements :many
+SELECT a.id, a.kind, a.version, a.title, a.body, a.change_summary, a.effective_at, a.published_at, a.created_at FROM agreements a
+JOIN (
+  SELECT a2.kind, MAX(a2.effective_at) AS effective_at FROM agreements a2
+  WHERE a2.published_at IS NOT NULL AND a2.published_at <= ? GROUP BY a2.kind
+) latest ON latest.kind = a.kind AND latest.effective_at = a.effective_at
+WHERE a.published_at IS NOT NULL
+`
+
+func (q *Queries) ListLatestAgreements(ctx context.Context, publishedAt sql.NullTime) ([]Agreement, error) {
+	rows, err := q.db.QueryContext(ctx, listLatestAgreements, publishedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Agreement{}
+	for rows.Next() {
+		var i Agreement
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Version,
+			&i.Title,
+			&i.Body,
+			&i.ChangeSummary,
+			&i.EffectiveAt,
+			&i.PublishedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserActiveTokens = `-- name: ListUserActiveTokens :many
+SELECT device_id, device_name, platform, COALESCE(last_used_at, created_at) AS last_used_at
+FROM refresh_tokens
+WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ?
+ORDER BY last_used_at DESC
+`
+
+type ListUserActiveTokensParams struct {
+	UserID    uint64
+	ExpiresAt time.Time
+}
+
+type ListUserActiveTokensRow struct {
+	DeviceID   string
+	DeviceName string
+	Platform   RefreshTokensPlatform
+	LastUsedAt time.Time
+}
+
+// 登录设备列表：同一设备可能有多条有效令牌（并发刷新），由调用方按 device_id 去重。
+func (q *Queries) ListUserActiveTokens(ctx context.Context, arg ListUserActiveTokensParams) ([]ListUserActiveTokensRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUserActiveTokens, arg.UserID, arg.ExpiresAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUserActiveTokensRow{}
+	for rows.Next() {
+		var i ListUserActiveTokensRow
+		if err := rows.Scan(
+			&i.DeviceID,
+			&i.DeviceName,
+			&i.Platform,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUsersDueForDeletion = `-- name: ListUsersDueForDeletion :many
+SELECT id FROM users WHERE status = 'deleting' AND deletion_due_at <= ? ORDER BY id LIMIT ?
+`
+
+type ListUsersDueForDeletionParams struct {
+	DeletionDueAt sql.NullTime
+	Limit         int32
+}
+
+func (q *Queries) ListUsersDueForDeletion(ctx context.Context, arg ListUsersDueForDeletionParams) ([]uint64, error) {
+	rows, err := q.db.QueryContext(ctx, listUsersDueForDeletion, arg.DeletionDueAt, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uint64{}
+	for rows.Next() {
+		var id uint64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const requestUserDeletion = `-- name: RequestUserDeletion :exec
+UPDATE users SET status = 'deleting', deletion_requested_at = ?, deletion_due_at = ? WHERE id = ? AND status = 'active'
+`
+
+type RequestUserDeletionParams struct {
+	DeletionRequestedAt sql.NullTime
+	DeletionDueAt       sql.NullTime
+	ID                  uint64
+}
+
+func (q *Queries) RequestUserDeletion(ctx context.Context, arg RequestUserDeletionParams) error {
+	_, err := q.db.ExecContext(ctx, requestUserDeletion, arg.DeletionRequestedAt, arg.DeletionDueAt, arg.ID)
+	return err
+}
+
+const revokeAllUserTokens = `-- name: RevokeAllUserTokens :exec
+UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL
+`
+
+type RevokeAllUserTokensParams struct {
+	RevokedAt sql.NullTime
+	UserID    uint64
+}
+
+func (q *Queries) RevokeAllUserTokens(ctx context.Context, arg RevokeAllUserTokensParams) error {
+	_, err := q.db.ExecContext(ctx, revokeAllUserTokens, arg.RevokedAt, arg.UserID)
+	return err
+}
+
+const revokeDeviceTokens = `-- name: RevokeDeviceTokens :execrows
+UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND device_id = ? AND revoked_at IS NULL
+`
+
+type RevokeDeviceTokensParams struct {
+	RevokedAt sql.NullTime
+	UserID    uint64
+	DeviceID  string
+}
+
+func (q *Queries) RevokeDeviceTokens(ctx context.Context, arg RevokeDeviceTokensParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, revokeDeviceTokens, arg.RevokedAt, arg.UserID, arg.DeviceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const revokeRefreshToken = `-- name: RevokeRefreshToken :exec
+UPDATE refresh_tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL
+`
+
+type RevokeRefreshTokenParams struct {
+	RevokedAt sql.NullTime
+	ID        uint64
+}
+
+func (q *Queries) RevokeRefreshToken(ctx context.Context, arg RevokeRefreshTokenParams) error {
+	_, err := q.db.ExecContext(ctx, revokeRefreshToken, arg.RevokedAt, arg.ID)
+	return err
+}
+
+const touchUserActive = `-- name: TouchUserActive :exec
+UPDATE users SET last_active_at = ? WHERE id = ?
+`
+
+type TouchUserActiveParams struct {
+	LastActiveAt sql.NullTime
+	ID           uint64
+}
+
+func (q *Queries) TouchUserActive(ctx context.Context, arg TouchUserActiveParams) error {
+	_, err := q.db.ExecContext(ctx, touchUserActive, arg.LastActiveAt, arg.ID)
+	return err
+}
+
+const updateUserNickname = `-- name: UpdateUserNickname :exec
+UPDATE users SET nickname = ? WHERE id = ?
+`
+
+type UpdateUserNicknameParams struct {
+	Nickname string
+	ID       uint64
+}
+
+func (q *Queries) UpdateUserNickname(ctx context.Context, arg UpdateUserNicknameParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserNickname, arg.Nickname, arg.ID)
+	return err
+}
+
+const updateUserOnboarding = `-- name: UpdateUserOnboarding :exec
+UPDATE users SET onboarding_step = ? WHERE id = ?
+`
+
+type UpdateUserOnboardingParams struct {
+	OnboardingStep string
+	ID             uint64
+}
+
+func (q *Queries) UpdateUserOnboarding(ctx context.Context, arg UpdateUserOnboardingParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserOnboarding, arg.OnboardingStep, arg.ID)
+	return err
+}
+
+const updateUserPhone = `-- name: UpdateUserPhone :exec
+UPDATE users SET phone = ? WHERE id = ?
+`
+
+type UpdateUserPhoneParams struct {
+	Phone string
+	ID    uint64
+}
+
+func (q *Queries) UpdateUserPhone(ctx context.Context, arg UpdateUserPhoneParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserPhone, arg.Phone, arg.ID)
+	return err
 }

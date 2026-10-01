@@ -51,6 +51,7 @@ type Config struct {
 }
 
 type OSSConfig struct {
+	Provider        string
 	Endpoint        string
 	Bucket          string
 	AccessKeyID     string
@@ -99,6 +100,7 @@ func load(getenv func(string) string) (*Config, error) {
 		JWTSecret: get("JWT_SECRET", ""),
 
 		OSS: OSSConfig{
+			Provider:        get("OSS_PROVIDER", ProviderMock),
 			Endpoint:        get("OSS_ENDPOINT", ""),
 			Bucket:          get("OSS_BUCKET", ""),
 			AccessKeyID:     get("OSS_ACCESS_KEY_ID", ""),

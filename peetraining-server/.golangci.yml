@@ -17,6 +17,7 @@ linters:
     gosec:
       excludes:
         - G104 # 未检查的错误由 errcheck 负责
+        - G115 # 数据库 ID 是 BIGINT UNSIGNED 自增，远小于 2^63；uint64 与 int64（契约里的 int64）互转不会溢出
   exclusions:
     paths:
       - internal/gen

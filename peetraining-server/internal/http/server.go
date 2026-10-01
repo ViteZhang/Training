@@ -11,6 +11,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"peetraining-server/internal/auth"
+	"peetraining-server/internal/flags"
 	"peetraining-server/internal/gen"
 )
 
@@ -26,8 +28,13 @@ type Pinger interface {
 type Deps struct {
 	Logger  *slog.Logger
 	Version string
+	AppName string
 	MySQL   Pinger
 	Redis   Pinger
+	Auth    *auth.Service
+	Flags   *flags.Service
+	// Tokens 校验访问令牌；为空时用 Auth（测试里可以换成假的）。
+	Tokens TokenParser
 }
 
 // Handlers 实现 gen.ServerInterface。
@@ -38,7 +45,7 @@ type Handlers struct {
 var _ gen.ServerInterface = (*Handlers)(nil)
 
 // NewRouter 组装中间件与全部路由。
-func NewRouter(deps Deps) *gin.Engine {
+func NewRouter(deps Deps) (*gin.Engine, error) {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.ContextWithFallback = true
@@ -53,13 +60,22 @@ func NewRouter(deps Deps) *gin.Engine {
 	r.HandleMethodNotAllowed = false
 
 	api := r.Group(APIPrefix)
+	tokens := deps.Tokens
+	if tokens == nil {
+		tokens = deps.Auth
+	}
+	validator, err := RequestValidator()
+	if err != nil {
+		return nil, err
+	}
+	api.Use(Identify(tokens), validator)
 	gen.RegisterHandlersWithOptions(api, &Handlers{deps: deps}, gen.GinServerOptions{
 		ErrorHandler: func(c *gin.Context, err error, status int) {
 			// 生成代码在参数解析失败时调用这里，统一成 BAD_REQUEST。
 			_ = c.Error(ErrBadRequest("请求参数不正确").Wrap(err).WithDetail(map[string]any{"reason": err.Error()}))
 		},
 	})
-	return r
+	return r, nil
 }
 
 // NewServer 包一层 net/http.Server，供 app 包做优雅停机。

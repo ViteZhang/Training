@@ -8,15 +8,6 @@ import (
 	"peetraining-server/internal/gen"
 )
 
-// AcceptAgreements 尚未实现，返回 501。
-func (h *Handlers) AcceptAgreements(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
-
-// CancelDeletion 尚未实现，返回 501。
-func (h *Handlers) CancelDeletion(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
-
-// ChangePhone 尚未实现，返回 501。
-func (h *Handlers) ChangePhone(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
-
 // ConfirmImportJob 尚未实现，返回 501。
 func (h *Handlers) ConfirmImportJob(c *gin.Context, _ gen.JobId, _ gen.ConfirmImportJobParams) {
 	_ = c.Error(ErrNotImplemented())
@@ -72,21 +63,8 @@ func (h *Handlers) GenerateImportItemAnswer(c *gin.Context, _ gen.ItemId, _ gen.
 	_ = c.Error(ErrNotImplemented())
 }
 
-// GetAgreement 尚未实现，返回 501。
-func (h *Handlers) GetAgreement(c *gin.Context, _ gen.AgreementKind) {
-	_ = c.Error(ErrNotImplemented())
-}
-
 // GetBankOverview 尚未实现，返回 501。
 func (h *Handlers) GetBankOverview(c *gin.Context, _ gen.SubjectId) { _ = c.Error(ErrNotImplemented()) }
-
-// GetBootstrap 尚未实现，返回 501。
-func (h *Handlers) GetBootstrap(c *gin.Context, _ gen.GetBootstrapParams) {
-	_ = c.Error(ErrNotImplemented())
-}
-
-// GetFeatureFlags 尚未实现，返回 501。
-func (h *Handlers) GetFeatureFlags(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
 
 // GetImportItem 尚未实现，返回 501。
 func (h *Handlers) GetImportItem(c *gin.Context, _ gen.ItemId) { _ = c.Error(ErrNotImplemented()) }
@@ -115,9 +93,6 @@ func (h *Handlers) GetMaterialPage(c *gin.Context, _ gen.MaterialId, _ int, _ ge
 	_ = c.Error(ErrNotImplemented())
 }
 
-// GetMe 尚未实现，返回 501。
-func (h *Handlers) GetMe(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
-
 // GetProfile 尚未实现，返回 501。
 func (h *Handlers) GetProfile(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
 
@@ -126,9 +101,6 @@ func (h *Handlers) GetQuestion(c *gin.Context, _ gen.QuestionId) { _ = c.Error(E
 
 // GetQuota 尚未实现，返回 501。
 func (h *Handlers) GetQuota(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
-
-// ListDevices 尚未实现，返回 501。
-func (h *Handlers) ListDevices(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
 
 // ListExamYears 尚未实现，返回 501。
 func (h *Handlers) ListExamYears(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
@@ -154,33 +126,18 @@ func (h *Handlers) ListQuestions(c *gin.Context, _ gen.SubjectId, _ gen.ListQues
 // ListSubjects 尚未实现，返回 501。
 func (h *Handlers) ListSubjects(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
 
-// Login 尚未实现，返回 501。
-func (h *Handlers) Login(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
-
-// Logout 尚未实现，返回 501。
-func (h *Handlers) Logout(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
-
 // MergeKnowledgePoint 尚未实现，返回 501。
 func (h *Handlers) MergeKnowledgePoint(c *gin.Context, _ gen.KpId) { _ = c.Error(ErrNotImplemented()) }
-
-// RefreshToken 尚未实现，返回 501。
-func (h *Handlers) RefreshToken(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
 
 // RegenerateExplanation 尚未实现，返回 501。
 func (h *Handlers) RegenerateExplanation(c *gin.Context, _ gen.KpId) {
 	_ = c.Error(ErrNotImplemented())
 }
 
-// RemoveDevice 尚未实现，返回 501。
-func (h *Handlers) RemoveDevice(c *gin.Context, _ string) { _ = c.Error(ErrNotImplemented()) }
-
 // RemoveImportMaterial 尚未实现，返回 501。
 func (h *Handlers) RemoveImportMaterial(c *gin.Context, _ gen.JobId, _ gen.MaterialId) {
 	_ = c.Error(ErrNotImplemented())
 }
-
-// RequestDeletion 尚未实现，返回 501。
-func (h *Handlers) RequestDeletion(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
 
 // RetryImportMaterial 尚未实现，返回 501。
 func (h *Handlers) RetryImportMaterial(c *gin.Context, _ gen.JobId, _ gen.MaterialId) {
@@ -197,9 +154,6 @@ func (h *Handlers) SelfAssessKnowledgePoint(c *gin.Context, _ gen.KpId) {
 	_ = c.Error(ErrNotImplemented())
 }
 
-// SendSmsCode 尚未实现，返回 501。
-func (h *Handlers) SendSmsCode(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
-
 // SplitKnowledgePoint 尚未实现，返回 501。
 func (h *Handlers) SplitKnowledgePoint(c *gin.Context, _ gen.KpId) { _ = c.Error(ErrNotImplemented()) }
 
@@ -208,9 +162,6 @@ func (h *Handlers) UpdateImportItem(c *gin.Context, _ gen.ItemId) { _ = c.Error(
 
 // UpdateKnowledgePoint 尚未实现，返回 501。
 func (h *Handlers) UpdateKnowledgePoint(c *gin.Context, _ gen.KpId) { _ = c.Error(ErrNotImplemented()) }
-
-// UpdateMe 尚未实现，返回 501。
-func (h *Handlers) UpdateMe(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
 
 // UpdateQuestion 尚未实现，返回 501。
 func (h *Handlers) UpdateQuestion(c *gin.Context, _ gen.QuestionId) { _ = c.Error(ErrNotImplemented()) }

@@ -29,7 +29,8 @@ var Queues = map[string]int{QueueCritical: 6, QueueDefault: 3, QueueLow: 1}
 
 // 任务类型。命名为「领域:动作」。
 const (
-	TypePing = "system:ping"
+	TypePing          = "system:ping"
+	TypePurgeAccounts = "account:purge_deleted"
 )
 
 // PingPayload 用于检查「API 入队 → Worker 执行」整条链路。
@@ -46,9 +47,15 @@ func NewPingTask(message string) (*asynq.Task, error) {
 	return asynq.NewTask(TypePing, b, asynq.Queue(QueueLow), asynq.MaxRetry(1), asynq.Timeout(10*time.Second)), nil
 }
 
+// AccountPurger 物理删除冷静期已到的账号（auth.Service 实现）。
+type AccountPurger interface {
+	PurgeDue(ctx context.Context, batch int) (int, error)
+}
+
 // Handlers 是全部任务处理器的依赖。后续卡片在这里加业务服务。
 type Handlers struct {
 	Logger *slog.Logger
+	Auth   AccountPurger
 }
 
 // Mux 注册全部任务处理器。
@@ -56,6 +63,7 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 	mux := asynq.NewServeMux()
 	mux.Use(h.withLogger)
 	mux.HandleFunc(TypePing, h.handlePing)
+	mux.HandleFunc(TypePurgeAccounts, h.handlePurgeAccounts)
 	return mux
 }
 
@@ -87,9 +95,32 @@ func (h *Handlers) handlePing(ctx context.Context, t *asynq.Task) error {
 	return nil
 }
 
-// RegisterSchedules 注册定时任务。业务日期按北京时间（CLAUDE.md 必须遵守第 13 条），
-// 例如每日计划在 T16 注册为每天 0 点（Asia/Shanghai）。调度器全局只启一个，跑在 Worker 里。
-func RegisterSchedules(_ *asynq.Scheduler) error {
+// handlePurgeAccounts 删除注销冷静期已到的账号（PRD 6.12）。每批 100 个，删不完下个小时继续。
+func (h *Handlers) handlePurgeAccounts(ctx context.Context, _ *asynq.Task) error {
+	_, err := h.Auth.PurgeDue(ctx, 100)
+	return err
+}
+
+// Schedule 是一个定时任务：cron 表达式按北京时间。
+type Schedule struct {
+	Cron string
+	Type string
+}
+
+// Schedules 是全部定时任务。业务日期按北京时间（CLAUDE.md 必须遵守第 13 条）；
+// 每日计划在 T16 加入（每天 0 点）。
+var Schedules = []Schedule{
+	{Cron: "17 * * * *", Type: TypePurgeAccounts},
+}
+
+// RegisterSchedules 注册定时任务。调度器全局只启一个，跑在 Worker 里。
+func RegisterSchedules(s *asynq.Scheduler) error {
+	for _, sc := range Schedules {
+		// 同一时间只允许一个实例在跑（Unique），任务本身也可重复执行。
+		if _, err := s.Register(sc.Cron, asynq.NewTask(sc.Type, nil), asynq.Queue(QueueLow), asynq.Unique(time.Hour)); err != nil {
+			return fmt.Errorf("注册定时任务 %s：%w", sc.Type, err)
+		}
+	}
 	return nil
 }
 

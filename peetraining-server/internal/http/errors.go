@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
+	"peetraining-server/internal/apperr"
 )
 
 // 错误码集中定义在这里（CLAUDE.md「约定」）。前端按 code 判断，message 直接展示给用户。
@@ -102,11 +104,39 @@ func ErrNotImplemented() *Error {
 	return newError(http.StatusNotImplemented, CodeNotImplemented, "功能开发中")
 }
 
-// AsError 把任意错误转成对外错误；未知错误一律视为服务端错误，不把内部信息返回给客户端。
+// AsError 把任意错误转成对外错误：业务错误（apperr）按类别转换，未知错误一律视为服务端错误，不把内部信息返回给客户端。
 func AsError(err error) *Error {
 	var e *Error
 	if errors.As(err, &e) {
 		return e
 	}
+	if ae, ok := apperr.As(err); ok {
+		out := fromKind(ae.Kind, ae.Message).Wrap(err)
+		out.Detail = ae.Detail
+		return out
+	}
 	return ErrInternal().Wrap(err)
+}
+
+func fromKind(k apperr.Kind, message string) *Error {
+	switch k {
+	case apperr.BadRequest:
+		return ErrBadRequest(message)
+	case apperr.Unauthorized:
+		return newError(http.StatusUnauthorized, CodeUnauthorized, message)
+	case apperr.Forbidden:
+		return newError(http.StatusForbidden, CodeForbidden, message)
+	case apperr.NotFound:
+		return newError(http.StatusNotFound, CodeNotFound, message)
+	case apperr.Conflict:
+		return ErrConflict(message)
+	case apperr.TooManyRequests:
+		return ErrTooManyRequests(message)
+	case apperr.QuotaExceeded:
+		return ErrQuotaExceeded(message)
+	case apperr.AIFailed:
+		return newError(http.StatusBadGateway, CodeAIFailed, message)
+	default:
+		return ErrInternal()
+	}
 }
