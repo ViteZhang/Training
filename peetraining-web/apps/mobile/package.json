@@ -10,7 +10,11 @@
     "export": "expo export --platform android --platform ios --output-dir dist",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src app",
-    "test": "jest"
+    "test": "jest",
+    "build:dev": "eas build --profile development",
+    "build:preview": "eas build --profile preview",
+    "build:prod": "eas build --profile production",
+    "submit:testflight": "eas submit --profile preview --platform ios --latest"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.0",
