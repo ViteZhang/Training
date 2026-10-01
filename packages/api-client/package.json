@@ -1,0 +1,23 @@
+{
+  "name": "@training/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "generate": "openapi-typescript openapi.yaml -o src/generated/schema.ts",
+    "mock": "prism mock openapi.yaml --port 4010 --dynamic",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ignore-pattern src/generated",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.17.0"
+  },
+  "devDependencies": {
+    "@stoplight/prism-cli": "^5.14.0",
+    "openapi-typescript": "^7.10.0",
+    "typescript": "~6.0.3",
+    "vitest": "^4.0.0"
+  }
+}
