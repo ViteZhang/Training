@@ -1,0 +1,31 @@
+version: "2"
+run:
+  timeout: 5m
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - gosec
+    - misspell
+    - nilerr
+    - noctx
+    - rowserrcheck
+    - sqlclosecheck
+    - unconvert
+  settings:
+    gosec:
+      excludes:
+        - G104 # 未检查的错误由 errcheck 负责
+  exclusions:
+    paths:
+      - internal/gen
+    rules:
+      - path: (_test\.go|internal/testenv/)
+        linters: [gosec, noctx, bodyclose, errcheck]
+      # 延迟关闭资源时的错误没有可处理的余地，统一不检查。
+      - source: '^\s*defer [\w.]+\.Close\(\)'
+        linters: [errcheck]
+formatters:
+  enable:
+    - gofmt
