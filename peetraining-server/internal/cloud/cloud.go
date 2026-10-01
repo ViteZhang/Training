@@ -51,7 +51,13 @@ func New(cfg *config.Config) (*Clients, error) {
 	pick("ASR", cfg.ASR.Provider, func() { c.ASR = asr.NewMock() })
 	pick("MODERATION", cfg.Moderation.Provider, func() { c.Moderation = moderation.NewMock() })
 	pick("PAY", cfg.Pay.Provider, func() { c.Pay = pay.NewMock() })
-	pick("OSS", cfg.OSS.Provider, func() { c.OSS = oss.NewMock() })
+	pick("OSS", cfg.OSS.Provider, func() {
+		m := oss.NewMock()
+		if cfg.OSS.MockBaseURL != "" {
+			m.BaseURL = cfg.OSS.MockBaseURL
+		}
+		c.OSS = m
+	})
 
 	if cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock {
 		errs = append(errs, errors.New("生产环境不能使用 mock 短信"))

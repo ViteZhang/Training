@@ -8,8 +8,9 @@ package dbq
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"time"
+
+	"peetraining-server/internal/dbtypes"
 )
 
 const countSubjects = `-- name: CountSubjects :one
@@ -239,7 +240,7 @@ type InsertStudyProfileParams struct {
 	Stage             StudyProfilesStage
 	StageManual       bool
 	DailyMinutes      uint16
-	ReminderTimes     json.RawMessage
+	ReminderTimes     dbtypes.NullJSON
 	TargetSchoolMajor sql.NullString
 	EssayWeeklyGoal   uint8
 	MockTimeReminders bool
@@ -407,7 +408,7 @@ type UpdateStudyProfileParams struct {
 	PendingStage        NullStudyProfilesPendingStage
 	PendingDailyMinutes sql.NullInt16
 	PendingEffectiveOn  sql.NullTime
-	ReminderTimes       json.RawMessage
+	ReminderTimes       dbtypes.NullJSON
 	TargetSchoolMajor   sql.NullString
 	EssayWeeklyGoal     uint8
 	MockTimeReminders   bool

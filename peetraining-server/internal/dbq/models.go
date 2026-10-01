@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"peetraining-server/internal/dbtypes"
 )
 
 type AdminUsersStatus string
@@ -5365,7 +5367,7 @@ type AdminAuditLog struct {
 	TargetType sql.NullString
 	TargetID   sql.NullString
 	// 不含用户内容原文
-	Detail    json.RawMessage
+	Detail    dbtypes.NullJSON
 	Ip        sql.NullString
 	CreatedAt time.Time
 }
@@ -5485,11 +5487,11 @@ type Attempt struct {
 	PaperSessionID    sql.NullInt64
 	AnswerMode        AttemptsAnswerMode
 	// 客观题选项
-	Selected json.RawMessage
+	Selected dbtypes.NullJSON
 	// 作答原文；不得写入日志
 	AnswerText sql.NullString
 	// 手写稿照片 OSS 对象键
-	PhotoKeys json.RawMessage
+	PhotoKeys dbtypes.NullJSON
 	IsCorrect sql.NullBool
 	Score     sql.NullString
 	FullScore sql.NullString
@@ -5610,19 +5612,19 @@ type Essay struct {
 	DraftNo       uint8
 	ParentEssayID sql.NullInt64
 	Content       sql.NullString
-	PhotoKeys     json.RawMessage
+	PhotoKeys     dbtypes.NullJSON
 	WordCount     uint32
 	// 按考试时长限时完成
 	Timed           bool
 	DurationSeconds uint32
 	RubricID        sql.NullInt64
-	RubricSnapshot  json.RawMessage
+	RubricSnapshot  dbtypes.NullJSON
 	Status          EssaysStatus
 	Score           sql.NullString
 	FullScore       sql.NullString
-	DimensionScores json.RawMessage
+	DimensionScores dbtypes.NullJSON
 	// 总评、逐段批注、范文对比
-	Review json.RawMessage
+	Review dbtypes.NullJSON
 	// 按用户评分细则批改且真题限时完成（PRD 11.13）
 	CountsForEstimate bool
 	Model             sql.NullString
@@ -5721,7 +5723,7 @@ type Feedback struct {
 	// 功能建议 / 识别不准 / 批改不准 / 出现问题 / 侵权投诉
 	Ftype             FeedbacksFtype
 	Content           string
-	ScreenshotKeys    json.RawMessage
+	ScreenshotKeys    dbtypes.NullJSON
 	AllowAccess       bool
 	RelatedMaterialID sql.NullInt64
 	Status            FeedbacksStatus
@@ -5746,14 +5748,14 @@ type Grading struct {
 	Status        GradingsStatus
 	RubricVersion sql.NullInt32
 	// 批改时的采分点快照与来源（PRD 11.14）
-	RubricSnapshot json.RawMessage
+	RubricSnapshot dbtypes.NullJSON
 	Score          sql.NullString
 	FullScore      sql.NullString
 	// 逐采分点：hit / partial / miss、得分、引用原话、原因
-	PointResults json.RawMessage
+	PointResults dbtypes.NullJSON
 	// 失分归因：knowledge / norm / time 的扣分与原因
-	Loss          json.RawMessage
-	Suggestions   json.RawMessage
+	Loss          dbtypes.NullJSON
+	Suggestions   dbtypes.NullJSON
 	Model         sql.NullString
 	PromptVersion sql.NullString
 	// 是否扣了批改次数；失败、复核、改采分点重批不扣
@@ -5779,7 +5781,7 @@ type ImportItem struct {
 	Status      ImportItemsStatus
 	NeedsReview bool
 	// low_confidence / missing_answer / rubric_unconfirmed / rubric_sum_mismatch / duplicate
-	ReviewReasons json.RawMessage
+	ReviewReasons dbtypes.NullJSON
 	// 疑似重复的已有题目
 	DuplicateOfQuestionID sql.NullInt64
 	// 同一任务重跑时防止重复写入
@@ -5804,7 +5806,7 @@ type ImportJob struct {
 	// 最终扣除的页数（失败页已退回）
 	BilledPages uint32
 	// 各步用到的提示词版本
-	PromptVersions json.RawMessage
+	PromptVersions dbtypes.NullJSON
 	FailReason     sql.NullString
 	StartedAt      sql.NullTime
 	FinishedAt     sql.NullTime
@@ -5824,7 +5826,7 @@ type ImportJobMaterial struct {
 	Attempts   uint8
 	FailReason sql.NullString
 	// 识别失败的页，额度退回
-	FailedPages json.RawMessage
+	FailedPages dbtypes.NullJSON
 	EtaSeconds  sql.NullInt32
 	UpdatedAt   time.Time
 }
@@ -5882,7 +5884,7 @@ type KpMastery struct {
 	LastSelfAssess   NullKpMasteryLastSelfAssess
 	LastSelfAssessAt sql.NullTime
 	// 近 30 天答对的日期（北京时间），判定已掌握用
-	CorrectDates json.RawMessage
+	CorrectDates dbtypes.NullJSON
 	// 下次复习日（北京时间）
 	NextReviewOn sql.NullTime
 	// 复习间隔档位：3 → 7 → 15 → 30
@@ -5953,9 +5955,9 @@ type MaterialPage struct {
 	PageNo      uint32
 	OwnerUserID uint64
 	Text        string
-	Tables      json.RawMessage
+	Tables      dbtypes.NullJSON
 	// 低置信度位置 [{start,end}]
-	LowConfidence json.RawMessage
+	LowConfidence dbtypes.NullJSON
 }
 
 // 会员时段，当前会员 = 未收回时段里覆盖当前时间的那段
@@ -5982,7 +5984,7 @@ type Message struct {
 	Title       string
 	Body        string
 	// 跳转目标 {page, params}
-	Link json.RawMessage
+	Link dbtypes.NullJSON
 	// 同一事件只发一条
 	DedupeKey sql.NullString
 	ReadAt    sql.NullTime
@@ -5999,7 +6001,7 @@ type ModelEssay struct {
 	Title           string
 	Content         string
 	// AI 结构拆解：开头立意、分论点、升华、结尾
-	Structure        json.RawMessage
+	Structure        dbtypes.NullJSON
 	SourceMaterialID sql.NullInt64
 	SourcePage       sql.NullInt32
 	CreatedAt        time.Time
@@ -6029,9 +6031,9 @@ type OfficialProject struct {
 	SubjectName string
 	BankID      sql.NullInt64
 	Stage       OfficialProjectsStage
-	EditorIds   json.RawMessage
+	EditorIds   dbtypes.NullJSON
 	// 授权资料清单（须有授权或为公开真题）
-	AuthorizedMaterials json.RawMessage
+	AuthorizedMaterials dbtypes.NullJSON
 	CreatedBy           sql.NullInt64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
@@ -6125,7 +6127,7 @@ type PaperSession struct {
 	// 只有做完的导入真题卷计入预估分
 	CountsForEstimate bool
 	// 整卷报告与时间分析快照（4.24、4.25）
-	Report         json.RawMessage
+	Report         dbtypes.NullJSON
 	IdempotencyKey sql.NullString
 }
 
@@ -6153,14 +6155,14 @@ type PracticeSession struct {
 	Kind        PracticeSessionsKind
 	Title       string
 	// 自定义练习条件等
-	Config json.RawMessage
+	Config dbtypes.NullJSON
 	// 本组题目顺序
 	QuestionIds json.RawMessage
 	// 断点，下次从这里继续（4.10）
 	CursorIndex uint32
 	Status      PracticeSessionsStatus
 	// 本组总结（4.11）
-	Summary    json.RawMessage
+	Summary    dbtypes.NullJSON
 	StartedAt  time.Time
 	FinishedAt sql.NullTime
 }
@@ -6174,7 +6176,7 @@ type Question struct {
 	Qtype QuestionsQtype
 	Stem  string
 	// 客观题选项 [{key,text}]
-	Options json.RawMessage
+	Options dbtypes.NullJSON
 	// 客观题正确答案或主观题参考答案
 	Answer       sql.NullString
 	AnswerOrigin NullQuestionsAnswerOrigin
@@ -6201,7 +6203,7 @@ type Question struct {
 	// AI 题被报错 3 次自动下线
 	Status             QuestionsStatus
 	NeedsReview        bool
-	ReviewReasons      json.RawMessage
+	ReviewReasons      dbtypes.NullJSON
 	ReportCount        uint32
 	OfficialQuestionID sql.NullInt64
 	CreatedAt          time.Time
@@ -6263,7 +6265,7 @@ type ReciteRecord struct {
 	Mode   ReciteRecordsMode
 	Result NullReciteRecordsResult
 	// 默写与口述的关键词覆盖
-	Coverage  json.RawMessage
+	Coverage  dbtypes.NullJSON
 	CreatedAt time.Time
 }
 
@@ -6346,7 +6348,7 @@ type RubricPoint struct {
 	Seq     uint16
 	Content string
 	// 采分关键词，挖空与默写比对用
-	Keywords  json.RawMessage
+	Keywords  dbtypes.NullJSON
 	Score     sql.NullString
 	Origin    RubricPointsOrigin
 	CreatedAt time.Time
@@ -6386,7 +6388,7 @@ type ScoreEstimate struct {
 	BasisQuestions uint16
 	// 主要差在哪种题型
 	MainGapQtype sql.NullString
-	Details      json.RawMessage
+	Details      dbtypes.NullJSON
 	// paper_graded / material_deleted / rubric_changed 等
 	TriggerReason string
 	ComputedAt    time.Time
@@ -6418,7 +6420,7 @@ type StudyProfile struct {
 	PendingDailyMinutes sql.NullInt16
 	PendingEffectiveOn  sql.NullTime
 	// 学习提醒时间，如 ["07:30","20:00"]
-	ReminderTimes json.RawMessage
+	ReminderTimes dbtypes.NullJSON
 	// 目标院校专业（选填），官方题库上线提醒用
 	TargetSchoolMajor sql.NullString
 	EssayWeeklyGoal   uint8
@@ -6517,7 +6519,7 @@ type WrongBook struct {
 	WrongCount    uint32
 	LastScoreRate sql.NullString
 	// 收录后答对的日期，2 个不同日期连续答对自动移出（PRD 11.8）
-	CorrectDates json.RawMessage
+	CorrectDates dbtypes.NullJSON
 	NextReviewOn sql.NullTime
 	AddedAt      time.Time
 	RemovedAt    sql.NullTime

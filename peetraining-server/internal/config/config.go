@@ -56,6 +56,8 @@ type OSSConfig struct {
 	Bucket          string
 	AccessKeyID     string
 	AccessKeySecret string
+	// MockBaseURL 是本地 mock 预签名地址的前缀（真机调试填本机局域网地址），只在 OSS_PROVIDER=mock 时用。
+	MockBaseURL string
 }
 
 type ProviderConfig struct {
@@ -105,6 +107,7 @@ func load(getenv func(string) string) (*Config, error) {
 			Bucket:          get("OSS_BUCKET", ""),
 			AccessKeyID:     get("OSS_ACCESS_KEY_ID", ""),
 			AccessKeySecret: get("OSS_ACCESS_KEY_SECRET", ""),
+			MockBaseURL:     get("OSS_MOCK_BASE_URL", ""),
 		},
 		SMS: SMSConfig{
 			Provider:     get("SMS_PROVIDER", ProviderMock),

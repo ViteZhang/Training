@@ -236,8 +236,8 @@ func TestDeletionCoolingAndPurge(t *testing.T) {
 	f := setup(t)
 	ctx := context.Background()
 	res := f.login(t, phone, dev)
-	f.oss.Put("u/"+itoa(res.User.ID)+"/materials/a.pdf", []byte("x"))
-	f.oss.Put("u/999/materials/b.pdf", []byte("y"))
+	f.oss.Seed("u/"+itoa(res.User.ID)+"/materials/a.pdf", []byte("x"))
+	f.oss.Seed("u/999/materials/b.pdf", []byte("y"))
 
 	due, err := f.svc.RequestDeletion(ctx, res.User.ID)
 	if err != nil || !due.Equal(f.clock.Add(7*24*time.Hour)) {
