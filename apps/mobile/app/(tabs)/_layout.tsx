@@ -1,7 +1,8 @@
 // 底部导航 4 个 Tab：今日、题库、训练、我的（PRD 4）。样式按设计稿 m2_home 的主导航，颜色换成 VI。
 import { colors, layout, semantic } from '@training/ui-tokens';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import { Icon, type IconName } from '@/components/Icon';
+import { useSession } from '@/lib/session';
 
 const tabs: { name: string; title: string; icon: IconName }[] = [
   { name: 'today', title: '今日', icon: 'today' },
@@ -11,6 +12,9 @@ const tabs: { name: string; title: string; icon: IconName }[] = [
 ];
 
 export default function TabsLayout() {
+  // 未登录（或令牌刷新失败被清除）时回到 0.2 登录页。
+  const session = useSession((s) => s.session);
+  if (!session) return <Redirect href="/(auth)/login" />;
   return (
     <Tabs
       screenOptions={{
