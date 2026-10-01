@@ -14,6 +14,7 @@ import (
 	"peetraining-server/internal/auth"
 	"peetraining-server/internal/flags"
 	"peetraining-server/internal/gen"
+	"peetraining-server/internal/profile"
 )
 
 // APIPrefix 是 App 接口的路由前缀；后台接口在 APIPrefix + "/admin" 下。
@@ -33,6 +34,7 @@ type Deps struct {
 	Redis   Pinger
 	Auth    *auth.Service
 	Flags   *flags.Service
+	Profile *profile.Service
 	// Tokens 校验访问令牌；为空时用 Auth（测试里可以换成假的）。
 	Tokens TokenParser
 }
@@ -69,6 +71,9 @@ func NewRouter(deps Deps) (*gin.Engine, error) {
 		return nil, err
 	}
 	api.Use(Identify(tokens), validator)
+	if deps.Flags != nil {
+		api.Use(FeatureGate(deps.Flags, flagGuards))
+	}
 	gen.RegisterHandlersWithOptions(api, &Handlers{deps: deps}, gen.GinServerOptions{
 		ErrorHandler: func(c *gin.Context, err error, status int) {
 			// 生成代码在参数解析失败时调用这里，统一成 BAD_REQUEST。

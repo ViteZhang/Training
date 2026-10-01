@@ -7,31 +7,46 @@ package dbq
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 type Querier interface {
 	AcceptAgreement(ctx context.Context, arg AcceptAgreementParams) error
 	CancelUserDeletion(ctx context.Context, id uint64) (int64, error)
+	CountSubjects(ctx context.Context, ownerUserID uint64) (int64, error)
+	CreateSubject(ctx context.Context, arg CreateSubjectParams) (int64, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (int64, error)
+	CreateUserBank(ctx context.Context, arg CreateUserBankParams) (int64, error)
+	DeleteSubject(ctx context.Context, arg DeleteSubjectParams) (int64, error)
+	DeleteSubjectExports(ctx context.Context, arg DeleteSubjectExportsParams) error
+	DeleteSubjectPracticeSessions(ctx context.Context, arg DeleteSubjectPracticeSessionsParams) error
+	DeleteSubjectSessions(ctx context.Context, arg DeleteSubjectSessionsParams) error
 	DeleteUser(ctx context.Context, id uint64) error
 	GetAppVersion(ctx context.Context, platform AppVersionsPlatform) (AppVersion, error)
 	// 覆盖此刻、未收回的会员时段。
 	GetCurrentMembership(ctx context.Context, arg GetCurrentMembershipParams) (Membership, error)
+	GetExamDate(ctx context.Context, examYear uint16) (ExamDate, error)
 	GetLatestAgreement(ctx context.Context, arg GetLatestAgreementParams) (Agreement, error)
 	// 时长叠加后的最晚结束时间（会员条上显示「有效期至」）。
 	GetLatestMembershipEnd(ctx context.Context, arg GetLatestMembershipEndParams) (Membership, error)
 	GetPublishedAgreementByID(ctx context.Context, id uint64) (Agreement, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error)
+	GetStudyProfile(ctx context.Context, userID uint64) (StudyProfile, error)
+	GetSubject(ctx context.Context, arg GetSubjectParams) (GetSubjectRow, error)
 	// 用户、刷新令牌、协议、App 版本、会员状态（T06）。
 	// 规矩：查询用户内容一律带归属条件（CLAUDE.md 必须遵守第 4 条）；这里的表以 user_id / id 为归属。
 	GetUserByID(ctx context.Context, id uint64) (User, error)
 	GetUserByPhone(ctx context.Context, phone string) (User, error)
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
+	InsertStudyProfile(ctx context.Context, arg InsertStudyProfileParams) error
 	ListAcceptedAgreementIDs(ctx context.Context, userID uint64) ([]uint64, error)
+	// 备考档案与专业课（T07）。每条查询都带 owner_user_id / user_id 归属条件。
+	ListExamDatesFrom(ctx context.Context, subjectExamDate time.Time) ([]ExamDate, error)
 	ListFeatureFlags(ctx context.Context) ([]ListFeatureFlagsRow, error)
 	ListLatestAgreements(ctx context.Context, publishedAt sql.NullTime) ([]Agreement, error)
 	// 规则参数与功能开关（T06 读取，T07 / T29 管理）。
 	ListRuleParams(ctx context.Context) ([]ListRuleParamsRow, error)
+	ListSubjects(ctx context.Context, ownerUserID uint64) ([]ListSubjectsRow, error)
 	// 登录设备列表：同一设备可能有多条有效令牌（并发刷新），由调用方按 device_id 去重。
 	ListUserActiveTokens(ctx context.Context, arg ListUserActiveTokensParams) ([]ListUserActiveTokensRow, error)
 	ListUserFeatureFlags(ctx context.Context, userID uint64) ([]string, error)
@@ -41,6 +56,9 @@ type Querier interface {
 	RevokeDeviceTokens(ctx context.Context, arg RevokeDeviceTokensParams) (int64, error)
 	RevokeRefreshToken(ctx context.Context, arg RevokeRefreshTokenParams) error
 	TouchUserActive(ctx context.Context, arg TouchUserActiveParams) error
+	UpdateBankForSubject(ctx context.Context, arg UpdateBankForSubjectParams) error
+	UpdateStudyProfile(ctx context.Context, arg UpdateStudyProfileParams) error
+	UpdateSubject(ctx context.Context, arg UpdateSubjectParams) error
 	UpdateUserNickname(ctx context.Context, arg UpdateUserNicknameParams) error
 	UpdateUserOnboarding(ctx context.Context, arg UpdateUserOnboardingParams) error
 	UpdateUserPhone(ctx context.Context, arg UpdateUserPhoneParams) error
