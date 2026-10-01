@@ -3,6 +3,7 @@
 //	api                      启动 HTTP 服务
 //	api migrate up|status    执行迁移 / 查看迁移状态（流水线发布时执行 up）
 //	api migrate new <name>   在 db/migrations 下新建顺序编号的迁移文件（本地开发用）
+//	api import-template <path>  生成 Excel 导入模板（App 1.5 提供下载，放到 peetraining-web 的静态资源里）
 package main
 
 import (
@@ -10,12 +11,14 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/pressly/goose/v3"
 
 	"peetraining-server/internal/app"
 	"peetraining-server/internal/config"
+	"peetraining-server/internal/extract"
 )
 
 func main() {
@@ -34,6 +37,17 @@ func run(args []string) error {
 		return goose.Create(nil, "db/migrations", args[2], "sql")
 	}
 
+	if len(args) >= 1 && args[0] == "import-template" {
+		if len(args) != 2 {
+			return fmt.Errorf("用法：api import-template <path>")
+		}
+		b, err := extract.Template()
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Clean(args[1]), b, 0o600) //nolint:gosec // 路径来自开发者本机的命令行参数
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -48,6 +62,6 @@ func run(args []string) error {
 	case args[0] == "migrate" && len(args) == 2:
 		return app.Migrate(ctx, cfg, log, args[1])
 	default:
-		return fmt.Errorf("未知命令 %q（可用：serve、migrate up|status|new）", args)
+		return fmt.Errorf("未知命令 %q（可用：serve、migrate up|status|new、import-template）", args)
 	}
 }

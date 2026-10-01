@@ -12,8 +12,10 @@ import (
 
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/cloud/moderation"
+	"peetraining-server/internal/cloud/ocr"
 	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/dbq"
+	"peetraining-server/internal/extract"
 	"peetraining-server/internal/params"
 	"peetraining-server/internal/quota"
 	"peetraining-server/internal/store"
@@ -38,6 +40,9 @@ type Service struct {
 	moderation moderation.Checker
 	quota      *quota.Service
 	params     *params.Store
+	ocr        ocr.Recognizer
+	pdf        ocr.PDFParser
+	flags      FlagChecker
 	now        func() time.Time
 	// OnDeleted 在删除资料后调用（T22 用来触发预估分重算）。
 	OnDeleted func(ctx context.Context, userID, subjectID uint64)
@@ -50,6 +55,9 @@ type Deps struct {
 	Moderation moderation.Checker
 	Quota      *quota.Service
 	Params     *params.Store
+	OCR        ocr.Recognizer
+	PDF        ocr.PDFParser
+	Flags      FlagChecker
 	Now        func() time.Time
 }
 
@@ -58,7 +66,7 @@ func New(d Deps) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{db: d.DB, q: dbq.New(d.DB), oss: d.OSS, moderation: d.Moderation, quota: d.Quota, params: d.Params, now: now}
+	return &Service{db: d.DB, q: dbq.New(d.DB), oss: d.OSS, moderation: d.Moderation, quota: d.Quota, params: d.Params, ocr: d.OCR, pdf: d.PDF, flags: d.Flags, now: now}
 }
 
 func (s *Service) limits(ctx context.Context) (Limits, error) {
@@ -249,7 +257,7 @@ func (s *Service) CreatePasted(ctx context.Context, userID, subjectID uint64, ca
 	if err != nil {
 		return Material{}, err
 	}
-	pages := SplitPages(text, l.CharsPerPage)
+	pages := extract.Text(text, l.CharsPerPage).Pages
 	if title = strings.TrimSpace(title); title == "" {
 		title = "粘贴的文字 " + s.now().In(time.FixedZone("CST", 8*3600)).Format("01-02 15:04")
 	}
@@ -268,8 +276,8 @@ func (s *Service) CreatePasted(ctx context.Context, userID, subjectID uint64, ca
 			return err
 		}
 		id = uint64(res)
-		for i, p := range pages {
-			if err := q.UpsertMaterialPage(ctx, dbq.UpsertMaterialPageParams{MaterialID: id, PageNo: uint32(i + 1), OwnerUserID: userID, Text: p}); err != nil {
+		for _, p := range pages {
+			if err := q.UpsertMaterialPage(ctx, dbq.UpsertMaterialPageParams{MaterialID: id, PageNo: uint32(p.No), OwnerUserID: userID, Text: p.Text}); err != nil {
 				return err
 			}
 		}
@@ -281,27 +289,8 @@ func (s *Service) CreatePasted(ctx context.Context, userID, subjectID uint64, ca
 	return s.Get(ctx, userID, id)
 }
 
-// SplitPages 按字数分页，尽量在换行处断开，保证「出处页码」有意义。
-func SplitPages(text string, perPage int) []string {
-	runes := []rune(text)
-	var pages []string
-	for len(runes) > 0 {
-		if len(runes) <= perPage {
-			pages = append(pages, string(runes))
-			break
-		}
-		cut := perPage
-		for i := perPage; i > perPage*3/4; i-- {
-			if runes[i-1] == '\n' {
-				cut = i
-				break
-			}
-		}
-		pages = append(pages, string(runes[:cut]))
-		runes = runes[cut:]
-	}
-	return pages
-}
+// SplitPages 按字数分页，尽量在换行处断开。
+var SplitPages = extract.SplitPages
 
 // ListItem 是资料列表里的一项。
 type ListItem = dbq.ListMaterialsByBankRow

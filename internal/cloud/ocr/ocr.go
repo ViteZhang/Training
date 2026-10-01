@@ -58,3 +58,34 @@ func (Mock) Recognize(ctx context.Context, img Image) (Result, error) {
 	}
 	return Result{Text: strings.TrimSpace(string(out)), LowConfidence: spans}, nil
 }
+
+// PDFPage 是 PDF 一页的识别结果。
+type PDFPage struct {
+	Text          string
+	LowConfidence []Span
+	// Scanned 为 true 表示这一页没有文字层，是逐页 OCR 得到的（扫描版 PDF 受功能开关 scanned_pdf 控制）。
+	Scanned bool
+}
+
+// PDFParser 解析 PDF：有文字层的页直接取文字，没有的逐页 OCR。选哪家服务见 ADR 0007。
+type PDFParser interface {
+	ParsePDF(ctx context.Context, data []byte) ([]PDFPage, error)
+}
+
+// MockScannedMark 出现在 mock PDF 某页开头时，这一页按扫描页处理。
+const MockScannedMark = "[扫描]"
+
+// ParsePDF 的 mock 把字节当作 UTF-8 文本，按换页符 \f 分页；以 MockScannedMark 开头的页记为扫描页，
+// 其余规则同 Recognize（【】内为低置信度）。
+func (m Mock) ParsePDF(ctx context.Context, data []byte) ([]PDFPage, error) {
+	var pages []PDFPage
+	for _, raw := range strings.Split(string(data), "\f") {
+		scanned := strings.HasPrefix(raw, MockScannedMark)
+		r, err := m.Recognize(ctx, Image{Data: []byte(strings.TrimPrefix(raw, MockScannedMark))})
+		if err != nil {
+			return nil, err
+		}
+		pages = append(pages, PDFPage{Text: r.Text, LowConfidence: r.LowConfidence, Scanned: scanned})
+	}
+	return pages, nil
+}

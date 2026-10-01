@@ -67,3 +67,43 @@ func TestQueuesAndSchedules(t *testing.T) {
 		t.Errorf("AsynqLogger 应写 5 行：%s", buf.String())
 	}
 }
+
+type fakeExtractor struct {
+	got []uint64
+	err error
+}
+
+func (f *fakeExtractor) Extract(_ context.Context, userID, materialID uint64) error {
+	f.got = []uint64{userID, materialID}
+	return f.err
+}
+
+func TestExtractTask(t *testing.T) {
+	task, err := NewExtractTask(7, 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	permanent := errors.New("文件损坏")
+	transient := errors.New("识别服务超时")
+	for name, tc := range map[string]struct {
+		err     error
+		wantErr bool
+	}{
+		"成功":     {nil, false},
+		"文件本身问题": {permanent, false},
+		"临时错误重试": {transient, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ex := &fakeExtractor{err: tc.err}
+			h := &Handlers{Logger: logx.New(&bytes.Buffer{}, slog.LevelDebug), Material: ex, Permanent: func(e error) bool { return errors.Is(e, permanent) }}
+			err := h.Mux().ProcessTask(context.Background(), task)
+			if (err != nil) != tc.wantErr || ex.got[0] != 7 || ex.got[1] != 42 {
+				t.Fatalf("err=%v got=%v", err, ex.got)
+			}
+		})
+	}
+	h := &Handlers{Logger: logx.New(&bytes.Buffer{}, slog.LevelDebug)}
+	if err := h.Mux().ProcessTask(context.Background(), asynq.NewTask(TypeExtract, []byte("x"))); !errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("坏载荷：%v", err)
+	}
+}

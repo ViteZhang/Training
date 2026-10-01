@@ -3,6 +3,7 @@ package material_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -13,8 +14,11 @@ import (
 
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/cloud/moderation"
+	"peetraining-server/internal/cloud/ocr"
 	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/dbq"
+	"peetraining-server/internal/extract"
+	"peetraining-server/internal/flags"
 	"peetraining-server/internal/logx"
 	"peetraining-server/internal/material"
 	"peetraining-server/internal/params"
@@ -49,7 +53,9 @@ func setup(t *testing.T) *fx {
 	f := &fx{db: db, oss: oss.NewMock()}
 	f.quota = quota.New(dbq.New(db), ps, now)
 	f.prof = profile.New(db, ps, f.oss, now)
-	f.svc = material.New(material.Deps{DB: db, OSS: f.oss, Moderation: moderation.NewMock(), Quota: f.quota, Params: ps, Now: now})
+	f.svc = material.New(material.Deps{DB: db, OSS: f.oss, Moderation: moderation.NewMock(), Quota: f.quota, Params: ps, Now: now,
+		OCR: ocr.NewMock(), PDF: ocr.NewMock(), Flags: flags.New(dbq.New(db)),
+	})
 	return f
 }
 
@@ -438,5 +444,132 @@ func TestQuotaLedger(t *testing.T) {
 	})
 	if left, _ := f.quota.Remaining(ctx, uid, quota.Grading); *left != 1 {
 		t.Fatalf("回滚后剩余：%d", *left)
+	}
+}
+
+func (f *fx) uploaded(t *testing.T, uid, sid uint64, file material.File, data []byte) uint64 {
+	t.Helper()
+	ctx := context.Background()
+	file.Size = int64(len(data))
+	ts, err := f.svc.RequestUploads(ctx, uid, sid, "", []material.File{file}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, _ := f.svc.Get(ctx, uid, ts[0].MaterialID)
+	f.oss.Seed(m.ObjectKey.String, data)
+	if _, err := f.svc.ConfirmUploaded(ctx, uid, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	return m.ID
+}
+
+func (f *fx) pages(t *testing.T, uid, id uint64) []dbq.MaterialPage {
+	t.Helper()
+	ps, err := dbq.New(f.db).ListMaterialPages(context.Background(), dbq.ListMaterialPagesParams{MaterialID: id, OwnerUserID: uid})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ps
+}
+
+func TestExtract(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	uid, sid, _ := f.user(t)
+
+	// Excel：模板 → 2 页（题目表、说明表）
+	tpl, _ := extract.Template()
+	x := f.uploaded(t, uid, sid, material.File{Name: "题目.xlsx", Format: "xlsx", SHA256: strings.Repeat("1", 64)}, tpl)
+	if err := f.svc.Extract(ctx, uid, x); err != nil {
+		t.Fatal(err)
+	}
+	m, _ := f.svc.Get(ctx, uid, x)
+	ps := f.pages(t, uid, x)
+	if m.Status != dbq.MaterialsStatusParsing || m.PageCount != 2 || m.BilledPages != 2 || len(ps) != 2 || ps[0].Tables == nil || ps[0].LowConfidence != nil {
+		t.Fatalf("xlsx：%+v %d", m, len(ps))
+	}
+
+	// 文字版 PDF：3 页，第 2 页有低置信度；重跑后页数变少，多余的旧页删除
+	pdfData := []byte("第一页\f第二页【模糊】\f第三页")
+	p := f.uploaded(t, uid, sid, material.File{Name: "真题.pdf", Format: "pdf", SHA256: strings.Repeat("2", 64), PageCount: 3}, pdfData)
+	if err := f.svc.Extract(ctx, uid, p); err != nil {
+		t.Fatal(err)
+	}
+	ps = f.pages(t, uid, p)
+	var low []extract.Span
+	_ = json.Unmarshal(ps[1].LowConfidence, &low)
+	if len(ps) != 3 || ps[1].Text != "第二页模糊" || len(low) != 1 || low[0] != (extract.Span{Start: 3, End: 5}) {
+		t.Fatalf("pdf：%+v", ps)
+	}
+	pm, _ := f.svc.Get(ctx, uid, p)
+	f.oss.Seed(pm.ObjectKey.String, []byte("只有一页"))
+	if err := f.svc.Extract(ctx, uid, p); err != nil {
+		t.Fatal(err)
+	}
+	if ps = f.pages(t, uid, p); len(ps) != 1 || ps[0].Text != "只有一页" {
+		t.Fatalf("重跑：%+v", ps)
+	}
+	if pm, _ = f.svc.Get(ctx, uid, p); pm.PageCount != 1 || pm.BilledPages != 1 {
+		t.Fatalf("重跑页数：%+v", pm)
+	}
+
+	// 拍照：每张 1 页
+	img := f.uploaded(t, uid, sid, material.File{Name: "p.jpg", Format: "image", SHA256: strings.Repeat("3", 64)}, []byte("一、名词解释 1.意境"))
+	if err := f.svc.Extract(ctx, uid, img); err != nil {
+		t.Fatal(err)
+	}
+	if ps = f.pages(t, uid, img); len(ps) != 1 || ps[0].Text != "一、名词解释 1.意境" {
+		t.Fatalf("图片：%+v", ps)
+	}
+
+	// 粘贴的文字不用再取
+	txt, _ := f.svc.CreatePasted(ctx, uid, sid, "", "", "粘贴", true)
+	if err := f.svc.Extract(ctx, uid, txt.ID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestExtractFailures(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	uid, sid, _ := f.user(t)
+
+	fail := func(name string, file material.File, data []byte, wantReason string) {
+		t.Helper()
+		id := f.uploaded(t, uid, sid, file, data)
+		err := f.svc.Extract(ctx, uid, id)
+		if !material.IsPermanent(err) {
+			t.Fatalf("%s：应是重试也不会好的错误：%v", name, err)
+		}
+		m, _ := f.svc.Get(ctx, uid, id)
+		if m.Status != dbq.MaterialsStatusFailed || !strings.Contains(m.FailReason.String, wantReason) {
+			t.Fatalf("%s：%s %q", name, m.Status, m.FailReason.String)
+		}
+	}
+	fail("旧版 doc", material.File{Name: "a.docx", Format: "docx", SHA256: strings.Repeat("a", 64)}, []byte{0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1, 0}, ".docx")
+	fail("模糊照片", material.File{Name: "b.jpg", Format: "image", SHA256: strings.Repeat("b", 64)}, []byte("   "), "重新拍照")
+	scanned := []byte(ocr.MockScannedMark + "扫描的第一页\f第二页")
+	fail("扫描版 PDF 未开放", material.File{Name: "c.pdf", Format: "pdf", SHA256: strings.Repeat("c", 64), PageCount: 2}, scanned, "扫描版")
+
+	// 只对这个用户打开扫描版开关后可以导入
+	if _, err := f.db.Exec("INSERT INTO feature_flag_users (flag_key, user_id) VALUES ('scanned_pdf', ?)", uid); err != nil {
+		t.Fatal(err)
+	}
+	id := f.uploaded(t, uid, sid, material.File{Name: "d.pdf", Format: "pdf", SHA256: strings.Repeat("d", 64), PageCount: 2}, append([]byte("x"), scanned...))
+	if err := f.svc.Extract(ctx, uid, id); err != nil {
+		t.Fatalf("开关打开后：%v", err)
+	}
+
+	// 还没上传完成 → 不能取文本；别人的资料 → 404
+	ts, _ := f.svc.RequestUploads(ctx, uid, sid, "", []material.File{pdf("e.pdf", "e", 1, 1)}, true)
+	if err := f.svc.Extract(ctx, uid, ts[0].MaterialID); !material.IsPermanent(err) {
+		t.Fatalf("未上传：%v", err)
+	}
+	other, _, _ := f.user(t)
+	if err := f.svc.Extract(ctx, other, id); kind(err) != apperr.NotFound {
+		t.Fatalf("别人的资料：%v", err)
+	}
+	if material.IsPermanent(errors.New("timeout")) {
+		t.Fatal("临时错误应重试")
 	}
 }

@@ -78,6 +78,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	q := dbq.New(db)
 	ps := params.New(q)
 	qs := quota.New(q, ps, nil)
+	fl := flags.New(q)
 	return &Base{
 		Config: cfg,
 		Logger: log,
@@ -86,15 +87,18 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 		Cloud:  clients,
 		Queue:  asynq.NewClientFromRedisClient(rdb),
 		Params: ps,
-		Flags:  flags.New(q),
+		Flags:  fl,
 		Auth: auth.New(auth.Deps{
 			DB: db, Redis: rdb, SMS: clients.SMS, OSS: clients.OSS, Params: ps,
 			JWTSecret: cfg.JWTSecret, Logger: log,
 			LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock,
 		}),
-		Profile:  profile.New(db, ps, clients.OSS, nil),
-		Quota:    qs,
-		Material: material.New(material.Deps{DB: db, OSS: clients.OSS, Moderation: clients.Moderation, Quota: qs, Params: ps}),
+		Profile: profile.New(db, ps, clients.OSS, nil),
+		Quota:   qs,
+		Material: material.New(material.Deps{
+			DB: db, OSS: clients.OSS, Moderation: clients.Moderation, Quota: qs, Params: ps,
+			OCR: clients.OCR, PDF: clients.PDF, Flags: fl,
+		}),
 	}, nil
 }
 
@@ -193,7 +197,7 @@ func NewWorker(b *Base) (*Worker, error) {
 	if err := jobs.RegisterSchedules(scheduler); err != nil {
 		return nil, fmt.Errorf("注册定时任务：%w", err)
 	}
-	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth}
+	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent}
 	return &Worker{server: server, scheduler: scheduler, mux: h.Mux()}, nil
 }
 

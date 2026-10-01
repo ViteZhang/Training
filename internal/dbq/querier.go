@@ -23,6 +23,8 @@ type Querier interface {
 	CreateUserBank(ctx context.Context, arg CreateUserBankParams) (int64, error)
 	DeleteKnowledgePoint(ctx context.Context, arg DeleteKnowledgePointParams) error
 	DeleteMaterial(ctx context.Context, arg DeleteMaterialParams) (int64, error)
+	// 重跑取文本时删掉多出来的旧页（这次页数变少）。
+	DeleteMaterialPagesAfter(ctx context.Context, arg DeleteMaterialPagesAfterParams) error
 	DeleteQuestionsFromMaterial(ctx context.Context, arg DeleteQuestionsFromMaterialParams) error
 	DeleteSubject(ctx context.Context, arg DeleteSubjectParams) (int64, error)
 	DeleteSubjectExports(ctx context.Context, arg DeleteSubjectExportsParams) error

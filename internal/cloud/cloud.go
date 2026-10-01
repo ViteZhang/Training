@@ -24,6 +24,7 @@ type Clients struct {
 	SMS        sms.Sender
 	AI         ai.Client
 	OCR        ocr.Recognizer
+	PDF        ocr.PDFParser
 	ASR        asr.Transcriber
 	Moderation moderation.Checker
 	Pay        pay.Gateway
@@ -47,7 +48,7 @@ func New(cfg *config.Config) (*Clients, error) {
 	}
 	pick("SMS", cfg.SMS.Provider, func() { c.SMS = sms.NewMock() })
 	pick("AI", cfg.AI.Provider, func() { c.AI = ai.NewMock() })
-	pick("OCR", cfg.OCR.Provider, func() { c.OCR = ocr.NewMock() })
+	pick("OCR", cfg.OCR.Provider, func() { c.OCR, c.PDF = ocr.NewMock(), ocr.NewMock() })
 	pick("ASR", cfg.ASR.Provider, func() { c.ASR = asr.NewMock() })
 	pick("MODERATION", cfg.Moderation.Provider, func() { c.Moderation = moderation.NewMock() })
 	pick("PAY", cfg.Pay.Provider, func() { c.Pay = pay.NewMock() })

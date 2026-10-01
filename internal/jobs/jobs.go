@@ -31,6 +31,7 @@ var Queues = map[string]int{QueueCritical: 6, QueueDefault: 3, QueueLow: 1}
 const (
 	TypePing          = "system:ping"
 	TypePurgeAccounts = "account:purge_deleted"
+	TypeExtract       = "material:extract"
 )
 
 // PingPayload 用于检查「API 入队 → Worker 执行」整条链路。
@@ -52,10 +53,36 @@ type AccountPurger interface {
 	PurgeDue(ctx context.Context, batch int) (int, error)
 }
 
+// MaterialExtractor 是导入流水线第 3 步「取文本」（material.Service 实现）。
+type MaterialExtractor interface {
+	Extract(ctx context.Context, userID, materialID uint64) error
+}
+
+// IsPermanent 判断错误是否重试也不会好（文件本身的问题，原因已写进资料记录）。由 app 包注入。
+type IsPermanent func(error) bool
+
 // Handlers 是全部任务处理器的依赖。后续卡片在这里加业务服务。
 type Handlers struct {
-	Logger *slog.Logger
-	Auth   AccountPurger
+	Logger    *slog.Logger
+	Auth      AccountPurger
+	Material  MaterialExtractor
+	Permanent IsPermanent
+}
+
+// MaterialPayload 指定一份资料。带上 user_id，处理器按归属查询（CLAUDE.md 必须遵守第 4 条）。
+type MaterialPayload struct {
+	UserID     uint64 `json:"user_id"`
+	MaterialID uint64 `json:"material_id"`
+}
+
+// NewExtractTask 创建取文本任务。同一份资料同一时间只排一个（TaskID 去重）；网络或识别服务出错最多重试 3 次。
+func NewExtractTask(userID, materialID uint64) (*asynq.Task, error) {
+	b, err := json.Marshal(MaterialPayload{UserID: userID, MaterialID: materialID})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TypeExtract, b, asynq.Queue(QueueDefault), asynq.MaxRetry(3), asynq.Timeout(10*time.Minute),
+		asynq.TaskID(fmt.Sprintf("%s:%d", TypeExtract, materialID))), nil
 }
 
 // Mux 注册全部任务处理器。
@@ -64,6 +91,7 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 	mux.Use(h.withLogger)
 	mux.HandleFunc(TypePing, h.handlePing)
 	mux.HandleFunc(TypePurgeAccounts, h.handlePurgeAccounts)
+	mux.HandleFunc(TypeExtract, h.handleExtract)
 	return mux
 }
 
@@ -98,6 +126,20 @@ func (h *Handlers) handlePing(ctx context.Context, t *asynq.Task) error {
 // handlePurgeAccounts 删除注销冷静期已到的账号（PRD 6.12）。每批 100 个，删不完下个小时继续。
 func (h *Handlers) handlePurgeAccounts(ctx context.Context, _ *asynq.Task) error {
 	_, err := h.Auth.PurgeDue(ctx, 100)
+	return err
+}
+
+func (h *Handlers) handleExtract(ctx context.Context, t *asynq.Task) error {
+	var p MaterialPayload
+	if err := json.Unmarshal(t.Payload(), &p); err != nil {
+		return fmt.Errorf("解析取文本载荷：%w", errors.Join(err, asynq.SkipRetry))
+	}
+	err := h.Material.Extract(ctx, p.UserID, p.MaterialID)
+	if err != nil && h.Permanent != nil && h.Permanent(err) {
+		// 原因已写进资料记录（1.6b 显示），任务本身算处理完。
+		logx.From(ctx).Info("material extract rejected", "material_id", p.MaterialID)
+		return nil
+	}
 	return err
 }
 
