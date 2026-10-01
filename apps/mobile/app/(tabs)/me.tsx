@@ -10,6 +10,7 @@ export default function MeTab() {
         我的
       </Text>
       <EmptyState title="页面开发中" desc="6.1 我的（T24）" />
+      <Button title="备考设置" kind="secondary" onPress={() => router.push('/settings/prep')} />
       <Button title="账号与安全" kind="secondary" onPress={() => router.push('/settings/account')} />
       {appConfig.variant !== 'production' ? <Button title="基础组件演示" kind="secondary" onPress={() => router.push('/dev/components')} /> : null}
     </Screen>

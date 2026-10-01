@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.1.0
+  version: 0.1.1
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -1361,8 +1361,10 @@ components:
       enum: [foundation, strengthen, sprint, final]
     ExamYear:
       type: object
-      required: [exam_year, label, first_exam_start, first_exam_end, subject_exam_date]
+      required: [exam_year, label, first_exam_start, first_exam_end, subject_exam_date, days_to_exam, suggested_stage]
       properties:
+        days_to_exam: { type: integer, description: 距专业课考试天数（1.3 大数字） }
+        suggested_stage: { $ref: "#/components/schemas/Stage" }
         exam_year: { type: integer, example: 2027 }
         label: { type: string, example: 2027 研考 · 今年 12 月初试 }
         first_exam_start: { type: string, format: date }

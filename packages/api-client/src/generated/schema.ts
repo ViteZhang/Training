@@ -1088,6 +1088,9 @@ export interface components {
          */
         Stage: "foundation" | "strengthen" | "sprint" | "final";
         ExamYear: {
+            /** @description 距专业课考试天数（1.3 大数字） */
+            days_to_exam: number;
+            suggested_stage: components["schemas"]["Stage"];
             /** @example 2027 */
             exam_year: number;
             /** @example 2027 研考 · 今年 12 月初试 */
