@@ -17,14 +17,17 @@ import (
 
 	"peetraining-server/internal/auth"
 	"peetraining-server/internal/cloud"
+	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/config"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/flags"
 	apihttp "peetraining-server/internal/http"
 	"peetraining-server/internal/jobs"
 	"peetraining-server/internal/logx"
+	"peetraining-server/internal/material"
 	"peetraining-server/internal/params"
 	"peetraining-server/internal/profile"
+	"peetraining-server/internal/quota"
 	"peetraining-server/internal/store"
 )
 
@@ -42,16 +45,18 @@ func NewLogger(cfg *config.Config) *slog.Logger {
 
 // Base 是 API 与 Worker 共用的依赖。
 type Base struct {
-	Config  *config.Config
-	Logger  *slog.Logger
-	DB      *sql.DB
-	Redis   *redis.Client
-	Cloud   *cloud.Clients
-	Queue   *asynq.Client
-	Params  *params.Store
-	Flags   *flags.Service
-	Auth    *auth.Service
-	Profile *profile.Service
+	Config   *config.Config
+	Logger   *slog.Logger
+	DB       *sql.DB
+	Redis    *redis.Client
+	Cloud    *cloud.Clients
+	Queue    *asynq.Client
+	Params   *params.Store
+	Flags    *flags.Service
+	Auth     *auth.Service
+	Profile  *profile.Service
+	Quota    *quota.Service
+	Material *material.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -72,6 +77,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	}
 	q := dbq.New(db)
 	ps := params.New(q)
+	qs := quota.New(q, ps, nil)
 	return &Base{
 		Config: cfg,
 		Logger: log,
@@ -86,7 +92,9 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 			JWTSecret: cfg.JWTSecret, Logger: log,
 			LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock,
 		}),
-		Profile: profile.New(db, ps, clients.OSS, nil),
+		Profile:  profile.New(db, ps, clients.OSS, nil),
+		Quota:    qs,
+		Material: material.New(material.Deps{DB: db, OSS: clients.OSS, Moderation: clients.Moderation, Quota: qs, Params: ps}),
 	}, nil
 }
 
@@ -111,14 +119,17 @@ func appName() string {
 // Handler 组装 API 的 HTTP 处理器。
 func (b *Base) Handler() (http.Handler, error) {
 	return apihttp.NewRouter(apihttp.Deps{
-		Logger:  b.Logger,
-		Version: Version,
-		AppName: appName(),
-		MySQL:   store.SQLPinger{DB: b.DB},
-		Redis:   store.RedisPinger{Client: b.Redis},
-		Auth:    b.Auth,
-		Flags:   b.Flags,
-		Profile: b.Profile,
+		Logger:   b.Logger,
+		Version:  Version,
+		AppName:  appName(),
+		MySQL:    store.SQLPinger{DB: b.DB},
+		Redis:    store.RedisPinger{Client: b.Redis},
+		Auth:     b.Auth,
+		Flags:    b.Flags,
+		Profile:  b.Profile,
+		Material: b.Material,
+		Quota:    b.Quota,
+		DevOSS:   b.devOSS(),
 	})
 }
 
@@ -242,4 +253,13 @@ func Migrate(ctx context.Context, cfg *config.Config, log *slog.Logger, action s
 	default:
 		return fmt.Errorf("未知的迁移操作 %q（可用：up、status）", action)
 	}
+}
+
+// devOSS 返回本地 mock OSS，用来注册直传入口；生产环境永远返回 nil。
+func (b *Base) devOSS() *oss.Mock {
+	if b.Config.IsProduction() {
+		return nil
+	}
+	m, _ := b.Cloud.OSS.(*oss.Mock)
+	return m
 }

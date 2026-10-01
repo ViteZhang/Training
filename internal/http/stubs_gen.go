@@ -13,11 +13,6 @@ func (h *Handlers) ConfirmImportJob(c *gin.Context, _ gen.JobId, _ gen.ConfirmIm
 	_ = c.Error(ErrNotImplemented())
 }
 
-// ConfirmMaterialUploaded 尚未实现，返回 501。
-func (h *Handlers) ConfirmMaterialUploaded(c *gin.Context, _ gen.MaterialId) {
-	_ = c.Error(ErrNotImplemented())
-}
-
 // CreateImportJob 尚未实现，返回 501。
 func (h *Handlers) CreateImportJob(c *gin.Context, _ gen.CreateImportJobParams) {
 	_ = c.Error(ErrNotImplemented())
@@ -28,24 +23,11 @@ func (h *Handlers) CreateKnowledgeNode(c *gin.Context, _ gen.SubjectId) {
 	_ = c.Error(ErrNotImplemented())
 }
 
-// CreatePastedMaterial 尚未实现，返回 501。
-func (h *Handlers) CreatePastedMaterial(c *gin.Context, _ gen.CreatePastedMaterialParams) {
-	_ = c.Error(ErrNotImplemented())
-}
-
 // CreateQuestion 尚未实现，返回 501。
 func (h *Handlers) CreateQuestion(c *gin.Context, _ gen.SubjectId) { _ = c.Error(ErrNotImplemented()) }
 
-// CreateUploadRequests 尚未实现，返回 501。
-func (h *Handlers) CreateUploadRequests(c *gin.Context, _ gen.CreateUploadRequestsParams) {
-	_ = c.Error(ErrNotImplemented())
-}
-
 // DeleteKnowledgePoint 尚未实现，返回 501。
 func (h *Handlers) DeleteKnowledgePoint(c *gin.Context, _ gen.KpId) { _ = c.Error(ErrNotImplemented()) }
-
-// DeleteMaterial 尚未实现，返回 501。
-func (h *Handlers) DeleteMaterial(c *gin.Context, _ gen.MaterialId) { _ = c.Error(ErrNotImplemented()) }
 
 // DeleteQuestion 尚未实现，返回 501。
 func (h *Handlers) DeleteQuestion(c *gin.Context, _ gen.QuestionId) { _ = c.Error(ErrNotImplemented()) }
@@ -72,14 +54,6 @@ func (h *Handlers) GetKnowledgeTree(c *gin.Context, _ gen.SubjectId, _ gen.GetKn
 	_ = c.Error(ErrNotImplemented())
 }
 
-// GetMaterial 尚未实现，返回 501。
-func (h *Handlers) GetMaterial(c *gin.Context, _ gen.MaterialId) { _ = c.Error(ErrNotImplemented()) }
-
-// GetMaterialDeletionImpact 尚未实现，返回 501。
-func (h *Handlers) GetMaterialDeletionImpact(c *gin.Context, _ gen.MaterialId) {
-	_ = c.Error(ErrNotImplemented())
-}
-
 // GetMaterialPage 尚未实现，返回 501。
 func (h *Handlers) GetMaterialPage(c *gin.Context, _ gen.MaterialId, _ int, _ gen.GetMaterialPageParams) {
 	_ = c.Error(ErrNotImplemented())
@@ -87,9 +61,6 @@ func (h *Handlers) GetMaterialPage(c *gin.Context, _ gen.MaterialId, _ int, _ ge
 
 // GetQuestion 尚未实现，返回 501。
 func (h *Handlers) GetQuestion(c *gin.Context, _ gen.QuestionId) { _ = c.Error(ErrNotImplemented()) }
-
-// GetQuota 尚未实现，返回 501。
-func (h *Handlers) GetQuota(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
 
 // ListImportItems 尚未实现，返回 501。
 func (h *Handlers) ListImportItems(c *gin.Context, _ gen.JobId, _ gen.ListImportItemsParams) {
@@ -100,9 +71,6 @@ func (h *Handlers) ListImportItems(c *gin.Context, _ gen.JobId, _ gen.ListImport
 func (h *Handlers) ListImportJobs(c *gin.Context, _ gen.ListImportJobsParams) {
 	_ = c.Error(ErrNotImplemented())
 }
-
-// ListMaterials 尚未实现，返回 501。
-func (h *Handlers) ListMaterials(c *gin.Context, _ gen.SubjectId) { _ = c.Error(ErrNotImplemented()) }
 
 // ListQuestions 尚未实现，返回 501。
 func (h *Handlers) ListQuestions(c *gin.Context, _ gen.SubjectId, _ gen.ListQuestionsParams) {

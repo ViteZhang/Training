@@ -13,23 +13,40 @@ import (
 type Querier interface {
 	AcceptAgreement(ctx context.Context, arg AcceptAgreementParams) error
 	CancelUserDeletion(ctx context.Context, id uint64) (int64, error)
+	CountKPsFromMaterial(ctx context.Context, materialID uint64) (int64, error)
+	// 删除资料前说明连带影响（3.1d）。调用前已用 GetMaterial 核对资料属于当前用户，下面按资料 ID 统计。
+	CountMaterialImpact(ctx context.Context, arg CountMaterialImpactParams) (CountMaterialImpactRow, error)
 	CountSubjects(ctx context.Context, ownerUserID uint64) (int64, error)
+	CreateMaterial(ctx context.Context, arg CreateMaterialParams) (int64, error)
 	CreateSubject(ctx context.Context, arg CreateSubjectParams) (int64, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (int64, error)
 	CreateUserBank(ctx context.Context, arg CreateUserBankParams) (int64, error)
+	DeleteKnowledgePoint(ctx context.Context, arg DeleteKnowledgePointParams) error
+	DeleteMaterial(ctx context.Context, arg DeleteMaterialParams) (int64, error)
+	DeleteQuestionsFromMaterial(ctx context.Context, arg DeleteQuestionsFromMaterialParams) error
 	DeleteSubject(ctx context.Context, arg DeleteSubjectParams) (int64, error)
 	DeleteSubjectExports(ctx context.Context, arg DeleteSubjectExportsParams) error
 	DeleteSubjectPracticeSessions(ctx context.Context, arg DeleteSubjectPracticeSessionsParams) error
 	DeleteSubjectSessions(ctx context.Context, arg DeleteSubjectSessionsParams) error
 	DeleteUser(ctx context.Context, id uint64) error
+	// 用它做过的整卷成绩保留：试卷本身删除，paper_sessions.paper_id 置空（外键 SET NULL）。
+	DetachPapersFromMaterial(ctx context.Context, arg DetachPapersFromMaterialParams) error
+	// 额度计数与流水（T08，PRD 13.1）。扣减时先锁计数行，防止并发超额；流水的幂等键防止重复扣。
+	EnsureQuotaCounter(ctx context.Context, arg EnsureQuotaCounterParams) error
 	GetAppVersion(ctx context.Context, platform AppVersionsPlatform) (AppVersion, error)
+	// 资料（T08）。每条查询都带 owner_user_id 归属条件。
+	GetBankForSubject(ctx context.Context, arg GetBankForSubjectParams) (Bank, error)
 	// 覆盖此刻、未收回的会员时段。
 	GetCurrentMembership(ctx context.Context, arg GetCurrentMembershipParams) (Membership, error)
 	GetExamDate(ctx context.Context, examYear uint16) (ExamDate, error)
 	GetLatestAgreement(ctx context.Context, arg GetLatestAgreementParams) (Agreement, error)
 	// 时长叠加后的最晚结束时间（会员条上显示「有效期至」）。
 	GetLatestMembershipEnd(ctx context.Context, arg GetLatestMembershipEndParams) (Membership, error)
+	GetMaterial(ctx context.Context, arg GetMaterialParams) (GetMaterialRow, error)
+	GetMaterialBySha(ctx context.Context, arg GetMaterialByShaParams) (Material, error)
 	GetPublishedAgreementByID(ctx context.Context, id uint64) (Agreement, error)
+	GetQuotaCounter(ctx context.Context, arg GetQuotaCounterParams) (QuotaCounter, error)
+	GetQuotaLedgerByKey(ctx context.Context, arg GetQuotaLedgerByKeyParams) (QuotaLedger, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error)
 	GetStudyProfile(ctx context.Context, userID uint64) (StudyProfile, error)
 	GetSubject(ctx context.Context, arg GetSubjectParams) (GetSubjectRow, error)
@@ -37,13 +54,19 @@ type Querier interface {
 	// 规矩：查询用户内容一律带归属条件（CLAUDE.md 必须遵守第 4 条）；这里的表以 user_id / id 为归属。
 	GetUserByID(ctx context.Context, id uint64) (User, error)
 	GetUserByPhone(ctx context.Context, phone string) (User, error)
+	InsertQuotaLedger(ctx context.Context, arg InsertQuotaLedgerParams) error
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
 	InsertStudyProfile(ctx context.Context, arg InsertStudyProfileParams) error
 	ListAcceptedAgreementIDs(ctx context.Context, userID uint64) ([]uint64, error)
 	// 备考档案与专业课（T07）。每条查询都带 owner_user_id / user_id 归属条件。
 	ListExamDatesFrom(ctx context.Context, subjectExamDate time.Time) ([]ExamDate, error)
 	ListFeatureFlags(ctx context.Context) ([]ListFeatureFlagsRow, error)
+	// 只来自这份资料的知识点：它有来源记录，且全部来源都是这份资料。
+	// 调用前已核对资料属于当前用户；再限定在资料所在的题库内。
+	ListKPsOnlyFromMaterial(ctx context.Context, arg ListKPsOnlyFromMaterialParams) ([]uint64, error)
 	ListLatestAgreements(ctx context.Context, publishedAt sql.NullTime) ([]Agreement, error)
+	ListMaterialPages(ctx context.Context, arg ListMaterialPagesParams) ([]MaterialPage, error)
+	ListMaterialsByBank(ctx context.Context, arg ListMaterialsByBankParams) ([]ListMaterialsByBankRow, error)
 	// 规则参数与功能开关（T06 读取，T07 / T29 管理）。
 	ListRuleParams(ctx context.Context) ([]ListRuleParamsRow, error)
 	ListSubjects(ctx context.Context, ownerUserID uint64) ([]ListSubjectsRow, error)
@@ -51,17 +74,27 @@ type Querier interface {
 	ListUserActiveTokens(ctx context.Context, arg ListUserActiveTokensParams) ([]ListUserActiveTokensRow, error)
 	ListUserFeatureFlags(ctx context.Context, userID uint64) ([]string, error)
 	ListUsersDueForDeletion(ctx context.Context, arg ListUsersDueForDeletionParams) ([]uint64, error)
+	LockQuotaCounter(ctx context.Context, arg LockQuotaCounterParams) (QuotaCounter, error)
+	// 保留下来的知识点（其他资料也有）把「出处」改指到另一份资料，避免指向已删除的资料。
+	// 三个参数依次是：要删除的资料 ID、题库 ID、要删除的资料 ID。
+	RepointKPSources(ctx context.Context, arg RepointKPSourcesParams) error
 	RequestUserDeletion(ctx context.Context, arg RequestUserDeletionParams) error
 	RevokeAllUserTokens(ctx context.Context, arg RevokeAllUserTokensParams) error
 	RevokeDeviceTokens(ctx context.Context, arg RevokeDeviceTokensParams) (int64, error)
 	RevokeRefreshToken(ctx context.Context, arg RevokeRefreshTokenParams) error
+	SetMaterialObjectKey(ctx context.Context, arg SetMaterialObjectKeyParams) error
 	TouchUserActive(ctx context.Context, arg TouchUserActiveParams) error
 	UpdateBankForSubject(ctx context.Context, arg UpdateBankForSubjectParams) error
+	UpdateMaterialCategory(ctx context.Context, arg UpdateMaterialCategoryParams) error
+	UpdateMaterialPages(ctx context.Context, arg UpdateMaterialPagesParams) error
+	UpdateMaterialStatus(ctx context.Context, arg UpdateMaterialStatusParams) error
+	UpdateQuotaCounter(ctx context.Context, arg UpdateQuotaCounterParams) error
 	UpdateStudyProfile(ctx context.Context, arg UpdateStudyProfileParams) error
 	UpdateSubject(ctx context.Context, arg UpdateSubjectParams) error
 	UpdateUserNickname(ctx context.Context, arg UpdateUserNicknameParams) error
 	UpdateUserOnboarding(ctx context.Context, arg UpdateUserOnboardingParams) error
 	UpdateUserPhone(ctx context.Context, arg UpdateUserPhoneParams) error
+	UpsertMaterialPage(ctx context.Context, arg UpsertMaterialPageParams) error
 }
 
 var _ Querier = (*Queries)(nil)

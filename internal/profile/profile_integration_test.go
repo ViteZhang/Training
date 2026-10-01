@@ -139,8 +139,8 @@ func TestDeleteSubjectCascades(t *testing.T) {
 	if _, err := f.db.Exec("INSERT INTO paper_sessions (owner_user_id, subject_id, paper_kind, paper_title, mode, full_score) VALUES (?, ?, 'real_exam', 't', 'mock', 150)", uid, s.ID); err != nil {
 		t.Fatal(err)
 	}
-	f.oss.Put(oss.BankPrefix(uid, s.BankID)+"m/1.pdf", []byte("x"))
-	f.oss.Put(oss.BankPrefix(uid, keep.BankID)+"m/2.pdf", []byte("y"))
+	f.oss.Seed(oss.BankPrefix(uid, s.BankID)+"m/1.pdf", []byte("x"))
+	f.oss.Seed(oss.BankPrefix(uid, keep.BankID)+"m/2.pdf", []byte("y"))
 
 	if err := f.svc.DeleteSubject(ctx, uid, s.ID); err != nil {
 		t.Fatal(err)

@@ -12,9 +12,12 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"peetraining-server/internal/auth"
+	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/flags"
 	"peetraining-server/internal/gen"
+	"peetraining-server/internal/material"
 	"peetraining-server/internal/profile"
+	"peetraining-server/internal/quota"
 )
 
 // APIPrefix 是 App 接口的路由前缀；后台接口在 APIPrefix + "/admin" 下。
@@ -27,14 +30,18 @@ type Pinger interface {
 
 // Deps 是处理器需要的依赖。后续卡片在这里加业务服务。
 type Deps struct {
-	Logger  *slog.Logger
-	Version string
-	AppName string
-	MySQL   Pinger
-	Redis   Pinger
-	Auth    *auth.Service
-	Flags   *flags.Service
-	Profile *profile.Service
+	Logger   *slog.Logger
+	Version  string
+	AppName  string
+	MySQL    Pinger
+	Redis    Pinger
+	Auth     *auth.Service
+	Flags    *flags.Service
+	Profile  *profile.Service
+	Material *material.Service
+	Quota    *quota.Service
+	// DevOSS 不为空时注册本地 mock OSS 的直传入口 PUT /dev/oss/*key（只在非生产环境）。
+	DevOSS *oss.Mock
 	// Tokens 校验访问令牌；为空时用 Auth（测试里可以换成假的）。
 	Tokens TokenParser
 }
@@ -60,6 +67,10 @@ func NewRouter(deps Deps) (*gin.Engine, error) {
 	r.NoRoute(func(c *gin.Context) { _ = c.Error(ErrNotFound()) })
 	r.NoMethod(func(c *gin.Context) { _ = c.Error(ErrNotFound()) })
 	r.HandleMethodNotAllowed = false
+
+	if deps.DevOSS != nil {
+		r.PUT("/dev/oss/*key", devOSSUpload(deps.DevOSS))
+	}
 
 	api := r.Group(APIPrefix)
 	tokens := deps.Tokens
