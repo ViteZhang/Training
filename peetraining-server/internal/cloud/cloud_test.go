@@ -44,6 +44,22 @@ func TestNewUnknownProvider(t *testing.T) {
 	}
 }
 
+func TestNewBailian(t *testing.T) {
+	cfg := mockConfig()
+	cfg.AI.Provider = "bailian"
+	if _, err := New(cfg); err == nil {
+		t.Fatal("缺少百炼地址与密钥应报错")
+	}
+	cfg.AI = config.AIConfig{Provider: "bailian", BailianBaseURL: "https://example.test/v1", BailianAPIKey: "k", AltBaseURL: "https://alt.test/v1", AltAPIKey: "k2"}
+	c, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := c.AI.(*ai.OpenAI); !ok || c.AIAlt == nil {
+		t.Fatalf("应使用 OpenAI 兼容客户端：%T %v", c.AI, c.AIAlt)
+	}
+}
+
 func TestNewProductionRejectsMockSMS(t *testing.T) {
 	cfg := mockConfig()
 	cfg.AppEnv = config.EnvProduction
