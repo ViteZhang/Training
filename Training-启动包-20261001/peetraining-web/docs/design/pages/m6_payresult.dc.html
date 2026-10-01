@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>6.6 支付结果</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 16px; padding: 56px 22px 28px; box-sizing: border-box; overflow: hidden">
+<div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center">
+<span style="width: 72px; height: 72px; border-radius: 36px; background: #1F7A4D; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>
+<span style="font-size: 24px; font-weight: 700">开通成功</span>
+<span style="font-size: 14px; line-height: 1.65; color: #6E6E6E">考季卡已生效，有效期至 2027 年初试结束<br>批改、出题、资料解析都不限次数</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px"><a href="m4_practice.dc.html" style="display: flex; align-items: center; justify-content: center; height: 50px; border-radius: 25px; background: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 500">去训练</a><a href="m6_me.dc.html" style="display: flex; align-items: center; justify-content: center; min-height: 44px; font-size: 14px; color: #6E6E6E; text-decoration: none">返回我的</a></div></main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

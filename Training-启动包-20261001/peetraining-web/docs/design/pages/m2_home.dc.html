@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>2.1 今日首页</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 1300px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 12px; padding: 52px 22px 100px; box-sizing: border-box">
+<div style="display: flex; justify-content: space-between; align-items: center">
+<span style="display: flex; align-items: baseline; gap: 6px"><span style="font-family: 'DM Sans',sans-serif; font-size: 40px; font-weight: 600; letter-spacing: -1.5px; line-height: 1">83</span><span style="font-size: 13px; color: #6E6E6E">天后初试</span></span>
+<span style="display: flex; align-items: center; gap: 4px"><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; border: 1px solid #1A1A1A">强化期</span><a href="m2_messages.dc.html" aria-label="消息，2 条未读" style="position: relative; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-right: -10px; color: #1A1A1A"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0"></path></svg><span style="position: absolute; top: 10px; right: 11px; width: 8px; height: 8px; border-radius: 4px; background: #C23B22; border: 2px solid #FFFFFF"></span></a></span>
+</div>
+<section style="display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; border-radius: 22px; border: 1px solid #EFEFEF">
+<span style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 15px; font-weight: 700">专业课预估分</span><a href="m6_dashboard.dc.html" style="display: flex; align-items: center; min-height: 32px; padding: 0; text-decoration: none; font-size: 12px; color: #6E6E6E">提分看板<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6E6E6E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></a></span>
+<span style="display: flex; flex-direction: column; gap: 4px">
+<span style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 13px; color: #6E6E6E"><span style="font-family: 'DM Sans',sans-serif">654</span> 语言文学基础</span><a href="m2_target.dc.html" aria-label="修改目标分，当前 115" style="display: flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 10px; margin-right: -10px; border-radius: 16px; font-size: 12px; color: #6E6E6E; text-decoration: none">目标 <span style="font-family: 'DM Sans',sans-serif; font-weight: 600; color: #8A3A16">115</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6E6E6E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L18 10l-4-4L4 16zM14 6l4 4"></path></svg></a></span>
+<span style="display: flex; align-items: baseline; gap: 6px"><span style="font-family: 'DM Sans',sans-serif; font-size: 28px; font-weight: 600; letter-spacing: -1px">98–106</span><span style="font-family: 'DM Sans',sans-serif; font-size: 13px; color: #6E6E6E">/ 150</span></span>
+<span style="display: block; position: relative; height: 22px">
+<span style="position: absolute; left: 0; right: 0; top: 8px; height: 6px; border-radius: 3px; background: #EFEFEF"></span>
+<span style="position: absolute; left: 65.3%; width: 5.3%; top: 8px; height: 6px; border-radius: 3px; background: #1A1A1A"></span>
+<span style="position: absolute; left: 76.7%; top: 2px; width: 2px; height: 18px; background: #F2956B"></span>
+</span>
+</span>
+<span style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6E6E6E"><span style="width: 8px; height: 8px; border-radius: 4px; background: #F2956B; flex-shrink: 0"></span>还差约 9 分 · 主要差在论述题</span>
+<span style="font-size: 11px; color: #767676">依据你导入的 2 套真题卷实测和近 20 道主观题估算</span>
+<span style="height: 1px; background: #EFEFEF"></span>
+<span style="display: flex; justify-content: space-between; align-items: center; font-size: 13px"><span style="display: flex; flex-direction: column; gap: 2px"><span style="color: #6E6E6E"><span style="font-family: 'DM Sans',sans-serif">908</span> 作文</span><span style="font-size: 12px; color: #767676">做完一套整卷后生成预估分</span></span><a href="m2_target.dc.html" style="display: flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 16px; background: #F7F7F5; font-size: 12px; color: #1A1A1A; text-decoration: none">设目标分</a></span>
+</section>
+<section style="padding: 16px 18px; border-radius: 22px; border: 1px solid #EFEFEF; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 16px; font-weight: 700">今日训练</span><span style="font-family: 'DM Sans',sans-serif; font-size: 13px; color: #6E6E6E">0 / 3 · 约 45 分钟</span></div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-family: 'DM Sans',sans-serif; font-size: 24px; font-weight: 600">12</span><span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6E6E6E"><span style="width: 8px; height: 8px; border-radius: 4px; background: #6FA8DC; flex-shrink: 0"></span>到期复习</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-family: 'DM Sans',sans-serif; font-size: 24px; font-weight: 600">16</span><span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6E6E6E"><span style="width: 8px; height: 8px; border-radius: 4px; background: #F2956B; flex-shrink: 0"></span>薄弱查漏</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-family: 'DM Sans',sans-serif; font-size: 24px; font-weight: 600">10</span><span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6E6E6E"><span style="width: 8px; height: 8px; border-radius: 4px; background: #8C80E0; flex-shrink: 0"></span>背诵</span></div>
+</div>
+<a href="m4_answer.dc.html" style="display: flex; align-items: center; justify-content: center; height: 50px; border-radius: 25px; background: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 500">开始训练</a>
+</section>
+<a href="m4_norm.dc.html" style="display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; border-radius: 18px; box-sizing: border-box; background: #FDEDE4; text-decoration: none; color: #8A3A16">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"></path></svg>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px; font-weight: 700">本周题型专项 · 名词解释 <span style="font-family: 'DM Sans',sans-serif">2 / 3</span></span><span style="font-size: 12px">强化期每周专练一种题型，练到采分点写全</span></span>
+<span style="height: 32px; padding: 0 12px; border-radius: 16px; background: #FFFFFF; display: flex; align-items: center; font-size: 13px; font-weight: 700; color: #1A1A1A; flex-shrink: 0">去练</span>
+</a>
+<section style="padding: 16px 18px; border-radius: 22px; border: 1px solid #EFEFEF; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 16px; font-weight: 700">我的题库</span><button style="min-height: 32px; padding: 0; border: none; background: transparent; font-family: inherit; font-size: 13px; color: #6E6E6E">全部 ›</button></div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 15px; font-weight: 500"><span style="font-family: 'DM Sans',sans-serif; font-weight: 600">654</span> 语言文学基础</span><span style="font-size: 12px; color: #6E6E6E"><span style="font-family: 'DM Sans',sans-serif">246</span> 题 · <span style="font-family: 'DM Sans',sans-serif">58</span> 个知识点</span></div>
+<div style="display: flex; height: 6px; border-radius: 3px; overflow: hidden; gap: 2px"><div style="width: 21%; background: #1A1A1A"></div><div style="width: 16%; background: #F2956B"></div><div style="width: 26%; background: #CFCFCF"></div><div style="flex-grow: 1; background: #EFEFEF"></div></div>
+<div style="display: flex; gap: 12px; font-size: 11px; color: #6E6E6E"><span>已掌握 <span style="font-family: 'DM Sans',sans-serif; color: #1A1A1A">12</span></span><span style="color: #8A3A16">待巩固 <span style="font-family: 'DM Sans',sans-serif">9</span></span><span>学习中 <span style="font-family: 'DM Sans',sans-serif">15</span></span><span>未学习 <span style="font-family: 'DM Sans',sans-serif">22</span></span></div>
+</div>
+<div style="height: 1px; background: #EFEFEF"></div>
+<div style="display: flex; align-items: center; gap: 12px">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 500"><span style="font-family: 'DM Sans',sans-serif; font-weight: 600">908</span> 作文</span><span style="font-size: 12px; color: #6E6E6E">还没导入资料</span></span>
+<a href="m1_import.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 18px; background: #F7F7F5; text-decoration: none; font-size: 13px; color: #1A1A1A">导入</a>
+</div>
+</section>
+<button style="display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; border-radius: 18px; border: none; background: #F7F7F5; font-family: inherit; text-align: left; color: #1A1A1A"><span style="width: 8px; height: 8px; border-radius: 4px; background: #F2956B; flex-shrink: 0"></span><span style="flex-grow: 1; font-size: 13px"><span style="font-weight: 700">3 个知识点「以为会了」</span><span style="color: #6E6E6E"> · 自评掌握但实测偏低</span></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6E6E6E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></button>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+<a href="m4_recite.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 14px; min-height: 72px; box-sizing: border-box; border-radius: 18px; border: 1px solid #EFEFEF; background: #FFFFFF; text-decoration: none; color: #1A1A1A"><span style="width: 38px; height: 38px; flex-shrink: 0; border-radius: 12px; background: #EEEBFB; color: #3E3190; display: flex; align-items: center; justify-content: center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5zM5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"></path></svg></span><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px; font-weight: 700">背诵</span><span style="font-size: 12px; color: #6E6E6E">10 条待背</span></span></a>
+<a href="m4_wrong.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 14px; min-height: 72px; box-sizing: border-box; border-radius: 18px; border: 1px solid #EFEFEF; background: #FFFFFF; text-decoration: none; color: #1A1A1A"><span style="width: 38px; height: 38px; flex-shrink: 0; border-radius: 12px; background: #FDEDE4; color: #8A3A16; display: flex; align-items: center; justify-content: center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M9 9l6 6M15 9l-6 6"></path></svg></span><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px; font-weight: 700">错题本</span><span style="font-size: 12px; color: #6E6E6E">23 题</span></span></a>
+<a href="m4_papers.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 14px; min-height: 72px; box-sizing: border-box; border-radius: 18px; border: 1px solid #EFEFEF; background: #FFFFFF; text-decoration: none; color: #1A1A1A"><span style="width: 38px; height: 38px; flex-shrink: 0; border-radius: 12px; background: #E4F4EB; color: #1F5C3E; display: flex; align-items: center; justify-content: center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"></path></svg></span><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px; font-weight: 700">整卷</span><span style="font-size: 12px; color: #6E6E6E">已做 2 / 10 套</span></span></a>
+<a href="m1_import.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 14px; min-height: 72px; box-sizing: border-box; border-radius: 18px; border: 1px solid #EFEFEF; background: #FFFFFF; text-decoration: none; color: #1A1A1A"><span style="width: 38px; height: 38px; flex-shrink: 0; border-radius: 12px; background: #F7F7F5; color: #1A1A1A; display: flex; align-items: center; justify-content: center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"></path></svg></span><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px; font-weight: 700">导入资料</span><span style="font-size: 12px; color: #6E6E6E">追加题目或资料</span></span></a>
+</div>
+</main>
+<nav aria-label="主导航" style="position: absolute; left: 0; bottom: 0; width: 390px; height: 80px; display: flex; border-top: 1px solid #EFEFEF; background: #FFFFFF; padding: 6px 12px 20px; box-sizing: border-box">
+<button aria-current="page" style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: none; background: transparent; color: #1A1A1A; font-family: inherit; font-size: 11px; font-weight: 700"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg><span>今日</span></button>
+<a href="m3_bank_kp.dc.html" style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: #767676; font-size: 11px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5zM5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3M9 7h6"></path></svg><span>题库</span></a>
+<a href="m4_practice.dc.html" style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: #767676; font-size: 11px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"></path></svg><span>训练</span></a>
+<a href="m6_me.dc.html" style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: #767676; font-size: 11px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg><span>我的</span></a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1300}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

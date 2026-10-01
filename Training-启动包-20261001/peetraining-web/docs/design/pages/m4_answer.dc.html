@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>4.3 答题 · 单选</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 16px; padding: 44px 22px 28px; box-sizing: border-box; overflow: hidden">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: center; min-height: 44px"><a href="m4_exit.dc.html" aria-label="退出训练" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-left: -12px; color: #1A1A1A"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></a><span style="font-size: 15px; font-weight: 500">今日训练 · 5 / 28</span><span style="font-family: 'DM Sans',sans-serif; font-size: 13px; color: #6E6E6E; width: 44px; text-align: right">03:48</span></div>
+<div style="height: 4px; background: #EFEFEF; border-radius: 2px"><div style="width: 17%; height: 4px; background: #1A1A1A; border-radius: 2px"></div></div>
+</div>
+<div style="display: flex; gap: 8px"><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #F7F7F5; color: #1A1A1A">单选</span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #E5F0FA; color: #1D4C77">到期复习</span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #EEEBFB; color: #3E3190">AI 出题</span></div>
+<h2 style="margin: 0; font-size: 20px; line-height: 1.55; font-weight: 700">下列作家中，不属于「意识流」小说代表作家的是：</h2>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{options}}" as="o" hint-placeholder-count="4"><button onClick="{{o.pick}}" style="display: flex; gap: 12px; align-items: center; width: 100%; padding: 13px 14px; min-height: 52px; border-radius: 16px; border: 1.5px solid {{o.border}}; background: #FFFFFF; font-family: inherit; text-align: left; cursor: pointer"><span style="flex-shrink: 0; width: 26px; height: 26px; border-radius: 13px; background: {{o.dotBg}}; color: {{o.dotFg}}; display: flex; align-items: center; justify-content: center; font-family: 'DM Sans',sans-serif; font-size: 13px; font-weight: 600">{{o.letter}}</span><span style="font-size: 15px; color: #1A1A1A">{{o.text}}</span></button></sc-for>
+</div>
+<sc-if value="{{answered}}" hint-placeholder-val="{{ false }}"><div style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 18px; background: #F7F7F5">
+<sc-if value="{{isRight}}" hint-placeholder-val="{{ false }}"><span style="font-size: 14px; font-weight: 700; color: #1F7A4D">回答正确</span></sc-if>
+<sc-if value="{{isWrong}}" hint-placeholder-val="{{ false }}"><span style="font-size: 14px; font-weight: 700; color: #C23B22">正确答案是 B</span></sc-if>
+<span style="font-size: 13px; line-height: 1.7; color: #4A4A4A">意识流小说代表作家有乔伊斯、伍尔夫、普鲁斯特、福克纳。海明威以「冰山原则」著称，属于「迷惘的一代」。</span>
+<span style="font-size: 12px; color: #6E6E6E">AI 按你的知识点「意识流小说」出题 · 依据 654 历年真题汇编.pdf 第 42 页</span>
+<span style="display: flex; justify-content: space-between; align-items: center"><a href="m3_card.dc.html" style="font-size: 13px; font-weight: 500; color: #1A1A1A; text-decoration: none">知识点：意识流小说 ›</a><a href="m4_dispute.dc.html" style="font-size: 12px; color: #6E6E6E; text-decoration: none">题目有问题</a></span>
+</div></sc-if>
+<div style="flex-grow: 1"></div>
+<sc-if value="{{answered}}" hint-placeholder-val="{{ false }}"><a href="m4_subj.dc.html" style="display: flex; align-items: center; justify-content: center; height: 50px; border-radius: 25px; background: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 500">下一题</a></sc-if>
+<sc-if value="{{notAnswered}}" hint-placeholder-val="{{ true }}"><button onClick="{{reveal}}" style="height: 50px; border-radius: 25px; border: 1px solid #E6E6E6; background: #FFFFFF; font-family: inherit; font-size: 15px; color: #1A1A1A; cursor: pointer">不会，看答案</button></sc-if></main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const self = this;
+    const picked = this.state ? this.state.picked : null;
+    const answered = !!picked;
+    const right = 'B';
+    const defs = [{ l: 'A', t: '乔伊斯' }, { l: 'B', t: '海明威' }, { l: 'C', t: '伍尔夫' }, { l: 'D', t: '普鲁斯特' }];
+    return {
+      answered: answered,
+      notAnswered: !answered,
+      isRight: picked === right,
+      isWrong: answered && picked !== right,
+      reveal: function () { self.setState({ picked: 'skip' }); },
+      options: defs.map(function (d) {
+        var border = '#EFEFEF';
+        var dotBg = '#F7F7F5';
+        var dotFg = '#1A1A1A';
+        var mark = d.l;
+        if (answered && d.l === right) { border = '#1F7A4D'; dotBg = '#1F7A4D'; dotFg = '#FFFFFF'; mark = '✓'; }
+        else if (answered && d.l === picked) { border = '#C23B22'; dotBg = '#C23B22'; dotFg = '#FFFFFF'; mark = '✕'; }
+        return {
+          letter: mark, text: d.t, border: border, dotBg: dotBg, dotFg: dotFg,
+          pick: function () { if (!answered) { self.setState({ picked: d.l }); } }
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

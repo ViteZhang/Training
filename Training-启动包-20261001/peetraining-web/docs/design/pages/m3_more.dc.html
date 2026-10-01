@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>3.5 知识点更多操作</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<div aria-hidden="true" style="display: flex; flex-direction: column; gap: 12px; padding: 80px 22px 12px"><span style="font-size: 30px; font-weight: 700">意境</span><div style="height: 150px; border-radius: 22px; border: 1px solid #EFEFEF"></div><div style="height: 130px; border-radius: 22px; border: 1px solid #EFEFEF"></div><div style="height: 100px; border-radius: 18px; background: #F7F7F5"></div></div>
+<div style="position: absolute; left: 0; top: 0; width: 390px; height: 844px; background: rgba(20,20,20,0.45)"></div>
+<div role="dialog" aria-label="知识点操作" style="position: absolute; left: 0; bottom: 0; width: 390px; padding: 10px 22px 30px; border-radius: 26px 26px 0 0; background: #FFFFFF; display: flex; flex-direction: column; box-sizing: border-box">
+<span style="align-self: center; width: 36px; height: 4px; border-radius: 2px; background: #D6D6D6; margin-bottom: 10px"></span>
+<a href="m3_edit.dc.html" style="display: flex; align-items: center; gap: 14px; min-height: 54px; border-bottom: 1px solid #EFEFEF; text-decoration: none; color: #1A1A1A; font-size: 15px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L18 10l-4-4L4 16zM14 6l4 4"></path></svg>编辑内容</a>
+<a href="m3_edit.dc.html" style="display: flex; align-items: center; gap: 14px; min-height: 54px; border-bottom: 1px solid #EFEFEF; text-decoration: none; color: #1A1A1A; font-size: 15px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5zM5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3M9 7h6"></path></svg>调整归属</a>
+<a href="m3_edit.dc.html" style="display: flex; align-items: center; gap: 14px; min-height: 54px; border-bottom: 1px solid #EFEFEF; text-decoration: none; color: #1A1A1A; font-size: 15px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4v6a4 4 0 0 0 4 4h0a4 4 0 0 1 4 4v2M16 4v6"></path></svg>合并到其他知识点</a>
+<a href="m3_edit.dc.html" style="display: flex; align-items: center; gap: 14px; min-height: 54px; border-bottom: 1px solid #EFEFEF; text-decoration: none; color: #1A1A1A; font-size: 15px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20v-6a4 4 0 0 0-4-4H4M12 14a4 4 0 0 1 4-4h4M7 7l-3 3 3 3M17 7l3 3-3 3"></path></svg>拆分为多个知识点</a>
+<button style="display: flex; align-items: center; gap: 14px; width: 100%; min-height: 54px; padding: 0; border: none; border-bottom: 1px solid #EFEFEF; background: transparent; font-family: inherit; text-align: left; color: #1A1A1A; font-size: 15px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"></path></svg>AI 解读不准，重新生成</button>
+<button style="display: flex; align-items: center; gap: 14px; width: 100%; min-height: 54px; padding: 0; border: none; background: transparent; font-family: inherit; text-align: left; color: #C23B22; font-size: 15px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"></path></svg>删除这个知识点</button>
+<a href="m3_card.dc.html" style="display: flex; align-items: center; justify-content: center; height: 50px; margin-top: 12px; border-radius: 25px; background: #F7F7F5; color: #1A1A1A; text-decoration: none; font-size: 15px">取消</a>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

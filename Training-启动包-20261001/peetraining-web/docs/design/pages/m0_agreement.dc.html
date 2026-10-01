@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>0.4 用户协议与隐私政策</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<div style="display: flex; flex-direction: column; gap: 14px; padding: 44px 22px 0; flex-shrink: 0">
+<div style="display: flex; justify-content: space-between; align-items: center; min-height: 44px"><a href="m0_login.dc.html" aria-label="返回" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-left: -12px; color: #1A1A1A"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a><span style="font-size: 15px; font-weight: 500">协议与政策</span><span style="width: 44px"></span></div>
+<div role="tablist" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; background: #F7F7F5; border-radius: 14px">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="2"><button role="tab" aria-selected="{{t.sel}}" onClick="{{t.pick}}" style="height: 36px; border: none; border-radius: 10px; background: {{t.bg}}; font-family: inherit; font-size: 14px; font-weight: {{t.weight}}; color: #1A1A1A">{{t.label}}</button></sc-for>
+</div>
+<span style="font-size: 12px; color: #767676">版本 [版本号] · 更新日期 [发布日期] · 生效日期 [生效日期]</span>
+</div>
+<div style="flex-grow: 1; overflow-y: auto; padding: 18px 22px 32px">
+<sc-if value="{{isTerms}}" hint-placeholder-val="{{ true }}"><div style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 15px; font-weight: 700">一、服务说明</span><span style="font-size: 14px; line-height: 1.75; color: #4A4A4A">[正文由法务提供] 考研Training 为考研文科专业课考生提供：导入资料和题目生成个人题库、AI 出题与主观题批改、复习计划与学习数据统计。</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 15px; font-weight: 700">二、你上传的内容</span><span style="font-size: 14px; line-height: 1.75; color: #4A4A4A">[正文由法务提供] 你上传的资料和题目仅本人可见。你需确认对上传内容有合法的使用权；收到侵权投诉并核实后，我们会删除相关内容。</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 15px; font-weight: 700">三、账号与使用规范</span><span style="font-size: 14px; line-height: 1.75; color: #4A4A4A">[正文由法务提供] 手机号注册、禁止行为、违规内容的处理、账号注销方式。</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 15px; font-weight: 700">四、会员与付费</span><span style="font-size: 14px; line-height: 1.75; color: #4A4A4A">[正文由法务提供] 会员为一次性购买，不自动续费；退款规则；兑换码使用规则。</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 15px; font-weight: 700">五、AI 生成内容</span><span style="font-size: 14px; line-height: 1.75; color: #4A4A4A">[正文由法务提供] AI 生成的题目、参考答案、采分点和批改结果会标注来源，可能存在误差，仅供学习参考，不代表考试评分。</span></div>
+</div></sc-if>
+<sc-if value="{{isPrivacy}}" hint-placeholder-val="{{ false }}"><div style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 15px; font-weight: 700">一、我们收集的信息</span><span style="font-size: 14px; line-height: 1.75; color: #4A4A4A">[正文由法务提供] 手机号；你上传的资料、题目和照片；作答与学习记录；设备信息。</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 15px; font-weight: 700">二、上传资料怎么用</span><span style="font-size: 14px; line-height: 1.75; color: #4A4A4A">[正文由法务提供] 你上传的资料仅本人可见，只用于为你生成知识点、题目和批改，不会提供给其他用户，也不会用于训练模型。</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 15px; font-weight: 700">三、存储与安全</span><span style="font-size: 14px; line-height: 1.75; color: #4A4A4A">[正文由法务提供] 数据存储在中国境内的服务器，加密传输与存储。</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 15px; font-weight: 700">四、第三方服务</span><span style="font-size: 14px; line-height: 1.75; color: #4A4A4A">[正文由法务提供] 短信验证、文字识别、语音识别、大模型服务的提供方清单及用途。</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 15px; font-weight: 700">五、你的权利</span><span style="font-size: 14px; line-height: 1.75; color: #4A4A4A">[正文由法务提供] 查询、更正、删除个人信息；删除资料时，由它生成的知识点和题目一并删除；注销账号有 7 天冷静期，之后删除全部个人数据。</span></div>
+</div></sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const tab = (this.state && this.state.tab) || 'terms';
+    return {
+      isTerms: tab === 'terms',
+      isPrivacy: tab === 'privacy',
+      tabs: [{ id: 'terms', label: '用户协议' }, { id: 'privacy', label: '隐私政策' }].map((t) => ({
+        label: t.label,
+        sel: t.id === tab ? 'true' : 'false',
+        bg: t.id === tab ? '#FFFFFF' : 'transparent',
+        weight: t.id === tab ? '700' : '400',
+        pick: () => this.setState({ tab: t.id })
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>考研Training 视觉识别规范 v1.0</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&amp;family=Noto+Serif+SC:wght@700;900&amp;family=Sora:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#E9E5DC;font-family:'Noto Sans SC',sans-serif}
+.cover{max-width:1280px;margin:0 auto;padding:48px 0 8px;font-family:'Noto Serif SC',serif;font-weight:900;font-size:28px;color:#231F55}
+.board{width:1280px;margin:32px auto;box-shadow:0 8px 30px rgba(35,31,85,.12);border-radius:8px;overflow:hidden;break-after:page}
+@media print{body{background:#fff}.cover{display:none}.board{margin:0;box-shadow:none;border-radius:0}@page{size:1280px 840px;margin:0}}
+</style>
+</head>
+<body>
+<div class="cover">考研Training 视觉识别规范 v1.0</div>
+<section class="board" aria-label="01 品牌概念">
+<div style="width: 1280px; height: 840px; box-sizing: border-box; padding: 56px; display: flex; gap: 64px; background: #FAF8F3; font-family: 'Noto Sans SC', 'Sora', sans-serif; color: #1B1A17">
+<div style="width: 520px; flex-shrink: 0; background: #231F55; border-radius: 28px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px">
+<svg width="220" height="220" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+<div style="font-weight: 700; font-size: 16px; letter-spacing: 0.42em; color: #FFB547">考研</div>
+<div style="font-family: 'Sora', sans-serif; font-weight: 700; font-size: 60px; letter-spacing: -0.02em; line-height: 1.05; color: #FFFFFF">Training</div>
+<div style="margin-top: 10px; font-size: 15px; color: #C4C0E0">考研文科专业课 AI 提分教练</div>
+</div>
+</div>
+<div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: center; gap: 28px">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-family: 'Sora', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; color: #8A5A00">01 · 视觉识别规范 v1.0</div>
+<div style="font-family: 'Noto Serif SC', serif; font-weight: 900; font-size: 40px; line-height: 1.25">品牌概念</div>
+<div style="font-family: 'Noto Serif SC', serif; font-weight: 700; font-size: 20px; line-height: 1.5">按目标院校的考法，把专业课练到能拿分。</div>
+</div>
+<div style="font-size: 15px; line-height: 1.75; color: #4A463F">标志是一块分数表。它不强调「刷了多少题」，而是时刻告诉考生：你现在大概能拿几分，离目标还差多少。这正是产品和通用题库的区别。</div>
+<div style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; align-items: center; gap: 20px">
+<svg width="72" height="72" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF" opacity="0.2"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF" opacity="0.2"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF" opacity="0.2"></rect></svg>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 17px; font-weight: 700">琥珀进度弧 = 预估分</div>
+<div style="font-size: 14px; line-height: 1.6; color: #6B675F">系统根据掌握度与实测得分，持续估算的专业课分数</div>
+</div>
+</div>
+<div style="display: flex; align-items: center; gap: 20px">
+<svg width="72" height="72" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)" opacity="0.2"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF" opacity="0.2"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF" opacity="0.2"></rect></svg>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 17px; font-weight: 700">白色目标点 = 目标分</div>
+<div style="font-size: 14px; line-height: 1.6; color: #6B675F">考生自己设定；弧与点之间的空隙，就是「还差多少」</div>
+</div>
+</div>
+<div style="display: flex; align-items: center; gap: 20px">
+<svg width="72" height="72" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)" opacity="0.2"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF" opacity="0.2"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 17px; font-weight: 700">字母 T = Training</div>
+<div style="font-size: 14px; line-height: 1.6; color: #6B675F">每天练、按采分点练，练到能拿分</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="board" aria-label="02 标志构成">
+<div style="width: 1280px; height: 840px; box-sizing: border-box; padding: 56px; display: flex; flex-direction: column; gap: 36px; background: #FAF8F3; font-family: 'Noto Sans SC', 'Sora', sans-serif; color: #1B1A17">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 20px; border-bottom: 1px solid #E4DFD4">
+<div style="display: flex; align-items: baseline; gap: 16px">
+<div style="font-family: 'Sora', sans-serif; font-weight: 700; font-size: 15px; color: #8A5A00">02</div>
+<div style="font-family: 'Noto Serif SC', serif; font-weight: 900; font-size: 30px">标志构成</div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: #6B675F">
+<svg width="24" height="24" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+<span>考研Training 视觉识别规范 v1.0</span>
+</div>
+</div>
+<div style="display: flex; gap: 64px; align-items: center">
+<svg width="560" height="560" viewBox="-12 -12 124 124" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><path d="M10 0 V100 M20 0 V100 M30 0 V100 M40 0 V100 M50 0 V100 M60 0 V100 M70 0 V100 M80 0 V100 M90 0 V100 M0 10 H100 M0 20 H100 M0 30 H100 M0 40 H100 M0 50 H100 M0 60 H100 M0 70 H100 M0 80 H100 M0 90 H100" fill="none" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="0.3"></path><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect><path d="M50 50 L50 16" fill="none" stroke="#FFFFFF" stroke-width="0.6" stroke-dasharray="1.5 1.2"></path><path d="M50 50 L21.5 59.3" fill="none" stroke="#FFB547" stroke-width="0.6" stroke-dasharray="1.5 1.2"></path><path d="M50 50 L25.7 32.4" fill="none" stroke="#FFFFFF" stroke-width="0.6" stroke-dasharray="1.5 1.2"></path><text x="53" y="15.5" font-family="Sora, sans-serif" font-size="3.6" fill="#FFFFFF">0%</text><text x="27" y="69" font-family="Sora, sans-serif" font-size="3.6" fill="#FFB547">70% 预估分</text><text x="31" y="27" font-family="Sora, sans-serif" font-size="3.6" fill="#FFFFFF">85% 目标分</text><path d="M0 -6 H100 M0 -8 V-4 M100 -8 V-4" fill="none" stroke="#6B675F" stroke-width="0.35"></path><text x="50" y="-7.5" text-anchor="middle" font-family="Sora, sans-serif" font-size="3.4" fill="#6B675F">100u</text><path d="M106 20 V80 M104 20 H108 M104 80 H108" fill="none" stroke="#6B675F" stroke-width="0.35"></path><text x="109.5" y="50" text-anchor="middle" transform="rotate(90 109.5 50)" font-family="Sora, sans-serif" font-size="3.4" fill="#6B675F">Ø 60u</text></svg>
+<div style="flex-grow: 1; display: flex; flex-direction: column">
+<div style="display: flex; gap: 20px; padding: 16px 0; border-bottom: 1px solid #E4DFD4">
+<div style="width: 96px; flex-shrink: 0; font-size: 15px; font-weight: 700">底板</div>
+<div style="font-size: 15px; line-height: 1.6; color: #4A463F">100 × 100u，圆角 22u，夜靛 #231F55</div>
+</div>
+<div style="display: flex; gap: 20px; padding: 16px 0; border-bottom: 1px solid #E4DFD4">
+<div style="width: 96px; flex-shrink: 0; font-size: 15px; font-weight: 700">轨道环</div>
+<div style="font-size: 15px; line-height: 1.6; color: #4A463F">圆心居中，半径 30u，线宽 9u，轨道紫 #3B377A</div>
+</div>
+<div style="display: flex; gap: 20px; padding: 16px 0; border-bottom: 1px solid #E4DFD4">
+<div style="width: 96px; flex-shrink: 0; font-size: 15px; font-weight: 700">进度弧</div>
+<div style="font-size: 15px; line-height: 1.6; color: #4A463F">从 12 点方向顺时针，占整环 70%，圆头端点，琥珀 #FFB547</div>
+</div>
+<div style="display: flex; gap: 20px; padding: 16px 0; border-bottom: 1px solid #E4DFD4">
+<div style="width: 96px; flex-shrink: 0; font-size: 15px; font-weight: 700">目标点</div>
+<div style="font-size: 15px; line-height: 1.6; color: #4A463F">位于环上 85% 处，直径 11u，白 #FFFFFF</div>
+</div>
+<div style="display: flex; gap: 20px; padding: 16px 0; border-bottom: 1px solid #E4DFD4">
+<div style="width: 96px; flex-shrink: 0; font-size: 15px; font-weight: 700">字母 T</div>
+<div style="font-size: 15px; line-height: 1.6; color: #4A463F">横笔 24 × 6.5u，竖笔 6.5 × 24u，圆角 2u，整体居中</div>
+</div>
+<div style="display: flex; gap: 20px; padding: 16px 0; border-bottom: 1px solid #E4DFD4">
+<div style="width: 96px; flex-shrink: 0; font-size: 15px; font-weight: 700">固定比例</div>
+<div style="font-size: 15px; line-height: 1.6; color: #4A463F">70% 与 85% 是标志的固定形态，不随任何真实分数变化</div>
+</div>
+<div style="padding-top: 16px; font-size: 13px; color: #6B675F">u = 图标边长的 1/100</div>
+</div>
+</div>
+</div>
+</section>
+<section class="board" aria-label="03 标志组合">
+<div style="width: 1280px; height: 840px; box-sizing: border-box; padding: 56px; display: flex; flex-direction: column; gap: 32px; background: #FAF8F3; font-family: 'Noto Sans SC', 'Sora', sans-serif; color: #1B1A17">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 20px; border-bottom: 1px solid #E4DFD4">
+<div style="display: flex; align-items: baseline; gap: 16px">
+<div style="font-family: 'Sora', sans-serif; font-weight: 700; font-size: 15px; color: #8A5A00">03</div>
+<div style="font-family: 'Noto Serif SC', serif; font-weight: 900; font-size: 30px">标志组合</div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: #6B675F">
+<svg width="24" height="24" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+<span>考研Training 视觉识别规范 v1.0</span>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+<div style="height: 260px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E4DFD4; border-radius: 20px; padding: 20px 24px; display: flex; flex-direction: column">
+<div style="font-size: 13px; color: #6B675F">横版组合 · 主标志　|　虚线为安全空间，x = 图标宽度 1/4</div>
+<div style="flex-grow: 1; display: flex; align-items: center; justify-content: center">
+<div style="padding: 18px; border: 1px dashed #F29A1F; display: flex; align-items: center; gap: 18px">
+<svg width="72" height="72" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="font-weight: 700; font-size: 13px; letter-spacing: 0.42em; color: #8A5A00">考研</div>
+<div style="font-family: 'Sora', sans-serif; font-weight: 700; font-size: 40px; letter-spacing: -0.02em; line-height: 1.05; color: #231F55">Training</div>
+</div>
+</div>
+</div>
+</div>
+<div style="height: 260px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E4DFD4; border-radius: 20px; padding: 20px 24px; display: flex; flex-direction: column">
+<div style="font-size: 13px; color: #6B675F">竖版组合 · 启动页、海报、封面</div>
+<div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px">
+<svg width="84" height="84" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+<div style="display: flex; align-items: baseline; gap: 2px; color: #231F55">
+<span style="font-weight: 700; font-size: 24px">考研</span>
+<span style="font-family: 'Sora', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.02em">Training</span>
+</div>
+<div style="font-size: 12px; color: #6B675F">考研文科专业课 AI 提分教练</div>
+</div>
+</div>
+<div style="height: 260px; box-sizing: border-box; background: #17191F; border-radius: 20px; padding: 20px 24px; display: flex; flex-direction: column">
+<div style="font-size: 13px; color: #A9A59C">深色背景 · 全彩</div>
+<div style="flex-grow: 1; display: flex; align-items: center; justify-content: center">
+<div style="display: flex; align-items: center; gap: 18px">
+<svg width="72" height="72" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="font-weight: 700; font-size: 13px; letter-spacing: 0.42em; color: #FFB547">考研</div>
+<div style="font-family: 'Sora', sans-serif; font-weight: 700; font-size: 40px; letter-spacing: -0.02em; line-height: 1.05; color: #FFFFFF">Training</div>
+</div>
+</div>
+</div>
+</div>
+<div style="height: 260px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E4DFD4; border-radius: 20px; display: flex; overflow: hidden">
+<div style="flex-grow: 1; padding: 20px 24px; display: flex; flex-direction: column">
+<div style="font-size: 13px; color: #6B675F">单色 · 夜靛</div>
+<div style="flex-grow: 1; display: flex; align-items: center; justify-content: center">
+<svg width="120" height="120" viewBox="14 14 72 72" aria-hidden="true"><circle cx="50" cy="50" r="30" fill="none" stroke="#231F55" stroke-opacity="0.22" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#231F55" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#231F55"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#231F55"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#231F55"></rect></svg>
+</div>
+</div>
+<div style="flex-grow: 1; background: #231F55; padding: 20px 24px; display: flex; flex-direction: column">
+<div style="font-size: 13px; color: #C4C0E0">单色 · 反白</div>
+<div style="flex-grow: 1; display: flex; align-items: center; justify-content: center">
+<svg width="120" height="120" viewBox="14 14 72 72" aria-hidden="true"><circle cx="50" cy="50" r="30" fill="none" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+</div>
+</div>
+</div>
+</div>
+<div style="display: flex; gap: 40px; font-size: 14px; color: #4A463F">
+<div><span style="font-weight: 700; color: #1B1A17">最小尺寸</span>　图标 ≥ 24px / 印刷 ≥ 8mm；横版组合 ≥ 120px / 印刷 ≥ 30mm</div>
+<div><span style="font-weight: 700; color: #1B1A17">单色版</span>　仅用于单色印刷、烫印、水印</div>
+</div>
+</div>
+</section>
+<section class="board" aria-label="04 色彩">
+<div style="width: 1280px; height: 840px; box-sizing: border-box; padding: 56px; display: flex; flex-direction: column; gap: 28px; background: #FAF8F3; font-family: 'Noto Sans SC', 'Sora', sans-serif; color: #1B1A17">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 20px; border-bottom: 1px solid #E4DFD4">
+<div style="display: flex; align-items: baseline; gap: 16px">
+<div style="font-family: 'Sora', sans-serif; font-weight: 700; font-size: 15px; color: #8A5A00">04</div>
+<div style="font-family: 'Noto Serif SC', serif; font-weight: 900; font-size: 30px">色彩</div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: #6B675F">
+<svg width="24" height="24" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+<span>考研Training 视觉识别规范 v1.0</span>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 14px; font-weight: 700">品牌色</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+<div style="height: 200px; box-sizing: border-box; border-radius: 18px; background: #231F55; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; color: #FFFFFF">
+<div style="font-size: 12px; color: #C4C0E0">主色</div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="font-size: 20px; font-weight: 700">夜靛</div><div style="font-family: 'Sora', sans-serif; font-size: 13px">#231F55</div><div style="font-family: 'Sora', sans-serif; font-size: 12px; color: #C4C0E0">RGB 35 31 85</div></div>
+</div>
+<div style="height: 200px; box-sizing: border-box; border-radius: 18px; background: #FFB547; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; color: #231F55">
+<div style="font-size: 12px">强调色 · 进度、提分</div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="font-size: 20px; font-weight: 700">琥珀</div><div style="font-family: 'Sora', sans-serif; font-size: 13px">#FFB547</div><div style="font-family: 'Sora', sans-serif; font-size: 12px">RGB 255 181 71</div></div>
+</div>
+<div style="height: 200px; box-sizing: border-box; border-radius: 18px; background: #3B377A; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; color: #FFFFFF">
+<div style="font-size: 12px; color: #D5D2EC">辅助色 · 轨道、分隔</div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="font-size: 20px; font-weight: 700">轨道紫</div><div style="font-family: 'Sora', sans-serif; font-size: 13px">#3B377A</div><div style="font-family: 'Sora', sans-serif; font-size: 12px; color: #D5D2EC">RGB 59 55 122</div></div>
+</div>
+<div style="height: 200px; box-sizing: border-box; border-radius: 18px; background: #FFFFFF; border: 1px solid #E4DFD4; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; color: #1B1A17">
+<div style="font-size: 12px; color: #6B675F">目标点、反白文字</div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="font-size: 20px; font-weight: 700">白</div><div style="font-family: 'Sora', sans-serif; font-size: 13px">#FFFFFF</div><div style="font-family: 'Sora', sans-serif; font-size: 12px; color: #6B675F">RGB 255 255 255</div></div>
+</div>
+</div>
+</div>
+<div style="display: flex; gap: 40px">
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 14px; font-weight: 700">中性色</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 80px; border-radius: 14px; background: #FAF8F3; border: 1px solid #E4DFD4"></div><div style="font-size: 13px; font-weight: 700">纸白 · 页面底</div><div style="font-family: 'Sora', sans-serif; font-size: 12px; color: #6B675F">#FAF8F3</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 80px; border-radius: 14px; background: #1B1A17"></div><div style="font-size: 13px; font-weight: 700">墨 · 正文</div><div style="font-family: 'Sora', sans-serif; font-size: 12px; color: #6B675F">#1B1A17</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 80px; border-radius: 14px; background: #6B675F"></div><div style="font-size: 13px; font-weight: 700">灰 · 辅助文字</div><div style="font-family: 'Sora', sans-serif; font-size: 12px; color: #6B675F">#6B675F</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 80px; border-radius: 14px; background: #E4DFD4"></div><div style="font-size: 13px; font-weight: 700">线 · 描边分隔</div><div style="font-family: 'Sora', sans-serif; font-size: 12px; color: #6B675F">#E4DFD4</div></div>
+</div>
+</div>
+<div style="width: 420px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 14px; font-weight: 700">功能色 · 掌握度状态</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 80px; border-radius: 14px; background: #2F9E6E"></div><div style="font-size: 13px; font-weight: 700">已掌握</div><div style="font-family: 'Sora', sans-serif; font-size: 12px; color: #6B675F">#2F9E6E</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 80px; border-radius: 14px; background: #3E6FD8"></div><div style="font-size: 13px; font-weight: 700">提示 · 链接</div><div style="font-family: 'Sora', sans-serif; font-size: 12px; color: #6B675F">#3E6FD8</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 80px; border-radius: 14px; background: #D6453D"></div><div style="font-size: 13px; font-weight: 700">薄弱 · 错误</div><div style="font-family: 'Sora', sans-serif; font-size: 12px; color: #6B675F">#D6453D</div></div>
+</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 14px; font-weight: 700">用色比例</div>
+<div style="display: flex; height: 36px; border-radius: 10px; overflow: hidden; border: 1px solid #E4DFD4">
+<div style="width: 50%; background: #231F55"></div>
+<div style="width: 30%; background: #FAF8F3"></div>
+<div style="width: 12%; background: #FFB547"></div>
+<div style="width: 8%; background: #3B377A"></div>
+</div>
+<div style="display: flex; font-size: 12px; color: #4A463F">
+<div style="width: 50%">夜靛 50%</div>
+<div style="width: 30%">纸白 30%</div>
+<div style="width: 12%">琥珀 12%</div>
+<div style="width: 8%">其他 8%</div>
+</div>
+</div>
+</div>
+</section>
+<section class="board" aria-label="05 字体">
+<div style="width: 1280px; height: 840px; box-sizing: border-box; padding: 56px; display: flex; flex-direction: column; gap: 32px; background: #FAF8F3; font-family: 'Noto Sans SC', 'Sora', sans-serif; color: #1B1A17">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 20px; border-bottom: 1px solid #E4DFD4">
+<div style="display: flex; align-items: baseline; gap: 16px">
+<div style="font-family: 'Sora', sans-serif; font-weight: 700; font-size: 15px; color: #8A5A00">05</div>
+<div style="font-family: 'Noto Serif SC', serif; font-weight: 900; font-size: 30px">字体</div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: #6B675F">
+<svg width="24" height="24" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+<span>考研Training 视觉识别规范 v1.0</span>
+</div>
+</div>
+<div style="display: flex; gap: 40px">
+<div style="width: 560px; flex-shrink: 0; display: flex; flex-direction: column; gap: 16px">
+<div style="background: #FFFFFF; border: 1px solid #E4DFD4; border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 12px; color: #6B675F">标题 · 思源宋体 Heavy / Bold</div>
+<div style="font-family: 'Noto Serif SC', serif; font-weight: 900; font-size: 34px; line-height: 1.3">按考法练，练到能拿分</div>
+<div style="font-size: 13px; color: #4A463F">用于品牌标题、海报主文案、报告页大标题，体现文科的书卷气</div>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #E4DFD4; border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 12px; color: #6B675F">界面 · 思源黑体 Regular / Medium / Bold</div>
+<div style="font-weight: 500; font-size: 26px; line-height: 1.4">今日计划：名词解释 × 3　简答 × 1</div>
+<div style="font-size: 13px; color: #4A463F">App 与管理后台的全部界面文字，保证小字号清晰</div>
+</div>
+<div style="background: #231F55; border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 10px; color: #FFFFFF">
+<div style="font-size: 12px; color: #C4C0E0">数字与英文 · Sora SemiBold / Bold</div>
+<div style="font-family: 'Sora', sans-serif; font-weight: 700; font-size: 34px; letter-spacing: -0.01em">Training 0123456789</div>
+<div style="font-size: 13px; color: #C4C0E0">品牌英文名、分数、倒计时、百分比</div>
+</div>
+</div>
+<div style="flex-grow: 1; display: flex; flex-direction: column">
+<div style="font-size: 14px; font-weight: 700; padding-bottom: 8px">字号层级（App）</div>
+<div style="display: flex; align-items: baseline; gap: 20px; padding: 16px 0; border-bottom: 1px solid #E4DFD4">
+<div style="width: 140px; flex-shrink: 0; font-size: 12px; color: #6B675F">H1 · 32/40 宋体</div>
+<div style="font-family: 'Noto Serif SC', serif; font-weight: 900; font-size: 32px; line-height: 40px">专业课预估分</div>
+</div>
+<div style="display: flex; align-items: baseline; gap: 20px; padding: 16px 0; border-bottom: 1px solid #E4DFD4">
+<div style="width: 140px; flex-shrink: 0; font-size: 12px; color: #6B675F">H2 · 22/30 黑体 Bold</div>
+<div style="font-weight: 700; font-size: 22px; line-height: 30px">失分诊断</div>
+</div>
+<div style="display: flex; align-items: baseline; gap: 20px; padding: 16px 0; border-bottom: 1px solid #E4DFD4">
+<div style="width: 140px; flex-shrink: 0; font-size: 12px; color: #6B675F">正文 · 16/24 黑体</div>
+<div style="font-size: 16px; line-height: 24px">采分点逐条批改，并引用你的原话。</div>
+</div>
+<div style="display: flex; align-items: baseline; gap: 20px; padding: 16px 0; border-bottom: 1px solid #E4DFD4">
+<div style="width: 140px; flex-shrink: 0; font-size: 12px; color: #6B675F">辅助 · 13/18 黑体</div>
+<div style="font-size: 13px; line-height: 18px; color: #6B675F">根据摸底估算，练得越多越准</div>
+</div>
+<div style="display: flex; align-items: baseline; gap: 20px; padding: 16px 0; border-bottom: 1px solid #E4DFD4">
+<div style="width: 140px; flex-shrink: 0; font-size: 12px; color: #6B675F">分数 · 48/52 Sora</div>
+<div style="font-family: 'Sora', sans-serif; font-weight: 700; font-size: 48px; line-height: 52px; color: #231F55">128<span style="font-size: 20px; color: #6B675F"> / 150</span></div>
+</div>
+<div style="padding-top: 14px; font-size: 12px; color: #6B675F">字体均为开源可商用（SIL OFL）。分数为示例。</div>
+</div>
+</div>
+</div>
+</section>
+<section class="board" aria-label="06 应用图标与禁用">
+<div style="width: 1280px; height: 840px; box-sizing: border-box; padding: 56px; display: flex; flex-direction: column; gap: 28px; background: #FAF8F3; font-family: 'Noto Sans SC', 'Sora', sans-serif; color: #1B1A17">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 20px; border-bottom: 1px solid #E4DFD4">
+<div style="display: flex; align-items: baseline; gap: 16px">
+<div style="font-family: 'Sora', sans-serif; font-weight: 700; font-size: 15px; color: #8A5A00">06</div>
+<div style="font-family: 'Noto Serif SC', serif; font-weight: 900; font-size: 30px">应用图标与禁用示例</div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: #6B675F">
+<svg width="24" height="24" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+<span>考研Training 视觉识别规范 v1.0</span>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+<div style="height: 280px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E4DFD4; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between">
+<div style="flex-grow: 1; display: flex; align-items: center; justify-content: center">
+<svg width="170" height="170" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-size: 14px; font-weight: 700">App Store · 1024px</div><div style="font-size: 12px; color: #6B675F">直角提交，圆角由系统添加</div></div>
+</div>
+<div style="height: 280px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E4DFD4; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between">
+<div style="flex-grow: 1; display: flex; align-items: center; justify-content: center">
+<svg width="170" height="170" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="50" fill="#231F55"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-size: 14px; font-weight: 700">安卓自适应图标</div><div style="font-size: 12px; color: #6B675F">前景在圆形安全区内，任意遮罩不裁切</div></div>
+</div>
+<div style="height: 280px; box-sizing: border-box; background: #17191F; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between">
+<div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; gap: 28px">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+<svg width="64" height="64" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+<div style="font-size: 11px; color: #E6E3DC">考研Training</div>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+<svg width="29" height="29" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+<div style="font-size: 11px; color: #E6E3DC">29px</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-size: 14px; font-weight: 700; color: #FFFFFF">主屏与设置页</div><div style="font-size: 12px; color: #A9A59C">深色壁纸下靠琥珀弧识别</div></div>
+</div>
+<div style="height: 280px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E4DFD4; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between">
+<div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; gap: 20px">
+<div style="width: 64px; height: 64px; border-radius: 14px; background: #F6F3EC; display: flex; align-items: center; justify-content: center"><svg width="40" height="40" viewBox="14 14 72 72" aria-hidden="true"><circle cx="50" cy="50" r="30" fill="none" stroke="#231F55" stroke-opacity="0.22" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#231F55" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#231F55"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#231F55"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#231F55"></rect></svg></div>
+<div style="width: 64px; height: 64px; border-radius: 14px; background: #231F55; display: flex; align-items: center; justify-content: center"><svg width="40" height="40" viewBox="14 14 72 72" aria-hidden="true"><circle cx="50" cy="50" r="30" fill="none" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-size: 14px; font-weight: 700">通知与单色场景</div><div style="font-size: 12px; color: #6B675F">安卓通知栏、iOS 18 着色图标用单色版</div></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 14px; font-weight: 700">禁用示例</div>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px">
+<div style="height: 220px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E4DFD4; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between">
+<div style="flex-grow: 1; display: flex; align-items: center; justify-content: center">
+<svg width="96" height="96" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#0B6B5C"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#2A8A7B" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#9BE37A" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+</div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 11px; font-weight: 700; color: #FFFFFF; background: #D6453D; padding: 2px 8px; border-radius: 999px">禁止</span><span style="font-size: 13px">擅自改色</span></div>
+</div>
+<div style="height: 220px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E4DFD4; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between">
+<div style="flex-grow: 1; display: flex; align-items: center; justify-content: center">
+<svg width="136" height="80" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+</div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 11px; font-weight: 700; color: #FFFFFF; background: #D6453D; padding: 2px 8px; border-radius: 999px">禁止</span><span style="font-size: 13px">拉伸变形</span></div>
+</div>
+<div style="height: 220px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E4DFD4; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between">
+<div style="flex-grow: 1; display: flex; align-items: center; justify-content: center">
+<svg width="96" height="96" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><g transform="rotate(60 50 50)"><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></g></svg>
+</div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 11px; font-weight: 700; color: #FFFFFF; background: #D6453D; padding: 2px 8px; border-radius: 999px">禁止</span><span style="font-size: 13px">旋转图形</span></div>
+</div>
+<div style="height: 220px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E4DFD4; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between">
+<div style="flex-grow: 1; display: flex; align-items: center; justify-content: center">
+<svg width="96" height="96" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+</div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 11px; font-weight: 700; color: #FFFFFF; background: #D6453D; padding: 2px 8px; border-radius: 999px">禁止</span><span style="font-size: 13px">改为满环、去掉目标点</span></div>
+</div>
+<div style="height: 220px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E4DFD4; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between">
+<div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; background: #3B377A; border-radius: 12px">
+<svg width="80" height="80" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; padding-top: 12px"><span style="font-size: 11px; font-weight: 700; color: #FFFFFF; background: #D6453D; padding: 2px 8px; border-radius: 999px">禁止</span><span style="font-size: 13px">放在近似色底上</span></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="board" aria-label="07 应用示例">
+<div style="width: 1280px; height: 840px; box-sizing: border-box; padding: 56px; display: flex; flex-direction: column; gap: 32px; background: #FAF8F3; font-family: 'Noto Sans SC', 'Sora', sans-serif; color: #1B1A17">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 20px; border-bottom: 1px solid #E4DFD4">
+<div style="display: flex; align-items: baseline; gap: 16px">
+<div style="font-family: 'Sora', sans-serif; font-weight: 700; font-size: 15px; color: #8A5A00">07</div>
+<div style="font-family: 'Noto Serif SC', serif; font-weight: 900; font-size: 30px">应用示例</div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: #6B675F">
+<svg width="24" height="24" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+<span>考研Training 视觉识别规范 v1.0</span>
+</div>
+</div>
+<div style="display: flex; justify-content: center; align-items: flex-start; gap: 48px">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 14px">
+<div style="width: 270px; height: 560px; box-sizing: border-box; border: 8px solid #17191F; border-radius: 40px; background: #231F55; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 150px 24px 40px">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 22px">
+<svg width="96" height="96" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#231F55"></rect><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 2px">
+<div style="font-weight: 700; font-size: 12px; letter-spacing: 0.42em; color: #FFB547">考研</div>
+<div style="font-family: 'Sora', sans-serif; font-weight: 700; font-size: 32px; letter-spacing: -0.02em; color: #FFFFFF">Training</div>
+</div>
+</div>
+<div style="font-size: 12px; line-height: 1.6; color: #C4C0E0; text-align: center">按目标院校的考法<br>把专业课练到能拿分</div>
+</div>
+<div style="font-size: 13px; color: #6B675F">启动页</div>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 14px">
+<div style="width: 340px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E4DFD4; border-radius: 24px; padding: 24px; display: flex; flex-direction: column; gap: 18px">
+<div style="display: flex; justify-content: space-between; align-items: center">
+<div style="font-size: 15px; font-weight: 700">专业课预估分</div>
+<div style="font-size: 11px; color: #6B675F">示例数据</div>
+</div>
+<div style="display: grid; justify-items: center; align-items: center">
+<svg width="200" height="200" viewBox="0 0 100 100" style="grid-area: 1 / 1" aria-hidden="true"><circle cx="50" cy="50" r="42" fill="none" stroke="#ECEAF6" stroke-width="7"></circle><circle cx="50" cy="50" r="42" fill="none" stroke="#FFB547" stroke-width="7" stroke-linecap="round" stroke-dasharray="185 264" transform="rotate(-90 50 50)"></circle><circle cx="16.02" cy="25.31" r="5" fill="#231F55"></circle></svg>
+<div style="grid-area: 1 / 1; display: flex; flex-direction: column; align-items: center; gap: 2px">
+<div style="font-family: 'Sora', sans-serif; font-weight: 700; font-size: 32px; color: #231F55">118–126</div>
+<div style="font-size: 12px; color: #6B675F">目标 135 分</div>
+</div>
+</div>
+<div style="background: #FAF8F3; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 14px; font-weight: 700">距目标还差 9–17 分</div>
+<div style="font-size: 12px; color: #6B675F">主要差在 [板块名] 的论述题</div>
+</div>
+<div style="height: 48px; border-radius: 14px; background: #231F55; color: #FFFFFF; font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center">开始今日训练</div>
+</div>
+<div style="font-size: 13px; color: #6B675F">App 首页 · 预估分卡片</div>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 14px">
+<div style="width: 320px; height: 460px; box-sizing: border-box; background: #231F55; border-radius: 16px; padding: 28px; display: flex; flex-direction: column; justify-content: space-between">
+<div style="display: flex; justify-content: flex-end">
+<svg width="130" height="130" viewBox="14 14 72 72" aria-hidden="true"><circle cx="50" cy="50" r="30" fill="none" stroke="#3B377A" stroke-width="9"></circle><circle cx="50" cy="50" r="30" fill="none" stroke="#FFB547" stroke-width="9" stroke-linecap="round" stroke-dasharray="132 189" transform="rotate(-90 50 50)"></circle><circle cx="25.7" cy="32.4" r="5.5" fill="#FFFFFF"></circle><rect x="38" y="38" width="24" height="6.5" rx="2" fill="#FFFFFF"></rect><rect x="46.75" y="38" width="6.5" height="24" rx="2" fill="#FFFFFF"></rect></svg>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-family: 'Noto Serif SC', serif; font-weight: 900; font-size: 32px; line-height: 1.3; color: #FFFFFF">离目标分，<br>还差多少？</div>
+<div style="font-size: 13px; line-height: 1.6; color: #C4C0E0">海南大学 · 中国语言文学<br>首批内测招募中</div>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: flex-end">
+<div style="display: flex; flex-direction: column; gap: 1px">
+<div style="font-weight: 700; font-size: 10px; letter-spacing: 0.42em; color: #FFB547">考研</div>
+<div style="font-family: 'Sora', sans-serif; font-weight: 700; font-size: 20px; color: #FFFFFF">Training</div>
+</div>
+<div style="width: 72px; height: 72px; border-radius: 8px; background: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #6B675F">[二维码]</div>
+</div>
+</div>
+<div style="font-size: 13px; color: #6B675F">社群招募海报</div>
+</div>
+</div>
+</div>
+</section>
+</body>
+</html>

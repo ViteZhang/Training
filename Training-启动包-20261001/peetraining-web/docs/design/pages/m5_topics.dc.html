@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>5.1 作文训练</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 12px; padding: 44px 22px 28px; box-sizing: border-box">
+<div style="display: flex; justify-content: space-between; align-items: center; min-height: 44px"><a href="m4_practice.dc.html" aria-label="返回" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-left: -12px; color: #1A1A1A"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a><span style="font-size: 15px; font-weight: 500">908 作文</span><a href="m5_book.dc.html" style="min-height: 44px; display: flex; align-items: center; font-size: 13px; color: #1A1A1A; text-decoration: none">作文本</a></div>
+<section style="padding: 16px 18px; border-radius: 22px; background: #FBF3D9; display: flex; flex-direction: column; gap: 10px; color: #6B5207">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 15px; font-weight: 700">本周目标 2 篇</span><span style="font-family: 'DM Sans',sans-serif; font-size: 13px">已完成 1 · 平均 112 分</span></div>
+<div style="height: 6px; background: rgba(107,82,7,0.15); border-radius: 3px"><div style="width: 50%; height: 6px; background: #6B5207; border-radius: 3px"></div></div>
+<a href="m5_rubric.dc.html" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #6B5207; text-decoration: none"><span>评分标准：按你真题资料里的评分细则（满分 150）</span><span style="font-weight: 700">查看 ›</span></a>
+</section>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; background: #F7F7F5; border-radius: 14px">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="3"><button onClick="{{t.pick}}" aria-pressed="{{t.sel}}" style="height: 36px; border: none; border-radius: 10px; background: {{t.bg}}; font-family: inherit; font-size: 14px; font-weight: {{t.weight}}; color: #1A1A1A">{{t.label}}</button></sc-for>
+</div>
+<sc-if value="{{isExam}}" hint-placeholder-val="{{ true }}"><div style="display: flex; flex-direction: column; gap: 10px">
+<a href="m3_bank_files.dc.html" style="font-size: 12px; color: #6E6E6E; text-decoration: none">来自 908 历年作文真题.pdf · <span style="font-family: 'DM Sans',sans-serif">10</span> 道 ›</a>
+<a href="m5_result.dc.html" style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 20px; border: 1px solid #EFEFEF; text-decoration: none; color: #1A1A1A"><span style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #E4F4EB; color: #1F5C3E">2024 真题</span><span style="font-family: 'DM Sans',sans-serif; font-size: 16px; font-weight: 600">112</span></span><span style="font-size: 15px; line-height: 1.55; font-weight: 700">以「慢」为题，写一篇不少于 1000 字的文章，文体不限</span><span style="font-size: 12px; color: #6E6E6E">已写 2 稿 · 最高 112 分 · 附 2 篇你导入的范文</span></a>
+<a href="m5_write.dc.html" style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 20px; border: 1px solid #EFEFEF; text-decoration: none; color: #1A1A1A"><span style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #E4F4EB; color: #1F5C3E">2023 真题</span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #1A1A1A; color: #FFFFFF">去写</span></span><span style="font-size: 15px; line-height: 1.55; font-weight: 700">以「边界」为题，写一篇不少于 1000 字的议论文</span><span style="font-size: 12px; color: #6E6E6E">未写 · 附 1 篇你导入的范文</span></a>
+<a href="m5_write.dc.html" style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 20px; border: 1px solid #EFEFEF; text-decoration: none; color: #1A1A1A"><span style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #E4F4EB; color: #1F5C3E">2022 真题</span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #1A1A1A; color: #FFFFFF">去写</span></span><span style="font-size: 15px; line-height: 1.55; font-weight: 700">阅读材料，围绕「旧物」自拟题目，写一篇不少于 1000 字的文章</span><span style="font-size: 12px; color: #6E6E6E">未写</span></a>
+</div></sc-if>
+<sc-if value="{{isAi}}" hint-placeholder-val="{{ false }}"><div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 12px; line-height: 1.6; color: #6E6E6E">AI 按你真题的命题方式出题：单字或短语命题、材料作文，文体不限</span>
+<a href="m5_write.dc.html" style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 20px; border: 1px solid #EFEFEF; text-decoration: none; color: #1A1A1A"><span style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #EEEBFB; color: #3E3190">AI 命题</span><span style="font-family: 'DM Sans',sans-serif; font-size: 16px; font-weight: 600">106</span></span><span style="font-size: 15px; line-height: 1.55; font-weight: 700">以「距离」为话题，写一篇不少于 1000 字的文章</span><span style="font-size: 12px; color: #6E6E6E">已写 1 篇 · 106 分</span></a>
+<a href="m5_write.dc.html" style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 20px; border: 1px solid #EFEFEF; text-decoration: none; color: #1A1A1A"><span style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #EEEBFB; color: #3E3190">AI 命题</span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #1A1A1A; color: #FFFFFF">去写</span></span><span style="font-size: 15px; line-height: 1.55; font-weight: 700">以「留白」为题，写一篇不少于 1000 字的文章，文体不限</span><span style="font-size: 12px; color: #6E6E6E">未写</span></a>
+<button style="height: 46px; border-radius: 23px; border: 1px dashed #BDBDBD; background: transparent; font-family: inherit; font-size: 14px; color: #1A1A1A">再出一道</button>
+</div></sc-if>
+<sc-if value="{{isSelf}}" hint-placeholder-val="{{ false }}"><div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 12px; line-height: 1.6; color: #6E6E6E">手里有模拟题、老师布置的题目，贴进来就能写、能批改</span>
+<label style="display: flex; flex-direction: column; gap: 8px"><textarea placeholder="输入或粘贴作文题目和要求" style="height: 120px; resize: none; padding: 14px; border-radius: 18px; border: 1px solid #E6E6E6; font-family: inherit; font-size: 15px; line-height: 1.7; color: #1A1A1A"></textarea></label>
+<div style="display: flex; gap: 8px"><button style="display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border-radius: 19px; border: none; background: #F7F7F5; font-family: inherit; font-size: 13px; color: #1A1A1A">拍照识别题目</button></div>
+<a href="m5_write.dc.html" style="display: flex; align-items: center; justify-content: center; height: 50px; border-radius: 25px; background: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 500">开始写</a>
+</div></sc-if>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const t = (this.state && this.state.tab) || 'exam';
+    return {
+      isExam: t === 'exam', isAi: t === 'ai', isSelf: t === 'self',
+      tabs: [{ id: 'exam', label: '真题题目' }, { id: 'ai', label: 'AI 命题' }, { id: 'self', label: '自拟题目' }].map((x) => ({
+        label: x.label, sel: x.id === t ? 'true' : 'false',
+        bg: x.id === t ? '#FFFFFF' : 'transparent', weight: x.id === t ? '700' : '400',
+        pick: () => this.setState({ tab: x.id })
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>4.18 整卷列表</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 900px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 12px; padding: 44px 22px 28px; box-sizing: border-box">
+<div style="display: flex; justify-content: space-between; align-items: center; min-height: 44px"><a href="m4_practice.dc.html" aria-label="返回" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-left: -12px; color: #1A1A1A"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a><span style="font-size: 15px; font-weight: 500">整卷</span><a href="m1_import.dc.html" style="min-height: 44px; display: flex; align-items: center; font-size: 13px; color: #1A1A1A; text-decoration: none">+ 导入卷子</a></div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; background: #F7F7F5; border-radius: 14px">
+<sc-for list="{{subjects}}" as="s" hint-placeholder-count="2"><button onClick="{{s.pick}}" aria-pressed="{{s.sel}}" style="height: 36px; border: none; border-radius: 10px; background: {{s.bg}}; font-family: inherit; font-size: 14px; font-weight: {{s.weight}}; color: #1A1A1A">{{s.label}}</button></sc-for>
+</div>
+<sc-if value="{{isA}}" hint-placeholder-val="{{ true }}"><div style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px"><span style="font-size: 16px; font-weight: 700">真题卷 · <span style="font-family: 'DM Sans',sans-serif">10</span> 套</span><a href="m3_bank_files.dc.html" style="font-size: 12px; color: #6E6E6E; text-decoration: none">来自 654 历年真题汇编.pdf ›</a></div>
+<section style="border-radius: 22px; border: 1px solid #EFEFEF; overflow: hidden">
+<a href="m4_exam.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 8px 16px; box-sizing: border-box; text-decoration: none; color: #1A1A1A"><span style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px"><span style="font-size: 15px; font-weight: 500">2024 年真题</span><span style="font-size: 12px; color: #6E6E6E">进行中 · 已答 9 / 12 · 练习模式</span></span><span style="height: 32px; padding: 0 14px; border-radius: 16px; background: #1A1A1A; color: #FFFFFF; display: flex; align-items: center; font-size: 13px; flex-shrink: 0">继续</span></a>
+<a href="m4_examreport.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 8px 16px; border-top: 1px solid #EFEFEF; box-sizing: border-box; text-decoration: none; color: #1A1A1A"><span style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px"><span style="font-size: 15px; font-weight: 500">2023 年真题</span><span style="font-size: 12px; color: #6E6E6E">9 月 24 日 · 模拟考试</span></span><span style="display: flex; align-items: baseline; gap: 2px"><span style="font-family: 'DM Sans',sans-serif; font-size: 20px; font-weight: 600">98</span><span style="font-family: 'DM Sans',sans-serif; font-size: 12px; color: #6E6E6E">/ 150</span></span></a>
+<a href="m4_examreport.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 8px 16px; border-top: 1px solid #EFEFEF; box-sizing: border-box; text-decoration: none; color: #1A1A1A"><span style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px"><span style="font-size: 15px; font-weight: 500">2021 年真题</span><span style="font-size: 12px; color: #6E6E6E">9 月 12 日 · 练习模式</span></span><span style="display: flex; align-items: baseline; gap: 2px"><span style="font-family: 'DM Sans',sans-serif; font-size: 20px; font-weight: 600">92</span><span style="font-family: 'DM Sans',sans-serif; font-size: 12px; color: #6E6E6E">/ 150</span></span></a>
+<a href="m4_mode.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 8px 16px; border-top: 1px solid #EFEFEF; box-sizing: border-box; text-decoration: none; color: #1A1A1A"><span style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px"><span style="font-size: 15px; font-weight: 500">2022 年真题</span><span style="font-size: 12px; color: #6E6E6E">12 题 · 150 分 · 180 分钟</span></span><span style="height: 32px; padding: 0 14px; border-radius: 16px; background: #F7F7F5; color: #1A1A1A; display: flex; align-items: center; font-size: 13px; flex-shrink: 0">开始</span></a>
+<a href="m4_mode.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 8px 16px; border-top: 1px solid #EFEFEF; box-sizing: border-box; text-decoration: none; color: #1A1A1A"><span style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px"><span style="font-size: 15px; font-weight: 500">2019 年真题</span><span style="font-size: 12px; color: #6E6E6E"><span style="color: #B26A00">资料里缺 1 道论述题，按 120 分计分</span></span></span><span style="height: 32px; padding: 0 14px; border-radius: 16px; background: #F7F7F5; color: #1A1A1A; display: flex; align-items: center; font-size: 13px; flex-shrink: 0">开始</span></a>
+<button style="display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 50px; padding: 0 16px; border: none; border-top: 1px solid #EFEFEF; background: transparent; font-family: inherit; font-size: 13px; color: #6E6E6E"><span>还有 2015–2020 年 <span style="font-family: 'DM Sans',sans-serif">5</span> 套未开始</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6E6E6E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+</section>
+<div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px"><span style="font-size: 16px; font-weight: 700">AI 组卷</span><span style="font-size: 12px; color: #6E6E6E">真题做完了也有卷子练</span></div>
+<section style="padding: 16px; border-radius: 22px; background: #F7F7F5; display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 13px; line-height: 1.65; color: #4A4A4A">按你真题的题型结构（名词解释 6 · 简答 4 · 论述 2）从你的题库里抽题组卷，做过的真题不会再出现。题目不够时用 AI 变式题补足，会标出来。</span>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
+<a href="m4_mode.dc.html" style="display: flex; flex-direction: column; justify-content: center; gap: 2px; min-height: 64px; padding: 10px 14px; box-sizing: border-box; border-radius: 16px; background: #FFFFFF; text-decoration: none; color: #1A1A1A"><span style="font-size: 14px; font-weight: 700">标准卷</span><span style="font-size: 12px; color: #6E6E6E">按真题板块比例</span></a>
+<a href="m4_mode.dc.html" style="display: flex; flex-direction: column; justify-content: center; gap: 2px; min-height: 64px; padding: 10px 14px; box-sizing: border-box; border-radius: 16px; background: #FFFFFF; text-decoration: none; color: #1A1A1A"><span style="font-size: 14px; font-weight: 700">针对卷</span><span style="font-size: 12px; color: #6E6E6E">多出你的薄弱点</span></a>
+</div>
+<span style="font-size: 12px; color: #6E6E6E">已做 AI 组卷 <span style="font-family: 'DM Sans',sans-serif">1</span> 套 · 标准卷 · 9 月 20 日 · <span style="font-family: 'DM Sans',sans-serif">102</span> 分</span>
+</section>
+<span style="font-size: 12px; line-height: 1.6; color: #767676; text-align: center">做完的真题卷会用来算今日页的预估分，<br>AI 组卷的成绩只作参考、不计入</span>
+</div></sc-if>
+<sc-if value="{{isB}}" hint-placeholder-val="{{ false }}"><section style="margin-top: 24px; padding: 28px 18px; border-radius: 22px; border: 1px solid #EFEFEF; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center">
+<span style="font-size: 15px; font-weight: 700"><span style="font-family: 'DM Sans',sans-serif">908</span> 作文还没有卷子</span>
+<span style="font-size: 13px; line-height: 1.6; color: #6E6E6E">导入历年作文真题后，可以限时写一篇、交给 AI 批改</span>
+<a href="m1_import.dc.html" style="display: flex; align-items: center; justify-content: center; width: 160px; height: 40px; margin-top: 4px; border-radius: 20px; background: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 13px">导入作文真题</a>
+</section></sc-if>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const s = (this.state && this.state.subject) || 'a';
+    return {
+      isA: s === 'a',
+      isB: s === 'b',
+      subjects: [{ id: 'a', label: '654 语言文学基础' }, { id: 'b', label: '908 作文' }].map((x) => ({
+        label: x.label,
+        sel: x.id === s ? 'true' : 'false',
+        bg: x.id === s ? '#FFFFFF' : 'transparent',
+        weight: x.id === s ? '700' : '400',
+        pick: () => this.setState({ subject: x.id })
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>
