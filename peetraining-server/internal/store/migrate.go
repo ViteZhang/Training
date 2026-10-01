@@ -56,3 +56,13 @@ func MigrateStatus(ctx context.Context, sqlDB *sql.DB, log *slog.Logger) error {
 	}
 	return nil
 }
+
+// MigrateDownTo 回滚到指定版本。只用于测试与本地排查；生产不回滚迁移，回滚靠新迁移。
+func MigrateDownTo(ctx context.Context, sqlDB *sql.DB, version int64) error {
+	p, err := newProvider(sqlDB)
+	if err != nil {
+		return err
+	}
+	_, err = p.DownTo(ctx, version)
+	return err
+}

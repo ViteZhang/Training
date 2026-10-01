@@ -16,6 +16,7 @@ const (
 	CodeConflict           = "CONFLICT"            // 状态冲突（如同时只能有一套进行中的试卷）
 	CodeTooManyRequests    = "TOO_MANY_REQUESTS"   // 频率限制
 	CodeQuotaExceeded      = "QUOTA_EXCEEDED"      // 额度不足
+	CodeAIFailed           = "AI_FAILED"           // AI 生成失败，未扣次数，可重试
 	CodeInternal           = "INTERNAL"            // 服务端错误
 	CodeServiceUnavailable = "SERVICE_UNAVAILABLE" // 依赖不可用
 	CodeNotImplemented     = "NOT_IMPLEMENTED"     // 契约已定义、实现未完成
@@ -86,6 +87,11 @@ func ErrTooManyRequests(message string) *Error {
 
 func ErrQuotaExceeded(message string) *Error {
 	return newError(http.StatusPaymentRequired, CodeQuotaExceeded, message)
+}
+
+// ErrAIFailed 用于 AI 生成失败（PRD 14「生成失败，未扣除次数」）。
+func ErrAIFailed() *Error {
+	return newError(http.StatusBadGateway, CodeAIFailed, "生成失败，未扣除次数，请重试")
 }
 
 func ErrInternal() *Error {

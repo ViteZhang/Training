@@ -8,13 +8,101 @@ import (
 	"compress/flate"
 	"encoding/base64"
 	"fmt"
+	"net/http"
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gin-gonic/gin"
+	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for AgreementKind.
+const (
+	AgreementKindMembership AgreementKind = "membership"
+	AgreementKindPrivacy    AgreementKind = "privacy"
+	AgreementKindUser       AgreementKind = "user"
+)
+
+// Valid indicates whether the value is a known member of the AgreementKind enum.
+func (e AgreementKind) Valid() bool {
+	switch e {
+	case AgreementKindMembership:
+		return true
+	case AgreementKindPrivacy:
+		return true
+	case AgreementKindUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AttemptHistoryLossTypes.
+const (
+	AttemptHistoryLossTypesKnowledge AttemptHistoryLossTypes = "knowledge"
+	AttemptHistoryLossTypesNorm      AttemptHistoryLossTypes = "norm"
+	AttemptHistoryLossTypesTime      AttemptHistoryLossTypes = "time"
+)
+
+// Valid indicates whether the value is a known member of the AttemptHistoryLossTypes enum.
+func (e AttemptHistoryLossTypes) Valid() bool {
+	switch e {
+	case AttemptHistoryLossTypesKnowledge:
+		return true
+	case AttemptHistoryLossTypesNorm:
+		return true
+	case AttemptHistoryLossTypesTime:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DevicePlatform.
+const (
+	DevicePlatformAndroid DevicePlatform = "android"
+	DevicePlatformIos     DevicePlatform = "ios"
+	DevicePlatformWeb     DevicePlatform = "web"
+)
+
+// Valid indicates whether the value is a known member of the DevicePlatform enum.
+func (e DevicePlatform) Valid() bool {
+	switch e {
+	case DevicePlatformAndroid:
+		return true
+	case DevicePlatformIos:
+		return true
+	case DevicePlatformWeb:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DeviceInfoPlatform.
+const (
+	DeviceInfoPlatformAndroid DeviceInfoPlatform = "android"
+	DeviceInfoPlatformIos     DeviceInfoPlatform = "ios"
+	DeviceInfoPlatformWeb     DeviceInfoPlatform = "web"
+)
+
+// Valid indicates whether the value is a known member of the DeviceInfoPlatform enum.
+func (e DeviceInfoPlatform) Valid() bool {
+	switch e {
+	case DeviceInfoPlatformAndroid:
+		return true
+	case DeviceInfoPlatformIos:
+		return true
+	case DeviceInfoPlatformWeb:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for HealthStatus.
 const (
@@ -34,31 +122,2327 @@ func (e HealthStatus) Valid() bool {
 	}
 }
 
+// Defines values for ImportItemPatchStatus.
+const (
+	ImportItemPatchStatusConfirmed ImportItemPatchStatus = "confirmed"
+	ImportItemPatchStatusDeleted   ImportItemPatchStatus = "deleted"
+	ImportItemPatchStatusPending   ImportItemPatchStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the ImportItemPatchStatus enum.
+func (e ImportItemPatchStatus) Valid() bool {
+	switch e {
+	case ImportItemPatchStatusConfirmed:
+		return true
+	case ImportItemPatchStatusDeleted:
+		return true
+	case ImportItemPatchStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportItemStatus.
+const (
+	ImportItemStatusConfirmed ImportItemStatus = "confirmed"
+	ImportItemStatusDeleted   ImportItemStatus = "deleted"
+	ImportItemStatusEdited    ImportItemStatus = "edited"
+	ImportItemStatusPending   ImportItemStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the ImportItemStatus enum.
+func (e ImportItemStatus) Valid() bool {
+	switch e {
+	case ImportItemStatusConfirmed:
+		return true
+	case ImportItemStatusDeleted:
+		return true
+	case ImportItemStatusEdited:
+		return true
+	case ImportItemStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportItemType.
+const (
+	ImportItemTypeEssayMaterial  ImportItemType = "essay_material"
+	ImportItemTypeEssayRubric    ImportItemType = "essay_rubric"
+	ImportItemTypeEssayTopic     ImportItemType = "essay_topic"
+	ImportItemTypeKnowledgePoint ImportItemType = "knowledge_point"
+	ImportItemTypeModelEssay     ImportItemType = "model_essay"
+	ImportItemTypeQuestion       ImportItemType = "question"
+	ImportItemTypeWritingMethod  ImportItemType = "writing_method"
+)
+
+// Valid indicates whether the value is a known member of the ImportItemType enum.
+func (e ImportItemType) Valid() bool {
+	switch e {
+	case ImportItemTypeEssayMaterial:
+		return true
+	case ImportItemTypeEssayRubric:
+		return true
+	case ImportItemTypeEssayTopic:
+		return true
+	case ImportItemTypeKnowledgePoint:
+		return true
+	case ImportItemTypeModelEssay:
+		return true
+	case ImportItemTypeQuestion:
+		return true
+	case ImportItemTypeWritingMethod:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportJobStatus.
+const (
+	ImportJobStatusCanceled  ImportJobStatus = "canceled"
+	ImportJobStatusConfirmed ImportJobStatus = "confirmed"
+	ImportJobStatusFailed    ImportJobStatus = "failed"
+	ImportJobStatusQueued    ImportJobStatus = "queued"
+	ImportJobStatusReviewing ImportJobStatus = "reviewing"
+	ImportJobStatusRunning   ImportJobStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the ImportJobStatus enum.
+func (e ImportJobStatus) Valid() bool {
+	switch e {
+	case ImportJobStatusCanceled:
+		return true
+	case ImportJobStatusConfirmed:
+		return true
+	case ImportJobStatusFailed:
+		return true
+	case ImportJobStatusQueued:
+		return true
+	case ImportJobStatusReviewing:
+		return true
+	case ImportJobStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportJobMaterialStatus.
+const (
+	ImportJobMaterialStatusDone    ImportJobMaterialStatus = "done"
+	ImportJobMaterialStatusFailed  ImportJobMaterialStatus = "failed"
+	ImportJobMaterialStatusPartial ImportJobMaterialStatus = "partial"
+	ImportJobMaterialStatusPending ImportJobMaterialStatus = "pending"
+	ImportJobMaterialStatusRunning ImportJobMaterialStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the ImportJobMaterialStatus enum.
+func (e ImportJobMaterialStatus) Valid() bool {
+	switch e {
+	case ImportJobMaterialStatusDone:
+		return true
+	case ImportJobMaterialStatusFailed:
+		return true
+	case ImportJobMaterialStatusPartial:
+		return true
+	case ImportJobMaterialStatusPending:
+		return true
+	case ImportJobMaterialStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportMode.
+const (
+	ImportModeEssay     ImportMode = "essay"
+	ImportModeQuestion  ImportMode = "question"
+	ImportModeReference ImportMode = "reference"
+)
+
+// Valid indicates whether the value is a known member of the ImportMode enum.
+func (e ImportMode) Valid() bool {
+	switch e {
+	case ImportModeEssay:
+		return true
+	case ImportModeQuestion:
+		return true
+	case ImportModeReference:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportStep.
+const (
+	ImportStepDedupe    ImportStep = "dedupe"
+	ImportStepDone      ImportStep = "done"
+	ImportStepExtract   ImportStep = "extract"
+	ImportStepMatch     ImportStep = "match"
+	ImportStepModerate  ImportStep = "moderate"
+	ImportStepQueued    ImportStep = "queued"
+	ImportStepRubric    ImportStep = "rubric"
+	ImportStepSplit     ImportStep = "split"
+	ImportStepStructure ImportStep = "structure"
+	ImportStepTag       ImportStep = "tag"
+)
+
+// Valid indicates whether the value is a known member of the ImportStep enum.
+func (e ImportStep) Valid() bool {
+	switch e {
+	case ImportStepDedupe:
+		return true
+	case ImportStepDone:
+		return true
+	case ImportStepExtract:
+		return true
+	case ImportStepMatch:
+		return true
+	case ImportStepModerate:
+		return true
+	case ImportStepQueued:
+		return true
+	case ImportStepRubric:
+		return true
+	case ImportStepSplit:
+		return true
+	case ImportStepStructure:
+		return true
+	case ImportStepTag:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for KnowledgeLevel.
+const (
+	KnowledgeLevelChapter KnowledgeLevel = "chapter"
+	KnowledgeLevelPoint   KnowledgeLevel = "point"
+	KnowledgeLevelSection KnowledgeLevel = "section"
+)
+
+// Valid indicates whether the value is a known member of the KnowledgeLevel enum.
+func (e KnowledgeLevel) Valid() bool {
+	switch e {
+	case KnowledgeLevelChapter:
+		return true
+	case KnowledgeLevelPoint:
+		return true
+	case KnowledgeLevelSection:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MasteryState.
+const (
+	MasteryStateConsolidating MasteryState = "consolidating"
+	MasteryStateLearning      MasteryState = "learning"
+	MasteryStateMastered      MasteryState = "mastered"
+	MasteryStateUnlearned     MasteryState = "unlearned"
+)
+
+// Valid indicates whether the value is a known member of the MasteryState enum.
+func (e MasteryState) Valid() bool {
+	switch e {
+	case MasteryStateConsolidating:
+		return true
+	case MasteryStateLearning:
+		return true
+	case MasteryStateMastered:
+		return true
+	case MasteryStateUnlearned:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MaterialCategory.
+const (
+	MaterialCategoryEssay     MaterialCategory = "essay"
+	MaterialCategoryQuestion  MaterialCategory = "question"
+	MaterialCategoryReference MaterialCategory = "reference"
+)
+
+// Valid indicates whether the value is a known member of the MaterialCategory enum.
+func (e MaterialCategory) Valid() bool {
+	switch e {
+	case MaterialCategoryEssay:
+		return true
+	case MaterialCategoryQuestion:
+		return true
+	case MaterialCategoryReference:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MaterialFormat.
+const (
+	MaterialFormatDocx  MaterialFormat = "docx"
+	MaterialFormatImage MaterialFormat = "image"
+	MaterialFormatPdf   MaterialFormat = "pdf"
+	MaterialFormatText  MaterialFormat = "text"
+	MaterialFormatXlsx  MaterialFormat = "xlsx"
+)
+
+// Valid indicates whether the value is a known member of the MaterialFormat enum.
+func (e MaterialFormat) Valid() bool {
+	switch e {
+	case MaterialFormatDocx:
+		return true
+	case MaterialFormatImage:
+		return true
+	case MaterialFormatPdf:
+		return true
+	case MaterialFormatText:
+		return true
+	case MaterialFormatXlsx:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MaterialStatus.
+const (
+	MaterialStatusFailed    MaterialStatus = "failed"
+	MaterialStatusParsed    MaterialStatus = "parsed"
+	MaterialStatusParsing   MaterialStatus = "parsing"
+	MaterialStatusPartial   MaterialStatus = "partial"
+	MaterialStatusRejected  MaterialStatus = "rejected"
+	MaterialStatusUploaded  MaterialStatus = "uploaded"
+	MaterialStatusUploading MaterialStatus = "uploading"
+)
+
+// Valid indicates whether the value is a known member of the MaterialStatus enum.
+func (e MaterialStatus) Valid() bool {
+	switch e {
+	case MaterialStatusFailed:
+		return true
+	case MaterialStatusParsed:
+		return true
+	case MaterialStatusParsing:
+		return true
+	case MaterialStatusPartial:
+		return true
+	case MaterialStatusRejected:
+		return true
+	case MaterialStatusUploaded:
+		return true
+	case MaterialStatusUploading:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MembershipStatusTier.
+const (
+	MembershipStatusTierGift    MembershipStatusTier = "gift"
+	MembershipStatusTierMonthly MembershipStatusTier = "monthly"
+	MembershipStatusTierSeason  MembershipStatusTier = "season"
+	MembershipStatusTierSprint  MembershipStatusTier = "sprint"
+)
+
+// Valid indicates whether the value is a known member of the MembershipStatusTier enum.
+func (e MembershipStatusTier) Valid() bool {
+	switch e {
+	case MembershipStatusTierGift:
+		return true
+	case MembershipStatusTierMonthly:
+		return true
+	case MembershipStatusTierSeason:
+		return true
+	case MembershipStatusTierSprint:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for Origin.
+const (
+	OriginAiExtracted   Origin = "ai_extracted"
+	OriginAiGenerated   Origin = "ai_generated"
+	OriginImported      Origin = "imported"
+	OriginOfficial      Origin = "official"
+	OriginUserConfirmed Origin = "user_confirmed"
+)
+
+// Valid indicates whether the value is a known member of the Origin enum.
+func (e Origin) Valid() bool {
+	switch e {
+	case OriginAiExtracted:
+		return true
+	case OriginAiGenerated:
+		return true
+	case OriginImported:
+		return true
+	case OriginOfficial:
+		return true
+	case OriginUserConfirmed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for Platform.
+const (
+	PlatformAndroid Platform = "android"
+	PlatformIos     Platform = "ios"
+)
+
+// Valid indicates whether the value is a known member of the Platform enum.
+func (e Platform) Valid() bool {
+	switch e {
+	case PlatformAndroid:
+		return true
+	case PlatformIos:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QuestionInputSource.
+const (
+	QuestionInputSourceExam     QuestionInputSource = "exam"
+	QuestionInputSourceExercise QuestionInputSource = "exercise"
+)
+
+// Valid indicates whether the value is a known member of the QuestionInputSource enum.
+func (e QuestionInputSource) Valid() bool {
+	switch e {
+	case QuestionInputSourceExam:
+		return true
+	case QuestionInputSourceExercise:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QuestionSource.
+const (
+	QuestionSourceAiGenerated QuestionSource = "ai_generated"
+	QuestionSourceExam        QuestionSource = "exam"
+	QuestionSourceExercise    QuestionSource = "exercise"
+	QuestionSourceOfficial    QuestionSource = "official"
+)
+
+// Valid indicates whether the value is a known member of the QuestionSource enum.
+func (e QuestionSource) Valid() bool {
+	switch e {
+	case QuestionSourceAiGenerated:
+		return true
+	case QuestionSourceExam:
+		return true
+	case QuestionSourceExercise:
+		return true
+	case QuestionSourceOfficial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QuestionStatusTag.
+const (
+	QuestionStatusTagAnswered    QuestionStatusTag = "answered"
+	QuestionStatusTagMastered    QuestionStatusTag = "mastered"
+	QuestionStatusTagNeedsReview QuestionStatusTag = "needs_review"
+	QuestionStatusTagUnanswered  QuestionStatusTag = "unanswered"
+	QuestionStatusTagWrong       QuestionStatusTag = "wrong"
+)
+
+// Valid indicates whether the value is a known member of the QuestionStatusTag enum.
+func (e QuestionStatusTag) Valid() bool {
+	switch e {
+	case QuestionStatusTagAnswered:
+		return true
+	case QuestionStatusTagMastered:
+		return true
+	case QuestionStatusTagNeedsReview:
+		return true
+	case QuestionStatusTagUnanswered:
+		return true
+	case QuestionStatusTagWrong:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QuestionType.
+const (
+	QuestionTypeCalculation  QuestionType = "calculation"
+	QuestionTypeDiscussion   QuestionType = "discussion"
+	QuestionTypeEssay        QuestionType = "essay"
+	QuestionTypeFillBlank    QuestionType = "fill_blank"
+	QuestionTypeMultiChoice  QuestionType = "multi_choice"
+	QuestionTypeOther        QuestionType = "other"
+	QuestionTypeShortAnswer  QuestionType = "short_answer"
+	QuestionTypeSingleChoice QuestionType = "single_choice"
+	QuestionTypeTerm         QuestionType = "term"
+	QuestionTypeTrueFalse    QuestionType = "true_false"
+)
+
+// Valid indicates whether the value is a known member of the QuestionType enum.
+func (e QuestionType) Valid() bool {
+	switch e {
+	case QuestionTypeCalculation:
+		return true
+	case QuestionTypeDiscussion:
+		return true
+	case QuestionTypeEssay:
+		return true
+	case QuestionTypeFillBlank:
+		return true
+	case QuestionTypeMultiChoice:
+		return true
+	case QuestionTypeOther:
+		return true
+	case QuestionTypeShortAnswer:
+		return true
+	case QuestionTypeSingleChoice:
+		return true
+	case QuestionTypeTerm:
+		return true
+	case QuestionTypeTrueFalse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QuotaItemPeriod.
+const (
+	QuotaItemPeriodDaily   QuotaItemPeriod = "daily"
+	QuotaItemPeriodMonthly QuotaItemPeriod = "monthly"
+	QuotaItemPeriodTotal   QuotaItemPeriod = "total"
+	QuotaItemPeriodWeekly  QuotaItemPeriod = "weekly"
+)
+
+// Valid indicates whether the value is a known member of the QuotaItemPeriod enum.
+func (e QuotaItemPeriod) Valid() bool {
+	switch e {
+	case QuotaItemPeriodDaily:
+		return true
+	case QuotaItemPeriodMonthly:
+		return true
+	case QuotaItemPeriodTotal:
+		return true
+	case QuotaItemPeriodWeekly:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QuotaType.
+const (
+	QuotaTypeAiQuestions     QuotaType = "ai_questions"
+	QuotaTypeEssayGrading    QuotaType = "essay_grading"
+	QuotaTypeGrading         QuotaType = "grading"
+	QuotaTypeImportQuestions QuotaType = "import_questions"
+	QuotaTypePaperGrading    QuotaType = "paper_grading"
+	QuotaTypeParsePages      QuotaType = "parse_pages"
+	QuotaTypeSubjects        QuotaType = "subjects"
+)
+
+// Valid indicates whether the value is a known member of the QuotaType enum.
+func (e QuotaType) Valid() bool {
+	switch e {
+	case QuotaTypeAiQuestions:
+		return true
+	case QuotaTypeEssayGrading:
+		return true
+	case QuotaTypeGrading:
+		return true
+	case QuotaTypeImportQuestions:
+		return true
+	case QuotaTypePaperGrading:
+		return true
+	case QuotaTypeParsePages:
+		return true
+	case QuotaTypeSubjects:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReviewReason.
+const (
+	ReviewReasonDuplicate         ReviewReason = "duplicate"
+	ReviewReasonLowConfidence     ReviewReason = "low_confidence"
+	ReviewReasonMissingAnswer     ReviewReason = "missing_answer"
+	ReviewReasonRubricSumMismatch ReviewReason = "rubric_sum_mismatch"
+	ReviewReasonRubricUnconfirmed ReviewReason = "rubric_unconfirmed"
+)
+
+// Valid indicates whether the value is a known member of the ReviewReason enum.
+func (e ReviewReason) Valid() bool {
+	switch e {
+	case ReviewReasonDuplicate:
+		return true
+	case ReviewReasonLowConfidence:
+		return true
+	case ReviewReasonMissingAnswer:
+		return true
+	case ReviewReasonRubricSumMismatch:
+		return true
+	case ReviewReasonRubricUnconfirmed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SelfAssessLevel.
+const (
+	SelfAssessLevelMastered SelfAssessLevel = "mastered"
+	SelfAssessLevelUnknown  SelfAssessLevel = "unknown"
+	SelfAssessLevelVague    SelfAssessLevel = "vague"
+)
+
+// Valid indicates whether the value is a known member of the SelfAssessLevel enum.
+func (e SelfAssessLevel) Valid() bool {
+	switch e {
+	case SelfAssessLevelMastered:
+		return true
+	case SelfAssessLevelUnknown:
+		return true
+	case SelfAssessLevelVague:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SmsPurpose.
+const (
+	SmsPurposeChangePhoneNew SmsPurpose = "change_phone_new"
+	SmsPurposeChangePhoneOld SmsPurpose = "change_phone_old"
+	SmsPurposeLogin          SmsPurpose = "login"
+)
+
+// Valid indicates whether the value is a known member of the SmsPurpose enum.
+func (e SmsPurpose) Valid() bool {
+	switch e {
+	case SmsPurposeChangePhoneNew:
+		return true
+	case SmsPurposeChangePhoneOld:
+		return true
+	case SmsPurposeLogin:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for Stage.
+const (
+	StageFinal      Stage = "final"
+	StageFoundation Stage = "foundation"
+	StageSprint     Stage = "sprint"
+	StageStrengthen Stage = "strengthen"
+)
+
+// Valid indicates whether the value is a known member of the Stage enum.
+func (e Stage) Valid() bool {
+	switch e {
+	case StageFinal:
+		return true
+	case StageFoundation:
+		return true
+	case StageSprint:
+		return true
+	case StageStrengthen:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StudyProfileInputDailyMinutes.
+const (
+	StudyProfileInputDailyMinutesN30 StudyProfileInputDailyMinutes = 30
+	StudyProfileInputDailyMinutesN45 StudyProfileInputDailyMinutes = 45
+	StudyProfileInputDailyMinutesN60 StudyProfileInputDailyMinutes = 60
+	StudyProfileInputDailyMinutesN90 StudyProfileInputDailyMinutes = 90
+)
+
+// Valid indicates whether the value is a known member of the StudyProfileInputDailyMinutes enum.
+func (e StudyProfileInputDailyMinutes) Valid() bool {
+	switch e {
+	case StudyProfileInputDailyMinutesN30:
+		return true
+	case StudyProfileInputDailyMinutesN45:
+		return true
+	case StudyProfileInputDailyMinutesN60:
+		return true
+	case StudyProfileInputDailyMinutesN90:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubjectInputFullScore.
+const (
+	SubjectInputFullScoreN100 SubjectInputFullScore = 100
+	SubjectInputFullScoreN150 SubjectInputFullScore = 150
+	SubjectInputFullScoreN300 SubjectInputFullScore = 300
+)
+
+// Valid indicates whether the value is a known member of the SubjectInputFullScore enum.
+func (e SubjectInputFullScore) Valid() bool {
+	switch e {
+	case SubjectInputFullScoreN100:
+		return true
+	case SubjectInputFullScoreN150:
+		return true
+	case SubjectInputFullScoreN300:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubjectPatchFullScore.
+const (
+	SubjectPatchFullScoreN100 SubjectPatchFullScore = 100
+	SubjectPatchFullScoreN150 SubjectPatchFullScore = 150
+	SubjectPatchFullScoreN300 SubjectPatchFullScore = 300
+)
+
+// Valid indicates whether the value is a known member of the SubjectPatchFullScore enum.
+func (e SubjectPatchFullScore) Valid() bool {
+	switch e {
+	case SubjectPatchFullScoreN100:
+		return true
+	case SubjectPatchFullScoreN150:
+		return true
+	case SubjectPatchFullScoreN300:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateMeRequestOnboardingStep.
+const (
+	UpdateMeRequestOnboardingStepDone UpdateMeRequestOnboardingStep = "done"
+	UpdateMeRequestOnboardingStepN11  UpdateMeRequestOnboardingStep = "1.1"
+	UpdateMeRequestOnboardingStepN12  UpdateMeRequestOnboardingStep = "1.2"
+	UpdateMeRequestOnboardingStepN13  UpdateMeRequestOnboardingStep = "1.3"
+	UpdateMeRequestOnboardingStepN14  UpdateMeRequestOnboardingStep = "1.4"
+	UpdateMeRequestOnboardingStepN15  UpdateMeRequestOnboardingStep = "1.5"
+	UpdateMeRequestOnboardingStepN16  UpdateMeRequestOnboardingStep = "1.6"
+	UpdateMeRequestOnboardingStepN17  UpdateMeRequestOnboardingStep = "1.7"
+	UpdateMeRequestOnboardingStepN18  UpdateMeRequestOnboardingStep = "1.8"
+)
+
+// Valid indicates whether the value is a known member of the UpdateMeRequestOnboardingStep enum.
+func (e UpdateMeRequestOnboardingStep) Valid() bool {
+	switch e {
+	case UpdateMeRequestOnboardingStepDone:
+		return true
+	case UpdateMeRequestOnboardingStepN11:
+		return true
+	case UpdateMeRequestOnboardingStepN12:
+		return true
+	case UpdateMeRequestOnboardingStepN13:
+		return true
+	case UpdateMeRequestOnboardingStepN14:
+		return true
+	case UpdateMeRequestOnboardingStepN15:
+		return true
+	case UpdateMeRequestOnboardingStepN16:
+		return true
+	case UpdateMeRequestOnboardingStepN17:
+		return true
+	case UpdateMeRequestOnboardingStepN18:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListImportItemsParamsFilter.
+const (
+	ListImportItemsParamsFilterAll         ListImportItemsParamsFilter = "all"
+	ListImportItemsParamsFilterNeedsReview ListImportItemsParamsFilter = "needs_review"
+	ListImportItemsParamsFilterObjective   ListImportItemsParamsFilter = "objective"
+	ListImportItemsParamsFilterSubjective  ListImportItemsParamsFilter = "subjective"
+)
+
+// Valid indicates whether the value is a known member of the ListImportItemsParamsFilter enum.
+func (e ListImportItemsParamsFilter) Valid() bool {
+	switch e {
+	case ListImportItemsParamsFilterAll:
+		return true
+	case ListImportItemsParamsFilterNeedsReview:
+		return true
+	case ListImportItemsParamsFilterObjective:
+		return true
+	case ListImportItemsParamsFilterSubjective:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetKnowledgeTreeParamsFilter.
+const (
+	GetKnowledgeTreeParamsFilterAll         GetKnowledgeTreeParamsFilter = "all"
+	GetKnowledgeTreeParamsFilterExam        GetKnowledgeTreeParamsFilter = "exam"
+	GetKnowledgeTreeParamsFilterNeedsReview GetKnowledgeTreeParamsFilter = "needs_review"
+	GetKnowledgeTreeParamsFilterUnmastered  GetKnowledgeTreeParamsFilter = "unmastered"
+)
+
+// Valid indicates whether the value is a known member of the GetKnowledgeTreeParamsFilter enum.
+func (e GetKnowledgeTreeParamsFilter) Valid() bool {
+	switch e {
+	case GetKnowledgeTreeParamsFilterAll:
+		return true
+	case GetKnowledgeTreeParamsFilterExam:
+		return true
+	case GetKnowledgeTreeParamsFilterNeedsReview:
+		return true
+	case GetKnowledgeTreeParamsFilterUnmastered:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListQuestionsParamsStatus.
+const (
+	ListQuestionsParamsStatusMastered    ListQuestionsParamsStatus = "mastered"
+	ListQuestionsParamsStatusNeedsReview ListQuestionsParamsStatus = "needs_review"
+	ListQuestionsParamsStatusUnanswered  ListQuestionsParamsStatus = "unanswered"
+	ListQuestionsParamsStatusWrong       ListQuestionsParamsStatus = "wrong"
+)
+
+// Valid indicates whether the value is a known member of the ListQuestionsParamsStatus enum.
+func (e ListQuestionsParamsStatus) Valid() bool {
+	switch e {
+	case ListQuestionsParamsStatusMastered:
+		return true
+	case ListQuestionsParamsStatusNeedsReview:
+		return true
+	case ListQuestionsParamsStatusUnanswered:
+		return true
+	case ListQuestionsParamsStatusWrong:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListQuestionsParamsSort.
+const (
+	ListQuestionsParamsSortChapter ListQuestionsParamsSort = "chapter"
+	ListQuestionsParamsSortRecent  ListQuestionsParamsSort = "recent"
+)
+
+// Valid indicates whether the value is a known member of the ListQuestionsParamsSort enum.
+func (e ListQuestionsParamsSort) Valid() bool {
+	switch e {
+	case ListQuestionsParamsSortChapter:
+		return true
+	case ListQuestionsParamsSortRecent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Agreement defines model for Agreement.
+type Agreement struct {
+	// Body 正文（Markdown）
+	Body          string        `json:"body"`
+	ChangeSummary *string       `json:"change_summary,omitempty"`
+	EffectiveAt   time.Time     `json:"effective_at"`
+	Id            int64         `json:"id"`
+	Kind          AgreementKind `json:"kind"`
+	Title         string        `json:"title"`
+	UpdatedAt     time.Time     `json:"updated_at"`
+	Version       string        `json:"version"`
+}
+
+// AgreementKind defines model for AgreementKind.
+type AgreementKind string
+
+// AgreementSummary defines model for AgreementSummary.
+type AgreementSummary struct {
+	ChangeSummary *string       `json:"change_summary,omitempty"`
+	Id            int64         `json:"id"`
+	Kind          AgreementKind `json:"kind"`
+	Title         string        `json:"title"`
+	Version       string        `json:"version"`
+}
+
+// AppUpdate defines model for AppUpdate.
+type AppUpdate struct {
+	// DownloadUrl 内测期安卓为安装包地址、iOS 为 TestFlight
+	DownloadUrl string `json:"download_url"`
+
+	// Force 当前版本低于最低版本，强制更新（0.6b）
+	Force bool `json:"force"`
+
+	// HasUpdate 有新版本（0.6，每个版本提示一次由客户端记录）
+	HasUpdate     *bool   `json:"has_update,omitempty"`
+	LatestVersion string  `json:"latest_version"`
+	MinVersion    string  `json:"min_version"`
+	ReleaseNotes  *string `json:"release_notes,omitempty"`
+}
+
+// AttemptHistory defines model for AttemptHistory.
+type AttemptHistory struct {
+	AnsweredAt time.Time                  `json:"answered_at"`
+	AttemptId  int64                      `json:"attempt_id"`
+	FullScore  *float32                   `json:"full_score,omitempty"`
+	IsCorrect  *bool                      `json:"is_correct,omitempty"`
+	LossTypes  *[]AttemptHistoryLossTypes `json:"loss_types,omitempty"`
+
+	// MissedPoints 遗漏的采分点
+	MissedPoints *[]string `json:"missed_points,omitempty"`
+	Score        *float32  `json:"score,omitempty"`
+}
+
+// AttemptHistoryLossTypes defines model for AttemptHistory.LossTypes.
+type AttemptHistoryLossTypes string
+
+// BankOverview defines model for BankOverview.
+type BankOverview struct {
+	BankId int64 `json:"bank_id"`
+
+	// HasOfficial 已添加官方题库
+	HasOfficial         bool  `json:"has_official"`
+	IsEssay             *bool `json:"is_essay,omitempty"`
+	KpCount             int   `json:"kp_count"`
+	MasteryDistribution struct {
+		Consolidating int `json:"consolidating"`
+		Learning      int `json:"learning"`
+		Mastered      int `json:"mastered"`
+		Unlearned     int `json:"unlearned"`
+	} `json:"mastery_distribution"`
+	MaterialCount    int   `json:"material_count"`
+	NeedsReviewCount int   `json:"needs_review_count"`
+	PaperCount       *int  `json:"paper_count,omitempty"`
+	QuestionCount    int   `json:"question_count"`
+	SubjectId        int64 `json:"subject_id"`
+}
+
+// Bootstrap defines model for Bootstrap.
+type Bootstrap struct {
+	// AgreementsToAccept 已登录用户需要重新同意的协议（0.4b）；为空或缺省表示不需要
+	AgreementsToAccept *[]AgreementSummary `json:"agreements_to_accept,omitempty"`
+
+	// AppName App 显示名，由配置读取
+	//
+	// Example: 考研Training
+	AppName  string          `json:"app_name"`
+	Flags    map[string]bool `json:"flags"`
+	LoggedIn *bool           `json:"logged_in,omitempty"`
+
+	// OnboardingStep 已登录用户的引导进度；done 表示已完成
+	OnboardingStep *string    `json:"onboarding_step,omitempty"`
+	ServerTime     time.Time  `json:"server_time"`
+	Update         *AppUpdate `json:"update,omitempty"`
+}
+
+// ChangePhoneRequest defines model for ChangePhoneRequest.
+type ChangePhoneRequest struct {
+	NewCode  string `json:"new_code"`
+	NewPhone string `json:"new_phone"`
+	OldCode  string `json:"old_code"`
+}
+
+// ChoiceOption defines model for ChoiceOption.
+type ChoiceOption struct {
+	// Key Example: A
+	Key  string `json:"key"`
+	Text string `json:"text"`
+}
+
+// ConfirmImportResult defines model for ConfirmImportResult.
+type ConfirmImportResult struct {
+	KpCount          int `json:"kp_count"`
+	NeedsReviewCount int `json:"needs_review_count"`
+
+	// PaperCount 按年份组成的真题卷数
+	PaperCount *int `json:"paper_count,omitempty"`
+
+	// PlanReady 今日计划已生成（1.8）
+	PlanReady     bool `json:"plan_ready"`
+	QuestionCount int  `json:"question_count"`
+
+	// SubjectsWithoutImport 还没导入的专业课，1.8 提示继续导入
+	SubjectsWithoutImport *[]int64 `json:"subjects_without_import,omitempty"`
+}
+
+// CreateImportJobRequest defines model for CreateImportJobRequest.
+type CreateImportJobRequest struct {
+	MaterialIds []int64 `json:"material_ids"`
+
+	// Mode 1.4 选的导入方式：题目 / 资料（拆成知识点） / 作文资料
+	Mode      ImportMode `json:"mode"`
+	SubjectId int64      `json:"subject_id"`
+}
+
+// Device defines model for Device.
+type Device struct {
+	// Current 是否本机
+	Current    bool           `json:"current"`
+	DeviceId   string         `json:"device_id"`
+	DeviceName string         `json:"device_name"`
+	LastUsedAt time.Time      `json:"last_used_at"`
+	Platform   DevicePlatform `json:"platform"`
+}
+
+// DevicePlatform defines model for Device.Platform.
+type DevicePlatform string
+
+// DeviceInfo defines model for DeviceInfo.
+type DeviceInfo struct {
+	DeviceId string `json:"device_id"`
+
+	// DeviceName Example: iPhone 15
+	DeviceName *string            `json:"device_name,omitempty"`
+	Platform   DeviceInfoPlatform `json:"platform"`
+}
+
+// DeviceInfoPlatform defines model for DeviceInfo.Platform.
+type DeviceInfoPlatform string
+
+// Error defines model for Error.
+type Error struct {
+	// Code 机器可读的错误码（internal/http/errors.go）：BAD_REQUEST、UNAUTHORIZED、FORBIDDEN、NOT_FOUND、CONFLICT、
+	// TOO_MANY_REQUESTS、QUOTA_EXCEEDED、AI_FAILED、INTERNAL、SERVICE_UNAVAILABLE、NOT_IMPLEMENTED
+	//
+	//
+	// Example: NOT_FOUND
+	Code string `json:"code"`
+
+	// Detail 补充信息（如 remaining_attempts、retry_after_seconds、quota_type、reason）
+	Detail *map[string]interface{} `json:"detail,omitempty"`
+
+	// Message 面向用户的简体中文说明
+	//
+	// Example: 内容不存在
+	Message string `json:"message"`
+}
+
+// ExamYear defines model for ExamYear.
+type ExamYear struct {
+	// ExamYear Example: 2027
+	ExamYear       int                `json:"exam_year"`
+	FirstExamEnd   openapi_types.Date `json:"first_exam_end"`
+	FirstExamStart openapi_types.Date `json:"first_exam_start"`
+
+	// Label Example: 2027 研考 · 今年 12 月初试
+	Label string `json:"label"`
+
+	// SubjectExamDate 专业课考试日，倒计时以它为准
+	SubjectExamDate openapi_types.Date `json:"subject_exam_date"`
+}
+
+// FeatureFlags defines model for FeatureFlags.
+type FeatureFlags struct {
+	// Flags 开关名 → 是否对当前用户打开。online_payment、official_bank、oral_recite、voice_answer、scanned_pdf、invite
+	Flags map[string]bool `json:"flags"`
+}
+
 // Health defines model for Health.
 type Health struct {
-	// Mysql ok 正常；error 异常
-	Mysql HealthStatus `json:"mysql"`
-
-	// Redis ok 正常；error 异常
-	Redis HealthStatus `json:"redis"`
-
-	// Status ok 正常；error 异常
+	Mysql  HealthStatus `json:"mysql"`
+	Redis  HealthStatus `json:"redis"`
 	Status HealthStatus `json:"status"`
 
-	// Version 构建版本号，构建时注入
+	// Version 构建版本号
 	//
 	// Example: v0.1.0
 	Version string `json:"version"`
 }
 
-// HealthStatus ok 正常；error 异常
+// HealthStatus defines model for HealthStatus.
 type HealthStatus string
+
+// ImportCounts defines model for ImportCounts.
+type ImportCounts struct {
+	Confirmed int `json:"confirmed"`
+
+	// EssayItems 作文资料条目（评分标准、写作方法、素材、范文）
+	EssayItems      *int `json:"essay_items,omitempty"`
+	KnowledgePoints int  `json:"knowledge_points"`
+	NeedsReview     int  `json:"needs_review"`
+	Objective       int  `json:"objective"`
+	Questions       int  `json:"questions"`
+	Subjective      int  `json:"subjective"`
+}
+
+// ImportItem defines model for ImportItem.
+type ImportItem struct {
+	Confidence *float32 `json:"confidence,omitempty"`
+
+	// DuplicateOfQuestionId 疑似重复的已有题目
+	DuplicateOfQuestionId *int64 `json:"duplicate_of_question_id,omitempty"`
+
+	// Essay 作文资料条目内容（评分标准、写作方法、素材、范文），结构见 T11
+	Essay          *map[string]interface{} `json:"essay,omitempty"`
+	Id             int64                   `json:"id"`
+	ItemType       ImportItemType          `json:"item_type"`
+	JobId          int64                   `json:"job_id"`
+	KnowledgePoint *KnowledgePointDraft    `json:"knowledge_point,omitempty"`
+	NeedsReview    bool                    `json:"needs_review"`
+
+	// Question 待确认题目的内容（import_items.payload）
+	Question      *QuestionDraft `json:"question,omitempty"`
+	ReviewReasons []ReviewReason `json:"review_reasons"`
+
+	// Source 出处：文件 + 页码
+	Source *SourceRef       `json:"source,omitempty"`
+	Status ImportItemStatus `json:"status"`
+}
+
+// ImportItemPage defines model for ImportItemPage.
+type ImportItemPage struct {
+	Counts     ImportCounts `json:"counts"`
+	Items      []ImportItem `json:"items"`
+	NextCursor *string      `json:"next_cursor,omitempty"`
+}
+
+// ImportItemPatch defines model for ImportItemPatch.
+type ImportItemPatch struct {
+	Essay          *map[string]interface{} `json:"essay,omitempty"`
+	KnowledgePoint *KnowledgePointDraft    `json:"knowledge_point,omitempty"`
+
+	// Question 待确认题目的内容（import_items.payload）
+	Question *QuestionDraft         `json:"question,omitempty"`
+	Status   *ImportItemPatchStatus `json:"status,omitempty"`
+}
+
+// ImportItemPatchStatus defines model for ImportItemPatch.Status.
+type ImportItemPatchStatus string
+
+// ImportItemStatus defines model for ImportItemStatus.
+type ImportItemStatus string
+
+// ImportItemType defines model for ImportItemType.
+type ImportItemType string
+
+// ImportJob defines model for ImportJob.
+type ImportJob struct {
+	BilledPages *int         `json:"billed_pages,omitempty"`
+	Counts      ImportCounts `json:"counts"`
+	CreatedAt   time.Time    `json:"created_at"`
+
+	// DetectedEssay AI 判断这批资料是作文类（1.7 显示，可改）
+	DetectedEssay *bool `json:"detected_essay,omitempty"`
+
+	// EtaSeconds 预计剩余时间
+	EtaSeconds *int                `json:"eta_seconds,omitempty"`
+	FinishedAt *time.Time          `json:"finished_at,omitempty"`
+	Id         int64               `json:"id"`
+	Materials  []ImportJobMaterial `json:"materials"`
+
+	// Mode 1.4 选的导入方式：题目 / 资料（拆成知识点） / 作文资料
+	Mode          ImportMode      `json:"mode"`
+	ReservedPages int             `json:"reserved_pages"`
+	Status        ImportJobStatus `json:"status"`
+	SubjectId     int64           `json:"subject_id"`
+}
+
+// ImportJobStatus defines model for ImportJob.Status.
+type ImportJobStatus string
+
+// ImportJobMaterial defines model for ImportJobMaterial.
+type ImportJobMaterial struct {
+	EtaSeconds *int `json:"eta_seconds,omitempty"`
+
+	// FailReason 如「照片模糊」「只识别出 4 题」
+	FailReason      *string                 `json:"fail_reason,omitempty"`
+	FileName        string                  `json:"file_name"`
+	MaterialId      int64                   `json:"material_id"`
+	RecognizedCount *int                    `json:"recognized_count,omitempty"`
+	Status          ImportJobMaterialStatus `json:"status"`
+
+	// Step 识别文字 · 拆分题目 · 配答案和采分点（1.6）
+	Step ImportStep `json:"step"`
+}
+
+// ImportJobMaterialStatus defines model for ImportJobMaterial.Status.
+type ImportJobMaterialStatus string
+
+// ImportMode 1.4 选的导入方式：题目 / 资料（拆成知识点） / 作文资料
+type ImportMode string
+
+// ImportStep 识别文字 · 拆分题目 · 配答案和采分点（1.6）
+type ImportStep string
+
+// KnowledgeLevel defines model for KnowledgeLevel.
+type KnowledgeLevel string
+
+// KnowledgeNode defines model for KnowledgeNode.
+type KnowledgeNode struct {
+	// AvgMastery 板块：平均掌握度 0–100
+	AvgMastery *float32        `json:"avg_mastery,omitempty"`
+	Children   []KnowledgeNode `json:"children"`
+
+	// ConsolidatingCount 板块与章节：待巩固数
+	ConsolidatingCount *int `json:"consolidating_count,omitempty"`
+
+	// ExamCount 知识点：真题出现次数
+	ExamCount *int  `json:"exam_count,omitempty"`
+	Id        int64 `json:"id"`
+
+	// IsWeak 板块掌握度低于 40%，标「短板」
+	IsWeak *bool `json:"is_weak,omitempty"`
+
+	// KpCount 板块与章节：知识点数
+	KpCount     *int           `json:"kp_count,omitempty"`
+	Level       KnowledgeLevel `json:"level"`
+	Name        string         `json:"name"`
+	NeedsReview *bool          `json:"needs_review,omitempty"`
+
+	// Official 来自官方题库
+	Official *bool `json:"official,omitempty"`
+
+	// State 未学习 / 学习中 / 待巩固 / 已掌握
+	State *MasteryState `json:"state,omitempty"`
+}
+
+// KnowledgeNodeInput defines model for KnowledgeNodeInput.
+type KnowledgeNodeInput struct {
+	Level        KnowledgeLevel `json:"level"`
+	Name         string         `json:"name"`
+	OriginalText *string        `json:"original_text,omitempty"`
+	ParentId     *int64         `json:"parent_id,omitempty"`
+}
+
+// KnowledgePointDetail defines model for KnowledgePointDetail.
+type KnowledgePointDetail struct {
+	// AiExplanation AI 解读，标「AI 生成」
+	AiExplanation *string        `json:"ai_explanation,omitempty"`
+	ExamCount     int            `json:"exam_count"`
+	Id            int64          `json:"id"`
+	Level         KnowledgeLevel `json:"level"`
+	Mastery       Mastery        `json:"mastery"`
+	Name          string         `json:"name"`
+	NeedsReview   bool           `json:"needs_review"`
+	Official      *bool          `json:"official,omitempty"`
+
+	// Origin 内容来源，界面据此标注（PRD 2.3「标明来源」）
+	Origin Origin `json:"origin"`
+
+	// OriginalText 原文表述，采分关键词由 rubric_points.keywords 标出
+	OriginalText *string `json:"original_text,omitempty"`
+	ParentId     *int64  `json:"parent_id,omitempty"`
+
+	// Path 板块 / 章节
+	Path             []string        `json:"path"`
+	RelatedQuestions []QuestionBrief `json:"related_questions"`
+	RubricPoints     []RubricPoint   `json:"rubric_points"`
+
+	// Source 出处：文件 + 页码
+	Source *SourceRef `json:"source,omitempty"`
+}
+
+// KnowledgePointDraft defines model for KnowledgePointDraft.
+type KnowledgePointDraft struct {
+	KpPath       []string            `json:"kp_path"`
+	Name         string              `json:"name"`
+	OriginalText *string             `json:"original_text,omitempty"`
+	RubricPoints *[]RubricPointInput `json:"rubric_points,omitempty"`
+}
+
+// KnowledgePointPatch defines model for KnowledgePointPatch.
+type KnowledgePointPatch struct {
+	Name *string `json:"name,omitempty"`
+
+	// NeedsReview 传 false 表示核对完成
+	NeedsReview  *bool               `json:"needs_review,omitempty"`
+	OriginalText *string             `json:"original_text,omitempty"`
+	ParentId     *int64              `json:"parent_id,omitempty"`
+	RubricPoints *[]RubricPointInput `json:"rubric_points,omitempty"`
+}
+
+// LoginRequest defines model for LoginRequest.
+type LoginRequest struct {
+	Code   string     `json:"code"`
+	Device DeviceInfo `json:"device"`
+
+	// InviteCode 被邀请时填写（邀请开关打开后生效）
+	InviteCode *string `json:"invite_code,omitempty"`
+	Phone      string  `json:"phone"`
+}
+
+// LoginResponse defines model for LoginResponse.
+type LoginResponse struct {
+	AccessExpiresAt time.Time `json:"access_expires_at"`
+	AccessToken     string    `json:"access_token"`
+
+	// DeletionCanceled 本次登录撤销了注销申请
+	DeletionCanceled *bool `json:"deletion_canceled,omitempty"`
+
+	// IsNewUser true 进入 1.1；false 进入 2.1 或中断的引导步骤
+	IsNewUser        bool      `json:"is_new_user"`
+	RefreshExpiresAt time.Time `json:"refresh_expires_at"`
+	RefreshToken     string    `json:"refresh_token"`
+	User             Me        `json:"user"`
+}
+
+// Mastery defines model for Mastery.
+type Mastery struct {
+	// LastSelfAssess 不会 / 模糊 / 掌握
+	LastSelfAssess *SelfAssessLevel `json:"last_self_assess,omitempty"`
+
+	// M 掌握分 0–100
+	M            float32             `json:"m"`
+	NextReviewOn *openapi_types.Date `json:"next_review_on,omitempty"`
+
+	// State 未学习 / 学习中 / 待巩固 / 已掌握
+	State MasteryState `json:"state"`
+}
+
+// MasteryState 未学习 / 学习中 / 待巩固 / 已掌握
+type MasteryState string
+
+// Material defines model for Material.
+type Material struct {
+	BilledPages int `json:"billed_pages"`
+
+	// Category 题目类 / 参考类 / 作文类
+	Category   *MaterialCategory `json:"category,omitempty"`
+	CreatedAt  time.Time         `json:"created_at"`
+	FailReason *string           `json:"fail_reason,omitempty"`
+	FileName   string            `json:"file_name"`
+	Format     MaterialFormat    `json:"format"`
+	Id         int64             `json:"id"`
+
+	// Incomplete 识别不完整，提醒用户
+	Incomplete       *bool `json:"incomplete,omitempty"`
+	KpCount          int   `json:"kp_count"`
+	NeedsReviewCount *int  `json:"needs_review_count,omitempty"`
+	PageCount        int   `json:"page_count"`
+
+	// PaperCount 组成的真题卷数（6.3）
+	PaperCount    *int           `json:"paper_count,omitempty"`
+	QuestionCount int            `json:"question_count"`
+	Status        MaterialStatus `json:"status"`
+
+	// SubType 真题汇编、习题集、参考书、讲义、笔记、作文真题、范文、写作笔记、评分细则
+	SubType   *string `json:"sub_type,omitempty"`
+	SubjectId int64   `json:"subject_id"`
+}
+
+// MaterialCategory 题目类 / 参考类 / 作文类
+type MaterialCategory string
+
+// MaterialDeletionImpact defines model for MaterialDeletionImpact.
+type MaterialDeletionImpact struct {
+	AttemptCount int `json:"attempt_count"`
+
+	// KpDeleteCount 只来自这份资料的知识点，删除
+	KpDeleteCount int `json:"kp_delete_count"`
+
+	// KpKeepCount 其他资料也有的知识点，保留
+	KpKeepCount int `json:"kp_keep_count"`
+
+	// PaperSessionCount 用它做过的整卷，成绩保留、预估分重算
+	PaperSessionCount int `json:"paper_session_count"`
+
+	// QuestionCount 从它识别出的题（连同作答记录和错题一起删除）
+	QuestionCount int `json:"question_count"`
+	WrongCount    int `json:"wrong_count"`
+}
+
+// MaterialFormat defines model for MaterialFormat.
+type MaterialFormat string
+
+// MaterialPage defines model for MaterialPage.
+type MaterialPage struct {
+	FileName   string      `json:"file_name"`
+	Highlights []TextRange `json:"highlights"`
+
+	// KnowledgePoints 本页还识别出的知识点
+	KnowledgePoints []struct {
+		Id   int64  `json:"id"`
+		Name string `json:"name"`
+	} `json:"knowledge_points"`
+	LowConfidence []TextRange `json:"low_confidence"`
+	MaterialId    int64       `json:"material_id"`
+	PageCount     int         `json:"page_count"`
+	PageNo        int         `json:"page_no"`
+	Text          string      `json:"text"`
+}
+
+// MaterialStatus defines model for MaterialStatus.
+type MaterialStatus string
+
+// Me defines model for Me.
+type Me struct {
+	AvatarUrl *string `json:"avatar_url,omitempty"`
+
+	// DeletionDueAt 注销冷静期结束时间；为空表示没有注销申请
+	DeletionDueAt *time.Time       `json:"deletion_due_at,omitempty"`
+	Id            int64            `json:"id"`
+	InviteCode    string           `json:"invite_code"`
+	Membership    MembershipStatus `json:"membership"`
+	Nickname      string           `json:"nickname"`
+
+	// OnboardingStep 引导中断的步骤（1.1–1.8）；done 表示已完成
+	//
+	// Example: done
+	OnboardingStep string `json:"onboarding_step"`
+
+	// PhoneMasked Example: 138****5678
+	PhoneMasked string `json:"phone_masked"`
+}
+
+// MembershipStatus defines model for MembershipStatus.
+type MembershipStatus struct {
+	EndsAt   *time.Time            `json:"ends_at,omitempty"`
+	IsMember bool                  `json:"is_member"`
+	Tier     *MembershipStatusTier `json:"tier,omitempty"`
+}
+
+// MembershipStatusTier defines model for MembershipStatus.Tier.
+type MembershipStatusTier string
+
+// Origin 内容来源，界面据此标注（PRD 2.3「标明来源」）
+type Origin string
+
+// PasteMaterialRequest defines model for PasteMaterialRequest.
+type PasteMaterialRequest struct {
+	// Category 题目类 / 参考类 / 作文类
+	Category       *MaterialCategory `json:"category,omitempty"`
+	RightConfirmed bool              `json:"right_confirmed"`
+	SubjectId      int64             `json:"subject_id"`
+	Text           string            `json:"text"`
+	Title          *string           `json:"title,omitempty"`
+}
+
+// Platform defines model for Platform.
+type Platform string
+
+// QuestionBrief defines model for QuestionBrief.
+type QuestionBrief struct {
+	ExamYear *int  `json:"exam_year,omitempty"`
+	Id       int64 `json:"id"`
+
+	// Qtype single_choice 单选、multi_choice 多选、true_false 判断、fill_blank 填空、term 名词解释、short_answer 简答、
+	// discussion 论述、essay 作文、calculation 计算（只能自评）、other 其他
+	Qtype QuestionType `json:"qtype"`
+
+	// Source 真题 / 习题 / AI 出题 / 官方
+	Source QuestionSource `json:"source"`
+	Stem   string         `json:"stem"`
+}
+
+// QuestionDetail defines model for QuestionDetail.
+type QuestionDetail struct {
+	Analysis *string `json:"analysis,omitempty"`
+	Answer   *string `json:"answer,omitempty"`
+
+	// AnswerOrigin 内容来源，界面据此标注（PRD 2.3「标明来源」）
+	AnswerOrigin      *Origin          `json:"answer_origin,omitempty"`
+	Attempts          []AttemptHistory `json:"attempts"`
+	ExamYear          *int             `json:"exam_year,omitempty"`
+	GeneratedFromKpId *int64           `json:"generated_from_kp_id,omitempty"`
+	Id                int64            `json:"id"`
+	InWrongBook       bool             `json:"in_wrong_book"`
+	KnowledgePoints   []struct {
+		Id        int64  `json:"id"`
+		IsPrimary bool   `json:"is_primary"`
+		Name      string `json:"name"`
+	} `json:"knowledge_points"`
+	NeedsReview bool            `json:"needs_review"`
+	Options     *[]ChoiceOption `json:"options,omitempty"`
+
+	// OriginTags 界面标注，如 ai_generated（AI 出题）、official（官方）
+	OriginTags []string `json:"origin_tags"`
+
+	// Qtype single_choice 单选、multi_choice 多选、true_false 判断、fill_blank 填空、term 名词解释、short_answer 简答、
+	// discussion 论述、essay 作文、calculation 计算（只能自评）、other 其他
+	Qtype         QuestionType    `json:"qtype"`
+	ReviewReasons *[]ReviewReason `json:"review_reasons,omitempty"`
+	RubricPoints  []RubricPoint   `json:"rubric_points"`
+	RubricVersion int             `json:"rubric_version"`
+	Score         *float32        `json:"score,omitempty"`
+
+	// Source 真题 / 习题 / AI 出题 / 官方
+	Source QuestionSource `json:"source"`
+
+	// SourceRef 出处：文件 + 页码
+	SourceRef *SourceRef `json:"source_ref,omitempty"`
+	Stem      string     `json:"stem"`
+}
+
+// QuestionDraft 待确认题目的内容（import_items.payload）
+type QuestionDraft struct {
+	Analysis *string `json:"analysis,omitempty"`
+	Answer   *string `json:"answer,omitempty"`
+
+	// AnswerOrigin 内容来源，界面据此标注（PRD 2.3「标明来源」）
+	AnswerOrigin   *Origin `json:"answer_origin,omitempty"`
+	ExamYear       *int    `json:"exam_year,omitempty"`
+	IsRecollection *bool   `json:"is_recollection,omitempty"`
+
+	// KpId 用户改了归属时指向已有知识点
+	KpId *int64 `json:"kp_id,omitempty"`
+
+	// KpPath 板块 / 章节 / 知识点名称
+	KpPath  *[]string       `json:"kp_path,omitempty"`
+	Options *[]ChoiceOption `json:"options,omitempty"`
+
+	// Qtype single_choice 单选、multi_choice 多选、true_false 判断、fill_blank 填空、term 名词解释、short_answer 简答、
+	// discussion 论述、essay 作文、calculation 计算（只能自评）、other 其他
+	Qtype      QuestionType `json:"qtype"`
+	QuestionNo *string      `json:"question_no,omitempty"`
+
+	// RubricOrigin 内容来源，界面据此标注（PRD 2.3「标明来源」）
+	RubricOrigin *Origin             `json:"rubric_origin,omitempty"`
+	RubricPoints *[]RubricPointInput `json:"rubric_points,omitempty"`
+	Score        *float32            `json:"score,omitempty"`
+
+	// Source 真题 / 习题 / AI 出题 / 官方
+	Source *QuestionSource `json:"source,omitempty"`
+	Stem   string          `json:"stem"`
+}
+
+// QuestionInput defines model for QuestionInput.
+type QuestionInput struct {
+	Analysis *string `json:"analysis,omitempty"`
+	Answer   *string `json:"answer,omitempty"`
+	ExamYear *int    `json:"exam_year,omitempty"`
+
+	// KpIds 第一个为主知识点
+	KpIds   *[]int64        `json:"kp_ids,omitempty"`
+	Options *[]ChoiceOption `json:"options,omitempty"`
+
+	// Qtype single_choice 单选、multi_choice 多选、true_false 判断、fill_blank 填空、term 名词解释、short_answer 简答、
+	// discussion 论述、essay 作文、calculation 计算（只能自评）、other 其他
+	Qtype        QuestionType         `json:"qtype"`
+	RubricPoints *[]RubricPointInput  `json:"rubric_points,omitempty"`
+	Score        *float32             `json:"score,omitempty"`
+	Source       *QuestionInputSource `json:"source,omitempty"`
+	Stem         string               `json:"stem"`
+}
+
+// QuestionInputSource defines model for QuestionInput.Source.
+type QuestionInputSource string
+
+// QuestionPage defines model for QuestionPage.
+type QuestionPage struct {
+	Facets struct {
+		// ByQtype 各题型题数
+		ByQtype   map[string]int `json:"by_qtype"`
+		BySource  map[string]int `json:"by_source"`
+		ExamYears []int          `json:"exam_years"`
+	} `json:"facets"`
+	Items      []QuestionSummary `json:"items"`
+	NextCursor *string           `json:"next_cursor,omitempty"`
+}
+
+// QuestionPatch defines model for QuestionPatch.
+type QuestionPatch struct {
+	Analysis    *string         `json:"analysis,omitempty"`
+	Answer      *string         `json:"answer,omitempty"`
+	ExamYear    *int            `json:"exam_year,omitempty"`
+	KpIds       *[]int64        `json:"kp_ids,omitempty"`
+	NeedsReview *bool           `json:"needs_review,omitempty"`
+	Options     *[]ChoiceOption `json:"options,omitempty"`
+
+	// Qtype single_choice 单选、multi_choice 多选、true_false 判断、fill_blank 填空、term 名词解释、short_answer 简答、
+	// discussion 论述、essay 作文、calculation 计算（只能自评）、other 其他
+	Qtype        *QuestionType       `json:"qtype,omitempty"`
+	RubricPoints *[]RubricPointInput `json:"rubric_points,omitempty"`
+	Score        *float32            `json:"score,omitempty"`
+	Stem         *string             `json:"stem,omitempty"`
+}
+
+// QuestionSource 真题 / 习题 / AI 出题 / 官方
+type QuestionSource string
+
+// QuestionStatusTag 已掌握 / 错题 / 待核对 / 还没做过 / 已做过
+type QuestionStatusTag string
+
+// QuestionSummary defines model for QuestionSummary.
+type QuestionSummary struct {
+	AttemptCount int  `json:"attempt_count"`
+	ExamYear     *int `json:"exam_year,omitempty"`
+
+	// GeneratedFromKp AI 出题依据的知识点名称
+	GeneratedFromKp *string  `json:"generated_from_kp,omitempty"`
+	Id              int64    `json:"id"`
+	LastScore       *float32 `json:"last_score,omitempty"`
+
+	// Path 所属板块 / 章节
+	Path []string `json:"path"`
+
+	// Qtype single_choice 单选、multi_choice 多选、true_false 判断、fill_blank 填空、term 名词解释、short_answer 简答、
+	// discussion 论述、essay 作文、calculation 计算（只能自评）、other 其他
+	Qtype QuestionType `json:"qtype"`
+	Score *float32     `json:"score,omitempty"`
+
+	// Source 真题 / 习题 / AI 出题 / 官方
+	Source QuestionSource `json:"source"`
+
+	// StatusTag 已掌握 / 错题 / 待核对 / 还没做过 / 已做过
+	StatusTag QuestionStatusTag `json:"status_tag"`
+
+	// Stem 题干（列表中截断到 120 字）
+	Stem string `json:"stem"`
+}
+
+// QuestionType single_choice 单选、multi_choice 多选、true_false 判断、fill_blank 填空、term 名词解释、short_answer 简答、
+// discussion 论述、essay 作文、calculation 计算（只能自评）、other 其他
+type QuestionType string
+
+// QuotaItem defines model for QuotaItem.
+type QuotaItem struct {
+	// Limit 为空表示不限
+	Limit *int `json:"limit,omitempty"`
+
+	// Period 重置周期
+	Period    QuotaItemPeriod `json:"period"`
+	QuotaType QuotaType       `json:"quota_type"`
+
+	// ResetsAt 下次重置时间；累计额度为空
+	ResetsAt *time.Time `json:"resets_at,omitempty"`
+	Used     int        `json:"used"`
+}
+
+// QuotaItemPeriod 重置周期
+type QuotaItemPeriod string
+
+// QuotaSummary defines model for QuotaSummary.
+type QuotaSummary struct {
+	Items      []QuotaItem      `json:"items"`
+	Membership MembershipStatus `json:"membership"`
+}
+
+// QuotaType defines model for QuotaType.
+type QuotaType string
+
+// RefreshRequest defines model for RefreshRequest.
+type RefreshRequest struct {
+	DeviceId     string `json:"device_id"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+// ReviewReason defines model for ReviewReason.
+type ReviewReason string
+
+// RubricPoint defines model for RubricPoint.
+type RubricPoint struct {
+	Content  string    `json:"content"`
+	Id       int64     `json:"id"`
+	Keywords *[]string `json:"keywords,omitempty"`
+
+	// Origin 内容来源，界面据此标注（PRD 2.3「标明来源」）
+	Origin Origin   `json:"origin"`
+	Score  *float32 `json:"score,omitempty"`
+	Seq    int      `json:"seq"`
+}
+
+// RubricPointInput defines model for RubricPointInput.
+type RubricPointInput struct {
+	Content  string    `json:"content"`
+	Keywords *[]string `json:"keywords,omitempty"`
+	Score    *float32  `json:"score,omitempty"`
+}
+
+// SearchHit defines model for SearchHit.
+type SearchHit struct {
+	Highlights []TextRange `json:"highlights"`
+
+	// Text 命中片段
+	Text string `json:"text"`
+}
+
+// SearchResult defines model for SearchResult.
+type SearchResult struct {
+	KnowledgePoints []struct {
+		Hit  SearchHit `json:"hit"`
+		Id   int64     `json:"id"`
+		Name string    `json:"name"`
+		Path *[]string `json:"path,omitempty"`
+	} `json:"knowledge_points"`
+	MaterialPages []struct {
+		FileName   string    `json:"file_name"`
+		Hit        SearchHit `json:"hit"`
+		MaterialId int64     `json:"material_id"`
+		PageNo     int       `json:"page_no"`
+	} `json:"material_pages"`
+	Questions []struct {
+		Hit SearchHit `json:"hit"`
+		Id  int64     `json:"id"`
+
+		// Qtype single_choice 单选、multi_choice 多选、true_false 判断、fill_blank 填空、term 名词解释、short_answer 简答、
+		// discussion 论述、essay 作文、calculation 计算（只能自评）、other 其他
+		Qtype QuestionType `json:"qtype"`
+	} `json:"questions"`
+}
+
+// SelfAssessLevel 不会 / 模糊 / 掌握
+type SelfAssessLevel string
+
+// SendSmsCodeRequest defines model for SendSmsCodeRequest.
+type SendSmsCodeRequest struct {
+	// Agree purpose=login 时必须为 true
+	Agree *bool `json:"agree,omitempty"`
+
+	// Phone 11 位手机号
+	Phone   string     `json:"phone"`
+	Purpose SmsPurpose `json:"purpose"`
+}
+
+// SendSmsCodeResponse defines model for SendSmsCodeResponse.
+type SendSmsCodeResponse struct {
+	// RemainingToday 今天还能发几次
+	RemainingToday int `json:"remaining_today"`
+
+	// ResendAfterSeconds Example: 60
+	ResendAfterSeconds int `json:"resend_after_seconds"`
+}
+
+// SmsPurpose defines model for SmsPurpose.
+type SmsPurpose string
+
+// SourceRef 出处：文件 + 页码
+type SourceRef struct {
+	FileName   string `json:"file_name"`
+	MaterialId int64  `json:"material_id"`
+	Page       *int   `json:"page,omitempty"`
+}
+
+// Stage 基础期 / 强化期 / 冲刺期 / 考前期
+type Stage string
+
+// StudyProfile defines model for StudyProfile.
+type StudyProfile struct {
+	DailyMinutes int `json:"daily_minutes"`
+
+	// DaysToExam 距专业课考试天数
+	DaysToExam          int  `json:"days_to_exam"`
+	EssayWeeklyGoal     int  `json:"essay_weekly_goal"`
+	ExamYear            int  `json:"exam_year"`
+	MockTimeReminders   bool `json:"mock_time_reminders"`
+	NotifyDaily         bool `json:"notify_daily"`
+	NotifyReviewDue     bool `json:"notify_review_due"`
+	NotifyTaskDone      bool `json:"notify_task_done"`
+	PendingDailyMinutes *int `json:"pending_daily_minutes,omitempty"`
+
+	// PendingEffectiveOn 待生效的修改从这天起生效
+	PendingEffectiveOn *openapi_types.Date `json:"pending_effective_on,omitempty"`
+
+	// PendingStage 基础期 / 强化期 / 冲刺期 / 考前期
+	PendingStage  *Stage   `json:"pending_stage,omitempty"`
+	ReminderTimes []string `json:"reminder_times"`
+
+	// Stage 基础期 / 强化期 / 冲刺期 / 考前期
+	Stage           Stage              `json:"stage"`
+	StageManual     bool               `json:"stage_manual"`
+	SubjectExamDate openapi_types.Date `json:"subject_exam_date"`
+
+	// SuggestedReason 系统建议的理由（6.9）
+	SuggestedReason *string `json:"suggested_reason,omitempty"`
+
+	// SuggestedStage 基础期 / 强化期 / 冲刺期 / 考前期
+	SuggestedStage    Stage   `json:"suggested_stage"`
+	TargetSchoolMajor *string `json:"target_school_major,omitempty"`
+}
+
+// StudyProfileInput defines model for StudyProfileInput.
+type StudyProfileInput struct {
+	DailyMinutes      StudyProfileInputDailyMinutes `json:"daily_minutes"`
+	EssayWeeklyGoal   *int                          `json:"essay_weekly_goal,omitempty"`
+	ExamYear          int                           `json:"exam_year"`
+	MockTimeReminders *bool                         `json:"mock_time_reminders,omitempty"`
+	NotifyDaily       *bool                         `json:"notify_daily,omitempty"`
+	NotifyReviewDue   *bool                         `json:"notify_review_due,omitempty"`
+	NotifyTaskDone    *bool                         `json:"notify_task_done,omitempty"`
+	ReminderTimes     *[]string                     `json:"reminder_times,omitempty"`
+
+	// Stage 基础期 / 强化期 / 冲刺期 / 考前期
+	Stage Stage `json:"stage"`
+
+	// StageManual 用户手动改了系统推荐的阶段
+	StageManual       *bool   `json:"stage_manual,omitempty"`
+	TargetSchoolMajor *string `json:"target_school_major,omitempty"`
+}
+
+// StudyProfileInputDailyMinutes defines model for StudyProfileInput.DailyMinutes.
+type StudyProfileInputDailyMinutes int
+
+// Subject defines model for Subject.
+type Subject struct {
+	BankId    int64   `json:"bank_id"`
+	Code      *string `json:"code,omitempty"`
+	FullScore int     `json:"full_score"`
+	Id        int64   `json:"id"`
+
+	// IsEssay 作文课（如 908），题库页显示为 3.10
+	IsEssay       bool   `json:"is_essay"`
+	KpCount       int    `json:"kp_count"`
+	MaterialCount int    `json:"material_count"`
+	Name          string `json:"name"`
+	QuestionCount int    `json:"question_count"`
+	TargetScore   *int   `json:"target_score,omitempty"`
+}
+
+// SubjectInput defines model for SubjectInput.
+type SubjectInput struct {
+	Code      *string               `json:"code,omitempty"`
+	FullScore SubjectInputFullScore `json:"full_score"`
+	Name      string                `json:"name"`
+
+	// TargetScore 不设目标传 null
+	TargetScore *int `json:"target_score,omitempty"`
+}
+
+// SubjectInputFullScore defines model for SubjectInput.FullScore.
+type SubjectInputFullScore int
+
+// SubjectList defines model for SubjectList.
+type SubjectList struct {
+	CanAdd bool      `json:"can_add"`
+	Items  []Subject `json:"items"`
+
+	// MaxSubjects 当前身份最多几门（免费 3、会员 4）
+	MaxSubjects int `json:"max_subjects"`
+}
+
+// SubjectPatch defines model for SubjectPatch.
+type SubjectPatch struct {
+	Code      *string                `json:"code,omitempty"`
+	FullScore *SubjectPatchFullScore `json:"full_score,omitempty"`
+
+	// IsEssay 用户纠正作文课判断（1.7），之后不再自动改
+	IsEssay     *bool   `json:"is_essay,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	TargetScore *int    `json:"target_score,omitempty"`
+}
+
+// SubjectPatchFullScore defines model for SubjectPatch.FullScore.
+type SubjectPatchFullScore int
+
+// TextRange defines model for TextRange.
+type TextRange struct {
+	End int `json:"end"`
+
+	// Start 按字符（Unicode 码点）计
+	Start int `json:"start"`
+}
+
+// TokenPair defines model for TokenPair.
+type TokenPair struct {
+	AccessExpiresAt  time.Time `json:"access_expires_at"`
+	AccessToken      string    `json:"access_token"`
+	RefreshExpiresAt time.Time `json:"refresh_expires_at"`
+	RefreshToken     string    `json:"refresh_token"`
+}
+
+// UpdateMeRequest defines model for UpdateMeRequest.
+type UpdateMeRequest struct {
+	Nickname       *string                        `json:"nickname,omitempty"`
+	OnboardingStep *UpdateMeRequestOnboardingStep `json:"onboarding_step,omitempty"`
+}
+
+// UpdateMeRequestOnboardingStep defines model for UpdateMeRequest.OnboardingStep.
+type UpdateMeRequestOnboardingStep string
+
+// UploadFile defines model for UploadFile.
+type UploadFile struct {
+	// ContentType Example: application/pdf
+	ContentType *string        `json:"content_type,omitempty"`
+	FileName    string         `json:"file_name"`
+	Format      MaterialFormat `json:"format"`
+
+	// PageCount 客户端已知的页数（PDF）；服务端会复核
+	PageCount *int   `json:"page_count,omitempty"`
+	Sha256    string `json:"sha256"`
+	SizeBytes int64  `json:"size_bytes"`
+}
+
+// UploadRequest defines model for UploadRequest.
+type UploadRequest struct {
+	// Category 题目类 / 参考类 / 作文类
+	Category *MaterialCategory `json:"category,omitempty"`
+	Files    []UploadFile      `json:"files"`
+
+	// RightConfirmed 「我确认对这些资料有合法的使用权，仅用于本人学习」，必须为 true
+	RightConfirmed bool  `json:"right_confirmed"`
+	SubjectId      int64 `json:"subject_id"`
+}
+
+// UploadRequestResponse defines model for UploadRequestResponse.
+type UploadRequestResponse struct {
+	Items []UploadTarget `json:"items"`
+}
+
+// UploadTarget defines model for UploadTarget.
+type UploadTarget struct {
+	// Duplicate 已上传过相同内容的文件，material_id 指向它，不需要上传
+	Duplicate *bool      `json:"duplicate,omitempty"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+
+	// Index 对应请求 files 的下标
+	Index         int                `json:"index"`
+	MaterialId    int64              `json:"material_id"`
+	UploadHeaders *map[string]string `json:"upload_headers,omitempty"`
+
+	// UploadUrl OSS 预签名 PUT 地址；重复文件为空
+	UploadUrl *string `json:"upload_url,omitempty"`
+}
+
+// Cursor defines model for Cursor.
+type Cursor = string
+
+// IdempotencyKey defines model for IdempotencyKey.
+type IdempotencyKey = string
+
+// ItemId defines model for ItemId.
+type ItemId = int64
+
+// JobId defines model for JobId.
+type JobId = int64
+
+// KpId defines model for KpId.
+type KpId = int64
+
+// Limit defines model for Limit.
+type Limit = int
+
+// MaterialId defines model for MaterialId.
+type MaterialId = int64
+
+// QuestionId defines model for QuestionId.
+type QuestionId = int64
+
+// SubjectId defines model for SubjectId.
+type SubjectId = int64
+
+// AIFailed defines model for AIFailed.
+type AIFailed = Error
+
+// BadRequest defines model for BadRequest.
+type BadRequest = Error
+
+// Conflict defines model for Conflict.
+type Conflict = Error
+
+// Forbidden defines model for Forbidden.
+type Forbidden = Error
+
+// NotFound defines model for NotFound.
+type NotFound = Error
+
+// QuotaExceeded defines model for QuotaExceeded.
+type QuotaExceeded = Error
+
+// TooManyRequests defines model for TooManyRequests.
+type TooManyRequests = Error
+
+// Unauthorized defines model for Unauthorized.
+type Unauthorized = Error
+
+// GetBootstrapParams defines parameters for GetBootstrap.
+type GetBootstrapParams struct {
+	Platform   Platform `form:"platform" json:"platform"`
+	AppVersion string   `form:"app_version" json:"app_version"`
+}
+
+// GenerateImportItemAnswerParams defines parameters for GenerateImportItemAnswer.
+type GenerateImportItemAnswerParams struct {
+	// IdempotencyKey 客户端为每次写操作生成的唯一键（UUID），重试时保持不变
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// ListImportJobsParams defines parameters for ListImportJobs.
+type ListImportJobsParams struct {
+	// Active 只返回解析中或待确认的任务
+	Active *bool `form:"active,omitempty" json:"active,omitempty"`
+}
+
+// CreateImportJobParams defines parameters for CreateImportJob.
+type CreateImportJobParams struct {
+	// IdempotencyKey 客户端为每次写操作生成的唯一键（UUID），重试时保持不变
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// ConfirmImportJobJSONBody defines parameters for ConfirmImportJob.
+type ConfirmImportJobJSONBody struct {
+	// ItemIds 只确认这些条目；不传表示全部未删除的条目
+	ItemIds *[]int64 `json:"item_ids,omitempty"`
+}
+
+// ConfirmImportJobParams defines parameters for ConfirmImportJob.
+type ConfirmImportJobParams struct {
+	// IdempotencyKey 客户端为每次写操作生成的唯一键（UUID），重试时保持不变
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// ListImportItemsParams defines parameters for ListImportItems.
+type ListImportItemsParams struct {
+	Filter *ListImportItemsParamsFilter `form:"filter,omitempty" json:"filter,omitempty"`
+
+	// Cursor 上一页响应里的 next_cursor
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListImportItemsParamsFilter defines parameters for ListImportItems.
+type ListImportItemsParamsFilter string
+
+// MergeKnowledgePointJSONBody defines parameters for MergeKnowledgePoint.
+type MergeKnowledgePointJSONBody struct {
+	TargetId int64 `json:"target_id"`
+}
+
+// SelfAssessKnowledgePointJSONBody defines parameters for SelfAssessKnowledgePoint.
+type SelfAssessKnowledgePointJSONBody struct {
+	// Level 不会 / 模糊 / 掌握
+	Level SelfAssessLevel `json:"level"`
+}
+
+// SplitKnowledgePointJSONBody defines parameters for SplitKnowledgePoint.
+type SplitKnowledgePointJSONBody struct {
+	Parts []struct {
+		Name         string  `json:"name"`
+		OriginalText *string `json:"original_text,omitempty"`
+	} `json:"parts"`
+}
+
+// CreatePastedMaterialParams defines parameters for CreatePastedMaterial.
+type CreatePastedMaterialParams struct {
+	// IdempotencyKey 客户端为每次写操作生成的唯一键（UUID），重试时保持不变
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// CreateUploadRequestsParams defines parameters for CreateUploadRequests.
+type CreateUploadRequestsParams struct {
+	// IdempotencyKey 客户端为每次写操作生成的唯一键（UUID），重试时保持不变
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// GetMaterialPageParams defines parameters for GetMaterialPage.
+type GetMaterialPageParams struct {
+	// Highlight 要定位高亮的文字（如知识点原文表述）
+	Highlight *string `form:"highlight,omitempty" json:"highlight,omitempty"`
+}
+
+// AcceptAgreementsJSONBody defines parameters for AcceptAgreements.
+type AcceptAgreementsJSONBody struct {
+	AgreementIds []int64 `json:"agreement_ids"`
+}
+
+// RequestDeletionJSONBody defines parameters for RequestDeletion.
+type RequestDeletionJSONBody struct {
+	// Confirmed 必须为 true（勾选确认）
+	Confirmed bool `json:"confirmed"`
+}
+
+// CreateSubjectParams defines parameters for CreateSubject.
+type CreateSubjectParams struct {
+	// IdempotencyKey 客户端为每次写操作生成的唯一键（UUID），重试时保持不变
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// GetKnowledgeTreeParams defines parameters for GetKnowledgeTree.
+type GetKnowledgeTreeParams struct {
+	Filter *GetKnowledgeTreeParamsFilter `form:"filter,omitempty" json:"filter,omitempty"`
+}
+
+// GetKnowledgeTreeParamsFilter defines parameters for GetKnowledgeTree.
+type GetKnowledgeTreeParamsFilter string
+
+// ListQuestionsParams defines parameters for ListQuestions.
+type ListQuestionsParams struct {
+	Qtype    *QuestionType   `form:"qtype,omitempty" json:"qtype,omitempty"`
+	Source   *QuestionSource `form:"source,omitempty" json:"source,omitempty"`
+	ExamYear *int            `form:"exam_year,omitempty" json:"exam_year,omitempty"`
+
+	// KpId 某知识点（含子节点）下的题
+	KpId   *int64                     `form:"kp_id,omitempty" json:"kp_id,omitempty"`
+	Status *ListQuestionsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Sort   *ListQuestionsParamsSort   `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Cursor 上一页响应里的 next_cursor
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListQuestionsParamsStatus defines parameters for ListQuestions.
+type ListQuestionsParamsStatus string
+
+// ListQuestionsParamsSort defines parameters for ListQuestions.
+type ListQuestionsParamsSort string
+
+// SearchBankParams defines parameters for SearchBank.
+type SearchBankParams struct {
+	Q string `form:"q" json:"q"`
+}
+
+// LoginJSONRequestBody defines body for Login for application/json ContentType.
+type LoginJSONRequestBody = LoginRequest
+
+// RefreshTokenJSONRequestBody defines body for RefreshToken for application/json ContentType.
+type RefreshTokenJSONRequestBody = RefreshRequest
+
+// SendSmsCodeJSONRequestBody defines body for SendSmsCode for application/json ContentType.
+type SendSmsCodeJSONRequestBody = SendSmsCodeRequest
+
+// UpdateImportItemJSONRequestBody defines body for UpdateImportItem for application/json ContentType.
+type UpdateImportItemJSONRequestBody = ImportItemPatch
+
+// CreateImportJobJSONRequestBody defines body for CreateImportJob for application/json ContentType.
+type CreateImportJobJSONRequestBody = CreateImportJobRequest
+
+// ConfirmImportJobJSONRequestBody defines body for ConfirmImportJob for application/json ContentType.
+type ConfirmImportJobJSONRequestBody ConfirmImportJobJSONBody
+
+// UpdateKnowledgePointJSONRequestBody defines body for UpdateKnowledgePoint for application/json ContentType.
+type UpdateKnowledgePointJSONRequestBody = KnowledgePointPatch
+
+// MergeKnowledgePointJSONRequestBody defines body for MergeKnowledgePoint for application/json ContentType.
+type MergeKnowledgePointJSONRequestBody MergeKnowledgePointJSONBody
+
+// SelfAssessKnowledgePointJSONRequestBody defines body for SelfAssessKnowledgePoint for application/json ContentType.
+type SelfAssessKnowledgePointJSONRequestBody SelfAssessKnowledgePointJSONBody
+
+// SplitKnowledgePointJSONRequestBody defines body for SplitKnowledgePoint for application/json ContentType.
+type SplitKnowledgePointJSONRequestBody SplitKnowledgePointJSONBody
+
+// CreatePastedMaterialJSONRequestBody defines body for CreatePastedMaterial for application/json ContentType.
+type CreatePastedMaterialJSONRequestBody = PasteMaterialRequest
+
+// CreateUploadRequestsJSONRequestBody defines body for CreateUploadRequests for application/json ContentType.
+type CreateUploadRequestsJSONRequestBody = UploadRequest
+
+// UpdateMeJSONRequestBody defines body for UpdateMe for application/json ContentType.
+type UpdateMeJSONRequestBody = UpdateMeRequest
+
+// AcceptAgreementsJSONRequestBody defines body for AcceptAgreements for application/json ContentType.
+type AcceptAgreementsJSONRequestBody AcceptAgreementsJSONBody
+
+// RequestDeletionJSONRequestBody defines body for RequestDeletion for application/json ContentType.
+type RequestDeletionJSONRequestBody RequestDeletionJSONBody
+
+// ChangePhoneJSONRequestBody defines body for ChangePhone for application/json ContentType.
+type ChangePhoneJSONRequestBody = ChangePhoneRequest
+
+// UpsertProfileJSONRequestBody defines body for UpsertProfile for application/json ContentType.
+type UpsertProfileJSONRequestBody = StudyProfileInput
+
+// UpdateQuestionJSONRequestBody defines body for UpdateQuestion for application/json ContentType.
+type UpdateQuestionJSONRequestBody = QuestionPatch
+
+// CreateSubjectJSONRequestBody defines body for CreateSubject for application/json ContentType.
+type CreateSubjectJSONRequestBody = SubjectInput
+
+// UpdateSubjectJSONRequestBody defines body for UpdateSubject for application/json ContentType.
+type UpdateSubjectJSONRequestBody = SubjectPatch
+
+// CreateKnowledgeNodeJSONRequestBody defines body for CreateKnowledgeNode for application/json ContentType.
+type CreateKnowledgeNodeJSONRequestBody = KnowledgeNodeInput
+
+// CreateQuestionJSONRequestBody defines body for CreateQuestion for application/json ContentType.
+type CreateQuestionJSONRequestBody = QuestionInput
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetAgreement 协议正文（0.4）
+	// (GET /agreements/{kind})
+	GetAgreement(c *gin.Context, kind AgreementKind)
+	// Login 手机号 + 验证码登录（未注册自动创建账号）
+	// (POST /auth/login)
+	Login(c *gin.Context)
+	// Logout 退出登录（作废本设备的刷新令牌）
+	// (POST /auth/logout)
+	Logout(c *gin.Context)
+	// RefreshToken 刷新访问令牌
+	// (POST /auth/refresh)
+	RefreshToken(c *gin.Context)
+	// SendSmsCode 发送短信验证码（0.2、0.3、6.11）
+	// (POST /auth/sms-codes)
+	SendSmsCode(c *gin.Context)
+	// GetBootstrap 启动配置（0.1）
+	// (GET /bootstrap)
+	GetBootstrap(c *gin.Context, params GetBootstrapParams)
+	// ListExamYears 可选的考试年份与初试日期（1.1）
+	// (GET /exam-years)
+	ListExamYears(c *gin.Context)
+	// GetFeatureFlags 当前用户可见的功能开关
+	// (GET /feature-flags)
+	GetFeatureFlags(c *gin.Context)
 	// GetHealth 健康检查
 	// (GET /health)
 	GetHealth(c *gin.Context)
+	// GetImportItem 单个待确认条目（1.7b）
+	// (GET /import-items/{itemId})
+	GetImportItem(c *gin.Context, itemId ItemId)
+	// UpdateImportItem 修改或删除待确认条目（1.7、1.7b）
+	// (PATCH /import-items/{itemId})
+	UpdateImportItem(c *gin.Context, itemId ItemId)
+	// GenerateImportItemAnswer 缺答案时让 AI 生成参考答案与采分点（标「AI 生成」），计入每日 AI 出题额度
+	// (POST /import-items/{itemId}/generate-answer)
+	GenerateImportItemAnswer(c *gin.Context, itemId ItemId, params GenerateImportItemAnswerParams)
+	// ListImportJobs 我的导入任务（首页 2.1b 用 active=true）
+	// (GET /import-jobs)
+	ListImportJobs(c *gin.Context, params ListImportJobsParams)
+	// CreateImportJob 开始解析（1.5 → 1.6）
+	// (POST /import-jobs)
+	CreateImportJob(c *gin.Context, params CreateImportJobParams)
+	// GetImportJob 解析进度（1.6、1.6b）
+	// (GET /import-jobs/{jobId})
+	GetImportJob(c *gin.Context, jobId JobId)
+	// ConfirmImportJob 确认入库（1.7「确认入库 N 题」）
+	// (POST /import-jobs/{jobId}/confirm)
+	ConfirmImportJob(c *gin.Context, jobId JobId, params ConfirmImportJobParams)
+	// ListImportItems 待确认条目（1.7）
+	// (GET /import-jobs/{jobId}/items)
+	ListImportItems(c *gin.Context, jobId JobId, params ListImportItemsParams)
+	// RemoveImportMaterial 从任务里移除文件（1.6b「移除」），已预占的额度退回
+	// (DELETE /import-jobs/{jobId}/materials/{materialId})
+	RemoveImportMaterial(c *gin.Context, jobId JobId, materialId MaterialId)
+	// RetryImportMaterial 重新解析失败的文件（1.6b，如重新拍照后）
+	// (POST /import-jobs/{jobId}/materials/{materialId}/retry)
+	RetryImportMaterial(c *gin.Context, jobId JobId, materialId MaterialId)
+	// DeleteKnowledgePoint 删除知识点（3.5）
+	// (DELETE /knowledge-points/{kpId})
+	DeleteKnowledgePoint(c *gin.Context, kpId KpId)
+	// GetKnowledgePoint 知识点卡片（3.4）
+	// (GET /knowledge-points/{kpId})
+	GetKnowledgePoint(c *gin.Context, kpId KpId)
+	// UpdateKnowledgePoint 编辑知识点（3.6）或调整归属
+	// (PATCH /knowledge-points/{kpId})
+	UpdateKnowledgePoint(c *gin.Context, kpId KpId)
+	// RegenerateExplanation AI 解读不准，重新生成（3.5）
+	// (POST /knowledge-points/{kpId}/explanation)
+	RegenerateExplanation(c *gin.Context, kpId KpId)
+	// MergeKnowledgePoint 合并到其他知识点（3.5），题目关联、掌握度与作答记录一并迁移
+	// (POST /knowledge-points/{kpId}/merge)
+	MergeKnowledgePoint(c *gin.Context, kpId KpId)
+	// SelfAssessKnowledgePoint 三档自评（3.4，只作参考）
+	// (PUT /knowledge-points/{kpId}/self-assessment)
+	SelfAssessKnowledgePoint(c *gin.Context, kpId KpId)
+	// SplitKnowledgePoint 拆分为多个知识点（3.5）
+	// (POST /knowledge-points/{kpId}/split)
+	SplitKnowledgePoint(c *gin.Context, kpId KpId)
+	// CreatePastedMaterial 粘贴文字导入（1.5b），单次最多 2 万字
+	// (POST /materials/paste)
+	CreatePastedMaterial(c *gin.Context, params CreatePastedMaterialParams)
+	// CreateUploadRequests 申请上传（1.5）
+	// (POST /materials/upload-requests)
+	CreateUploadRequests(c *gin.Context, params CreateUploadRequestsParams)
+	// DeleteMaterial 删除资料（3.1d），连带规则见 PRD 11.12
+	// (DELETE /materials/{materialId})
+	DeleteMaterial(c *gin.Context, materialId MaterialId)
+	// GetMaterial 单份资料
+	// (GET /materials/{materialId})
+	GetMaterial(c *gin.Context, materialId MaterialId)
+	// GetMaterialDeletionImpact 删除前说明连带影响（3.1d）
+	// (GET /materials/{materialId}/deletion-impact)
+	GetMaterialDeletionImpact(c *gin.Context, materialId MaterialId)
+	// GetMaterialPage 原文查看（3.7）
+	// (GET /materials/{materialId}/pages/{pageNo})
+	GetMaterialPage(c *gin.Context, materialId MaterialId, pageNo int, params GetMaterialPageParams)
+	// ConfirmMaterialUploaded 客户端直传完成后回调
+	// (POST /materials/{materialId}/uploaded)
+	ConfirmMaterialUploaded(c *gin.Context, materialId MaterialId)
+	// GetMe 当前用户
+	// (GET /me)
+	GetMe(c *gin.Context)
+	// UpdateMe 修改昵称或记录引导进度
+	// (PATCH /me)
+	UpdateMe(c *gin.Context)
+	// AcceptAgreements 同意协议新版本（0.4b「同意并继续」）
+	// (POST /me/agreements)
+	AcceptAgreements(c *gin.Context)
+	// CancelDeletion 撤销注销申请
+	// (DELETE /me/deletion)
+	CancelDeletion(c *gin.Context)
+	// RequestDeletion 申请注销（6.12），进入 7 天冷静期
+	// (POST /me/deletion)
+	RequestDeletion(c *gin.Context)
+	// ListDevices 登录设备列表（6.11）
+	// (GET /me/devices)
+	ListDevices(c *gin.Context)
+	// RemoveDevice 移除其他设备（该设备需重新登录）
+	// (DELETE /me/devices/{deviceId})
+	RemoveDevice(c *gin.Context, deviceId string)
+	// ChangePhone 更换手机号（新旧号码都要验证）
+	// (PUT /me/phone)
+	ChangePhone(c *gin.Context)
+	// GetProfile 备考档案（1.3、6.9）
+	// (GET /profile)
+	GetProfile(c *gin.Context)
+	// UpsertProfile 创建或修改备考档案
+	// (PUT /profile)
+	UpsertProfile(c *gin.Context)
+	// DeleteQuestion 删除题目（连同作答记录与错题）
+	// (DELETE /questions/{questionId})
+	DeleteQuestion(c *gin.Context, questionId QuestionId)
+	// GetQuestion 题目详情（3.3）
+	// (GET /questions/{questionId})
+	GetQuestion(c *gin.Context, questionId QuestionId)
+	// UpdateQuestion 编辑题目（3.3 右上角编辑）
+	// (PATCH /questions/{questionId})
+	UpdateQuestion(c *gin.Context, questionId QuestionId)
+	// GetQuota 会员状态与各项额度（3.1c、6.3、4.9）
+	// (GET /quota)
+	GetQuota(c *gin.Context)
+	// ListSubjects 我的专业课
+	// (GET /subjects)
+	ListSubjects(c *gin.Context)
+	// CreateSubject 添加专业课（同时建好它的自建题库）
+	// (POST /subjects)
+	CreateSubject(c *gin.Context, params CreateSubjectParams)
+	// DeleteSubject 删除专业课（连同它的题库、资料和学习记录）
+	// (DELETE /subjects/{subjectId})
+	DeleteSubject(c *gin.Context, subjectId SubjectId)
+	// UpdateSubject 修改专业课（名称、代码、满分、目标分、是否作文课）
+	// (PATCH /subjects/{subjectId})
+	UpdateSubject(c *gin.Context, subjectId SubjectId)
+	// GetBankOverview 题库概况（题库页头部、2.1「我的题库」卡）
+	// (GET /subjects/{subjectId}/bank)
+	GetBankOverview(c *gin.Context, subjectId SubjectId)
+	// CreateKnowledgeNode 新建板块、章节或知识点（用户手动调整树结构）
+	// (POST /subjects/{subjectId}/knowledge-points)
+	CreateKnowledgeNode(c *gin.Context, subjectId SubjectId)
+	// GetKnowledgeTree 知识点树（3.1）
+	// (GET /subjects/{subjectId}/knowledge-tree)
+	GetKnowledgeTree(c *gin.Context, subjectId SubjectId, params GetKnowledgeTreeParams)
+	// ListMaterials 资料列表（3.1c、6.3）
+	// (GET /subjects/{subjectId}/materials)
+	ListMaterials(c *gin.Context, subjectId SubjectId)
+	// ListQuestions 题目列表（3.1b）
+	// (GET /subjects/{subjectId}/questions)
+	ListQuestions(c *gin.Context, subjectId SubjectId, params ListQuestionsParams)
+	// CreateQuestion 手动添加一道题
+	// (POST /subjects/{subjectId}/questions)
+	CreateQuestion(c *gin.Context, subjectId SubjectId)
+	// SearchBank 在当前专业课内搜索（3.2）
+	// (GET /subjects/{subjectId}/search)
+	SearchBank(c *gin.Context, subjectId SubjectId, params SearchBankParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -69,6 +2453,144 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
+
+// GetAgreement operation middleware
+func (siw *ServerInterfaceWrapper) GetAgreement(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "kind" -------------
+	var kind AgreementKind
+
+	err = runtime.BindStyledParameterWithOptions("simple", "kind", c.Param("kind"), &kind, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter kind: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAgreement(c, kind)
+}
+
+// Login operation middleware
+func (siw *ServerInterfaceWrapper) Login(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Login(c)
+}
+
+// Logout operation middleware
+func (siw *ServerInterfaceWrapper) Logout(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Logout(c)
+}
+
+// RefreshToken operation middleware
+func (siw *ServerInterfaceWrapper) RefreshToken(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RefreshToken(c)
+}
+
+// SendSmsCode operation middleware
+func (siw *ServerInterfaceWrapper) SendSmsCode(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SendSmsCode(c)
+}
+
+// GetBootstrap operation middleware
+func (siw *ServerInterfaceWrapper) GetBootstrap(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetBootstrapParams
+
+	// ------------- Required query parameter "platform" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "platform", c.Request.URL.Query(), &params.Platform, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter platform: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required query parameter "app_version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "app_version", c.Request.URL.Query(), &params.AppVersion, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter app_version: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetBootstrap(c, params)
+}
+
+// ListExamYears operation middleware
+func (siw *ServerInterfaceWrapper) ListExamYears(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListExamYears(c)
+}
+
+// GetFeatureFlags operation middleware
+func (siw *ServerInterfaceWrapper) GetFeatureFlags(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetFeatureFlags(c)
+}
 
 // GetHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetHealth(c *gin.Context) {
@@ -81,6 +2603,1363 @@ func (siw *ServerInterfaceWrapper) GetHealth(c *gin.Context) {
 	}
 
 	siw.Handler.GetHealth(c)
+}
+
+// GetImportItem operation middleware
+func (siw *ServerInterfaceWrapper) GetImportItem(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "itemId" -------------
+	var itemId ItemId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "itemId", c.Param("itemId"), &itemId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter itemId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetImportItem(c, itemId)
+}
+
+// UpdateImportItem operation middleware
+func (siw *ServerInterfaceWrapper) UpdateImportItem(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "itemId" -------------
+	var itemId ItemId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "itemId", c.Param("itemId"), &itemId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter itemId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateImportItem(c, itemId)
+}
+
+// GenerateImportItemAnswer operation middleware
+func (siw *ServerInterfaceWrapper) GenerateImportItemAnswer(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "itemId" -------------
+	var itemId ItemId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "itemId", c.Param("itemId"), &itemId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter itemId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GenerateImportItemAnswerParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Idempotency-Key, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Idempotency-Key: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GenerateImportItemAnswer(c, itemId, params)
+}
+
+// ListImportJobs operation middleware
+func (siw *ServerInterfaceWrapper) ListImportJobs(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListImportJobsParams
+
+	// ------------- Optional query parameter "active" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "active", c.Request.URL.Query(), &params.Active, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter active: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListImportJobs(c, params)
+}
+
+// CreateImportJob operation middleware
+func (siw *ServerInterfaceWrapper) CreateImportJob(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateImportJobParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Idempotency-Key, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Idempotency-Key: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateImportJob(c, params)
+}
+
+// GetImportJob operation middleware
+func (siw *ServerInterfaceWrapper) GetImportJob(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "jobId" -------------
+	var jobId JobId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "jobId", c.Param("jobId"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter jobId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetImportJob(c, jobId)
+}
+
+// ConfirmImportJob operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmImportJob(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "jobId" -------------
+	var jobId JobId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "jobId", c.Param("jobId"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter jobId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ConfirmImportJobParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Idempotency-Key, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Idempotency-Key: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ConfirmImportJob(c, jobId, params)
+}
+
+// ListImportItems operation middleware
+func (siw *ServerInterfaceWrapper) ListImportItems(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "jobId" -------------
+	var jobId JobId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "jobId", c.Param("jobId"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter jobId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListImportItemsParams
+
+	// ------------- Optional query parameter "filter" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "filter", c.Request.URL.Query(), &params.Filter, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter filter: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", c.Request.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter cursor: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListImportItems(c, jobId, params)
+}
+
+// RemoveImportMaterial operation middleware
+func (siw *ServerInterfaceWrapper) RemoveImportMaterial(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "jobId" -------------
+	var jobId JobId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "jobId", c.Param("jobId"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter jobId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "materialId" -------------
+	var materialId MaterialId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "materialId", c.Param("materialId"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter materialId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RemoveImportMaterial(c, jobId, materialId)
+}
+
+// RetryImportMaterial operation middleware
+func (siw *ServerInterfaceWrapper) RetryImportMaterial(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "jobId" -------------
+	var jobId JobId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "jobId", c.Param("jobId"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter jobId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "materialId" -------------
+	var materialId MaterialId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "materialId", c.Param("materialId"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter materialId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RetryImportMaterial(c, jobId, materialId)
+}
+
+// DeleteKnowledgePoint operation middleware
+func (siw *ServerInterfaceWrapper) DeleteKnowledgePoint(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "kpId" -------------
+	var kpId KpId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "kpId", c.Param("kpId"), &kpId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter kpId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteKnowledgePoint(c, kpId)
+}
+
+// GetKnowledgePoint operation middleware
+func (siw *ServerInterfaceWrapper) GetKnowledgePoint(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "kpId" -------------
+	var kpId KpId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "kpId", c.Param("kpId"), &kpId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter kpId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetKnowledgePoint(c, kpId)
+}
+
+// UpdateKnowledgePoint operation middleware
+func (siw *ServerInterfaceWrapper) UpdateKnowledgePoint(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "kpId" -------------
+	var kpId KpId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "kpId", c.Param("kpId"), &kpId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter kpId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateKnowledgePoint(c, kpId)
+}
+
+// RegenerateExplanation operation middleware
+func (siw *ServerInterfaceWrapper) RegenerateExplanation(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "kpId" -------------
+	var kpId KpId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "kpId", c.Param("kpId"), &kpId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter kpId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RegenerateExplanation(c, kpId)
+}
+
+// MergeKnowledgePoint operation middleware
+func (siw *ServerInterfaceWrapper) MergeKnowledgePoint(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "kpId" -------------
+	var kpId KpId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "kpId", c.Param("kpId"), &kpId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter kpId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.MergeKnowledgePoint(c, kpId)
+}
+
+// SelfAssessKnowledgePoint operation middleware
+func (siw *ServerInterfaceWrapper) SelfAssessKnowledgePoint(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "kpId" -------------
+	var kpId KpId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "kpId", c.Param("kpId"), &kpId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter kpId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SelfAssessKnowledgePoint(c, kpId)
+}
+
+// SplitKnowledgePoint operation middleware
+func (siw *ServerInterfaceWrapper) SplitKnowledgePoint(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "kpId" -------------
+	var kpId KpId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "kpId", c.Param("kpId"), &kpId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter kpId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SplitKnowledgePoint(c, kpId)
+}
+
+// CreatePastedMaterial operation middleware
+func (siw *ServerInterfaceWrapper) CreatePastedMaterial(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreatePastedMaterialParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Idempotency-Key, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Idempotency-Key: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreatePastedMaterial(c, params)
+}
+
+// CreateUploadRequests operation middleware
+func (siw *ServerInterfaceWrapper) CreateUploadRequests(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateUploadRequestsParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Idempotency-Key, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Idempotency-Key: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateUploadRequests(c, params)
+}
+
+// DeleteMaterial operation middleware
+func (siw *ServerInterfaceWrapper) DeleteMaterial(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "materialId" -------------
+	var materialId MaterialId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "materialId", c.Param("materialId"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter materialId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteMaterial(c, materialId)
+}
+
+// GetMaterial operation middleware
+func (siw *ServerInterfaceWrapper) GetMaterial(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "materialId" -------------
+	var materialId MaterialId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "materialId", c.Param("materialId"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter materialId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMaterial(c, materialId)
+}
+
+// GetMaterialDeletionImpact operation middleware
+func (siw *ServerInterfaceWrapper) GetMaterialDeletionImpact(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "materialId" -------------
+	var materialId MaterialId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "materialId", c.Param("materialId"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter materialId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMaterialDeletionImpact(c, materialId)
+}
+
+// GetMaterialPage operation middleware
+func (siw *ServerInterfaceWrapper) GetMaterialPage(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "materialId" -------------
+	var materialId MaterialId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "materialId", c.Param("materialId"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter materialId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "pageNo" -------------
+	var pageNo int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "pageNo", c.Param("pageNo"), &pageNo, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageNo: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMaterialPageParams
+
+	// ------------- Optional query parameter "highlight" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "highlight", c.Request.URL.Query(), &params.Highlight, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter highlight: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMaterialPage(c, materialId, pageNo, params)
+}
+
+// ConfirmMaterialUploaded operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmMaterialUploaded(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "materialId" -------------
+	var materialId MaterialId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "materialId", c.Param("materialId"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter materialId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ConfirmMaterialUploaded(c, materialId)
+}
+
+// GetMe operation middleware
+func (siw *ServerInterfaceWrapper) GetMe(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMe(c)
+}
+
+// UpdateMe operation middleware
+func (siw *ServerInterfaceWrapper) UpdateMe(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateMe(c)
+}
+
+// AcceptAgreements operation middleware
+func (siw *ServerInterfaceWrapper) AcceptAgreements(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AcceptAgreements(c)
+}
+
+// CancelDeletion operation middleware
+func (siw *ServerInterfaceWrapper) CancelDeletion(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CancelDeletion(c)
+}
+
+// RequestDeletion operation middleware
+func (siw *ServerInterfaceWrapper) RequestDeletion(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RequestDeletion(c)
+}
+
+// ListDevices operation middleware
+func (siw *ServerInterfaceWrapper) ListDevices(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListDevices(c)
+}
+
+// RemoveDevice operation middleware
+func (siw *ServerInterfaceWrapper) RemoveDevice(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "deviceId" -------------
+	var deviceId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "deviceId", c.Param("deviceId"), &deviceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter deviceId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RemoveDevice(c, deviceId)
+}
+
+// ChangePhone operation middleware
+func (siw *ServerInterfaceWrapper) ChangePhone(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ChangePhone(c)
+}
+
+// GetProfile operation middleware
+func (siw *ServerInterfaceWrapper) GetProfile(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetProfile(c)
+}
+
+// UpsertProfile operation middleware
+func (siw *ServerInterfaceWrapper) UpsertProfile(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpsertProfile(c)
+}
+
+// DeleteQuestion operation middleware
+func (siw *ServerInterfaceWrapper) DeleteQuestion(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "questionId" -------------
+	var questionId QuestionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "questionId", c.Param("questionId"), &questionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter questionId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteQuestion(c, questionId)
+}
+
+// GetQuestion operation middleware
+func (siw *ServerInterfaceWrapper) GetQuestion(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "questionId" -------------
+	var questionId QuestionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "questionId", c.Param("questionId"), &questionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter questionId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetQuestion(c, questionId)
+}
+
+// UpdateQuestion operation middleware
+func (siw *ServerInterfaceWrapper) UpdateQuestion(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "questionId" -------------
+	var questionId QuestionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "questionId", c.Param("questionId"), &questionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter questionId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateQuestion(c, questionId)
+}
+
+// GetQuota operation middleware
+func (siw *ServerInterfaceWrapper) GetQuota(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetQuota(c)
+}
+
+// ListSubjects operation middleware
+func (siw *ServerInterfaceWrapper) ListSubjects(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListSubjects(c)
+}
+
+// CreateSubject operation middleware
+func (siw *ServerInterfaceWrapper) CreateSubject(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateSubjectParams
+
+	headers := c.Request.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Idempotency-Key, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Idempotency-Key: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateSubject(c, params)
+}
+
+// DeleteSubject operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSubject(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "subjectId" -------------
+	var subjectId SubjectId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "subjectId", c.Param("subjectId"), &subjectId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter subjectId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteSubject(c, subjectId)
+}
+
+// UpdateSubject operation middleware
+func (siw *ServerInterfaceWrapper) UpdateSubject(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "subjectId" -------------
+	var subjectId SubjectId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "subjectId", c.Param("subjectId"), &subjectId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter subjectId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateSubject(c, subjectId)
+}
+
+// GetBankOverview operation middleware
+func (siw *ServerInterfaceWrapper) GetBankOverview(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "subjectId" -------------
+	var subjectId SubjectId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "subjectId", c.Param("subjectId"), &subjectId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter subjectId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetBankOverview(c, subjectId)
+}
+
+// CreateKnowledgeNode operation middleware
+func (siw *ServerInterfaceWrapper) CreateKnowledgeNode(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "subjectId" -------------
+	var subjectId SubjectId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "subjectId", c.Param("subjectId"), &subjectId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter subjectId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateKnowledgeNode(c, subjectId)
+}
+
+// GetKnowledgeTree operation middleware
+func (siw *ServerInterfaceWrapper) GetKnowledgeTree(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "subjectId" -------------
+	var subjectId SubjectId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "subjectId", c.Param("subjectId"), &subjectId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter subjectId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetKnowledgeTreeParams
+
+	// ------------- Optional query parameter "filter" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "filter", c.Request.URL.Query(), &params.Filter, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter filter: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetKnowledgeTree(c, subjectId, params)
+}
+
+// ListMaterials operation middleware
+func (siw *ServerInterfaceWrapper) ListMaterials(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "subjectId" -------------
+	var subjectId SubjectId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "subjectId", c.Param("subjectId"), &subjectId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter subjectId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListMaterials(c, subjectId)
+}
+
+// ListQuestions operation middleware
+func (siw *ServerInterfaceWrapper) ListQuestions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "subjectId" -------------
+	var subjectId SubjectId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "subjectId", c.Param("subjectId"), &subjectId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter subjectId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListQuestionsParams
+
+	// ------------- Optional query parameter "qtype" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "qtype", c.Request.URL.Query(), &params.Qtype, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter qtype: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "source" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "source", c.Request.URL.Query(), &params.Source, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter source: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "exam_year" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "exam_year", c.Request.URL.Query(), &params.ExamYear, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter exam_year: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "kp_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "kp_id", c.Request.URL.Query(), &params.KpId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter kp_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", c.Request.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sort: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", c.Request.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter cursor: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListQuestions(c, subjectId, params)
+}
+
+// CreateQuestion operation middleware
+func (siw *ServerInterfaceWrapper) CreateQuestion(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "subjectId" -------------
+	var subjectId SubjectId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "subjectId", c.Param("subjectId"), &subjectId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter subjectId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateQuestion(c, subjectId)
+}
+
+// SearchBank operation middleware
+func (siw *ServerInterfaceWrapper) SearchBank(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "subjectId" -------------
+	var subjectId SubjectId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "subjectId", c.Param("subjectId"), &subjectId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter subjectId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SearchBankParams
+
+	// ------------- Required query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "q", c.Request.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SearchBank(c, subjectId, params)
 }
 
 // GinServerOptions provides options for the Gin server.
@@ -111,6 +3990,63 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	}
 
 	router.GET(options.BaseURL+"/health", wrapper.GetHealth)
+	router.GET(options.BaseURL+"/bootstrap", wrapper.GetBootstrap)
+	router.POST(options.BaseURL+"/auth/sms-codes", wrapper.SendSmsCode)
+	router.POST(options.BaseURL+"/auth/login", wrapper.Login)
+	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
+	router.POST(options.BaseURL+"/auth/logout", wrapper.Logout)
+	router.GET(options.BaseURL+"/agreements/:kind", wrapper.GetAgreement)
+	router.GET(options.BaseURL+"/me", wrapper.GetMe)
+	router.PATCH(options.BaseURL+"/me", wrapper.UpdateMe)
+	router.POST(options.BaseURL+"/me/agreements", wrapper.AcceptAgreements)
+	router.GET(options.BaseURL+"/me/devices", wrapper.ListDevices)
+	router.DELETE(options.BaseURL+"/me/devices/:deviceId", wrapper.RemoveDevice)
+	router.PUT(options.BaseURL+"/me/phone", wrapper.ChangePhone)
+	router.DELETE(options.BaseURL+"/me/deletion", wrapper.CancelDeletion)
+	router.POST(options.BaseURL+"/me/deletion", wrapper.RequestDeletion)
+	router.GET(options.BaseURL+"/feature-flags", wrapper.GetFeatureFlags)
+	router.GET(options.BaseURL+"/exam-years", wrapper.ListExamYears)
+	router.GET(options.BaseURL+"/profile", wrapper.GetProfile)
+	router.PUT(options.BaseURL+"/profile", wrapper.UpsertProfile)
+	router.GET(options.BaseURL+"/subjects", wrapper.ListSubjects)
+	router.POST(options.BaseURL+"/subjects", wrapper.CreateSubject)
+	router.DELETE(options.BaseURL+"/subjects/:subjectId", wrapper.DeleteSubject)
+	router.PATCH(options.BaseURL+"/subjects/:subjectId", wrapper.UpdateSubject)
+	router.GET(options.BaseURL+"/quota", wrapper.GetQuota)
+	router.POST(options.BaseURL+"/materials/upload-requests", wrapper.CreateUploadRequests)
+	router.POST(options.BaseURL+"/materials/:materialId/uploaded", wrapper.ConfirmMaterialUploaded)
+	router.POST(options.BaseURL+"/materials/paste", wrapper.CreatePastedMaterial)
+	router.GET(options.BaseURL+"/import-jobs", wrapper.ListImportJobs)
+	router.POST(options.BaseURL+"/import-jobs", wrapper.CreateImportJob)
+	router.GET(options.BaseURL+"/import-jobs/:jobId", wrapper.GetImportJob)
+	router.POST(options.BaseURL+"/import-jobs/:jobId/materials/:materialId/retry", wrapper.RetryImportMaterial)
+	router.DELETE(options.BaseURL+"/import-jobs/:jobId/materials/:materialId", wrapper.RemoveImportMaterial)
+	router.GET(options.BaseURL+"/import-jobs/:jobId/items", wrapper.ListImportItems)
+	router.POST(options.BaseURL+"/import-jobs/:jobId/confirm", wrapper.ConfirmImportJob)
+	router.GET(options.BaseURL+"/import-items/:itemId", wrapper.GetImportItem)
+	router.PATCH(options.BaseURL+"/import-items/:itemId", wrapper.UpdateImportItem)
+	router.POST(options.BaseURL+"/import-items/:itemId/generate-answer", wrapper.GenerateImportItemAnswer)
+	router.GET(options.BaseURL+"/subjects/:subjectId/bank", wrapper.GetBankOverview)
+	router.GET(options.BaseURL+"/subjects/:subjectId/knowledge-tree", wrapper.GetKnowledgeTree)
+	router.POST(options.BaseURL+"/subjects/:subjectId/knowledge-points", wrapper.CreateKnowledgeNode)
+	router.DELETE(options.BaseURL+"/knowledge-points/:kpId", wrapper.DeleteKnowledgePoint)
+	router.GET(options.BaseURL+"/knowledge-points/:kpId", wrapper.GetKnowledgePoint)
+	router.PATCH(options.BaseURL+"/knowledge-points/:kpId", wrapper.UpdateKnowledgePoint)
+	router.POST(options.BaseURL+"/knowledge-points/:kpId/merge", wrapper.MergeKnowledgePoint)
+	router.POST(options.BaseURL+"/knowledge-points/:kpId/split", wrapper.SplitKnowledgePoint)
+	router.POST(options.BaseURL+"/knowledge-points/:kpId/explanation", wrapper.RegenerateExplanation)
+	router.PUT(options.BaseURL+"/knowledge-points/:kpId/self-assessment", wrapper.SelfAssessKnowledgePoint)
+	router.GET(options.BaseURL+"/subjects/:subjectId/questions", wrapper.ListQuestions)
+	router.POST(options.BaseURL+"/subjects/:subjectId/questions", wrapper.CreateQuestion)
+	router.DELETE(options.BaseURL+"/questions/:questionId", wrapper.DeleteQuestion)
+	router.GET(options.BaseURL+"/questions/:questionId", wrapper.GetQuestion)
+	router.PATCH(options.BaseURL+"/questions/:questionId", wrapper.UpdateQuestion)
+	router.GET(options.BaseURL+"/subjects/:subjectId/materials", wrapper.ListMaterials)
+	router.DELETE(options.BaseURL+"/materials/:materialId", wrapper.DeleteMaterial)
+	router.GET(options.BaseURL+"/materials/:materialId", wrapper.GetMaterial)
+	router.GET(options.BaseURL+"/materials/:materialId/deletion-impact", wrapper.GetMaterialDeletionImpact)
+	router.GET(options.BaseURL+"/materials/:materialId/pages/:pageNo", wrapper.GetMaterialPage)
+	router.GET(options.BaseURL+"/subjects/:subjectId/search", wrapper.SearchBank)
 }
 
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
@@ -118,21 +4054,245 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

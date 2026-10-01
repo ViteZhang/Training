@@ -1,0 +1,18 @@
+version: "2"
+sql:
+  - engine: mysql
+    schema: db/migrations
+    queries: db/queries
+    gen:
+      go:
+        package: dbq
+        out: internal/dbq
+        emit_json_tags: false
+        emit_interface: true
+        emit_empty_slices: true
+        overrides:
+          - db_type: json
+            go_type: encoding/json.RawMessage
+          - db_type: json
+            nullable: true
+            go_type: encoding/json.RawMessage

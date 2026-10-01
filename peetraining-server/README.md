@@ -29,7 +29,7 @@ make dev-down     # 停掉本地 MySQL 与 Redis
 | `make eval cap=grading` | 跑 AI 评测（各项在对应任务卡里实现） |
 | `make api-tag v=api-v0.1` | 给接口契约打标签，供前端拉取 |
 
-工具（oapi-codegen、golangci-lint）用 `go tool` 运行，版本锁在 `go.mod`，不用另外安装。
+工具（oapi-codegen、sqlc、golangci-lint）放在独立的 `tools/go.mod` 里锁定版本，用 `go tool -modfile=tools/go.mod` 运行（Makefile 已封装），不用另外安装，也不会进入应用依赖。
 
 ## 程序入口
 

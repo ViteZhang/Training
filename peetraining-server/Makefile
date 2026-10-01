@@ -2,6 +2,7 @@
 SHELL := /bin/bash
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X peetraining-server/internal/app.Version=$(VERSION)
+TOOL := go tool -modfile=tools/go.mod
 DEV_COMPOSE := docker compose -f docker-compose.dev.yml
 DEV_ENV := APP_ENV=local MYSQL_DSN='training:training@tcp(127.0.0.1:3306)/training' REDIS_ADDR=127.0.0.1:6379
 
@@ -21,13 +22,15 @@ dev-deps:
 dev-down:
 	$(DEV_COMPOSE) down
 
-## gen：按 api/openapi.yaml 生成 internal/gen（db/queries 与 sqlc 在 T03 接入）
+## gen：按 api/openapi.yaml 生成 internal/gen，按 db/queries 生成 internal/dbq
 gen:
-	go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml
+	$(TOOL) oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml
+	$(TOOL) sqlc generate
+	go run ./internal/http/stubgen
 
 ## gen-check：生成后不应有未提交的差异（流水线用）
 gen-check: gen
-	git diff --exit-code -- internal/gen
+	git diff --exit-code -- internal/gen internal/dbq internal/http/stubs_gen.go
 
 ## test：全部测试，含 testcontainers 集成测试（需要 Docker；流水线设 REQUIRE_INTEGRATION=1）
 test:
@@ -40,7 +43,7 @@ test-unit:
 lint:
 	@test -z "$$(gofmt -l . | tee /dev/stderr)" || (echo "以上文件需要 gofmt" && exit 1)
 	go vet ./...
-	go tool golangci-lint run ./...
+	$(TOOL) golangci-lint run ./...
 
 ## migrate-new name=xxx：新建顺序编号的迁移文件
 migrate-new:
