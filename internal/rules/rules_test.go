@@ -371,10 +371,10 @@ func TestBuildPlan(t *testing.T) {
 				{Group: GroupNew, QuestionID: 2, KPID: 11, QType: QTermExplain, Gain: 0.5}, // 放不下
 				{Group: GroupReview, QuestionID: 3, KPID: 12, QType: QShortAnswer, Gain: 0.2},
 				{Group: GroupReview, QuestionID: 4, KPID: 13, QType: "single_choice", Gain: 0.1},
-				{Group: GroupWeak, QuestionID: 5, KPID: 12, QType: QShortAnswer, Gain: 0.9},  // 同一知识点当日只出现一次
-				{Group: GroupWeak, QuestionID: 6, KPID: 14, QType: QDiscussion, Gain: 0.8},   // 12 分钟
-				{Group: GroupRecite, KPID: 12, Gain: 0.5},                                    // 背诵与做题分开算
-				{Group: GroupRecite, KPID: 12, Gain: 0.4},                                    // 同一条背诵不重复
+				{Group: GroupWeak, QuestionID: 5, KPID: 12, QType: QShortAnswer, Gain: 0.9}, // 同一知识点当日只出现一次
+				{Group: GroupWeak, QuestionID: 6, KPID: 14, QType: QDiscussion, Gain: 0.8},  // 12 分钟
+				{Group: GroupRecite, KPID: 12, Gain: 0.5},                                   // 背诵与做题分开算
+				{Group: GroupRecite, KPID: 12, Gain: 0.4},                                   // 同一条背诵不重复
 			}},
 			{SubjectID: 2, Candidates: []PlanCandidate{{Group: GroupRecite, KPID: 20}}}, // 没有题目：份额给其他课
 			{SubjectID: 3, Candidates: []PlanCandidate{
@@ -424,9 +424,9 @@ func TestEstimateScore(t *testing.T) {
 		FullScore: 150,
 		Papers:    []PaperScore{{Score: 100}, {Score: 90}, {Score: 60}}, // 实测取最近 2 套：95
 		QTypes: []QTypeStat{
-			{QType: QTermExplain, TotalInPaper: 30, RecentRates: rates(0.8, 25)},                      // 近 20 题 0.8 → 24
+			{QType: QTermExplain, TotalInPaper: 30, RecentRates: rates(0.8, 25)},                    // 近 20 题 0.8 → 24
 			{QType: QShortAnswer, TotalInPaper: 40, RecentRates: rates(0.5, 3), LastPaperRate: 0.6}, // 不足 5 题用整卷 0.6 → 24
-			{QType: QDiscussion, TotalInPaper: 80, RecentRates: rates(0.5, 10)},                       // 0.5 → 40，失分 40 最大
+			{QType: QDiscussion, TotalInPaper: 80, RecentRates: rates(0.5, 10)},                     // 0.5 → 40，失分 40 最大
 		},
 		RecentSubjectiveCount: 20,
 	}
@@ -599,7 +599,7 @@ func TestComposeStandardPaper(t *testing.T) {
 			{QuestionID: 2, KPID: 1, SectionID: 1, QType: QTermExplain, ExamKP: true, DaysSinceDone: -1}, // 同一知识点不重复
 			{QuestionID: 3, KPID: 2, SectionID: 2, QType: QTermExplain, ExamKP: true, DaysSinceDone: -1},
 			{QuestionID: 4, KPID: 3, SectionID: 2, QType: QTermExplain, ExamKP: false, DaysSinceDone: -1},
-			{QuestionID: 5, KPID: 4, SectionID: 1, QType: QTermExplain, ExamKP: true, DoneInPaper: true},   // 做过的真题不出现
+			{QuestionID: 5, KPID: 4, SectionID: 1, QType: QTermExplain, ExamKP: true, DoneInPaper: true}, // 做过的真题不出现
 			{QuestionID: 6, KPID: 5, SectionID: 1, QType: QTermExplain, ExamKP: false, DaysSinceDone: 3}, // 标准卷不避开近期
 			{QuestionID: 7, KPID: 6, SectionID: 2, QType: QDiscussion, ExamKP: true, DaysSinceDone: -1},
 		},
@@ -661,8 +661,8 @@ func TestBuildExamProfile(t *testing.T) {
 		qs = append(qs, mk(y, QDiscussion, 2, 30, 3, 200)...)
 	}
 	qs = append(qs, ExamQuestion{Year: 2024, QType: QTermExplain, Score: 5, Recollection: true}) // 回忆版
-	qs = append(qs, ExamQuestion{Year: 2024, QType: QTermExplain})                              // 缺分值
-	qs = append(qs, ExamQuestion{QType: QTermExplain, Score: 5})                                // 缺年份
+	qs = append(qs, ExamQuestion{Year: 2024, QType: QTermExplain})                               // 缺分值
+	qs = append(qs, ExamQuestion{QType: QTermExplain, Score: 5})                                 // 缺年份
 
 	p := BuildExamProfile(qs, ep)
 	if !p.Ready || p.PaperCount != 4 || p.Excluded != 3 {
@@ -709,8 +709,8 @@ func TestBuildExamProfile(t *testing.T) {
 func TestMissingMaterialSections(t *testing.T) {
 	ep := P.ExamProfile
 	secs := []SectionCoverage{
-		{SectionID: 1, Share: 0.3, KPCount: 40, Mastery: 50}, // 正常
-		{SectionID: 2, Share: 0.2, KPCount: 5, Mastery: 50},  // 知识点少：平均 (40+5+30+40)/4=28.75，一半 14.4
+		{SectionID: 1, Share: 0.3, KPCount: 40, Mastery: 50},  // 正常
+		{SectionID: 2, Share: 0.2, KPCount: 5, Mastery: 50},   // 知识点少：平均 (40+5+30+40)/4=28.75，一半 14.4
 		{SectionID: 3, Share: 0.15, KPCount: 30, Mastery: 10}, // 掌握度 < 20
 		{SectionID: 4, Share: 0.05, KPCount: 40, Mastery: 0},  // 占比 < 10% 不提醒
 	}

@@ -3,7 +3,7 @@ package rules
 import "time"
 
 // Day 是北京时间的一个自然日，用距 1970-01-01 的天数表示，比较与加减都是整数运算。
-type Day int32
+type Day int64
 
 var shanghai = time.FixedZone("Asia/Shanghai", 8*3600)
 
