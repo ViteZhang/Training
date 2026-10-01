@@ -1,0 +1,5 @@
+# 本地与密钥
+.env
+*.local
+# 评测真实样本，不进仓库
+evals/private/
