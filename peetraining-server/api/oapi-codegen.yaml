@@ -1,0 +1,9 @@
+package: gen
+output: internal/gen/api.gen.go
+generate:
+  gin-server: true
+  models: true
+  embedded-spec: true
+compatibility:
+  # 枚举常量统一带类型前缀（HealthStatusOk），避免以后不同枚举的同名值冲突
+  always-prefix-enum-values: true

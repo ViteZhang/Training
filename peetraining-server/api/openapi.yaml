@@ -1,0 +1,73 @@
+openapi: 3.0.3
+info:
+  title: 考研Training API
+  version: 0.0.1
+  description: |
+    考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
+
+    约定（详见 docs/dev-spec.md 与 CLAUDE.md）：
+    - 路由前缀 /api/v1，后台接口 /api/v1/admin
+    - 错误响应统一为 Error：{ code, message, detail }
+    - 写接口支持 Idempotency-Key 请求头
+    - 功能开关关闭时，相关接口返回 404
+servers:
+  - url: /api/v1
+tags:
+  - name: system
+    description: 健康检查等系统接口
+paths:
+  /health:
+    get:
+      tags: [system]
+      operationId: getHealth
+      summary: 健康检查
+      description: 返回版本号与 MySQL、Redis 的连通状态；不需要登录，不暴露连接细节。任一依赖不通时返回 503。
+      responses:
+        "200":
+          description: 全部依赖正常
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "503":
+          description: 至少一个依赖异常
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+components:
+  schemas:
+    Health:
+      type: object
+      required: [status, version, mysql, redis]
+      properties:
+        status:
+          $ref: "#/components/schemas/HealthStatus"
+        version:
+          type: string
+          description: 构建版本号，构建时注入
+          example: v0.1.0
+        mysql:
+          $ref: "#/components/schemas/HealthStatus"
+        redis:
+          $ref: "#/components/schemas/HealthStatus"
+    HealthStatus:
+      type: string
+      enum: [ok, error]
+      description: ok 正常；error 异常
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: 机器可读的错误码，定义见 internal/http/errors.go
+          example: NOT_FOUND
+        message:
+          type: string
+          description: 面向用户的简体中文说明
+          example: 内容不存在
+        detail:
+          type: object
+          additionalProperties: true
+          description: 补充信息（如字段校验错误），可为空

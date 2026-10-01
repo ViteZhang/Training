@@ -3,3 +3,5 @@
 *.local
 # 评测真实样本，不进仓库
 evals/private/
+# 构建产物
+bin/
