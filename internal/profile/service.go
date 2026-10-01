@@ -37,9 +37,29 @@ func New(db *sql.DB, ps *params.Store, store oss.Store, now func() time.Time) *S
 
 func (s *Service) today() rules.Day { return rules.DayOf(s.now()) }
 
+// ExamYear 是可选的考试年份，附距考试天数与系统建议的阶段（1.1、1.3，PRD 11.4）。
+type ExamYear struct {
+	dbq.ExamDate
+	DaysToExam int
+	Suggested  rules.Stage
+}
+
 // ExamYears 返回还没考完的考试年份（1.1）。
-func (s *Service) ExamYears(ctx context.Context) ([]dbq.ExamDate, error) {
-	return s.q.ListExamDatesFrom(ctx, s.today().Date())
+func (s *Service) ExamYears(ctx context.Context) ([]ExamYear, error) {
+	list, err := s.q.ListExamDatesFrom(ctx, s.today().Date())
+	if err != nil {
+		return nil, err
+	}
+	rp, err := s.params.Rules(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ExamYear, len(list))
+	for i, e := range list {
+		days := max(int(rules.DayFromDateColumn(e.SubjectExamDate)-s.today()), 0)
+		out[i] = ExamYear{ExamDate: e, DaysToExam: days, Suggested: rules.DefaultStage(days, rp.Stage)}
+	}
+	return out, nil
 }
 
 // Profile 是备考档案的完整视图。

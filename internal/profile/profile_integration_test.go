@@ -171,7 +171,7 @@ func TestProfilePendingChanges(t *testing.T) {
 		t.Fatal("还没建档案应 404")
 	}
 	years, err := f.svc.ExamYears(ctx)
-	if err != nil || len(years) != 1 || years[0].ExamYear != 2027 {
+	if err != nil || len(years) != 1 || years[0].ExamYear != 2027 || years[0].DaysToExam != 79 || years[0].Suggested != rules.Strengthen {
 		t.Fatalf("考试年份：%+v %v", years, err)
 	}
 
