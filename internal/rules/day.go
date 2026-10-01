@@ -30,3 +30,14 @@ func (d Day) AddDays(n int) Day { return d + Day(n) }
 func (d Day) String() string {
 	return time.Unix(int64(d)*86400, 0).UTC().Format(time.DateOnly)
 }
+
+// Date 返回这一天在 UTC 0 点的时刻，用于读写数据库的 DATE 列（DATE 没有时区，存的就是这个自然日）。
+func (d Day) Date() time.Time {
+	return time.Unix(int64(d)*86400, 0).UTC()
+}
+
+// DayFromDateColumn 把从数据库 DATE 列读出的值（驱动按 UTC 0 点返回）转成 Day。
+func DayFromDateColumn(t time.Time) Day {
+	y, m, dd := t.UTC().Date()
+	return DayFromDate(y, m, dd)
+}

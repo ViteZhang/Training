@@ -24,6 +24,7 @@ import (
 	"peetraining-server/internal/jobs"
 	"peetraining-server/internal/logx"
 	"peetraining-server/internal/params"
+	"peetraining-server/internal/profile"
 	"peetraining-server/internal/store"
 )
 
@@ -41,15 +42,16 @@ func NewLogger(cfg *config.Config) *slog.Logger {
 
 // Base 是 API 与 Worker 共用的依赖。
 type Base struct {
-	Config *config.Config
-	Logger *slog.Logger
-	DB     *sql.DB
-	Redis  *redis.Client
-	Cloud  *cloud.Clients
-	Queue  *asynq.Client
-	Params *params.Store
-	Flags  *flags.Service
-	Auth   *auth.Service
+	Config  *config.Config
+	Logger  *slog.Logger
+	DB      *sql.DB
+	Redis   *redis.Client
+	Cloud   *cloud.Clients
+	Queue   *asynq.Client
+	Params  *params.Store
+	Flags   *flags.Service
+	Auth    *auth.Service
+	Profile *profile.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -84,6 +86,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 			JWTSecret: cfg.JWTSecret, Logger: log,
 			LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock,
 		}),
+		Profile: profile.New(db, ps, clients.OSS, nil),
 	}, nil
 }
 
@@ -115,6 +118,7 @@ func (b *Base) Handler() (http.Handler, error) {
 		Redis:   store.RedisPinger{Client: b.Redis},
 		Auth:    b.Auth,
 		Flags:   b.Flags,
+		Profile: b.Profile,
 	})
 }
 

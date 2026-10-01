@@ -1,6 +1,7 @@
 // Package oss 封装阿里云 OSS 私有桶：预签名直传、读取、删除（T08 补充上传相关方法）。
 //
-// 对象键约定：用户的全部文件都放在 u/{userID}/ 前缀下，注销到期时按前缀整体删除（PRD 6.12、16.2）。
+// 对象键约定：用户的全部文件都放在 u/{userID}/ 前缀下，注销到期时按前缀整体删除（PRD 6.12、16.2）；
+// 资料原件放在 u/{userID}/b/{bankID}/ 下，删除专业课时按题库前缀删除。
 package oss
 
 import (
@@ -13,6 +14,9 @@ import (
 
 // UserPrefix 返回某用户全部对象的前缀。
 func UserPrefix(userID uint64) string { return fmt.Sprintf("u/%d/", userID) }
+
+// BankPrefix 返回某个题库资料原件的前缀；删除专业课时按它整体删除。
+func BankPrefix(userID, bankID uint64) string { return fmt.Sprintf("u/%d/b/%d/", userID, bankID) }
 
 // Store 是对象存储。
 type Store interface {

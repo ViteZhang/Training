@@ -742,3 +742,13 @@ func TestTieBreaks(t *testing.T) {
 		t.Errorf("收益相同按题目 ID 升序：%+v", got)
 	}
 }
+
+func TestDayDateColumn(t *testing.T) {
+	day := d(2026, 12, 20)
+	if got := day.Date(); got != time.Date(2026, 12, 20, 0, 0, 0, 0, time.UTC) {
+		t.Errorf("Date = %v", got)
+	}
+	if DayFromDateColumn(time.Date(2026, 12, 20, 0, 0, 0, 0, time.UTC)) != day {
+		t.Error("DayFromDateColumn")
+	}
+}

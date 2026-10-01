@@ -36,11 +36,6 @@ func (h *Handlers) CreatePastedMaterial(c *gin.Context, _ gen.CreatePastedMateri
 // CreateQuestion 尚未实现，返回 501。
 func (h *Handlers) CreateQuestion(c *gin.Context, _ gen.SubjectId) { _ = c.Error(ErrNotImplemented()) }
 
-// CreateSubject 尚未实现，返回 501。
-func (h *Handlers) CreateSubject(c *gin.Context, _ gen.CreateSubjectParams) {
-	_ = c.Error(ErrNotImplemented())
-}
-
 // CreateUploadRequests 尚未实现，返回 501。
 func (h *Handlers) CreateUploadRequests(c *gin.Context, _ gen.CreateUploadRequestsParams) {
 	_ = c.Error(ErrNotImplemented())
@@ -54,9 +49,6 @@ func (h *Handlers) DeleteMaterial(c *gin.Context, _ gen.MaterialId) { _ = c.Erro
 
 // DeleteQuestion 尚未实现，返回 501。
 func (h *Handlers) DeleteQuestion(c *gin.Context, _ gen.QuestionId) { _ = c.Error(ErrNotImplemented()) }
-
-// DeleteSubject 尚未实现，返回 501。
-func (h *Handlers) DeleteSubject(c *gin.Context, _ gen.SubjectId) { _ = c.Error(ErrNotImplemented()) }
 
 // GenerateImportItemAnswer 尚未实现，返回 501。
 func (h *Handlers) GenerateImportItemAnswer(c *gin.Context, _ gen.ItemId, _ gen.GenerateImportItemAnswerParams) {
@@ -93,17 +85,11 @@ func (h *Handlers) GetMaterialPage(c *gin.Context, _ gen.MaterialId, _ int, _ ge
 	_ = c.Error(ErrNotImplemented())
 }
 
-// GetProfile 尚未实现，返回 501。
-func (h *Handlers) GetProfile(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
-
 // GetQuestion 尚未实现，返回 501。
 func (h *Handlers) GetQuestion(c *gin.Context, _ gen.QuestionId) { _ = c.Error(ErrNotImplemented()) }
 
 // GetQuota 尚未实现，返回 501。
 func (h *Handlers) GetQuota(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
-
-// ListExamYears 尚未实现，返回 501。
-func (h *Handlers) ListExamYears(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
 
 // ListImportItems 尚未实现，返回 501。
 func (h *Handlers) ListImportItems(c *gin.Context, _ gen.JobId, _ gen.ListImportItemsParams) {
@@ -122,9 +108,6 @@ func (h *Handlers) ListMaterials(c *gin.Context, _ gen.SubjectId) { _ = c.Error(
 func (h *Handlers) ListQuestions(c *gin.Context, _ gen.SubjectId, _ gen.ListQuestionsParams) {
 	_ = c.Error(ErrNotImplemented())
 }
-
-// ListSubjects 尚未实现，返回 501。
-func (h *Handlers) ListSubjects(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }
 
 // MergeKnowledgePoint 尚未实现，返回 501。
 func (h *Handlers) MergeKnowledgePoint(c *gin.Context, _ gen.KpId) { _ = c.Error(ErrNotImplemented()) }
@@ -165,9 +148,3 @@ func (h *Handlers) UpdateKnowledgePoint(c *gin.Context, _ gen.KpId) { _ = c.Erro
 
 // UpdateQuestion 尚未实现，返回 501。
 func (h *Handlers) UpdateQuestion(c *gin.Context, _ gen.QuestionId) { _ = c.Error(ErrNotImplemented()) }
-
-// UpdateSubject 尚未实现，返回 501。
-func (h *Handlers) UpdateSubject(c *gin.Context, _ gen.SubjectId) { _ = c.Error(ErrNotImplemented()) }
-
-// UpsertProfile 尚未实现，返回 501。
-func (h *Handlers) UpsertProfile(c *gin.Context) { _ = c.Error(ErrNotImplemented()) }

@@ -16,6 +16,7 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gin-gonic/gin"
+	"github.com/oapi-codegen/nullable"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -1329,10 +1330,10 @@ type KnowledgeNode struct {
 
 // KnowledgeNodeInput defines model for KnowledgeNodeInput.
 type KnowledgeNodeInput struct {
-	Level        KnowledgeLevel `json:"level"`
-	Name         string         `json:"name"`
-	OriginalText *string        `json:"original_text,omitempty"`
-	ParentId     *int64         `json:"parent_id,omitempty"`
+	Level        KnowledgeLevel           `json:"level"`
+	Name         string                   `json:"name"`
+	OriginalText *string                  `json:"original_text,omitempty"`
+	ParentId     nullable.Nullable[int64] `json:"parent_id,omitempty"`
 }
 
 // KnowledgePointDetail defines model for KnowledgePointDetail.
@@ -1662,12 +1663,12 @@ type QuestionPage struct {
 
 // QuestionPatch defines model for QuestionPatch.
 type QuestionPatch struct {
-	Analysis    *string         `json:"analysis,omitempty"`
-	Answer      *string         `json:"answer,omitempty"`
-	ExamYear    *int            `json:"exam_year,omitempty"`
-	KpIds       *[]int64        `json:"kp_ids,omitempty"`
-	NeedsReview *bool           `json:"needs_review,omitempty"`
-	Options     *[]ChoiceOption `json:"options,omitempty"`
+	Analysis    *string                `json:"analysis,omitempty"`
+	Answer      *string                `json:"answer,omitempty"`
+	ExamYear    nullable.Nullable[int] `json:"exam_year,omitempty"`
+	KpIds       *[]int64               `json:"kp_ids,omitempty"`
+	NeedsReview *bool                  `json:"needs_review,omitempty"`
+	Options     *[]ChoiceOption        `json:"options,omitempty"`
 
 	// Qtype single_choice 单选、multi_choice 多选、true_false 判断、fill_blank 填空、term 名词解释、short_answer 简答、
 	// discussion 论述、essay 作文、calculation 计算（只能自评）、other 其他
@@ -1718,7 +1719,7 @@ type QuestionType string
 // QuotaItem defines model for QuotaItem.
 type QuotaItem struct {
 	// Limit 为空表示不限
-	Limit *int `json:"limit,omitempty"`
+	Limit nullable.Nullable[int] `json:"limit,omitempty"`
 
 	// Period 重置周期
 	Period    QuotaItemPeriod `json:"period"`
@@ -1885,8 +1886,8 @@ type StudyProfileInput struct {
 	Stage Stage `json:"stage"`
 
 	// StageManual 用户手动改了系统推荐的阶段
-	StageManual       *bool   `json:"stage_manual,omitempty"`
-	TargetSchoolMajor *string `json:"target_school_major,omitempty"`
+	StageManual       *bool                     `json:"stage_manual,omitempty"`
+	TargetSchoolMajor nullable.Nullable[string] `json:"target_school_major,omitempty"`
 }
 
 // StudyProfileInputDailyMinutes defines model for StudyProfileInput.DailyMinutes.
@@ -1910,12 +1911,12 @@ type Subject struct {
 
 // SubjectInput defines model for SubjectInput.
 type SubjectInput struct {
-	Code      *string               `json:"code,omitempty"`
-	FullScore SubjectInputFullScore `json:"full_score"`
-	Name      string                `json:"name"`
+	Code      nullable.Nullable[string] `json:"code,omitempty"`
+	FullScore SubjectInputFullScore     `json:"full_score"`
+	Name      string                    `json:"name"`
 
 	// TargetScore 不设目标传 null
-	TargetScore *int `json:"target_score,omitempty"`
+	TargetScore nullable.Nullable[int] `json:"target_score,omitempty"`
 }
 
 // SubjectInputFullScore defines model for SubjectInput.FullScore.
@@ -1932,13 +1933,13 @@ type SubjectList struct {
 
 // SubjectPatch defines model for SubjectPatch.
 type SubjectPatch struct {
-	Code      *string                `json:"code,omitempty"`
-	FullScore *SubjectPatchFullScore `json:"full_score,omitempty"`
+	Code      nullable.Nullable[string] `json:"code,omitempty"`
+	FullScore *SubjectPatchFullScore    `json:"full_score,omitempty"`
 
 	// IsEssay 用户纠正作文课判断（1.7），之后不再自动改
-	IsEssay     *bool   `json:"is_essay,omitempty"`
-	Name        *string `json:"name,omitempty"`
-	TargetScore *int    `json:"target_score,omitempty"`
+	IsEssay     *bool                  `json:"is_essay,omitempty"`
+	Name        *string                `json:"name,omitempty"`
+	TargetScore nullable.Nullable[int] `json:"target_score,omitempty"`
 }
 
 // SubjectPatchFullScore defines model for SubjectPatch.FullScore.
