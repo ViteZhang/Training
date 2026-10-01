@@ -24,6 +24,7 @@
     "expo-constants": "~57.0.20",
     "expo-crypto": "~57.0.3",
     "expo-dev-client": "~57.0.19",
+    "expo-device": "~57.0.2",
     "expo-font": "~57.0.4",
     "expo-linking": "~57.0.11",
     "expo-router": "~57.0.24",
@@ -56,6 +57,10 @@
     ],
     "transformIgnorePatterns": [
       "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|react-native-svg|react-native-mmkv|react-native-nitro-modules|@training/.*)"
-    ]
+    ],
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/src/$1"
+    },
+    "testTimeout": 20000
   }
 }
