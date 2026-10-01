@@ -1,0 +1,6 @@
+[mysqld]
+# 慢查询日志，排查用
+slow_query_log = 1
+long_query_time = 1
+# 只靠安全组与内网绑定不够，账号也只允许内网来源（runbook 第 3 步建账号时限定）
+skip-name-resolve

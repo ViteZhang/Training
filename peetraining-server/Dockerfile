@@ -17,9 +17,10 @@ RUN go build -trimpath -ldflags "-s -w -X peetraining-server/internal/app.Versio
  && go build -trimpath -ldflags "-s -w -X peetraining-server/internal/app.Version=${VERSION}" -o /out/worker ./cmd/worker
 
 # distroless 自带 CA 证书与时区数据，不含 shell，以非 root 运行。
+# 用 CMD 而不是 ENTRYPOINT：compose 里 command 写完整命令（/app/api、/app/worker、/app/api migrate up）。
 FROM ${RUNTIME_IMAGE}
 WORKDIR /app
 COPY --from=build /out/api /out/worker /app/
 EXPOSE 8080
 USER nonroot:nonroot
-ENTRYPOINT ["/app/api"]
+CMD ["/app/api"]
