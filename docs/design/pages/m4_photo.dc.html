@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>4.5 拍手写稿识别</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 16px; padding: 44px 22px 28px; box-sizing: border-box; overflow: hidden">
+<div style="display: flex; justify-content: space-between; align-items: center; min-height: 44px"><a href="m4_subj.dc.html" aria-label="返回" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-left: -12px; color: #1A1A1A"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a><span style="font-size: 15px; font-weight: 500">确认识别结果</span><span style="width: 44px"></span></div>
+<div style="position: relative; height: 230px; border-radius: 18px; background: #F3F0E8; padding: 18px 20px; box-sizing: border-box; overflow: hidden">
+<p style="margin: 0; font-family: 'Noto Sans SC',sans-serif; font-size: 15px; line-height: 27px; color: #3C3A36; font-style: italic; letter-spacing: 1px">意境是中国古典诗歌的重要范畴，指诗人的情感与景物融合，形成虚实相生的艺术境界，读者能体会到<span style="background: rgba(178,106,0,0.18)">言外之意</span>……</p>
+<span style="position: absolute; right: 14px; bottom: 12px; font-size: 11px; padding: 4px 10px; border-radius: 999px; background: rgba(26,26,26,0.7); color: #FFFFFF">第 1 / 1 张 · 点击放大</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 13px; font-weight: 500">识别文字（可修改）</span><span style="font-size: 12px; color: #B26A00">1 处不确定，请核对</span></div>
+<div style="padding: 14px; border-radius: 18px; border: 1.5px solid #1A1A1A; font-size: 15px; line-height: 1.8">意境是中国古典诗歌的重要范畴，指诗人的情感与景物融合，形成虚实相生的艺术境界，读者能体会到<span style="background: #FDF1DC; border-bottom: 2px solid #B26A00">言外之意</span>。</div>
+</div>
+<button style="align-self: flex-start; display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 14px; border-radius: 20px; border: none; background: #F7F7F5; font-family: inherit; font-size: 13px; color: #1A1A1A"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>再拍一张（续写）</button>
+<div style="flex-grow: 1"></div>
+<div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 10px"><a href="m4_subj.dc.html" style="display: flex; align-items: center; justify-content: center; height: 50px; border-radius: 25px; border: 1px solid #E6E6E6; background: #FFFFFF; color: #1A1A1A; text-decoration: none; font-size: 15px">重拍</a><a href="m4_grading.dc.html" style="display: flex; align-items: center; justify-content: center; height: 50px; border-radius: 25px; background: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 500">确认并提交批改</a></div></main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

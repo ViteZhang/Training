@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>2.3 消息中心</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<div style="display: flex; justify-content: space-between; align-items: center; min-height: 44px; padding: 44px 22px 8px"><a href="m2_home.dc.html" aria-label="返回" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-left: -12px; color: #1A1A1A"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a><span style="font-size: 15px; font-weight: 500">消息</span><button style="width: 72px; min-height: 44px; padding: 0; border: none; background: transparent; font-family: inherit; font-size: 13px; color: #6E6E6E; text-align: right">全部已读</button></div>
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 10px; padding: 8px 22px 24px; overflow-y: auto">
+<span style="font-size: 12px; color: #767676; padding-left: 4px">今天</span>
+<a href="m1_confirm.dc.html" style="display: flex; gap: 12px; padding: 14px; border-radius: 18px; border: 1px solid #EFEFEF; text-decoration: none; color: #1A1A1A">
+<span style="width: 38px; height: 38px; border-radius: 12px; background: #E4F4EB; color: #1F5C3E; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"></path></svg></span>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px"><span style="display: flex; justify-content: space-between; align-items: center"><span style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700">题库整理好了<span style="width: 7px; height: 7px; border-radius: 4px; background: #C23B22"></span></span><span style="font-family: 'DM Sans',sans-serif; font-size: 12px; color: #767676">14:20</span></span><span style="font-size: 13px; line-height: 1.6; color: #6E6E6E">3 份资料识别出 246 题，有 12 处需要核对</span></span>
+</a>
+<a href="m2_home.dc.html" style="display: flex; gap: 12px; padding: 14px; border-radius: 18px; border: 1px solid #EFEFEF; text-decoration: none; color: #1A1A1A">
+<span style="width: 38px; height: 38px; border-radius: 12px; background: #E5F0FA; color: #1D4C77; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0"></path></svg></span>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px"><span style="display: flex; justify-content: space-between; align-items: center"><span style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700">今天有 12 个知识点到期<span style="width: 7px; height: 7px; border-radius: 4px; background: #C23B22"></span></span><span style="font-family: 'DM Sans',sans-serif; font-size: 12px; color: #767676">08:00</span></span><span style="font-size: 13px; line-height: 1.6; color: #6E6E6E">趁还记得复习一遍，大约 10 分钟</span></span>
+</a>
+<span style="font-size: 12px; color: #767676; padding: 8px 0 0 4px">更早</span>
+<div style="display: flex; gap: 12px; padding: 14px; border-radius: 18px; border: 1px solid #EFEFEF">
+<span style="width: 38px; height: 38px; border-radius: 12px; background: #FDEDE4; color: #8A3A16; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"></path></svg></span>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px"><span style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 14px; font-weight: 700">整卷批改完成</span><span style="font-size: 12px; color: #767676">昨天</span></span><span style="font-size: 13px; line-height: 1.6; color: #6E6E6E">《2023 年真题》已批改完，论述题失分最多，去看看怎么改</span></span>
+</div>
+<div style="display: flex; gap: 12px; padding: 14px; border-radius: 18px; border: 1px solid #EFEFEF">
+<span style="width: 38px; height: 38px; border-radius: 12px; background: #FDF1DC; color: #B26A00; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L18 10l-4-4L4 16zM14 6l4 4"></path></svg></span>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px"><span style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 14px; font-weight: 700">还有 12 处等你核对</span><span style="font-size: 12px; color: #767676">9 月 26 日</span></span><span style="font-size: 13px; line-height: 1.6; color: #6E6E6E">主观题的采分点核对后，批改会更准</span></span>
+</div>
+<a href="m0_agreement.dc.html" style="display: flex; gap: 12px; padding: 14px; border-radius: 18px; border: 1px solid #EFEFEF; text-decoration: none; color: #1A1A1A">
+<span style="width: 38px; height: 38px; border-radius: 12px; background: #F7F7F5; color: #1A1A1A; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg></span>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px"><span style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 14px; font-weight: 700">用户协议和隐私政策已更新</span><span style="font-size: 12px; color: #767676">9 月 20 日</span></span><span style="font-size: 13px; line-height: 1.6; color: #6E6E6E">[变更摘要，由后台随协议版本配置]</span></span>
+</a>
+<span style="align-self: center; font-size: 12px; color: #767676; padding-top: 8px">消息保留 30 天</span>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

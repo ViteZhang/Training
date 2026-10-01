@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>4.2 自定义练习</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 18px; padding: 44px 22px 28px; box-sizing: border-box; overflow: hidden">
+<div style="display: flex; justify-content: space-between; align-items: center; min-height: 44px"><a href="m4_practice.dc.html" aria-label="返回" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-left: -12px; color: #1A1A1A"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a><span style="font-size: 15px; font-weight: 500">自定义练习</span><span style="width: 44px"></span></div>
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 15px; font-weight: 700">练习范围</span><a href="m3_bank_kp.dc.html" style="display: flex; align-items: center; font-size: 13px; color: #6E6E6E; text-decoration: none; min-height: 32px">按章节细选<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></a></div><div style="display: flex; flex-wrap: wrap; gap: 8px"><sc-for list="{{branches}}" as="c" hint-placeholder-count="4"><button onClick="{{c.pick}}" style="height: 38px; padding: 0 16px; border-radius: 19px; border: none; background: {{c.bg}}; color: {{c.fg}}; font-family: inherit; font-size: 14px; cursor: pointer">{{c.label}}</button></sc-for></div></div>
+<div style="display: flex; flex-direction: column; gap: 10px"><span style="font-size: 15px; font-weight: 700">题型</span><div style="display: flex; flex-wrap: wrap; gap: 8px"><sc-for list="{{types}}" as="c" hint-placeholder-count="4"><button onClick="{{c.pick}}" style="height: 38px; padding: 0 16px; border-radius: 19px; border: none; background: {{c.bg}}; color: {{c.fg}}; font-family: inherit; font-size: 14px; cursor: pointer">{{c.label}}</button></sc-for></div></div>
+<div style="display: flex; flex-direction: column; gap: 10px"><span style="font-size: 15px; font-weight: 700">题量</span>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; background: #F7F7F5; border-radius: 14px"><sc-for list="{{counts}}" as="c" hint-placeholder-count="3"><button onClick="{{c.pick}}" style="height: 38px; border: none; border-radius: 10px; background: {{c.bg}}; font-family: 'DM Sans',sans-serif; font-size: 14px; font-weight: {{c.weight}}; color: #1A1A1A; cursor: pointer">{{c.label}}</button></sc-for></div></div>
+<div style="display: flex; flex-direction: column; border-top: 1px solid #EFEFEF">
+<div style="display: flex; justify-content: space-between; align-items: center; min-height: 58px; border-bottom: 1px solid #EFEFEF"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px">只练未掌握的知识点</span><span style="font-size: 12px; color: #6E6E6E">跳过已掌握的内容</span></span><span style="width: 50px; height: 30px; border-radius: 15px; background: #1A1A1A; position: relative; flex-shrink: 0; display: inline-block"><span style="position: absolute; top: 3px; left: 23px; width: 24px; height: 24px; border-radius: 12px; background: #FFFFFF"></span></span></div>
+<div style="display: flex; justify-content: space-between; align-items: center; min-height: 58px"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px">题库不够时 AI 出变式题</span><span style="font-size: 12px; color: #6E6E6E">按你资料里的知识点出题，会标「AI 出题」</span></span><span style="width: 50px; height: 30px; border-radius: 15px; background: #1A1A1A; position: relative; flex-shrink: 0; display: inline-block"><span style="position: absolute; top: 3px; left: 23px; width: 24px; height: 24px; border-radius: 12px; background: #FFFFFF"></span></span></div>
+</div>
+<div style="flex-grow: 1"></div>
+<div style="display: flex; flex-direction: column; gap: 10px"><span style="font-family: 'DM Sans',sans-serif; font-size: 13px; color: #6E6E6E; text-align: center">{{summary}}</span><a href="m4_answer.dc.html" style="display: flex; align-items: center; justify-content: center; height: 50px; border-radius: 25px; background: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 500">开始练习</a></div></main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const self = this;
+    const s = this.state || {};
+    const types = s.types || { term: true, short: true, essay: false, choice: false };
+    const br = s.br || { a: true, b: false, c: false, d: true, e: false };
+    const count = s.count || 10;
+    const tDefs = [{ k: 'term', l: '名词解释 64' }, { k: 'short', l: '简答 30' }, { k: 'essay', l: '论述 14' }, { k: 'choice', l: '单选 138' }];
+    const bDefs = [{ k: 'a', l: '文学理论' }, { k: 'b', l: '中国古代文学' }, { k: 'c', l: '中国现当代文学' }, { k: 'd', l: '外国文学' }, { k: 'e', l: '语言学' }];
+    function chip(d, map, key) {
+      const v = !!map[d.k];
+      return {
+        label: d.l,
+        bg: v ? '#1A1A1A' : '#F7F7F5',
+        fg: v ? '#FFFFFF' : '#1A1A1A',
+        pick: function () {
+          const copy = Object.assign({}, map);
+          copy[d.k] = !v;
+          const next = {};
+          next[key] = copy;
+          self.setState(next);
+        }
+      };
+    }
+    return {
+      types: tDefs.map(function (d) { return chip(d, types, 'types'); }),
+      branches: bDefs.map(function (d) { return chip(d, br, 'br'); }),
+      counts: [5, 10, 20].map(function (c) {
+        return {
+          label: c + ' 题',
+          bg: c === count ? '#FFFFFF' : 'transparent',
+          weight: c === count ? '700' : '400',
+          pick: function () { self.setState({ count: c }); }
+        };
+      }),
+      summary: '符合条件 47 题 · 本组 ' + count + ' 题 · 约 ' + Math.round(count * 2.5) + ' 分钟'
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>3.9 知识图谱</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 900px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 12px; padding: 44px 22px 24px; box-sizing: border-box">
+<div style="display: flex; justify-content: space-between; align-items: center; min-height: 44px"><a href="m3_bank_kp.dc.html" aria-label="返回" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-left: -12px; color: #1A1A1A"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a><span style="font-size: 15px; font-weight: 500">知识图谱</span><span style="width: 44px"></span></div>
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
+<button style="display: flex; align-items: center; gap: 4px; height: 34px; padding: 0 12px; border-radius: 17px; border: 1px solid #E6E6E6; background: #FFFFFF; font-family: inherit; font-size: 13px; font-weight: 500; color: #1A1A1A; white-space: nowrap">文学理论<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6E6E6E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+<div style="display: flex; gap: 6px"><sc-for list="{{filters}}" as="f" hint-placeholder-count="3"><button onClick="{{f.pick}}" aria-pressed="{{f.sel}}" style="height: 34px; padding: 0 12px; border-radius: 17px; border: none; background: {{f.bg}}; color: {{f.ink}}; font-family: inherit; font-size: 13px; white-space: nowrap">{{f.label}}</button></sc-for></div>
+</div>
+<div style="border-radius: 22px; background: #F7F7F5; overflow: hidden"><svg viewBox="0 0 390 390" width="346" height="346" style="display: block" role="img" aria-label="文学理论知识图谱"><line x1="180" y1="150" x2="300" y2="90" stroke="#1A1A1A" stroke-width="1.5"></line><line x1="180" y1="150" x2="90" y2="70" stroke="#1A1A1A" stroke-width="1.5"></line><line x1="180" y1="150" x2="70" y2="230" stroke="#1A1A1A" stroke-width="1.5"></line><line x1="180" y1="150" x2="190" y2="270" stroke="#1A1A1A" stroke-width="1.5"></line><line x1="180" y1="150" x2="300" y2="230" stroke="#1A1A1A" stroke-width="1.5"></line><line x1="300" y1="90" x2="330" y2="170" stroke="#E0E0E0" stroke-width="1"></line><line x1="300" y1="230" x2="300" y2="330" stroke="#E0E0E0" stroke-width="1"></line><line x1="90" y1="70" x2="300" y2="330" stroke="#E0E0E0" stroke-width="1"></line><line x1="100" y1="340" x2="300" y2="330" stroke="#E0E0E0" stroke-width="1"></line><line x1="190" y1="270" x2="70" y2="230" stroke="#E0E0E0" stroke-width="1"></line><circle cx="180" cy="150" r="35" fill="none" stroke="#1A1A1A" stroke-width="1.5" stroke-dasharray="3 3"></circle><circle cx="180" cy="150" r="30" fill="#F2956B" stroke="#F2956B" stroke-width="1.5"></circle><text x="180" y="194" text-anchor="middle" font-size="12" font-family="Noto Sans SC, sans-serif" fill="#1A1A1A">意境</text><circle cx="300" cy="90" r="20" fill="#CFCFCF" stroke="#CFCFCF" stroke-width="1.5"></circle><text x="300" y="124" text-anchor="middle" font-size="12" font-family="Noto Sans SC, sans-serif" fill="#1A1A1A">境界说</text><circle cx="90" cy="70" r="18" fill="#FFFFFF" stroke="#BDBDBD" stroke-width="1.5"></circle><text x="90" y="102" text-anchor="middle" font-size="12" font-family="Noto Sans SC, sans-serif" fill="#1A1A1A">意象</text><circle cx="70" cy="230" r="16" fill="#1A1A1A" stroke="#1A1A1A" stroke-width="1.5"></circle><text x="70" y="260" text-anchor="middle" font-size="12" font-family="Noto Sans SC, sans-serif" fill="#1A1A1A">情景交融</text><circle cx="190" cy="270" r="16" fill="#F2956B" stroke="#F2956B" stroke-width="1.5"></circle><text x="190" y="300" text-anchor="middle" font-size="12" font-family="Noto Sans SC, sans-serif" fill="#1A1A1A">虚实相生</text><circle cx="300" cy="230" r="24" fill="#1A1A1A" stroke="#1A1A1A" stroke-width="1.5"></circle><text x="300" y="268" text-anchor="middle" font-size="12" font-family="Noto Sans SC, sans-serif" fill="#1A1A1A">典型</text><circle cx="300" cy="330" r="18" fill="#CFCFCF" stroke="#CFCFCF" stroke-width="1.5"></circle><text x="300" y="362" text-anchor="middle" font-size="12" font-family="Noto Sans SC, sans-serif" fill="#1A1A1A">文学形象</text><circle cx="330" cy="170" r="14" fill="#FFFFFF" stroke="#BDBDBD" stroke-width="1.5"></circle><text x="330" y="198" text-anchor="middle" font-size="12" font-family="Noto Sans SC, sans-serif" fill="#1A1A1A">王国维</text><circle cx="100" cy="340" r="20" fill="#FFFFFF" stroke="#BDBDBD" stroke-width="1.5"></circle><text x="100" y="374" text-anchor="middle" font-size="12" font-family="Noto Sans SC, sans-serif" fill="#1A1A1A">期待视野</text></svg></div>
+<div style="display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: #6E6E6E"><span style="display: flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 5px; background: #1A1A1A; border: 1.5px solid #1A1A1A"></span>已掌握</span><span style="display: flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 5px; background: #F2956B; border: 1.5px solid #F2956B"></span>待巩固</span><span style="display: flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 5px; background: #CFCFCF; border: 1.5px solid #CFCFCF"></span>学习中</span><span style="display: flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 5px; background: #FFFFFF; border: 1.5px solid #BDBDBD"></span>未学习</span><span>· 圆越大真题考得越多</span></div>
+<section style="padding: 14px 16px; border-radius: 20px; border: 1.5px solid #1A1A1A; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 16px; font-weight: 700">意境</span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #FDEDE4; color: #8A3A16">待巩固</span></div>
+<span style="font-size: 12px; line-height: 1.7; color: #6E6E6E">关联：境界说（易混对比）· 情景交融、虚实相生（组成要素）· 典型（同章并列）· 真题考过 <span style="font-family: 'DM Sans',sans-serif">3</span> 次</span>
+<a href="m3_card.dc.html" style="display: flex; align-items: center; justify-content: center; height: 44px; border-radius: 22px; background: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 500">查看知识点卡片</a></section>
+<span style="font-size: 12px; line-height: 1.6; color: #767676; text-align: center">关联由 AI 根据你资料里的章节和同题出现整理，<br>在知识点卡片里可以调整</span>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const f = (this.state && this.state.filter) || 'all';
+    return {
+      filters: [{ id: 'all', label: '全部' }, { id: 'weak', label: '薄弱' }, { id: 'exam', label: '真题考过' }].map((x) => ({
+        label: x.label,
+        sel: x.id === f ? 'true' : 'false',
+        bg: x.id === f ? '#1A1A1A' : '#F7F7F5',
+        ink: x.id === f ? '#FFFFFF' : '#1A1A1A',
+        pick: () => this.setState({ filter: x.id })
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>
