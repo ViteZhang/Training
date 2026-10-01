@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>3.1 题库 · 知识点</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 1120px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 12px; padding: 52px 22px 100px; box-sizing: border-box">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 8px"><h1 style="margin: 0; font-size: 26px; font-weight: 700">题库</h1><span style="display: flex; align-items: center; gap: 6px"><a href="m3_profile.dc.html" style="height: 34px; padding: 0 12px; border-radius: 17px; background: #E4F4EB; color: #1F5C3E; display: flex; align-items: center; font-size: 13px; font-weight: 500; text-decoration: none; white-space: nowrap">考情分析</a><a href="m3_graph.dc.html" style="height: 34px; padding: 0 12px; border-radius: 17px; background: #F7F7F5; color: #1A1A1A; display: flex; align-items: center; font-size: 13px; text-decoration: none; white-space: nowrap">图谱</a><a href="m1_import.dc.html" style="height: 34px; padding: 0 12px; border-radius: 17px; background: #1A1A1A; color: #FFFFFF; display: flex; align-items: center; gap: 3px; font-size: 13px; text-decoration: none; white-space: nowrap"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>导入</a></span></div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; background: #F7F7F5; border-radius: 14px">
+<sc-for list="{{subjects}}" as="s" hint-placeholder-count="2"><button onClick="{{s.pick}}" aria-pressed="{{s.sel}}" style="height: 36px; border: none; border-radius: 10px; background: {{s.bg}}; font-family: inherit; font-size: 14px; font-weight: {{s.weight}}; color: #1A1A1A">{{s.label}}</button></sc-for>
+</div>
+<sc-if value="{{isA}}" hint-placeholder-val="{{ true }}"><div style="display: flex; flex-direction: column; gap: 12px">
+<nav aria-label="题库分栏" style="display: flex; gap: 22px; border-bottom: 1px solid #EFEFEF">
+<a href="m3_bank_kp.dc.html" aria-current="page" style="padding: 10px 0; margin-bottom: -1px; border-bottom: 2px solid #1A1A1A; font-size: 15px; font-weight: 700; text-decoration: none; color: #1A1A1A">知识点 <span style="font-family: 'DM Sans',sans-serif; font-size: 13px; font-weight: 500; color: #6E6E6E">58</span></a>
+<a href="m3_bank_q.dc.html" style="padding: 10px 0; font-size: 15px; text-decoration: none; color: #767676">题目 <span style="font-family: 'DM Sans',sans-serif; font-size: 13px">246</span></a>
+<a href="m3_bank_files.dc.html" style="padding: 10px 0; font-size: 15px; text-decoration: none; color: #767676">资料 <span style="font-family: 'DM Sans',sans-serif; font-size: 13px">3</span></a>
+</nav>
+<a href="m3_search.dc.html" style="display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 16px; border-radius: 16px; background: #F7F7F5; color: #767676; text-decoration: none; font-size: 14px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4 4"></path></svg>搜索知识点、题目或原文</a>
+<div style="display: flex; gap: 8px">
+<sc-for list="{{filters}}" as="f" hint-placeholder-count="4"><button onClick="{{f.pick}}" aria-pressed="{{f.sel}}" style="height: 34px; padding: 0 14px; border-radius: 17px; border: none; background: {{f.bg}}; color: {{f.ink}}; font-family: inherit; font-size: 13px; white-space: nowrap">{{f.label}}</button></sc-for>
+</div>
+<a href="m1_confirm.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 18px; background: #FDF1DC; text-decoration: none; color: #6B4A12"><span style="width: 8px; height: 8px; border-radius: 4px; background: #B26A00; flex-shrink: 0"></span><span style="flex-grow: 1; font-size: 13px"><span style="font-weight: 700">12 处待核对</span> · 采分点核对后批改更准</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></a>
+<section style="border-radius: 22px; border: 1px solid #EFEFEF; overflow: hidden">
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px 8px"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 16px; font-weight: 700">文学理论</span><span style="font-size: 12px; color: #6E6E6E">18 个知识点 · 3 个待巩固</span></span><span style="display: flex; align-items: center; gap: 6px"><span style="font-family: 'DM Sans',sans-serif; font-size: 13px; font-weight: 600">44%</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6E6E6E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"></path></svg></span></div>
+<div style="padding: 4px 18px 0; font-size: 12px; color: #767676">第三章 · 文学作品的构成</div>
+<a href="m3_card.dc.html" style="display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 18px; text-decoration: none; color: #1A1A1A"><span style="flex-grow: 1; font-size: 15px">意境</span><span style="font-size: 12px; color: #6E6E6E">真题 3 次</span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #FDEDE4; color: #8A3A16">待巩固</span></a>
+<a href="m3_card.dc.html" style="display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 18px; text-decoration: none; color: #1A1A1A"><span style="flex-grow: 1; font-size: 15px">典型</span><span style="font-size: 12px; color: #6E6E6E">真题 2 次</span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #1A1A1A; color: #FFFFFF">已掌握</span></a>
+<a href="m3_card.dc.html" style="display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 18px; text-decoration: none; color: #1A1A1A"><span style="flex-grow: 1; font-size: 15px">文学形象</span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #F2F2F0; color: #4A4A4A">学习中</span></a>
+<div style="padding: 4px 18px 0; font-size: 12px; color: #767676">第五章 · 文学接受</div>
+<a href="m3_card.dc.html" style="display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 18px; text-decoration: none; color: #1A1A1A"><span style="flex-grow: 1; display: flex; align-items: center; gap: 6px; font-size: 15px">期待视野<span style="width: 6px; height: 6px; border-radius: 3px; background: #B26A00" aria-label="待核对"></span></span><span style="font-size: 12px; color: #6E6E6E">真题 2 次</span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; border: 1px solid #D6D6D6; color: #6E6E6E">未学习</span></a>
+<button style="display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 56px; padding: 0 18px; background: transparent; border: none; border-top: 1px solid #EFEFEF; font-family: inherit; text-align: left"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 500; color: #1A1A1A">中国古代文学</span><span style="font-size: 12px; color: #6E6E6E">14 个知识点 · 2 个待巩固</span></span><span style="display: flex; align-items: center; gap: 6px"><span style="font-family: 'DM Sans',sans-serif; font-size: 13px; font-weight: 600; color: #1A1A1A">38%</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6E6E6E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></button>
+<button style="display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 56px; padding: 0 18px; background: transparent; border: none; border-top: 1px solid #EFEFEF; font-family: inherit; text-align: left"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 500; color: #1A1A1A">中国现当代文学</span><span style="font-size: 12px; color: #6E6E6E">12 个知识点 · 3 个待巩固</span></span><span style="display: flex; align-items: center; gap: 6px"><span style="font-family: 'DM Sans',sans-serif; font-size: 13px; font-weight: 600; color: #1A1A1A">31%</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6E6E6E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></button>
+<button style="display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 56px; padding: 0 18px; background: transparent; border: none; border-top: 1px solid #EFEFEF; font-family: inherit; text-align: left"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 500; color: #1A1A1A">外国文学</span><span style="font-size: 12px; color: #6E6E6E">8 个知识点 · 短板</span></span><span style="display: flex; align-items: center; gap: 6px"><span style="font-family: 'DM Sans',sans-serif; font-size: 13px; font-weight: 600; color: #8A3A16">12%</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6E6E6E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></button>
+<button style="display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 56px; padding: 0 18px; background: transparent; border: none; border-top: 1px solid #EFEFEF; font-family: inherit; text-align: left"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 500; color: #1A1A1A">语言学</span><span style="font-size: 12px; color: #6E6E6E">6 个知识点</span></span><span style="display: flex; align-items: center; gap: 6px"><span style="font-family: 'DM Sans',sans-serif; font-size: 13px; font-weight: 600; color: #1A1A1A">50%</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6E6E6E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></button>
+</section>
+<span style="font-size: 12px; color: #767676; text-align: center">板块和章节由 AI 按你资料的目录整理，可以在知识点里调整归属</span>
+</div></sc-if>
+<sc-if value="{{isB}}" hint-placeholder-val="{{ false }}"><section style="margin-top: 24px; padding: 28px 18px; border-radius: 22px; border: 1px solid #EFEFEF; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center">
+<span style="width: 56px; height: 56px; border-radius: 18px; background: #F7F7F5; color: #1A1A1A; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"></path></svg></span>
+<span style="font-size: 15px; font-weight: 700"><span style="font-family: 'DM Sans',sans-serif">908</span> 作文还没有资料</span>
+<span style="font-size: 13px; line-height: 1.6; color: #6E6E6E">导入历年作文真题、范文或写作笔记，AI 帮你整理成题库</span>
+<a href="m1_import.dc.html" style="display: flex; align-items: center; justify-content: center; width: 160px; height: 40px; margin-top: 4px; border-radius: 20px; background: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 13px">导入资料</a>
+<a href="m3_essaykb.dc.html" style="display: flex; align-items: center; min-height: 36px; font-size: 13px; color: #6E6E6E; text-decoration: none">导入后会整理成作文知识库 · 看示例 ›</a>
+</section></sc-if>
+</main>
+<nav aria-label="主导航" style="position: absolute; left: 0; bottom: 0; width: 390px; height: 80px; display: flex; border-top: 1px solid #EFEFEF; background: #FFFFFF; padding: 6px 12px 20px; box-sizing: border-box">
+<a href="m2_home.dc.html" style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: #767676; font-size: 11px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg><span>今日</span></a>
+<a href="m3_bank_kp.dc.html" aria-current="page" style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: #1A1A1A; font-size: 11px; font-weight: 700"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5zM5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3M9 7h6"></path></svg><span>题库</span></a>
+<a href="m4_practice.dc.html" style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: #767676; font-size: 11px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"></path></svg><span>训练</span></a>
+<a href="m6_me.dc.html" style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: #767676; font-size: 11px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg><span>我的</span></a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1120}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const st = this.state || {};
+    const s = st.subject || 'a';
+    const f = st.filter || 'all';
+    return {
+      isA: s === 'a',
+      isB: s === 'b',
+      subjects: [{ id: 'a', label: '654 语言文学基础' }, { id: 'b', label: '908 作文' }].map((x) => ({
+        label: x.label,
+        sel: x.id === s ? 'true' : 'false',
+        bg: x.id === s ? '#FFFFFF' : 'transparent',
+        weight: x.id === s ? '700' : '400',
+        pick: () => this.setState({ subject: x.id })
+      })),
+      filters: [{ id: 'all', label: '全部' }, { id: 'weak', label: '未掌握' }, { id: 'exam', label: '真题考过' }, { id: 'check', label: '待核对' }].map((x) => ({
+        label: x.label,
+        sel: x.id === f ? 'true' : 'false',
+        bg: x.id === f ? '#1A1A1A' : '#F7F7F5',
+        ink: x.id === f ? '#FFFFFF' : '#1A1A1A',
+        pick: () => this.setState({ filter: x.id })
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

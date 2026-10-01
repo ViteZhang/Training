@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>0.6b 强制更新</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<div aria-hidden="true" style="display: flex; flex-direction: column; gap: 14px; padding: 56px 22px"><div style="height: 44px; border-radius: 18px; background: #F7F7F5"></div><div style="height: 28px; border-radius: 18px; background: #F7F7F5"></div><div style="height: 160px; border-radius: 18px; background: #F7F7F5"></div><div style="height: 90px; border-radius: 18px; background: #F7F7F5"></div><div style="height: 220px; border-radius: 18px; background: #F7F7F5"></div></div>
+<div style="position: absolute; left: 0; top: 0; width: 390px; height: 844px; background: rgba(20,20,20,0.45); display: flex; align-items: center; justify-content: center">
+<div role="dialog" aria-label="需要更新" style="width: 318px; padding: 26px 22px 20px; border-radius: 24px; background: #FFFFFF; display: flex; flex-direction: column; gap: 12px; box-sizing: border-box">
+<span style="font-size: 18px; font-weight: 700">请更新到最新版本</span>
+<span style="font-size: 14px; line-height: 1.65; color: #4A4A4A">当前版本 <span style="font-family: 'DM Sans',sans-serif">v0.1.0</span> 已停止服务，更新后才能继续使用。题库和学习记录保存在账号里，更新后不会丢失。</span>
+<ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.6; color: #4A4A4A">
+<li>[更新说明，由后台随版本配置]</li>
+</ul>
+<button style="height: 46px; border-radius: 23px; border: none; background: #1A1A1A; font-family: inherit; font-size: 15px; font-weight: 500; color: #FFFFFF; margin-top: 6px">立即更新</button>
+<span style="align-self: center; font-size: 12px; color: #767676">低于后台配置的最低版本时弹出，不可关闭</span>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

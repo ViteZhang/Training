@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>1.3 选择导入方式</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 20px; padding: 44px 22px 0; box-sizing: border-box; overflow-y: auto">
+<div style="display: flex; align-items: center; gap: 12px; min-height: 44px">
+<a href="m1_setup.dc.html" aria-label="返回" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-left: -12px; color: #1A1A1A; flex-shrink: 0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+<div style="flex-grow: 1; display: flex; gap: 6px"><span style="flex-grow: 1; height: 4px; border-radius: 2px; background: #1A1A1A"></span><span style="flex-grow: 1; height: 4px; border-radius: 2px; background: #1A1A1A"></span><span style="flex-grow: 1; height: 4px; border-radius: 2px; background: #1A1A1A"></span><span style="flex-grow: 1; height: 4px; border-radius: 2px; background: #1A1A1A"></span><span style="flex-grow: 1; height: 4px; border-radius: 2px; background: #EFEFEF"></span></div>
+<span style="font-family: 'DM Sans',sans-serif; font-size: 13px; color: #6E6E6E">4 / 5</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px"><h1 style="margin: 0; font-size: 26px; line-height: 1.35; font-weight: 700">导入你的第一份资料</h1><p style="margin: 0; font-size: 14px; line-height: 1.65; color: #6E6E6E">AI 会把它整理成能刷、能批改的题库，仅你本人可见。</p></div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 13px; font-weight: 500">你手里的是</span>
+<sc-for list="{{kinds}}" as="k" hint-placeholder-count="2"><button onClick="{{k.pick}}" aria-pressed="{{k.sel}}" style="display: flex; align-items: flex-start; gap: 14px; width: 100%; padding: 16px; border-radius: 18px; border: {{k.border}}; background: #FFFFFF; font-family: inherit; text-align: left; color: #1A1A1A">
+<span style="width: 42px; height: 42px; border-radius: 12px; background: {{k.iconBg}}; color: {{k.iconInk}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{k.icon}}"></path></svg></span>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 16px; font-weight: 700">{{k.name}}</span><span style="font-size: 13px; line-height: 1.6; color: #6E6E6E">{{k.eg}}</span><span style="font-size: 13px; line-height: 1.6; color: #1A1A1A">{{k.what}}</span></span>
+<span style="width: 20px; height: 20px; border-radius: 10px; border: 1.5px solid {{k.ring}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px"><span style="width: 10px; height: 10px; border-radius: 5px; background: {{k.dot}}"></span></span>
+</button></sc-for>
+<span style="font-size: 12px; color: #767676">两种都有？先导入一种，建好后还能继续追加</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 13px; font-weight: 500">放进哪门专业课</span>
+<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<sc-for list="{{subjects}}" as="s" hint-placeholder-count="2"><button onClick="{{s.pick}}" aria-pressed="{{s.sel}}" style="height: 36px; padding: 0 14px; border-radius: 18px; border: none; background: {{s.bg}}; color: {{s.ink}}; font-family: inherit; font-size: 13px"><span style="font-family: 'DM Sans',sans-serif">{{s.code}}</span> {{s.name}}</button></sc-for>
+</div>
+</div>
+</main>
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 22px 26px; flex-shrink: 0">
+<a href="m1_upload.dc.html" style="display: flex; align-items: center; justify-content: center; height: 50px; border-radius: 25px; background: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 500">下一步：选择文件</a>
+<button style="height: 44px; border: none; background: transparent; font-family: inherit; font-size: 14px; color: #6E6E6E">先跳过，进入 App</button>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const s = this.state || {};
+    const kind = s.kind || 'questions';
+    const subj = s.subj || '654';
+    const kinds = [
+      { id: 'questions', name: '题目', eg: '真题汇编、习题册、题库文件', what: '识别题目和答案，导入就能刷', icon: 'M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6', iconBg: '#E4F4EB', iconInk: '#1F5C3E' },
+      { id: 'material', name: '资料', eg: '讲义、笔记、参考书章节', what: 'AI 拆成知识点和采分点，再按知识点出题', icon: 'M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5zM5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3', iconBg: '#E5F0FA', iconInk: '#1D4C77' }
+    ];
+    return {
+      kinds: kinds.map((k) => {
+        const on = k.id === kind;
+        return Object.assign({}, k, {
+          sel: on ? 'true' : 'false',
+          border: on ? '1.5px solid #1A1A1A' : '1px solid #E6E6E6',
+          ring: on ? '#1A1A1A' : '#BDBDBD',
+          dot: on ? '#1A1A1A' : 'transparent',
+          pick: () => this.setState({ kind: k.id })
+        });
+      }),
+      subjects: [{ code: '654', name: '语言文学基础' }, { code: '908', name: '作文' }].map((x) => ({
+        code: x.code, name: x.name,
+        sel: x.code === subj ? 'true' : 'false',
+        bg: x.code === subj ? '#1A1A1A' : '#F7F7F5',
+        ink: x.code === subj ? '#FFFFFF' : '#1A1A1A',
+        pick: () => this.setState({ subj: x.code })
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

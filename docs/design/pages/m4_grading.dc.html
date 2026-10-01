@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>4.6 AI 批改中</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+
+<a href="m4_result.dc.html" aria-label="查看批改结果" style="flex-grow: 1; display: flex; flex-direction: column; justify-content: center; gap: 26px; padding: 0 40px; text-decoration: none; color: #1A1A1A">
+<div style="display: flex; gap: 8px"><span style="width: 10px; height: 10px; border-radius: 5px; background: #1A1A1A"></span><span style="width: 10px; height: 10px; border-radius: 5px; background: #8A8A8A"></span><span style="width: 10px; height: 10px; border-radius: 5px; background: #CFCFCF"></span></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><span style="font-size: 24px; font-weight: 700">AI 正在批改</span><span style="font-size: 14px; color: #6E6E6E">名词解释：意境 · 大约需要 5 秒</span></div>
+<div style="display: flex; flex-direction: column; gap: 16px"><div style="display: flex; align-items: center; gap: 12px; font-size: 15px; color: #1A1A1A"><span style="width: 22px; height: 22px; border-radius: 11px; background: #1A1A1A; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>提取你的答案要点</div><div style="display: flex; align-items: center; gap: 12px; font-size: 15px; color: #1A1A1A"><span style="width: 22px; height: 22px; border-radius: 11px; background: #1A1A1A; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>比对你资料里的 3 个采分点</div><div style="display: flex; align-items: center; gap: 12px; font-size: 15px; color: #6E6E6E"><span style="width: 22px; height: 22px; border-radius: 11px; border: 1.5px dashed #BDBDBD"></span>生成修改建议</div></div>
+</a>
+<div style="padding: 0 22px 34px"><div style="padding: 14px 16px; border-radius: 18px; background: #F7F7F5; font-size: 13px; line-height: 1.65; color: #6E6E6E">采分点来自：文学理论名词解释.docx 第 3 页。<br>采分点不对的话，可以在知识点里改，之后按新的批改。</div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>1.2 备考安排</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 20px; padding: 44px 22px 0; box-sizing: border-box; overflow-y: auto">
+<div style="display: flex; align-items: center; gap: 12px; min-height: 44px">
+<a href="m1_target.dc.html" aria-label="返回" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-left: -12px; color: #1A1A1A; flex-shrink: 0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+<div style="flex-grow: 1; display: flex; gap: 6px"><span style="flex-grow: 1; height: 4px; border-radius: 2px; background: #1A1A1A"></span><span style="flex-grow: 1; height: 4px; border-radius: 2px; background: #1A1A1A"></span><span style="flex-grow: 1; height: 4px; border-radius: 2px; background: #1A1A1A"></span><span style="flex-grow: 1; height: 4px; border-radius: 2px; background: #EFEFEF"></span><span style="flex-grow: 1; height: 4px; border-radius: 2px; background: #EFEFEF"></span></div>
+<span style="font-family: 'DM Sans',sans-serif; font-size: 13px; color: #6E6E6E">3 / 5</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px"><h1 style="margin: 0; font-size: 26px; line-height: 1.35; font-weight: 700">备考安排</h1><p style="margin: 0; font-size: 14px; line-height: 1.65; color: #6E6E6E">按离初试的天数推荐了阶段，它决定每天练什么。之后随时能改。</p></div>
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-radius: 18px; background: #F7F7F5">
+<span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px; color: #6E6E6E">距 2027 研考初试</span><span style="font-size: 12px; color: #767676">初试日期以教育部公告为准</span></span>
+<span style="display: flex; align-items: baseline; gap: 4px"><span style="font-family: 'DM Sans',sans-serif; font-size: 34px; font-weight: 600; letter-spacing: -1px">83</span><span style="font-size: 13px; color: #6E6E6E">天</span></span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 13px; font-weight: 500">现在处于哪个阶段</span>
+<sc-for list="{{stages}}" as="st" hint-placeholder-count="4"><button onClick="{{st.pick}}" aria-pressed="{{st.sel}}" style="display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; border-radius: 16px; border: {{st.border}}; background: #FFFFFF; font-family: inherit; text-align: left; color: #1A1A1A">
+<span style="width: 20px; height: 20px; border-radius: 10px; border: 1.5px solid {{st.ring}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><span style="width: 10px; height: 10px; border-radius: 5px; background: {{st.dot}}"></span></span>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px"><span style="display: flex; align-items: center; gap: 8px"><span style="font-size: 15px; font-weight: 700">{{st.name}}</span><sc-if value="{{st.rec}}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 999px; border: 1px solid #1A1A1A">推荐</span></sc-if></span><span style="font-size: 12px; color: #6E6E6E">{{st.desc}}</span></span>
+<span style="font-size: 12px; color: #767676; flex-shrink: 0">{{st.range}}</span>
+</button></sc-for>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px">
+<span style="font-size: 13px; font-weight: 500">每天能练多久</span>
+<div style="display: flex; gap: 8px">
+<sc-for list="{{durations}}" as="d" hint-placeholder-count="4"><button onClick="{{d.pick}}" aria-pressed="{{d.sel}}" style="flex-grow: 1; height: 40px; border-radius: 20px; border: none; background: {{d.bg}}; color: {{d.ink}}; font-family: inherit; font-size: 13px"><span style="font-family: 'DM Sans',sans-serif">{{d.n}}</span> 分钟</button></sc-for>
+</div>
+</div>
+</main>
+<div style="padding: 12px 22px 34px; flex-shrink: 0">
+<a href="m1_import.dc.html" style="display: flex; align-items: center; justify-content: center; height: 50px; border-radius: 25px; background: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 500">下一步</a>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const s = this.state || {};
+    const stage = s.stage || 'strong';
+    const dur = s.dur || 45;
+    const stages = [
+      { id: 'base', name: '基础期', range: '150 天以上', desc: '系统学新知识点，边学边练' },
+      { id: 'strong', name: '强化期', range: '150–60 天', desc: '题型专项和查漏为主', rec: true },
+      { id: 'sprint', name: '冲刺期', range: '60–14 天', desc: '整卷练习，查漏补缺' },
+      { id: 'final', name: '考前期', range: '14 天以内', desc: '背诵和模拟考试，保持手感' }
+    ];
+    return {
+      stages: stages.map((x) => {
+        const on = x.id === stage;
+        return {
+          name: x.name, range: x.range, desc: x.desc, rec: !!x.rec,
+          sel: on ? 'true' : 'false',
+          border: on ? '1.5px solid #1A1A1A' : '1px solid #E6E6E6',
+          ring: on ? '#1A1A1A' : '#BDBDBD',
+          dot: on ? '#1A1A1A' : 'transparent',
+          pick: () => this.setState({ stage: x.id })
+        };
+      }),
+      durations: [30, 45, 60, 90].map((n) => ({
+        n,
+        sel: n === dur ? 'true' : 'false',
+        bg: n === dur ? '#1A1A1A' : '#F7F7F5',
+        ink: n === dur ? '#FFFFFF' : '#1A1A1A',
+        pick: () => this.setState({ dur: n })
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

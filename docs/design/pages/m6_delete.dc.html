@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>6.12 注销账号</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 16px; padding: 44px 22px 28px; box-sizing: border-box; overflow: hidden">
+<div style="display: flex; justify-content: space-between; align-items: center; min-height: 44px"><a href="m6_account.dc.html" aria-label="返回" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-left: -12px; color: #1A1A1A"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a><span style="font-size: 15px; font-weight: 500">注销账号</span><span style="width: 44px"></span></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><h1 style="margin: 0; font-size: 26px; line-height: 1.35; font-weight: 700">注销前请确认</h1></div>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 20px; background: #FCE9E5">
+<div style="display: flex; gap: 10px; font-size: 14px; line-height: 1.6"><span style="width: 6px; height: 6px; border-radius: 3px; background: #C23B22; margin-top: 9px; flex-shrink: 0"></span><span>学习记录、掌握度、错题本、作文本将被永久删除</span></div>
+<div style="display: flex; gap: 10px; font-size: 14px; line-height: 1.6"><span style="width: 6px; height: 6px; border-radius: 3px; background: #C23B22; margin-top: 9px; flex-shrink: 0"></span><span>你导入的所有资料、识别出的题目和知识点将被删除，无法找回</span></div>
+<div style="display: flex; gap: 10px; font-size: 14px; line-height: 1.6"><span style="width: 6px; height: 6px; border-radius: 3px; background: #C23B22; margin-top: 9px; flex-shrink: 0"></span><span>未到期的会员权益将一并失效</span></div>
+
+</div>
+<span style="font-size: 13px; line-height: 1.6; color: #6E6E6E">提交申请后有 7 天冷静期，期间重新登录即可撤销注销。</span>
+<div style="flex-grow: 1"></div>
+<button onClick="{{toggle}}" style="display: flex; align-items: center; gap: 8px; padding: 6px 0; border: none; background: transparent; font-family: inherit; font-size: 13px; color: #1A1A1A; text-align: left; cursor: pointer"><span style="width: 18px; height: 18px; border-radius: 9px; border: 1.5px solid {{boxBorder}}; background: {{boxBg}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>我已了解以上内容，确认注销</button>
+<sc-if value="{{ok}}" hint-placeholder-val="{{ false }}"><a href="m0_login.dc.html" style="display: flex; align-items: center; justify-content: center; height: 50px; border-radius: 25px; background: #C23B22; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 500">申请注销</a></sc-if>
+<sc-if value="{{notOk}}" hint-placeholder-val="{{ true }}"><button disabled style="height: 50px; border-radius: 25px; border: none; background: #EFEFEF; color: #9E9E9E; font-family: inherit; font-size: 15px">申请注销</button></sc-if></main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const self = this;
+    const ok = !!(this.state && this.state.ok);
+    return {
+      ok: ok,
+      notOk: !ok,
+      boxBg: ok ? '#1A1A1A' : 'transparent',
+      boxBorder: ok ? '#1A1A1A' : '#BDBDBD',
+      toggle: function () { self.setState({ ok: !ok }); }
+    };
+  }
+}
+</script>
+</body>
+</html>
