@@ -31,3 +31,17 @@ peetraining-web/               前端仓库（Expo App + React 管理后台）
 
 1. 项目文件「考研Training-VI规范-v1.0.html」→ 放到 peetraining-web/docs/design/vi/
 2. Logo 的 SVG 源文件 → 放到 peetraining-web/docs/design/vi/logo.svg（还没有的话先跳过，T02 会先用 VI 里的 SVG 代码）
+
+## 仓库与同步（10 月 1 日已定）
+
+- 正式代码库是云效上的 peetraining-server、peetraining-web 两个仓库，流水线用云效（D9、D10，见两边的 docs/open-questions.md）
+- 本 GitHub 仓库是启动包和开发暂存：开发期先在一个分支上做（D14），两个目录各自同步到云效，例如：
+
+```
+git subtree split --prefix=peetraining-server -b sync-server
+git push <云效 peetraining-server 地址> sync-server:main
+git subtree split --prefix=peetraining-web -b sync-web
+git push <云效 peetraining-web 地址> sync-web:main
+```
+
+- 两个目录里的 prd.md、dev-spec.md、tech-plan.md、open-questions.md、adr/README.md、tasks/README.md 以及 S + W 任务卡是同一份内容，拆成两个仓库后各自需要；修改时两边一起改
