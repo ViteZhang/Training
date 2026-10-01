@@ -27,6 +27,7 @@ func (h *Handlers) ListExamYears(c *gin.Context) {
 			ExamYear: int(e.ExamYear), Label: e.Label,
 			FirstExamStart: openapi_types.Date{Time: e.FirstExamStart}, FirstExamEnd: openapi_types.Date{Time: e.FirstExamEnd},
 			SubjectExamDate: openapi_types.Date{Time: e.SubjectExamDate},
+			DaysToExam:      e.DaysToExam, SuggestedStage: gen.Stage(e.Suggested),
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{"items": items})

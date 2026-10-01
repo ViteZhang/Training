@@ -57,7 +57,7 @@ describe('手机号', () => {
 describe('分流', () => {
   it('未登录、引导中、已完成', () => {
     expect(routeFor({ loggedIn: false })).toBe('/(auth)/login');
-    expect(routeFor({ loggedIn: true, onboardingStep: '1.3' })).toBe('/(onboarding)/subject');
+    expect(routeFor({ loggedIn: true, onboardingStep: '1.3' })).toBe('/(onboarding)/setup');
     expect(routeFor({ loggedIn: true, onboardingStep: 'done' })).toBe('/(tabs)/today');
   });
 });
