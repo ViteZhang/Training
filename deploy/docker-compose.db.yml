@@ -1,0 +1,41 @@
+# 数据库机：MySQL 8 与 Redis。只监听内网 IP（DB_PRIVATE_IP），安全组只放行应用机。
+# 在 /opt/training-db 下运行：docker compose -f docker-compose.db.yml --env-file .env up -d
+# 数据放独立数据盘 /data（runbook 第 3 步挂载），开云盘加密与自动快照。
+name: training-db
+
+services:
+  mysql:
+    image: ${MYSQL_IMAGE:-mysql:8.4}
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?需要设置}
+      MYSQL_DATABASE: training
+      MYSQL_USER: training
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?需要设置}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+00:00
+      # binlog 用于按时间点恢复：每日全量备份 + 持续上传 binlog（scripts/backup-binlog.sh）
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --binlog-expire-logs-seconds=604800
+      - --server-id=1
+      - --max-connections=300
+      - --innodb-buffer-pool-size=${INNODB_BUFFER_POOL:-1G}
+    ports: ["${DB_PRIVATE_IP:?需要设置}:3306:3306"]
+    volumes:
+      - /data/mysql:/var/lib/mysql
+      - ./mysql/conf.d:/etc/mysql/conf.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      retries: 10
+
+  redis:
+    image: ${REDIS_IMAGE:-redis:7}
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--requirepass", "${REDIS_PASSWORD:?需要设置}", "--maxmemory-policy", "noeviction"]
+    ports: ["${DB_PRIVATE_IP}:6379:6379"]
+    volumes:
+      - /data/redis:/data
