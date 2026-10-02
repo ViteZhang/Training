@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"math"
 	"strconv"
 	"time"
 
@@ -223,3 +224,41 @@ func applyWrongBook(ctx context.Context, q *dbq.Queries, p rules.Params, userID,
 }
 
 func timeMonth(m int) time.Month { return time.Month(m) }
+
+// Correct 按重批结果回算掌握分（PRD 11.14：以重批结果为准）：撤回原批改的主观题事件、改记新的得分率，
+// 即 M 加上 25 ×（新得分率 − 旧得分率），非主知识点减半；新得分率达到答对线时补记答对日期。复习排期不变。
+func Correct(ctx context.Context, q *dbq.Queries, p rules.Params, userID, questionID uint64, oldRate, newRate float64, day rules.Day) ([]KPChange, error) {
+	kps, err := q.ListQuestionKPs(ctx, dbq.ListQuestionKPsParams{QuestionID: questionID, OwnerUserID: sql.NullInt64{Int64: int64(userID), Valid: true}})
+	if err != nil {
+		return nil, err
+	}
+	var out []KPChange
+	for _, k := range kps {
+		row, err := q.GetKPMasteryForUpdate(ctx, dbq.GetKPMasteryForUpdateParams{OwnerUserID: userID, KpID: k.ID})
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		m, _ := strconv.ParseFloat(row.M, 64)
+		delta := p.Mastery.SubjectiveSlope * (newRate - oldRate)
+		if !k.IsPrimary {
+			delta *= p.Mastery.SecondaryKPFactor
+		}
+		m = math.Max(0, math.Min(100, m+delta))
+		days := decodeDays(row.CorrectDates)
+		th := p.MasteryState.SubjectiveCorrectRate
+		if newRate >= th && oldRate < th {
+			days = append(days, day)
+		}
+		days = rules.TrimCorrectDays(days, day, p.MasteryState.MasteredWindowDays)
+		to := rules.StateOf(rules.MasteryFacts{M: m, Answered: true, Viewed: row.Viewed, CorrectDays: days}, day, p.MasteryState)
+		if err := q.UpsertKPMasteryAnswer(ctx, dbq.UpsertKPMasteryAnswerParams{OwnerUserID: userID, KpID: k.ID, M: fmtM(m), State: dbq.KpMasteryState(to),
+			CorrectDates: encodeDays(days), NextReviewOn: row.NextReviewOn, IntervalStep: row.IntervalStep, DecayAppliedOn: row.DecayAppliedOn}); err != nil {
+			return nil, err
+		}
+		out = append(out, KPChange{KPID: k.ID, Name: k.Name, From: rules.MasteryState(row.State), To: to, M: m})
+	}
+	return out, nil
+}

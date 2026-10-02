@@ -22,9 +22,13 @@ type Querier interface {
 	// 每次报错计数；AI 出的题累计 3 次自动下线（PRD 4.3）。SET 从左到右执行，判断时 report_count 已经加过 1。
 	BumpQuestionReport(ctx context.Context, arg BumpQuestionReportParams) error
 	CancelUserDeletion(ctx context.Context, id uint64) (int64, error)
+	// 待批改提交后写入结果。
+	CompleteGrading(ctx context.Context, arg CompleteGradingParams) error
 	CopyKPSources(ctx context.Context, arg CopyKPSourcesParams) error
+	CorrectWrongBookRate(ctx context.Context, arg CorrectWrongBookRateParams) error
 	CountActiveImportJobs(ctx context.Context, ownerUserID uint64) (int64, error)
 	CountAttempts(ctx context.Context, arg CountAttemptsParams) (int64, error)
+	CountDisputes(ctx context.Context, arg CountDisputesParams) (int64, error)
 	CountImportItems(ctx context.Context, arg CountImportItemsParams) (CountImportItemsRow, error)
 	CountKPsFromMaterial(ctx context.Context, materialID uint64) (int64, error)
 	CountMasteredSince(ctx context.Context, arg CountMasteredSinceParams) (int64, error)
@@ -69,6 +73,10 @@ type Querier interface {
 	DeleteUser(ctx context.Context, id uint64) error
 	// 用它做过的整卷成绩保留：试卷本身删除，paper_sessions.paper_id 置空（外键 SET NULL）。
 	DetachPapersFromMaterial(ctx context.Context, arg DetachPapersFromMaterialParams) error
+	// 已复核过的批改（含被复核重批出来的新批改），每次批改只能复核一次。
+	DisputedGradings(ctx context.Context, arg DisputedGradingsParams) ([]DisputedGradingsRow, error)
+	// 重批后拿满分：这次批改收录的「没拿满分」错题撤回。
+	DropPartialWrongBook(ctx context.Context, arg DropPartialWrongBookParams) error
 	// 额度计数与流水（T08，PRD 13.1）。扣减时先锁计数行，防止并发超额；流水的幂等键防止重复扣。
 	EnsureQuotaCounter(ctx context.Context, arg EnsureQuotaCounterParams) error
 	EssayMaterialExists(ctx context.Context, arg EssayMaterialExistsParams) (bool, error)
@@ -88,6 +96,9 @@ type Querier interface {
 	GetCurrentMembership(ctx context.Context, arg GetCurrentMembershipParams) (Membership, error)
 	GetDailyPlan(ctx context.Context, arg GetDailyPlanParams) (DailyPlan, error)
 	GetExamDate(ctx context.Context, examYear uint16) (ExamDate, error)
+	GetGrading(ctx context.Context, arg GetGradingParams) (GetGradingRow, error)
+	// 主观题批改、待批改、异议（T18）。每条查询都带归属条件。
+	GetGradingByKey(ctx context.Context, arg GetGradingByKeyParams) (Grading, error)
 	GetImportItem(ctx context.Context, arg GetImportItemParams) (GetImportItemRow, error)
 	GetImportJob(ctx context.Context, arg GetImportJobParams) (GetImportJobRow, error)
 	GetImportJobMaterial(ctx context.Context, arg GetImportJobMaterialParams) (ImportJobMaterial, error)
@@ -124,8 +135,11 @@ type Querier interface {
 	// AI 调用账本与灰度（T10）。不含用户内容，user_hash 是用户 ID 的哈希。
 	InsertAICall(ctx context.Context, arg InsertAICallParams) error
 	InsertAttempt(ctx context.Context, arg InsertAttemptParams) (int64, error)
+	InsertContentAccessGrant(ctx context.Context, arg InsertContentAccessGrantParams) error
+	InsertDispute(ctx context.Context, arg InsertDisputeParams) (int64, error)
 	InsertEssayMaterial(ctx context.Context, arg InsertEssayMaterialParams) (int64, error)
 	InsertEssayRubric(ctx context.Context, arg InsertEssayRubricParams) (int64, error)
+	InsertGrading(ctx context.Context, arg InsertGradingParams) (int64, error)
 	// 合并掌握度：目标没有记录时沿用来源的；都有时保留作答过的、掌握分取较高者。
 	InsertKPMasteryCopy(ctx context.Context, arg InsertKPMasteryCopyParams) error
 	// kp_a_id < kp_b_id，同一对只存一条。
@@ -144,6 +158,7 @@ type Querier interface {
 	InsertRubricPoint(ctx context.Context, arg InsertRubricPointParams) error
 	InsertStudyProfile(ctx context.Context, arg InsertStudyProfileParams) error
 	InsertWritingMethod(ctx context.Context, arg InsertWritingMethodParams) (int64, error)
+	LatestDoneGrading(ctx context.Context, arg LatestDoneGradingParams) (Grading, error)
 	LatestInProgressSession(ctx context.Context, arg LatestInProgressSessionParams) (PracticeSession, error)
 	ListAcceptedAgreementIDs(ctx context.Context, userID uint64) ([]uint64, error)
 	ListActiveImportJobs(ctx context.Context, ownerUserID uint64) ([]ListActiveImportJobsRow, error)
@@ -195,6 +210,7 @@ type Querier interface {
 	ListQuestionAttempts(ctx context.Context, arg ListQuestionAttemptsParams) ([]ListQuestionAttemptsRow, error)
 	ListQuestionKPs(ctx context.Context, arg ListQuestionKPsParams) ([]ListQuestionKPsRow, error)
 	ListQuestionRubric(ctx context.Context, arg ListQuestionRubricParams) ([]RubricPoint, error)
+	ListQueuedGradings(ctx context.Context, ownerUserID uint64) ([]ListQueuedGradingsRow, error)
 	// 「以为会了」（PRD 11.2）：自评掌握的知识点近期作答情况。
 	ListRecentKPAttempts(ctx context.Context, arg ListRecentKPAttemptsParams) ([]ListRecentKPAttemptsRow, error)
 	ListRecitedSince(ctx context.Context, arg ListRecitedSinceParams) ([]uint64, error)
@@ -236,6 +252,8 @@ type Querier interface {
 	SearchKPs(ctx context.Context, arg SearchKPsParams) ([]SearchKPsRow, error)
 	SearchMaterialPages(ctx context.Context, arg SearchMaterialPagesParams) ([]SearchMaterialPagesRow, error)
 	SearchQuestions(ctx context.Context, arg SearchQuestionsParams) ([]SearchQuestionsRow, error)
+	SetAttemptScore(ctx context.Context, arg SetAttemptScoreParams) error
+	SetAttemptTimed(ctx context.Context, arg SetAttemptTimedParams) error
 	SetBankExamStyle(ctx context.Context, arg SetBankExamStyleParams) error
 	SetDailyPlanCompleted(ctx context.Context, arg SetDailyPlanCompletedParams) error
 	SetDailyPlanSession(ctx context.Context, arg SetDailyPlanSessionParams) error
