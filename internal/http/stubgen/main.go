@@ -82,11 +82,16 @@ func run(genFile, pkgDir, out string) error {
 			needGen = true
 		}
 	}
-	b.WriteString("import (\n\t\"github.com/gin-gonic/gin\"\n")
-	if needGen {
-		b.WriteString("\n\t\"peetraining-server/internal/gen\"\n")
+	if len(stubs) == 0 {
+		// 契约里的接口都实现了：文件保留为空，新增接口时再生成占位。
+		b.WriteString("// 契约里的接口都已实现。\n")
+	} else {
+		b.WriteString("import (\n\t\"github.com/gin-gonic/gin\"\n")
+		if needGen {
+			b.WriteString("\n\t\"peetraining-server/internal/gen\"\n")
+		}
+		b.WriteString(")\n\n")
 	}
-	b.WriteString(")\n\n")
 	for _, m := range stubs {
 		params := strings.Replace(m.params, "_ *gin.Context", "c *gin.Context", 1)
 		fmt.Fprintf(&b, "// %s 尚未实现，返回 501。\nfunc (h *Handlers) %s(%s) { _ = c.Error(ErrNotImplemented()) }\n\n", m.name, m.name, params)
