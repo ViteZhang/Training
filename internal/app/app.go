@@ -31,6 +31,7 @@ import (
 	"peetraining-server/internal/logx"
 	"peetraining-server/internal/material"
 	"peetraining-server/internal/params"
+	"peetraining-server/internal/plan"
 	"peetraining-server/internal/profile"
 	"peetraining-server/internal/quota"
 	"peetraining-server/internal/store"
@@ -65,6 +66,7 @@ type Base struct {
 	AI       *ai.Engine
 	Importer *importer.Service
 	Bank     *bank.Service
+	Plan     *plan.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -97,6 +99,12 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 		Models: ai.Models{Strong: cfg.AI.ModelStrong, Cheap: cfg.AI.ModelCheap}, Salt: hex.EncodeToString(salt[:]),
 	})
 	queue := asynq.NewClientFromRedisClient(rdb)
+	prof := profile.New(db, ps, clients.OSS, nil)
+	bk := bank.New(bank.Deps{DB: db, AI: engine, Quota: qs, Params: ps})
+	pl := plan.New(plan.Deps{DB: db, Params: ps, Profile: prof, Bank: bk})
+	imp := importer.New(importer.Deps{DB: db, Material: mat, Quota: qs, AI: engine, Queue: queue})
+	// 确认入库后立即重排今日计划（PRD 1.8）。
+	imp.AfterConfirm = func(ctx context.Context, userID, _ uint64) bool { return pl.Regenerate(ctx, userID) }
 	return &Base{
 		Config: cfg,
 		Logger: log,
@@ -111,12 +119,13 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 			JWTSecret: cfg.JWTSecret, Logger: log,
 			LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock,
 		}),
-		Profile:  profile.New(db, ps, clients.OSS, nil),
+		Profile:  prof,
 		Quota:    qs,
 		Material: mat,
 		AI:       engine,
-		Importer: importer.New(importer.Deps{DB: db, Material: mat, Quota: qs, AI: engine, Queue: queue}),
-		Bank:     bank.New(bank.Deps{DB: db, AI: engine, Quota: qs, Params: ps}),
+		Importer: imp,
+		Bank:     bk,
+		Plan:     pl,
 	}, nil
 }
 
@@ -153,6 +162,7 @@ func (b *Base) Handler() (http.Handler, error) {
 		Quota:    b.Quota,
 		Importer: b.Importer,
 		Bank:     b.Bank,
+		Plan:     b.Plan,
 		DevOSS:   b.devOSS(),
 	})
 }
@@ -217,7 +227,7 @@ func NewWorker(b *Base) (*Worker, error) {
 	if err := jobs.RegisterSchedules(scheduler); err != nil {
 		return nil, fmt.Errorf("注册定时任务：%w", err)
 	}
-	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer}
+	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan}
 	return &Worker{server: server, scheduler: scheduler, mux: h.Mux()}, nil
 }
 

@@ -34,6 +34,7 @@ const (
 	TypeExtract       = "material:extract"
 	TypeImportFile    = "import:material"
 	TypeImportFinish  = "import:finalize"
+	TypeDailyPlan     = "plan:daily"
 )
 
 // PingPayload 用于检查「API 入队 → Worker 执行」整条链路。
@@ -105,6 +106,12 @@ type Handlers struct {
 	Material  MaterialExtractor
 	Permanent IsPermanent
 	Import    Importer
+	Plan      PlanGenerator
+}
+
+// PlanGenerator 给所有用户生成今天的计划（plan.Service 实现）。
+type PlanGenerator interface {
+	GenerateAll(ctx context.Context, batch int) (int, error)
 }
 
 // MaterialPayload 指定一份资料。带上 user_id，处理器按归属查询（CLAUDE.md 必须遵守第 4 条）。
@@ -132,6 +139,7 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 	mux.HandleFunc(TypeExtract, h.handleExtract)
 	mux.HandleFunc(TypeImportFile, h.handleImportFile)
 	mux.HandleFunc(TypeImportFinish, h.handleImportFinish)
+	mux.HandleFunc(TypeDailyPlan, h.handleDailyPlan)
 	return mux
 }
 
@@ -205,6 +213,13 @@ func (h *Handlers) handleImportFinish(ctx context.Context, t *asynq.Task) error 
 	return h.Import.Finalize(ctx, p.UserID, p.JobID)
 }
 
+// handleDailyPlan 每天 0 点给所有用户生成今日计划（PRD 11.5）。已生成的跳过，重跑不重复生成。
+func (h *Handlers) handleDailyPlan(ctx context.Context, _ *asynq.Task) error {
+	n, err := h.Plan.GenerateAll(ctx, 200)
+	logx.From(ctx).Info("daily plans generated", "users", n)
+	return err
+}
+
 // lastAttempt 报告这是不是最后一次重试（重试用完后 Asynq 不再执行，需要把状态收尾）。
 func lastAttempt(ctx context.Context) bool {
 	retry, ok1 := asynq.GetRetryCount(ctx)
@@ -219,9 +234,10 @@ type Schedule struct {
 }
 
 // Schedules 是全部定时任务。业务日期按北京时间（CLAUDE.md 必须遵守第 13 条）；
-// 每日计划在 T16 加入（每天 0 点）。
+// 每日计划每天 0 点生成；用户当天首次打开首页时也会补生成，定时任务只是提前准备。
 var Schedules = []Schedule{
 	{Cron: "17 * * * *", Type: TypePurgeAccounts},
+	{Cron: "0 0 * * *", Type: TypeDailyPlan},
 }
 
 // RegisterSchedules 注册定时任务。调度器全局只启一个，跑在 Worker 里。
