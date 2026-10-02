@@ -376,7 +376,7 @@ func (q *Queries) ListBankKPs(ctx context.Context, arg ListBankKPsParams) ([]Lis
 }
 
 const listBankQuestionsForDedupe = `-- name: ListBankQuestionsForDedupe :many
-SELECT id, qtype, stem, content_hash FROM questions WHERE bank_id = ? AND owner_user_id = ? AND status = 'active'
+SELECT id, qtype, stem, content_hash, exam_year FROM questions WHERE bank_id = ? AND owner_user_id = ? AND status = 'active'
 `
 
 type ListBankQuestionsForDedupeParams struct {
@@ -389,6 +389,7 @@ type ListBankQuestionsForDedupeRow struct {
 	Qtype       QuestionsQtype
 	Stem        string
 	ContentHash string
+	ExamYear    sql.NullInt16
 }
 
 func (q *Queries) ListBankQuestionsForDedupe(ctx context.Context, arg ListBankQuestionsForDedupeParams) ([]ListBankQuestionsForDedupeRow, error) {
@@ -405,6 +406,7 @@ func (q *Queries) ListBankQuestionsForDedupe(ctx context.Context, arg ListBankQu
 			&i.Qtype,
 			&i.Stem,
 			&i.ContentHash,
+			&i.ExamYear,
 		); err != nil {
 			return nil, err
 		}

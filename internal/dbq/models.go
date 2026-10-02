@@ -5524,6 +5524,12 @@ type Bank struct {
 	SubjectCode    sql.NullString
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	// 出题风格标签（AI 统计）
+	ExamStyle dbtypes.NullJSON
+	// 生成标签时真题内容的哈希，真题变了重新生成
+	ExamStyleKey sql.NullString
+	// 知识关联已生成；用户删光后不再自动生成
+	RelationsGeneratedAt sql.NullTime
 }
 
 // 用户添加的官方题库（PRD 11.15）

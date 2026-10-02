@@ -250,7 +250,8 @@ func (s *Service) saveStructured(ctx context.Context, job dbq.GetImportJobRow, m
 	if it.Confidence < LowConfidence {
 		keep = append(keep, ReasonLowConfidence)
 	}
-	return s.putItem(ctx, job, materialID, dbq.ImportItemsItemTypeQuestion, q, it.Confidence, reviewReasons(q, keep), ContentHash(q.Stem)+":"+q.QType)
+	// 去重键带年份：同一道题在不同年份的真题里各算一次（考情的「真题出现次数」靠它）。
+	return s.putItem(ctx, job, materialID, dbq.ImportItemsItemTypeQuestion, q, it.Confidence, reviewReasons(q, keep), ContentHash(q.Stem)+":"+q.QType+":"+yearKey(q.ExamYear))
 }
 
 func yearKey(y *int) string {
