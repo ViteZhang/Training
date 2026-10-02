@@ -48,6 +48,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       { image: './assets/splash-icon.png', imageWidth: 120, backgroundColor: '#231F55' },
     ],
     'expo-font',
+    [
+      'expo-image-picker',
+      {
+        photosPermission: '用于从相册导入题目和资料',
+        cameraPermission: '用于拍照导入题目和拍手写稿识别',
+        microphonePermission: false,
+      },
+    ],
+    'expo-document-picker',
+    ['expo-notifications', { color: '#231F55' }],
   ],
   experiments: { typedRoutes: true },
   extra: {
