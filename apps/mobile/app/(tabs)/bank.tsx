@@ -4,8 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, EmptyState, ErrorState, Loading, Screen, Text, toast } from '@/components';
+import { Button, Card, EmptyState, ErrorState, Loading, Screen, Text } from '@/components';
 import { useOverview, useMaterials } from '@/features/bank/api';
+import { EssayKnowledgeBase } from '@/features/bank/EssayKB';
 import { MaterialList } from '@/features/bank/MaterialList';
 import { QuestionList } from '@/features/bank/QuestionList';
 import { ParseQuotaBar } from '@/features/bank/QuotaBar';
@@ -94,8 +95,8 @@ export default function BankTab() {
           <Text variant="h1" style={styles.flex}>
             题库
           </Text>
-          <Button title="考情分析" kind="text" onPress={() => toast('考情分析下一版开放')} />
-          <Button title="图谱" kind="text" onPress={() => toast('知识图谱下一版开放')} />
+          <Button title="考情分析" kind="text" onPress={() => router.push({ pathname: '/bank/profile', params: { subjectId: String(subject.id) } })} />
+          <Button title="图谱" kind="text" onPress={() => router.push({ pathname: '/bank/graph', params: { subjectId: String(subject.id) } })} />
           <Button title="导入" kind="text" onPress={() => router.push({ pathname: '/import', params: { subjectId: String(subject.id) } })} />
         </View>
         {list.length > 1 ? (
@@ -111,7 +112,9 @@ export default function BankTab() {
           </ScrollView>
         ) : null}
 
-        {empty ? (
+        {subject.is_essay ? (
+          <EssayKnowledgeBase subjectId={subject.id} label={label} />
+        ) : empty ? (
           <Card style={styles.gap}>
             <Text variant="h3">{label} 还没有资料</Text>
             <Text variant="body" color={semantic.textSecondary}>

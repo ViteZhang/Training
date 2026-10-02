@@ -88,3 +88,5 @@ export function shortDate(iso: string) {
   const d = new Date(iso);
   return `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
 }
+
+export const relationNames: Record<Schemas['RelationType'], string> = { contrast: '易混对比', component: '组成要素', sibling: '同章并列', related: '相关' };
