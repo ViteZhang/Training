@@ -161,6 +161,9 @@ func (s *Service) Finalize(ctx context.Context, userID, jobID uint64) error {
 		}
 	}
 
+	if err := s.detectEssaySubject(ctx, userID, job.SubjectID); err != nil {
+		return err
+	}
 	st := dbq.ImportJobsStatusReviewing
 	reason := sql.NullString{}
 	if allFailed {
@@ -168,7 +171,7 @@ func (s *Service) Finalize(ctx context.Context, userID, jobID uint64) error {
 	}
 	if job.Status == dbq.ImportJobsStatusConfirmed && !allFailed {
 		st = dbq.ImportJobsStatusConfirmed
-		if c, err := s.q.CountImportItems(ctx, dbq.CountImportItemsParams{JobID: jobID, OwnerUserID: userID}); err == nil && c.Confirmed < c.Questions+c.KnowledgePoints {
+		if c, err := s.q.CountImportItems(ctx, dbq.CountImportItemsParams{JobID: jobID, OwnerUserID: userID}); err == nil && c.Confirmed < c.Questions+c.KnowledgePoints+c.EssayItems {
 			st = dbq.ImportJobsStatusReviewing
 		}
 	}

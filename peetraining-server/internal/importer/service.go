@@ -59,6 +59,8 @@ type Job struct {
 	dbq.GetImportJobRow
 	Materials []dbq.ListImportJobMaterialsRow
 	Counts    dbq.CountImportItemsRow
+	// DetectedEssay 表示这批资料里作文类过半（1.7 显示，可在专业课设置里改）。
+	DetectedEssay bool
 }
 
 // Get 返回任务；不是自己的返回 404。
@@ -78,7 +80,16 @@ func (s *Service) Get(ctx context.Context, userID, jobID uint64) (Job, error) {
 	if err != nil {
 		return Job{}, err
 	}
-	return Job{GetImportJobRow: j, Materials: ms, Counts: c}, nil
+	essay, classified := 0, 0
+	for _, m := range ms {
+		if m.Category.Valid {
+			classified++
+			if m.Category.MaterialsCategory == dbq.MaterialsCategoryEssay {
+				essay++
+			}
+		}
+	}
+	return Job{GetImportJobRow: j, Materials: ms, Counts: c, DetectedEssay: classified > 0 && essay*2 > classified}, nil
 }
 
 // List 返回我的导入任务（activeOnly：解析中或待确认，首页 2.1b 用）。

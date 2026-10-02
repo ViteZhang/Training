@@ -222,6 +222,9 @@ func etaSeconds(m dbq.ListImportJobMaterialsRow) int {
 func toImportJob(j importer.Job) gen.ImportJob {
 	out := gen.ImportJob{Id: int64(j.ID), SubjectId: j.SubjectID.Int64, Mode: gen.ImportMode(j.Mode), Status: gen.ImportJobStatus(j.Status),
 		ReservedPages: int(j.ReservedPages), Counts: toCounts(j.Counts), CreatedAt: j.CreatedAt, Materials: []gen.ImportJobMaterial{}}
+	if j.DetectedEssay {
+		out.DetectedEssay = &j.DetectedEssay
+	}
 	billed := int(j.BilledPages)
 	out.BilledPages = &billed
 	if j.FinishedAt.Valid {
@@ -287,6 +290,9 @@ func toImportItem(it dbq.GetImportItemRow, fileName func(uint64) string) gen.Imp
 	default:
 		m := map[string]any{}
 		_ = json.Unmarshal(it.Payload, &m)
+		if p, ok := m["page"].(float64); ok {
+			page = int(p)
+		}
 		out.Essay = &m
 	}
 	if it.MaterialID.Valid {
