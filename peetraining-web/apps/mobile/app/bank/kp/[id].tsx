@@ -7,9 +7,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { BottomSheet, Button, Card, ConfirmDialog, ErrorState, Loading, Screen, Tag, Text, toast } from '@/components';
-import { bankKeys, sourceLabel, stateNames, stateTone, useKP, type KPDetail } from '@/features/bank/api';
+import { bankKeys, relationNames, sourceLabel, stateNames, stateTone, useKP, type KPDetail } from '@/features/bank/api';
 import { qtypeNames } from '@/features/import/api';
-import { PageHeader } from '@/features/import/ui';
+import { PageHeader, Segments } from '@/features/import/ui';
 import { api, unwrap } from '@/lib/api';
 
 const assess: { key: Schemas['SelfAssessLevel']; label: string }[] = [
@@ -51,13 +51,14 @@ function Underlined({ text, keywords }: { text: string; keywords: string[] }) {
   );
 }
 
-type Sheet = 'more' | 'merge' | 'split' | 'move' | 'delete' | null;
+type Sheet = 'more' | 'merge' | 'split' | 'move' | 'delete' | 'relate' | null;
 
 function MoreActions({ kp, sheet, setSheet }: { kp: KPDetail; sheet: Sheet; setSheet: (s: Sheet) => void }) {
   const qc = useQueryClient();
   const subjectId = useLocalSearchParams<{ subjectId?: string }>().subjectId;
   const [target, setTarget] = useState('');
   const [parts, setParts] = useState(['', '']);
+  const [relType, setRelType] = useState<Schemas['RelationType']>('contrast');
   const [busy, setBusy] = useState(false);
   const refresh = () => qc.invalidateQueries({ queryKey: ['bank'] });
   const run = async (fn: () => Promise<unknown>, done: string) => {
@@ -81,6 +82,7 @@ function MoreActions({ kp, sheet, setSheet }: { kp: KPDetail; sheet: Sheet; setS
         <View style={styles.menu}>
           <Button title="编辑内容" kind="text" onPress={() => { setSheet(null); router.push({ pathname: '/bank/kp/edit', params: { id: String(kp.id), subjectId: subjectId ?? '' } }); }} />
           <Button title="调整归属" kind="text" onPress={() => { setSheet(null); router.push({ pathname: '/bank/kp/edit', params: { id: String(kp.id), subjectId: subjectId ?? '' } }); }} />
+          <Button title="添加关联" kind="text" onPress={() => setSheet('relate')} />
           <Button title="合并到其他知识点" kind="text" onPress={() => setSheet('merge')} />
           <Button title="拆分为多个知识点" kind="text" onPress={() => setSheet('split')} />
           <Button
@@ -102,6 +104,18 @@ function MoreActions({ kp, sheet, setSheet }: { kp: KPDetail; sheet: Sheet; setS
               setSheet(null);
               router.replace({ pathname: '/bank/kp/[id]', params: { id: String(id), subjectId: subjectId ?? '' } });
             }
+          })
+        } />
+      </BottomSheet>
+      <BottomSheet visible={sheet === 'relate'} onClose={() => setSheet(null)} title="添加关联">
+        <Segments<Schemas['RelationType']>
+          value={relType}
+          onChange={setRelType}
+          options={(['contrast', 'component', 'sibling', 'related'] as const).map((k) => ({ key: k, label: relationNames[k] }))}
+        />
+        <MergePicker kp={kp} query={target} setQuery={setTarget} onPick={(id) =>
+          void run(() => unwrap(api.POST('/knowledge-points/{kpId}/relations', { ...path, body: { target_id: id, relation_type: relType } })), '已添加关联').then((ok) => {
+            if (ok) setSheet(null);
           })
         } />
       </BottomSheet>

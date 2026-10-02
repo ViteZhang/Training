@@ -894,10 +894,286 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/subjects/{subjectId}/exam-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * 考情分析（3.8，PRD 11.11）
+         * @description 只统计来源为真题、有年份、有分值的题；至少 2 套真题卷（不同年份）才有统计，否则 ready=false 并提示再导入。
+         *     出题风格标签由 AI 生成并缓存，真题变化后重新生成；生成失败时为空，不影响其他统计。
+         */
+        get: operations["getExamProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/knowledge-graph": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * 知识图谱（3.9）
+         * @description 第一次打开时由 AI 按资料章节和同题出现整理关联并保存；之后用户可增删。节点颜色 = 掌握状态，大小 = 真题次数。
+         */
+        get: operations["getKnowledgeGraph"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge-points/{kpId}/relations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kpId: components["parameters"]["KpId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 在知识点卡片里添加关联（3.9「可在卡片里调整」） */
+        post: operations["createKnowledgeRelation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge-relations/{relationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                relationId: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 删除关联 */
+        delete: operations["deleteKnowledgeRelation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/essay-kb": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        /** 作文知识库（3.10）：写作方法、素材库、范文、作文题与当前评分标准 */
+        get: operations["getEssayKnowledgeBase"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/essay-materials/{essayMaterialId}/favorite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                essayMaterialId: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** 收藏或取消收藏素材（3.10） */
+        put: operations["setEssayMaterialFavorite"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ExamProfile: {
+            /** @description 至少 2 套真题卷才显示统计 */
+            ready: boolean;
+            paper_count: number;
+            min_papers: number;
+            years: number[];
+            /** @description 回忆版、缺分值等未计入的题数 */
+            excluded_count: number;
+            /** @description 题型结构与建议用时（PRD 11.9 同一套数字） */
+            structure: {
+                qtype: components["schemas"]["QuestionType"];
+                count: number;
+                score_each: number;
+                total: number;
+                suggested_minutes: number;
+            }[];
+            /** @description 「近 N 年未变」 */
+            stable_years?: number;
+            /** @description 近 3 年里结构不同的年份 */
+            changed_years?: number[];
+            total_minutes?: number;
+            check_minutes?: number;
+            /** @description 板块分值占比与掌握度 */
+            sections: {
+                /** Format: int64 */
+                id: number;
+                name: string;
+                /** @description 0–1 */
+                share: number;
+                /** @description 0–100 */
+                mastery: number;
+                kp_count: number;
+            }[];
+            high_freq: {
+                /** Format: int64 */
+                kp_id: number;
+                name: string;
+                path: string[];
+                exam_count: number;
+                state: components["schemas"]["MasteryState"];
+            }[];
+            /** @description 真题考过的知识点总数 */
+            high_freq_total?: number;
+            /** @description 缺资料提醒 */
+            missing_sections: {
+                /** Format: int64 */
+                id: number;
+                name: string;
+                share: number;
+                kp_count: number;
+                mastery: number;
+            }[];
+            /** @description 出题风格（AI 统计） */
+            style_tags: string[];
+            /** @description 依据的资料 */
+            basis: {
+                /** Format: int64 */
+                material_id: number;
+                file_name: string;
+            }[];
+        };
+        /**
+         * @description 易混对比 / 组成要素 / 同章并列 / 相关
+         * @enum {string}
+         */
+        RelationType: "contrast" | "component" | "sibling" | "related";
+        KnowledgeRelation: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            source_id: number;
+            /** Format: int64 */
+            target_id: number;
+            relation_type: components["schemas"]["RelationType"];
+            origin: components["schemas"]["Origin"];
+        };
+        KnowledgeGraph: {
+            sections: {
+                /** Format: int64 */
+                id: number;
+                name: string;
+            }[];
+            nodes: {
+                /** Format: int64 */
+                id: number;
+                name: string;
+                /** Format: int64 */
+                section_id: number;
+                state: components["schemas"]["MasteryState"];
+                m: number;
+                exam_count: number;
+            }[];
+            edges: components["schemas"]["KnowledgeRelation"][];
+        };
+        EssayKnowledgeBase: {
+            rubric?: {
+                /** Format: int64 */
+                id: number;
+                name: string;
+                full_score: number;
+                /** @enum {string} */
+                source: "user_material" | "generic";
+                source_ref?: components["schemas"]["SourceRef"];
+                dimensions: {
+                    name: string;
+                    description?: string;
+                    score: number;
+                }[];
+            };
+            methods: {
+                /** Format: int64 */
+                id: number;
+                title: string;
+                content: string;
+                dimension?: string;
+                origin: components["schemas"]["Origin"];
+                state: components["schemas"]["MasteryState"];
+                source?: components["schemas"]["SourceRef"];
+            }[];
+            /** @description 素材按主题分组；origin=ai_generated 显示「AI 补充」 */
+            materials: {
+                /** Format: int64 */
+                id: number;
+                theme: string;
+                content: string;
+                origin: components["schemas"]["Origin"];
+                favorite: boolean;
+                exam_count: number;
+                source?: components["schemas"]["SourceRef"];
+            }[];
+            model_essays: {
+                /** Format: int64 */
+                id: number;
+                title: string;
+                /** Format: int64 */
+                topic_question_id?: number;
+                topic?: string;
+                structure?: {
+                    opening?: string;
+                    points?: string[];
+                    elevation?: string;
+                    ending?: string;
+                };
+                source?: components["schemas"]["SourceRef"];
+            }[];
+            /** @description 作文题（来自导入的作文真题），按年份 */
+            topics: {
+                /** Format: int64 */
+                id: number;
+                stem: string;
+                exam_year?: number;
+                required_words?: number;
+                model_essay_count: number;
+            }[];
+        };
         Error: {
             /**
              * @description 机器可读的错误码（internal/http/errors.go）：BAD_REQUEST、UNAUTHORIZED、FORBIDDEN、NOT_FOUND、CONFLICT、
@@ -3296,6 +3572,159 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getExamProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamProfile"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getKnowledgeGraph: {
+        parameters: {
+            query?: {
+                filter?: "all" | "weak" | "exam";
+                /** @description 只看某个板块 */
+                section_id?: number;
+            };
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeGraph"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createKnowledgeRelation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kpId: components["parameters"]["KpId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    target_id: number;
+                    relation_type: components["schemas"]["RelationType"];
+                };
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeRelation"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteKnowledgeRelation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                relationId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getEssayKnowledgeBase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EssayKnowledgeBase"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setEssayMaterialFavorite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                essayMaterialId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    favorite: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             404: components["responses"]["NotFound"];
         };
     };

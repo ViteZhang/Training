@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.1.1
+  version: 0.2.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -17,6 +17,7 @@ info:
 
     契约版本：
     - api-v0.1：模块 0 账号、模块 1 引导与导入、模块 3 题库、额度、功能开关
+    - api-v0.2：考情分析 3.8、知识图谱 3.9、作文知识库 3.10（T14）
     - 其余模块随对应任务卡增量加入，10/11 冻结 api-v1.0
 servers:
   - url: /api/v1
@@ -1062,6 +1063,120 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /subjects/{subjectId}/exam-profile:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [bank]
+      operationId: getExamProfile
+      summary: 考情分析（3.8，PRD 11.11）
+      description: |
+        只统计来源为真题、有年份、有分值的题；至少 2 套真题卷（不同年份）才有统计，否则 ready=false 并提示再导入。
+        出题风格标签由 AI 生成并缓存，真题变化后重新生成；生成失败时为空，不影响其他统计。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExamProfile" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /subjects/{subjectId}/knowledge-graph:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [bank]
+      operationId: getKnowledgeGraph
+      summary: 知识图谱（3.9）
+      description: 第一次打开时由 AI 按资料章节和同题出现整理关联并保存；之后用户可增删。节点颜色 = 掌握状态，大小 = 真题次数。
+      parameters:
+        - name: filter
+          in: query
+          schema: { type: string, enum: [all, weak, exam], default: all }
+        - name: section_id
+          in: query
+          schema: { type: integer, format: int64 }
+          description: 只看某个板块
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KnowledgeGraph" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /knowledge-points/{kpId}/relations:
+    parameters:
+      - $ref: "#/components/parameters/KpId"
+    post:
+      tags: [bank]
+      operationId: createKnowledgeRelation
+      summary: 在知识点卡片里添加关联（3.9「可在卡片里调整」）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_id, relation_type]
+              properties:
+                target_id: { type: integer, format: int64 }
+                relation_type: { $ref: "#/components/schemas/RelationType" }
+      responses:
+        "201":
+          description: 已创建
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KnowledgeRelation" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /knowledge-relations/{relationId}:
+    parameters:
+      - { name: relationId, in: path, required: true, schema: { type: integer, format: int64 } }
+    delete:
+      tags: [bank]
+      operationId: deleteKnowledgeRelation
+      summary: 删除关联
+      responses:
+        "204": { description: 已删除 }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /subjects/{subjectId}/essay-kb:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [bank]
+      operationId: getEssayKnowledgeBase
+      summary: 作文知识库（3.10）：写作方法、素材库、范文、作文题与当前评分标准
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EssayKnowledgeBase" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /essay-materials/{essayMaterialId}/favorite:
+    parameters:
+      - { name: essayMaterialId, in: path, required: true, schema: { type: integer, format: int64 } }
+    put:
+      tags: [bank]
+      operationId: setEssayMaterialFavorite
+      summary: 收藏或取消收藏素材（3.10）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [favorite]
+              properties:
+                favorite: { type: boolean }
+      responses:
+        "204": { description: OK }
+        "404": { $ref: "#/components/responses/NotFound" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1159,6 +1274,194 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    ExamProfile:
+      type: object
+      required: [ready, paper_count, min_papers, years, excluded_count, structure, sections, high_freq, missing_sections, style_tags, basis]
+      properties:
+        ready: { type: boolean, description: 至少 2 套真题卷才显示统计 }
+        paper_count: { type: integer }
+        min_papers: { type: integer }
+        years: { type: array, items: { type: integer } }
+        excluded_count: { type: integer, description: 回忆版、缺分值等未计入的题数 }
+        structure:
+          type: array
+          description: 题型结构与建议用时（PRD 11.9 同一套数字）
+          items:
+            type: object
+            required: [qtype, count, score_each, total, suggested_minutes]
+            properties:
+              qtype: { $ref: "#/components/schemas/QuestionType" }
+              count: { type: integer }
+              score_each: { type: number }
+              total: { type: number }
+              suggested_minutes: { type: integer }
+        stable_years: { type: integer, description: 「近 N 年未变」 }
+        changed_years: { type: array, items: { type: integer }, description: 近 3 年里结构不同的年份 }
+        total_minutes: { type: integer }
+        check_minutes: { type: integer }
+        sections:
+          type: array
+          description: 板块分值占比与掌握度
+          items:
+            type: object
+            required: [id, name, share, mastery, kp_count]
+            properties:
+              id: { type: integer, format: int64 }
+              name: { type: string }
+              share: { type: number, description: 0–1 }
+              mastery: { type: number, description: 0–100 }
+              kp_count: { type: integer }
+        high_freq:
+          type: array
+          items:
+            type: object
+            required: [kp_id, name, path, exam_count, state]
+            properties:
+              kp_id: { type: integer, format: int64 }
+              name: { type: string }
+              path: { type: array, items: { type: string } }
+              exam_count: { type: integer }
+              state: { $ref: "#/components/schemas/MasteryState" }
+        high_freq_total: { type: integer, description: 真题考过的知识点总数 }
+        missing_sections:
+          type: array
+          description: 缺资料提醒
+          items:
+            type: object
+            required: [id, name, share, kp_count, mastery]
+            properties:
+              id: { type: integer, format: int64 }
+              name: { type: string }
+              share: { type: number }
+              kp_count: { type: integer }
+              mastery: { type: number }
+        style_tags: { type: array, items: { type: string }, description: 出题风格（AI 统计） }
+        basis:
+          type: array
+          description: 依据的资料
+          items:
+            type: object
+            required: [material_id, file_name]
+            properties:
+              material_id: { type: integer, format: int64 }
+              file_name: { type: string }
+    RelationType:
+      type: string
+      description: 易混对比 / 组成要素 / 同章并列 / 相关
+      enum: [contrast, component, sibling, related]
+    KnowledgeRelation:
+      type: object
+      required: [id, source_id, target_id, relation_type, origin]
+      properties:
+        id: { type: integer, format: int64 }
+        source_id: { type: integer, format: int64 }
+        target_id: { type: integer, format: int64 }
+        relation_type: { $ref: "#/components/schemas/RelationType" }
+        origin: { $ref: "#/components/schemas/Origin" }
+    KnowledgeGraph:
+      type: object
+      required: [sections, nodes, edges]
+      properties:
+        sections:
+          type: array
+          items:
+            type: object
+            required: [id, name]
+            properties:
+              id: { type: integer, format: int64 }
+              name: { type: string }
+        nodes:
+          type: array
+          items:
+            type: object
+            required: [id, name, section_id, state, m, exam_count]
+            properties:
+              id: { type: integer, format: int64 }
+              name: { type: string }
+              section_id: { type: integer, format: int64 }
+              state: { $ref: "#/components/schemas/MasteryState" }
+              m: { type: number }
+              exam_count: { type: integer }
+        edges: { type: array, items: { $ref: "#/components/schemas/KnowledgeRelation" } }
+    EssayKnowledgeBase:
+      type: object
+      required: [methods, materials, model_essays, topics]
+      properties:
+        rubric:
+          type: object
+          required: [id, name, full_score, source, dimensions]
+          properties:
+            id: { type: integer, format: int64 }
+            name: { type: string }
+            full_score: { type: number }
+            source: { type: string, enum: [user_material, generic] }
+            source_ref: { $ref: "#/components/schemas/SourceRef" }
+            dimensions:
+              type: array
+              items:
+                type: object
+                required: [name, score]
+                properties:
+                  name: { type: string }
+                  description: { type: string }
+                  score: { type: number }
+        methods:
+          type: array
+          items:
+            type: object
+            required: [id, title, content, origin, state]
+            properties:
+              id: { type: integer, format: int64 }
+              title: { type: string }
+              content: { type: string }
+              dimension: { type: string }
+              origin: { $ref: "#/components/schemas/Origin" }
+              state: { $ref: "#/components/schemas/MasteryState" }
+              source: { $ref: "#/components/schemas/SourceRef" }
+        materials:
+          type: array
+          description: 素材按主题分组；origin=ai_generated 显示「AI 补充」
+          items:
+            type: object
+            required: [id, theme, content, origin, favorite, exam_count]
+            properties:
+              id: { type: integer, format: int64 }
+              theme: { type: string }
+              content: { type: string }
+              origin: { $ref: "#/components/schemas/Origin" }
+              favorite: { type: boolean }
+              exam_count: { type: integer }
+              source: { $ref: "#/components/schemas/SourceRef" }
+        model_essays:
+          type: array
+          items:
+            type: object
+            required: [id, title]
+            properties:
+              id: { type: integer, format: int64 }
+              title: { type: string }
+              topic_question_id: { type: integer, format: int64 }
+              topic: { type: string }
+              structure:
+                type: object
+                properties:
+                  opening: { type: string }
+                  points: { type: array, items: { type: string } }
+                  elevation: { type: string }
+                  ending: { type: string }
+              source: { $ref: "#/components/schemas/SourceRef" }
+        topics:
+          type: array
+          description: 作文题（来自导入的作文真题），按年份
+          items:
+            type: object
+            required: [id, stem, model_essay_count]
+            properties:
+              id: { type: integer, format: int64 }
+              stem: { type: string }
+              exam_year: { type: integer }
+              required_words: { type: integer }
+              model_essay_count: { type: integer }
     Error:
       type: object
       required: [code, message]
