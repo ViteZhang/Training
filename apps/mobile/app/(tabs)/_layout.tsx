@@ -2,6 +2,7 @@
 import { colors, layout, semantic } from '@training/ui-tokens';
 import { Redirect, Tabs } from 'expo-router';
 import { Icon, type IconName } from '@/components/Icon';
+import { useFlushOnForeground } from '@/features/practice/offline';
 import { useSession } from '@/lib/session';
 
 const tabs: { name: string; title: string; icon: IconName }[] = [
@@ -14,6 +15,7 @@ const tabs: { name: string; title: string; icon: IconName }[] = [
 export default function TabsLayout() {
   // 未登录（或令牌刷新失败被清除）时回到 0.2 登录页。
   const session = useSession((s) => s.session);
+  useFlushOnForeground();
   if (!session) return <Redirect href="/(auth)/login" />;
   return (
     <Tabs
