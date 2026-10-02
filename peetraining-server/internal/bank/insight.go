@@ -112,41 +112,11 @@ func (s *Service) ExamProfile(ctx context.Context, userID, subjectID uint64) (Ex
 	if err != nil {
 		return ExamProfile{}, err
 	}
-	qs, err := s.q.ListBankExamQuestions(ctx, dbq.ListBankExamQuestionsParams{BankID: b.BankID, OwnerUserID: owner(userID)})
+	st, err := s.examStats(ctx, userID, b.BankID, p)
 	if err != nil {
 		return ExamProfile{}, err
 	}
-	links, err := s.q.ListBankQuestionKPLinks(ctx, dbq.ListBankQuestionKPLinksParams{BankID: b.BankID, OwnerUserID: owner(userID)})
-	if err != nil {
-		return ExamProfile{}, err
-	}
-	ix, err := s.kpIndex(ctx, userID, b.BankID)
-	if err != nil {
-		return ExamProfile{}, err
-	}
-	kpsOf := map[uint64][]int64{}
-	for _, l := range links {
-		kpsOf[l.QuestionID] = append(kpsOf[l.QuestionID], int64(l.KpID))
-	}
-	in := make([]rules.ExamQuestion, 0, len(qs))
-	materials := map[uint64]bool{}
-	for _, q := range qs {
-		eq := rules.ExamQuestion{QType: rules.QType(q.Qtype), Recollection: q.IsRecollection, KPIDs: kpsOf[q.ID]}
-		if q.ExamYear.Valid {
-			eq.Year = int(q.ExamYear.Int16)
-		}
-		if sc := parseScore(q.Score); sc != nil {
-			eq.Score = *sc
-		}
-		if len(eq.KPIDs) > 0 {
-			eq.SectionID = int64(ix.section(uint64(eq.KPIDs[0])))
-		}
-		in = append(in, eq)
-		if q.SourceMaterialID.Valid && eq.Year > 0 && eq.Score > 0 && !eq.Recollection {
-			materials[uint64(q.SourceMaterialID.Int64)] = true
-		}
-	}
-	prof := rules.BuildExamProfile(in, p.ExamProfile)
+	prof, ix, qs, materials := st.Profile, st.index, st.questions, st.materials
 	out := ExamProfile{ExamProfile: prof, MinPapers: p.ExamProfile.MinPapers, TotalMinutes: p.PaperTime.DefaultTotalMinutes, CheckMinutes: p.PaperTime.CheckMinutes}
 	for id := range materials {
 		if mt, err := s.q.GetMaterial(ctx, dbq.GetMaterialParams{ID: id, OwnerUserID: userID}); err == nil {
@@ -211,6 +181,75 @@ func (s *Service) ExamProfile(ctx context.Context, userID, subjectID uint64) (Ex
 	}
 	out.StyleTags, err = s.examStyle(ctx, userID, b, qs)
 	return out, err
+}
+
+// ExamStats 是一门课的真题统计（PRD 11.11），供考情分析与今日计划共用。
+type ExamStats struct {
+	Profile   rules.ExamProfile
+	index     kpIndex
+	questions []dbq.ListBankExamQuestionsRow
+	materials map[uint64]bool
+}
+
+// Section 返回知识点所在的板块（找不到返回 0）。
+func (e ExamStats) Section(kpID uint64) uint64 { return e.index.section(kpID) }
+
+// SectionCount 是题库里板块的个数。
+func (e ExamStats) SectionCount() int {
+	n := 0
+	for _, k := range e.index.rows {
+		if k.Level == dbq.KnowledgePointsLevelSection {
+			n++
+		}
+	}
+	return n
+}
+
+// Stats 返回题库的真题统计（不调用 AI）。
+func (s *Service) Stats(ctx context.Context, userID, bankID uint64) (ExamStats, error) {
+	p, err := s.params.Rules(ctx)
+	if err != nil {
+		return ExamStats{}, err
+	}
+	return s.examStats(ctx, userID, bankID, p)
+}
+
+func (s *Service) examStats(ctx context.Context, userID, bankID uint64, p rules.Params) (ExamStats, error) {
+	qs, err := s.q.ListBankExamQuestions(ctx, dbq.ListBankExamQuestionsParams{BankID: bankID, OwnerUserID: owner(userID)})
+	if err != nil {
+		return ExamStats{}, err
+	}
+	links, err := s.q.ListBankQuestionKPLinks(ctx, dbq.ListBankQuestionKPLinksParams{BankID: bankID, OwnerUserID: owner(userID)})
+	if err != nil {
+		return ExamStats{}, err
+	}
+	ix, err := s.kpIndex(ctx, userID, bankID)
+	if err != nil {
+		return ExamStats{}, err
+	}
+	kpsOf := map[uint64][]int64{}
+	for _, l := range links {
+		kpsOf[l.QuestionID] = append(kpsOf[l.QuestionID], int64(l.KpID))
+	}
+	in := make([]rules.ExamQuestion, 0, len(qs))
+	materials := map[uint64]bool{}
+	for _, q := range qs {
+		eq := rules.ExamQuestion{QType: rules.QType(q.Qtype), Recollection: q.IsRecollection, KPIDs: kpsOf[q.ID]}
+		if q.ExamYear.Valid {
+			eq.Year = int(q.ExamYear.Int16)
+		}
+		if sc := parseScore(q.Score); sc != nil {
+			eq.Score = *sc
+		}
+		if len(eq.KPIDs) > 0 {
+			eq.SectionID = int64(ix.section(uint64(eq.KPIDs[0])))
+		}
+		in = append(in, eq)
+		if q.SourceMaterialID.Valid && eq.Year > 0 && eq.Score > 0 && !eq.Recollection {
+			materials[uint64(q.SourceMaterialID.Int64)] = true
+		}
+	}
+	return ExamStats{Profile: rules.BuildExamProfile(in, p.ExamProfile), index: ix, questions: qs, materials: materials}, nil
 }
 
 // examStyle 取出题风格标签：真题没变用缓存，变了重新生成；生成失败返回空，不影响其他统计。
