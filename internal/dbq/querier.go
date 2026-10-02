@@ -20,6 +20,8 @@ type Querier interface {
 	CountKPsFromMaterial(ctx context.Context, materialID uint64) (int64, error)
 	// 删除资料前说明连带影响（3.1d）。调用前已用 GetMaterial 核对资料属于当前用户，下面按资料 ID 统计。
 	CountMaterialImpact(ctx context.Context, arg CountMaterialImpactParams) (CountMaterialImpactRow, error)
+	// 作文课判断（PRD 11.12）：这门课已解析的资料里作文类占多少。
+	CountSubjectMaterialCategories(ctx context.Context, arg CountSubjectMaterialCategoriesParams) (CountSubjectMaterialCategoriesRow, error)
 	CountSubjects(ctx context.Context, ownerUserID uint64) (int64, error)
 	// 导入流水线（T10）。每条查询都带 owner_user_id 归属条件。
 	CreateImportJob(ctx context.Context, arg CreateImportJobParams) (int64, error)
@@ -27,6 +29,8 @@ type Querier interface {
 	CreateSubject(ctx context.Context, arg CreateSubjectParams) (int64, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (int64, error)
 	CreateUserBank(ctx context.Context, arg CreateUserBankParams) (int64, error)
+	// 作文资料入库（T11）。每条都带 owner_user_id。
+	DeactivateEssayRubrics(ctx context.Context, arg DeactivateEssayRubricsParams) error
 	DeleteImportAnswersOfMaterial(ctx context.Context, arg DeleteImportAnswersOfMaterialParams) error
 	// 从任务里移除文件（1.6b）时，它还没确认的条目一起删掉。
 	DeleteImportItemsOfMaterial(ctx context.Context, arg DeleteImportItemsOfMaterialParams) error
@@ -79,8 +83,11 @@ type Querier interface {
 	GetUserByPhone(ctx context.Context, phone string) (User, error)
 	// AI 调用账本与灰度（T10）。不含用户内容，user_hash 是用户 ID 的哈希。
 	InsertAICall(ctx context.Context, arg InsertAICallParams) error
+	InsertEssayMaterial(ctx context.Context, arg InsertEssayMaterialParams) (int64, error)
+	InsertEssayRubric(ctx context.Context, arg InsertEssayRubricParams) (int64, error)
 	InsertKPSource(ctx context.Context, arg InsertKPSourceParams) error
 	InsertKnowledgePoint(ctx context.Context, arg InsertKnowledgePointParams) (int64, error)
+	InsertModelEssay(ctx context.Context, arg InsertModelEssayParams) (int64, error)
 	InsertPaper(ctx context.Context, arg InsertPaperParams) (int64, error)
 	InsertPaperQuestion(ctx context.Context, arg InsertPaperQuestionParams) error
 	// 确认导入后写入题库（T10）。每条都带 owner_user_id。
@@ -90,7 +97,9 @@ type Querier interface {
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
 	InsertRubricPoint(ctx context.Context, arg InsertRubricPointParams) error
 	InsertStudyProfile(ctx context.Context, arg InsertStudyProfileParams) error
+	InsertWritingMethod(ctx context.Context, arg InsertWritingMethodParams) (int64, error)
 	ListAcceptedAgreementIDs(ctx context.Context, userID uint64) ([]uint64, error)
+	ListBankEssayTopics(ctx context.Context, arg ListBankEssayTopicsParams) ([]ListBankEssayTopicsRow, error)
 	ListBankKPs(ctx context.Context, arg ListBankKPsParams) ([]ListBankKPsRow, error)
 	ListBankQuestionsForDedupe(ctx context.Context, arg ListBankQuestionsForDedupeParams) ([]ListBankQuestionsForDedupeRow, error)
 	// 备考档案与专业课（T07）。每条查询都带 owner_user_id / user_id 归属条件。
@@ -135,6 +144,9 @@ type Querier interface {
 	SetImportJobMaterialQuota(ctx context.Context, arg SetImportJobMaterialQuotaParams) error
 	SetImportJobPromptVersions(ctx context.Context, arg SetImportJobPromptVersionsParams) error
 	SetMaterialObjectKey(ctx context.Context, arg SetMaterialObjectKeyParams) error
+	SetQuestionRequiredWords(ctx context.Context, arg SetQuestionRequiredWordsParams) error
+	// 自动判断只在用户没改过时生效（essay_set_by = 'user' 后不再自动改）。
+	SetSubjectEssayAuto(ctx context.Context, arg SetSubjectEssayAutoParams) error
 	TouchUserActive(ctx context.Context, arg TouchUserActiveParams) error
 	UpdateBankForSubject(ctx context.Context, arg UpdateBankForSubjectParams) error
 	UpdateImportItem(ctx context.Context, arg UpdateImportItemParams) error

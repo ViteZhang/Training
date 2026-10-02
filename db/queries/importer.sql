@@ -18,7 +18,7 @@ WHERE j.owner_user_id = sqlc.arg(owner_user_id)
 ORDER BY j.created_at DESC, j.id DESC LIMIT 50;
 
 -- name: ListImportJobMaterials :many
-SELECT jm.*, m.file_name, m.format, m.billed_pages, m.page_count,
+SELECT jm.*, m.file_name, m.format, m.billed_pages, m.page_count, m.category,
   (SELECT COUNT(*) FROM import_items i WHERE i.job_id = jm.job_id AND i.material_id = jm.material_id AND i.status <> 'deleted') AS recognized_count
 FROM import_job_materials jm JOIN materials m ON m.id = jm.material_id
 WHERE jm.job_id = ? AND jm.owner_user_id = ?

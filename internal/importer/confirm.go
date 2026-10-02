@@ -212,9 +212,9 @@ func (s *Service) GenerateAnswer(ctx context.Context, userID, itemID uint64) (It
 
 // ConfirmResult 是确认入库的结果（1.8）。
 type ConfirmResult struct {
-	Questions, KPs, NeedsReview, Papers int
-	PlanReady                           bool
-	SubjectsWithoutImport               []uint64
+	Questions, KPs, NeedsReview, Papers, EssayItems int
+	PlanReady                                       bool
+	SubjectsWithoutImport                           []uint64
 }
 
 // Confirm 确认入库（1.7「确认入库 N 题」）：除已删除外的条目入库，需核对的带标记入库；可多次调用。
@@ -238,6 +238,8 @@ func (s *Service) Confirm(ctx context.Context, userID, jobID uint64, itemIDs []u
 		}
 		todo = append(todo, it)
 	}
+	// 作文题先入库，范文才能按题目归类；其余保持原顺序。
+	sort.SliceStable(todo, func(i, j int) bool { return essayOrder[todo[i].ItemType] < essayOrder[todo[j].ItemType] })
 	var res ConfirmResult
 	years := map[int]bool{}
 	mats := map[uint64]bool{}
@@ -276,7 +278,10 @@ func (s *Service) Confirm(ctx context.Context, userID, jobID uint64, itemIDs []u
 				}
 				res.KPs++
 			default:
-				continue // 作文资料条目在 T11 入库
+				if id, err = s.confirmEssayItem(ctx, q, job, it); err != nil {
+					return err
+				}
+				res.EssayItems++
 			}
 			if it.MaterialID.Valid {
 				mats[uint64(it.MaterialID.Int64)] = true
@@ -306,7 +311,7 @@ func (s *Service) Confirm(ctx context.Context, userID, jobID uint64, itemIDs []u
 		if err != nil {
 			return err
 		}
-		if c.Confirmed >= c.Questions+c.KnowledgePoints && job.Status == dbq.ImportJobsStatusReviewing {
+		if c.Confirmed >= c.Questions+c.KnowledgePoints+c.EssayItems && job.Status == dbq.ImportJobsStatusReviewing {
 			return q.UpdateImportJobStatus(ctx, dbq.UpdateImportJobStatusParams{Status: dbq.ImportJobsStatusConfirmed,
 				ConfirmedAt: sql.NullTime{Time: s.now().UTC(), Valid: true}, ID: jobID, OwnerUserID: userID})
 		}

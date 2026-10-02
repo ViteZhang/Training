@@ -418,3 +418,102 @@ func TestImportOwnership(t *testing.T) {
 		t.Error("列表不应看到别人的任务")
 	}
 }
+
+const essayNotes = `2024 年 908 写作考研真题
+2024 年作文题：以「守正与创新」为题写一篇议论文（不少于 800 字）
+评分细则
+立意（40 分）：切题、观点明确
+- 35-40 分：立意深刻
+- 25-34 分：立意明确
+结构（30 分）：层次清晰
+内容（50 分）：论据充实
+语言（30 分）：通顺准确
+方法：开头点题，第一段直接亮出中心论点。
+素材【创新】屠呦呦从古籍中获得灵感，提取青蒿素。
+范文《守正方能出新》
+守正是根基，创新是动力。
+传统文化的生命力在于不断创造性转化。
+唯有守正，创新才不会迷失方向。`
+
+func TestEssayImport(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	uid, sid := f.user(t)
+	// 用户在 1.4 选的是「题目」，资料被判断为作文类，按作文资料整理
+	m, err := f.mat.CreatePasted(ctx, uid, sid, "", "908 写作笔记", essayNotes, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := f.svc.CreateJob(ctx, uid, sid, "question", []uint64{m.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !job.DetectedEssay || job.Counts.EssayItems != 5 || job.Status != dbq.ImportJobsStatusReviewing {
+		t.Fatalf("作文资料：essay=%v %+v %s %+v", job.DetectedEssay, job.Counts, job.Status, job.Materials)
+	}
+	items, _, _ := f.svc.Items(ctx, uid, job.ID, "all", 0, 100)
+	byType := map[dbq.ImportItemsItemType]json.RawMessage{}
+	for _, it := range items {
+		byType[it.ItemType] = it.Payload
+		if !it.MaterialID.Valid {
+			t.Error("作文条目应带出处资料")
+		}
+	}
+	var rubric ai.EssayRubric
+	_ = json.Unmarshal(byType[dbq.ImportItemsItemTypeEssayRubric], &rubric)
+	if rubric.FullScore != 150 || len(rubric.Dimensions) != 4 || len(rubric.Dimensions[0].Bands) != 2 || rubric.Page != 1 {
+		t.Fatalf("评分细则：%+v", rubric)
+	}
+	var topic ai.EssayTopic
+	_ = json.Unmarshal(byType[dbq.ImportItemsItemTypeEssayTopic], &topic)
+	if topic.Year == nil || *topic.Year != 2024 || topic.RequiredWords == nil || *topic.RequiredWords != 800 {
+		t.Fatalf("作文题：%+v", topic)
+	}
+	var cat, sub string
+	var isEssay bool
+	_ = f.db.QueryRow("SELECT category, sub_type FROM materials WHERE id = ?", m.ID).Scan(&cat, &sub)
+	_ = f.db.QueryRow("SELECT is_essay FROM subjects WHERE id = ?", sid).Scan(&isEssay)
+	if cat != "essay" || sub != "评分细则" || !isEssay {
+		t.Fatalf("资料类型 %s/%s，作文课 %v", cat, sub, isEssay)
+	}
+
+	r, err := f.svc.Confirm(ctx, uid, job.ID, nil)
+	if err != nil || r.EssayItems != 5 {
+		t.Fatalf("%v %+v", err, r)
+	}
+	count := func(q string) int {
+		var n int
+		if err := f.db.QueryRow(q, uid).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	checks := map[string]int{
+		"SELECT COUNT(*) FROM questions WHERE owner_user_id = ? AND qtype = 'essay' AND exam_year = 2024 AND required_words = 800":           1,
+		"SELECT COUNT(*) FROM essay_rubrics WHERE owner_user_id = ? AND is_active = 1 AND source = 'user_material' AND source_page = 1":      1,
+		"SELECT COUNT(*) FROM writing_methods WHERE owner_user_id = ? AND source_material_id IS NOT NULL AND source_page = 1":                1,
+		"SELECT COUNT(*) FROM essay_materials WHERE owner_user_id = ? AND theme = '创新' AND origin = 'ai_extracted'":                          1,
+		"SELECT COUNT(*) FROM model_essays WHERE owner_user_id = ? AND topic_question_id IS NULL AND JSON_LENGTH(structure, '$.points') = 1": 1,
+	}
+	for q, want := range checks {
+		if n := count(q); n != want {
+			t.Errorf("%s = %d，want %d", q, n, want)
+		}
+	}
+	if j, _ := f.svc.Get(ctx, uid, job.ID); j.Status != dbq.ImportJobsStatusConfirmed {
+		t.Errorf("任务状态：%s", j.Status)
+	}
+
+	// 用户改过作文课判断后不再自动改
+	if _, err := f.db.Exec("UPDATE subjects SET is_essay = 0, essay_set_by = 'user' WHERE id = ?", sid); err != nil {
+		t.Fatal(err)
+	}
+	m2, _ := f.mat.CreatePasted(ctx, uid, sid, "", "范文集", strings.ReplaceAll(essayNotes, "守正", "坚守"), true)
+	if _, err := f.svc.CreateJob(ctx, uid, sid, "essay", []uint64{m2.ID}); err != nil {
+		t.Fatal(err)
+	}
+	_ = f.db.QueryRow("SELECT is_essay FROM subjects WHERE id = ?", sid).Scan(&isEssay)
+	if isEssay {
+		t.Fatal("用户改过的判断不应被自动覆盖")
+	}
+}

@@ -530,7 +530,7 @@ func (q *Queries) ListImportItemsPage(ctx context.Context, arg ListImportItemsPa
 }
 
 const listImportJobMaterials = `-- name: ListImportJobMaterials :many
-SELECT jm.job_id, jm.material_id, jm.owner_user_id, jm.step, jm.status, jm.attempts, jm.fail_reason, jm.failed_pages, jm.eta_seconds, jm.updated_at, jm.reserved_pages, jm.quota_period, jm.settled, m.file_name, m.format, m.billed_pages, m.page_count,
+SELECT jm.job_id, jm.material_id, jm.owner_user_id, jm.step, jm.status, jm.attempts, jm.fail_reason, jm.failed_pages, jm.eta_seconds, jm.updated_at, jm.reserved_pages, jm.quota_period, jm.settled, m.file_name, m.format, m.billed_pages, m.page_count, m.category,
   (SELECT COUNT(*) FROM import_items i WHERE i.job_id = jm.job_id AND i.material_id = jm.material_id AND i.status <> 'deleted') AS recognized_count
 FROM import_job_materials jm JOIN materials m ON m.id = jm.material_id
 WHERE jm.job_id = ? AND jm.owner_user_id = ?
@@ -560,6 +560,7 @@ type ListImportJobMaterialsRow struct {
 	Format          MaterialsFormat
 	BilledPages     uint32
 	PageCount       uint32
+	Category        NullMaterialsCategory
 	RecognizedCount int64
 }
 
@@ -590,6 +591,7 @@ func (q *Queries) ListImportJobMaterials(ctx context.Context, arg ListImportJobM
 			&i.Format,
 			&i.BilledPages,
 			&i.PageCount,
+			&i.Category,
 			&i.RecognizedCount,
 		); err != nil {
 			return nil, err

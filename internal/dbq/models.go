@@ -6229,6 +6229,8 @@ type Question struct {
 	OfficialQuestionID sql.NullInt64
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	// 作文要求字数
+	RequiredWords sql.NullInt16
 }
 
 // 题目与知识点多对多

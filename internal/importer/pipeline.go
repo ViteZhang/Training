@@ -106,7 +106,7 @@ func (s *Service) ProcessMaterial(ctx context.Context, userID, jobID, materialID
 		switch {
 		case n == 0 && failed > 0:
 			return s.fail(ctx, jm, "AI 没能识别这份资料，请稍后重试")
-		case n == 0 && job.Mode != dbq.ImportJobsModeEssay:
+		case n == 0:
 			return s.fail(ctx, jm, emptyReason(job.Mode))
 		case failed > 0:
 			partial = fmt.Sprintf("有 %d 段没能识别，已识别出 %d 条", failed, n)
@@ -116,6 +116,9 @@ func (s *Service) ProcessMaterial(ctx context.Context, userID, jobID, materialID
 }
 
 func emptyReason(mode dbq.ImportJobsMode) string {
+	if mode == dbq.ImportJobsModeEssay {
+		return "没有从这份资料里整理出作文题、评分细则、写作方法、素材或范文"
+	}
 	if mode == dbq.ImportJobsModeReference {
 		return "没有从这份资料里拆出知识点。如果它是真题或习题，请按「题目」导入"
 	}
@@ -176,13 +179,24 @@ func (s *Service) structure(ctx context.Context, job dbq.GetImportJobRow, materi
 	if err := s.q.DeleteImportAnswersOfMaterial(ctx, dbq.DeleteImportAnswersOfMaterialParams{JobID: job.ID, MaterialID: materialID, OwnerUserID: userID}); err != nil {
 		return 0, 0, err
 	}
+	m, err := s.material.Get(ctx, userID, materialID)
+	if err != nil {
+		return 0, 0, err
+	}
+	category, err := s.classify(ctx, job, m, pages)
+	if err != nil {
+		return 0, 0, err
+	}
+	// 作文类资料不管 1.4 选的是什么都按作文资料整理（作文课不需要用户事先声明，PRD 1.4）。
+	if category == "essay" || job.Mode == dbq.ImportJobsModeEssay {
+		return s.organizeEssay(ctx, job, materialID, pages)
+	}
 	switch job.Mode {
 	case dbq.ImportJobsModeQuestion:
 		return s.structureQuestions(ctx, job, materialID, pages)
 	case dbq.ImportJobsModeReference:
 		return s.extractKPs(ctx, job, materialID, pages)
 	}
-	// 作文资料整理在 T11。
 	return 0, 0, nil
 }
 
