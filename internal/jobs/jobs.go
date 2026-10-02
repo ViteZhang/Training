@@ -32,6 +32,8 @@ const (
 	TypePing          = "system:ping"
 	TypePurgeAccounts = "account:purge_deleted"
 	TypeExtract       = "material:extract"
+	TypeImportFile    = "import:material"
+	TypeImportFinish  = "import:finalize"
 )
 
 // PingPayload 用于检查「API 入队 → Worker 执行」整条链路。
@@ -61,12 +63,48 @@ type MaterialExtractor interface {
 // IsPermanent 判断错误是否重试也不会好（文件本身的问题，原因已写进资料记录）。由 app 包注入。
 type IsPermanent func(error) bool
 
+// Importer 是导入流水线（importer.Service 实现）：逐个文件处理，全部文件结束后整理（配答案、采分点、标签、去重）。
+type Importer interface {
+	ProcessMaterial(ctx context.Context, userID, jobID, materialID uint64) error
+	// GiveUp 在重试用完时把文件标为失败、退回额度，避免进度永远停在「解析中」。
+	GiveUp(ctx context.Context, userID, jobID, materialID uint64) error
+	Finalize(ctx context.Context, userID, jobID uint64) error
+}
+
+// ImportPayload 指定导入任务里的一个文件（MaterialID 为 0 表示整理整个任务）。
+type ImportPayload struct {
+	UserID     uint64 `json:"user_id"`
+	JobID      uint64 `json:"job_id"`
+	MaterialID uint64 `json:"material_id,omitempty"`
+}
+
+// NewImportFileTask 创建处理一个文件的任务。attempt 是用户手动重试的次数，让重试生成新任务 ID。
+func NewImportFileTask(userID, jobID, materialID uint64, attempt int) (*asynq.Task, error) {
+	b, err := json.Marshal(ImportPayload{UserID: userID, JobID: jobID, MaterialID: materialID})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TypeImportFile, b, asynq.Queue(QueueDefault), asynq.MaxRetry(3), asynq.Timeout(30*time.Minute),
+		asynq.TaskID(fmt.Sprintf("%s:%d:%d:%d", TypeImportFile, jobID, materialID, attempt))), nil
+}
+
+// NewImportFinishTask 创建整理任务。多个文件同时结束会各自入队，Unique 去掉排队中的重复，任务本身也可重复执行。
+func NewImportFinishTask(userID, jobID uint64) (*asynq.Task, error) {
+	b, err := json.Marshal(ImportPayload{UserID: userID, JobID: jobID})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TypeImportFinish, b, asynq.Queue(QueueDefault), asynq.MaxRetry(3), asynq.Timeout(30*time.Minute),
+		asynq.Unique(time.Minute)), nil
+}
+
 // Handlers 是全部任务处理器的依赖。后续卡片在这里加业务服务。
 type Handlers struct {
 	Logger    *slog.Logger
 	Auth      AccountPurger
 	Material  MaterialExtractor
 	Permanent IsPermanent
+	Import    Importer
 }
 
 // MaterialPayload 指定一份资料。带上 user_id，处理器按归属查询（CLAUDE.md 必须遵守第 4 条）。
@@ -92,6 +130,8 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 	mux.HandleFunc(TypePing, h.handlePing)
 	mux.HandleFunc(TypePurgeAccounts, h.handlePurgeAccounts)
 	mux.HandleFunc(TypeExtract, h.handleExtract)
+	mux.HandleFunc(TypeImportFile, h.handleImportFile)
+	mux.HandleFunc(TypeImportFinish, h.handleImportFinish)
 	return mux
 }
 
@@ -141,6 +181,35 @@ func (h *Handlers) handleExtract(ctx context.Context, t *asynq.Task) error {
 		return nil
 	}
 	return err
+}
+
+func (h *Handlers) handleImportFile(ctx context.Context, t *asynq.Task) error {
+	var p ImportPayload
+	if err := json.Unmarshal(t.Payload(), &p); err != nil {
+		return fmt.Errorf("解析导入载荷：%w", errors.Join(err, asynq.SkipRetry))
+	}
+	err := h.Import.ProcessMaterial(ctx, p.UserID, p.JobID, p.MaterialID)
+	if err != nil && lastAttempt(ctx) {
+		if gerr := h.Import.GiveUp(ctx, p.UserID, p.JobID, p.MaterialID); gerr != nil {
+			return errors.Join(err, gerr)
+		}
+	}
+	return err
+}
+
+func (h *Handlers) handleImportFinish(ctx context.Context, t *asynq.Task) error {
+	var p ImportPayload
+	if err := json.Unmarshal(t.Payload(), &p); err != nil {
+		return fmt.Errorf("解析导入载荷：%w", errors.Join(err, asynq.SkipRetry))
+	}
+	return h.Import.Finalize(ctx, p.UserID, p.JobID)
+}
+
+// lastAttempt 报告这是不是最后一次重试（重试用完后 Asynq 不再执行，需要把状态收尾）。
+func lastAttempt(ctx context.Context) bool {
+	retry, ok1 := asynq.GetRetryCount(ctx)
+	maxRetry, ok2 := asynq.GetMaxRetry(ctx)
+	return ok1 && ok2 && retry >= maxRetry
 }
 
 // Schedule 是一个定时任务：cron 表达式按北京时间。

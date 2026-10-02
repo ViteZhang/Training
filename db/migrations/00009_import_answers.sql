@@ -19,5 +19,12 @@ CREATE TABLE import_answers (
   CONSTRAINT fk_import_answers_material FOREIGN KEY (material_id) REFERENCES materials (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='导入中只有答案的条目，待配对';
 
+-- 每个文件的解析额度预占：结算或退回时要用预占时的周期与页数（quota.Ticket）。
+ALTER TABLE import_job_materials
+  ADD COLUMN reserved_pages INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '本文件预占的解析页数' AFTER failed_pages,
+  ADD COLUMN quota_period   VARCHAR(16)  NULL COMMENT '预占时的额度周期键' AFTER reserved_pages,
+  ADD COLUMN settled        TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '额度已结算（成功按计费页数扣，失败全部退回）' AFTER quota_period;
+
 -- +goose Down
+ALTER TABLE import_job_materials DROP COLUMN settled, DROP COLUMN quota_period, DROP COLUMN reserved_pages;
 DROP TABLE import_answers;

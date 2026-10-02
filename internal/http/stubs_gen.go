@@ -8,16 +8,6 @@ import (
 	"peetraining-server/internal/gen"
 )
 
-// ConfirmImportJob 尚未实现，返回 501。
-func (h *Handlers) ConfirmImportJob(c *gin.Context, _ gen.JobId, _ gen.ConfirmImportJobParams) {
-	_ = c.Error(ErrNotImplemented())
-}
-
-// CreateImportJob 尚未实现，返回 501。
-func (h *Handlers) CreateImportJob(c *gin.Context, _ gen.CreateImportJobParams) {
-	_ = c.Error(ErrNotImplemented())
-}
-
 // CreateKnowledgeNode 尚未实现，返回 501。
 func (h *Handlers) CreateKnowledgeNode(c *gin.Context, _ gen.SubjectId) {
 	_ = c.Error(ErrNotImplemented())
@@ -32,19 +22,8 @@ func (h *Handlers) DeleteKnowledgePoint(c *gin.Context, _ gen.KpId) { _ = c.Erro
 // DeleteQuestion 尚未实现，返回 501。
 func (h *Handlers) DeleteQuestion(c *gin.Context, _ gen.QuestionId) { _ = c.Error(ErrNotImplemented()) }
 
-// GenerateImportItemAnswer 尚未实现，返回 501。
-func (h *Handlers) GenerateImportItemAnswer(c *gin.Context, _ gen.ItemId, _ gen.GenerateImportItemAnswerParams) {
-	_ = c.Error(ErrNotImplemented())
-}
-
 // GetBankOverview 尚未实现，返回 501。
 func (h *Handlers) GetBankOverview(c *gin.Context, _ gen.SubjectId) { _ = c.Error(ErrNotImplemented()) }
-
-// GetImportItem 尚未实现，返回 501。
-func (h *Handlers) GetImportItem(c *gin.Context, _ gen.ItemId) { _ = c.Error(ErrNotImplemented()) }
-
-// GetImportJob 尚未实现，返回 501。
-func (h *Handlers) GetImportJob(c *gin.Context, _ gen.JobId) { _ = c.Error(ErrNotImplemented()) }
 
 // GetKnowledgePoint 尚未实现，返回 501。
 func (h *Handlers) GetKnowledgePoint(c *gin.Context, _ gen.KpId) { _ = c.Error(ErrNotImplemented()) }
@@ -62,16 +41,6 @@ func (h *Handlers) GetMaterialPage(c *gin.Context, _ gen.MaterialId, _ int, _ ge
 // GetQuestion 尚未实现，返回 501。
 func (h *Handlers) GetQuestion(c *gin.Context, _ gen.QuestionId) { _ = c.Error(ErrNotImplemented()) }
 
-// ListImportItems 尚未实现，返回 501。
-func (h *Handlers) ListImportItems(c *gin.Context, _ gen.JobId, _ gen.ListImportItemsParams) {
-	_ = c.Error(ErrNotImplemented())
-}
-
-// ListImportJobs 尚未实现，返回 501。
-func (h *Handlers) ListImportJobs(c *gin.Context, _ gen.ListImportJobsParams) {
-	_ = c.Error(ErrNotImplemented())
-}
-
 // ListQuestions 尚未实现，返回 501。
 func (h *Handlers) ListQuestions(c *gin.Context, _ gen.SubjectId, _ gen.ListQuestionsParams) {
 	_ = c.Error(ErrNotImplemented())
@@ -82,16 +51,6 @@ func (h *Handlers) MergeKnowledgePoint(c *gin.Context, _ gen.KpId) { _ = c.Error
 
 // RegenerateExplanation 尚未实现，返回 501。
 func (h *Handlers) RegenerateExplanation(c *gin.Context, _ gen.KpId) {
-	_ = c.Error(ErrNotImplemented())
-}
-
-// RemoveImportMaterial 尚未实现，返回 501。
-func (h *Handlers) RemoveImportMaterial(c *gin.Context, _ gen.JobId, _ gen.MaterialId) {
-	_ = c.Error(ErrNotImplemented())
-}
-
-// RetryImportMaterial 尚未实现，返回 501。
-func (h *Handlers) RetryImportMaterial(c *gin.Context, _ gen.JobId, _ gen.MaterialId) {
 	_ = c.Error(ErrNotImplemented())
 }
 
@@ -107,9 +66,6 @@ func (h *Handlers) SelfAssessKnowledgePoint(c *gin.Context, _ gen.KpId) {
 
 // SplitKnowledgePoint 尚未实现，返回 501。
 func (h *Handlers) SplitKnowledgePoint(c *gin.Context, _ gen.KpId) { _ = c.Error(ErrNotImplemented()) }
-
-// UpdateImportItem 尚未实现，返回 501。
-func (h *Handlers) UpdateImportItem(c *gin.Context, _ gen.ItemId) { _ = c.Error(ErrNotImplemented()) }
 
 // UpdateKnowledgePoint 尚未实现，返回 501。
 func (h *Handlers) UpdateKnowledgePoint(c *gin.Context, _ gen.KpId) { _ = c.Error(ErrNotImplemented()) }

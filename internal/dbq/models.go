@@ -5844,6 +5844,12 @@ type ImportJobMaterial struct {
 	FailedPages dbtypes.NullJSON
 	EtaSeconds  sql.NullInt32
 	UpdatedAt   time.Time
+	// 本文件预占的解析页数
+	ReservedPages uint32
+	// 预占时的额度周期键
+	QuotaPeriod sql.NullString
+	// 额度已结算（成功按计费页数扣，失败全部退回）
+	Settled bool
 }
 
 // 邀请研友（6.8）

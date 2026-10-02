@@ -15,6 +15,7 @@ import (
 	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/flags"
 	"peetraining-server/internal/gen"
+	"peetraining-server/internal/importer"
 	"peetraining-server/internal/material"
 	"peetraining-server/internal/profile"
 	"peetraining-server/internal/quota"
@@ -40,6 +41,7 @@ type Deps struct {
 	Profile  *profile.Service
 	Material *material.Service
 	Quota    *quota.Service
+	Importer *importer.Service
 	// DevOSS 不为空时注册本地 mock OSS 的直传入口 PUT /dev/oss/*key（只在非生产环境）。
 	DevOSS *oss.Mock
 	// Tokens 校验访问令牌；为空时用 Auth（测试里可以换成假的）。

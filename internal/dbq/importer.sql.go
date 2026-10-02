@@ -51,6 +51,17 @@ func (q *Queries) AddImportJobPages(ctx context.Context, arg AddImportJobPagesPa
 	return err
 }
 
+const countActiveImportJobs = `-- name: CountActiveImportJobs :one
+SELECT COUNT(*) FROM import_jobs WHERE owner_user_id = ? AND status IN ('queued', 'running')
+`
+
+func (q *Queries) CountActiveImportJobs(ctx context.Context, ownerUserID uint64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveImportJobs, ownerUserID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countImportItems = `-- name: CountImportItems :one
 SELECT
   CAST(COALESCE(SUM(item_type = 'question'), 0) AS SIGNED) AS questions,
@@ -113,6 +124,21 @@ func (q *Queries) CreateImportJob(ctx context.Context, arg CreateImportJobParams
 	return result.LastInsertId()
 }
 
+const deleteImportAnswersOfMaterial = `-- name: DeleteImportAnswersOfMaterial :exec
+DELETE FROM import_answers WHERE job_id = ? AND material_id = ? AND owner_user_id = ?
+`
+
+type DeleteImportAnswersOfMaterialParams struct {
+	JobID       uint64
+	MaterialID  uint64
+	OwnerUserID uint64
+}
+
+func (q *Queries) DeleteImportAnswersOfMaterial(ctx context.Context, arg DeleteImportAnswersOfMaterialParams) error {
+	_, err := q.db.ExecContext(ctx, deleteImportAnswersOfMaterial, arg.JobID, arg.MaterialID, arg.OwnerUserID)
+	return err
+}
+
 const deleteImportItemsOfMaterial = `-- name: DeleteImportItemsOfMaterial :exec
 DELETE FROM import_items WHERE job_id = ? AND material_id = ? AND owner_user_id = ? AND created_entity_id IS NULL
 `
@@ -145,6 +171,22 @@ func (q *Queries) DeleteImportJobMaterial(ctx context.Context, arg DeleteImportJ
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const deletePendingItemsOfMaterial = `-- name: DeletePendingItemsOfMaterial :exec
+DELETE FROM import_items WHERE job_id = ? AND material_id = ? AND owner_user_id = ? AND status = 'pending' AND created_entity_id IS NULL
+`
+
+type DeletePendingItemsOfMaterialParams struct {
+	JobID       uint64
+	MaterialID  sql.NullInt64
+	OwnerUserID uint64
+}
+
+// 重跑结构化前删掉这份资料用户还没动过的条目；改过、确认过的保留。
+func (q *Queries) DeletePendingItemsOfMaterial(ctx context.Context, arg DeletePendingItemsOfMaterialParams) error {
+	_, err := q.db.ExecContext(ctx, deletePendingItemsOfMaterial, arg.JobID, arg.MaterialID, arg.OwnerUserID)
+	return err
 }
 
 const getImportItem = `-- name: GetImportItem :one
@@ -259,7 +301,7 @@ func (q *Queries) GetImportJob(ctx context.Context, arg GetImportJobParams) (Get
 }
 
 const getImportJobMaterial = `-- name: GetImportJobMaterial :one
-SELECT job_id, material_id, owner_user_id, step, status, attempts, fail_reason, failed_pages, eta_seconds, updated_at FROM import_job_materials WHERE job_id = ? AND material_id = ? AND owner_user_id = ?
+SELECT job_id, material_id, owner_user_id, step, status, attempts, fail_reason, failed_pages, eta_seconds, updated_at, reserved_pages, quota_period, settled FROM import_job_materials WHERE job_id = ? AND material_id = ? AND owner_user_id = ?
 `
 
 type GetImportJobMaterialParams struct {
@@ -282,6 +324,9 @@ func (q *Queries) GetImportJobMaterial(ctx context.Context, arg GetImportJobMate
 		&i.FailedPages,
 		&i.EtaSeconds,
 		&i.UpdatedAt,
+		&i.ReservedPages,
+		&i.QuotaPeriod,
+		&i.Settled,
 	)
 	return i, err
 }
@@ -485,7 +530,7 @@ func (q *Queries) ListImportItemsPage(ctx context.Context, arg ListImportItemsPa
 }
 
 const listImportJobMaterials = `-- name: ListImportJobMaterials :many
-SELECT jm.job_id, jm.material_id, jm.owner_user_id, jm.step, jm.status, jm.attempts, jm.fail_reason, jm.failed_pages, jm.eta_seconds, jm.updated_at, m.file_name, m.format, m.billed_pages, m.page_count,
+SELECT jm.job_id, jm.material_id, jm.owner_user_id, jm.step, jm.status, jm.attempts, jm.fail_reason, jm.failed_pages, jm.eta_seconds, jm.updated_at, jm.reserved_pages, jm.quota_period, jm.settled, m.file_name, m.format, m.billed_pages, m.page_count,
   (SELECT COUNT(*) FROM import_items i WHERE i.job_id = jm.job_id AND i.material_id = jm.material_id AND i.status <> 'deleted') AS recognized_count
 FROM import_job_materials jm JOIN materials m ON m.id = jm.material_id
 WHERE jm.job_id = ? AND jm.owner_user_id = ?
@@ -508,6 +553,9 @@ type ListImportJobMaterialsRow struct {
 	FailedPages     dbtypes.NullJSON
 	EtaSeconds      sql.NullInt32
 	UpdatedAt       time.Time
+	ReservedPages   uint32
+	QuotaPeriod     sql.NullString
+	Settled         bool
 	FileName        string
 	Format          MaterialsFormat
 	BilledPages     uint32
@@ -535,6 +583,9 @@ func (q *Queries) ListImportJobMaterials(ctx context.Context, arg ListImportJobM
 			&i.FailedPages,
 			&i.EtaSeconds,
 			&i.UpdatedAt,
+			&i.ReservedPages,
+			&i.QuotaPeriod,
+			&i.Settled,
 			&i.FileName,
 			&i.Format,
 			&i.BilledPages,
@@ -555,57 +606,30 @@ func (q *Queries) ListImportJobMaterials(ctx context.Context, arg ListImportJobM
 }
 
 const listImportJobs = `-- name: ListImportJobs :many
-SELECT j.id, j.owner_user_id, j.bank_id, j.mode, j.status, j.reserved_pages, j.billed_pages, j.prompt_versions, j.fail_reason, j.started_at, j.finished_at, j.confirmed_at, j.created_at, j.updated_at, b.subject_id FROM import_jobs j JOIN banks b ON b.id = j.bank_id
-WHERE j.owner_user_id = ? ORDER BY j.created_at DESC, j.id DESC LIMIT 50
+SELECT j.id FROM import_jobs j
+WHERE j.owner_user_id = ?
+  AND (? = 0 OR j.status IN ('queued', 'running', 'reviewing'))
+ORDER BY j.created_at DESC, j.id DESC LIMIT 50
 `
 
-type ListImportJobsRow struct {
-	ID             uint64
-	OwnerUserID    uint64
-	BankID         uint64
-	Mode           ImportJobsMode
-	Status         ImportJobsStatus
-	ReservedPages  uint32
-	BilledPages    uint32
-	PromptVersions dbtypes.NullJSON
-	FailReason     sql.NullString
-	StartedAt      sql.NullTime
-	FinishedAt     sql.NullTime
-	ConfirmedAt    sql.NullTime
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	SubjectID      sql.NullInt64
+type ListImportJobsParams struct {
+	OwnerUserID uint64
+	ActiveOnly  interface{}
 }
 
-func (q *Queries) ListImportJobs(ctx context.Context, ownerUserID uint64) ([]ListImportJobsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listImportJobs, ownerUserID)
+func (q *Queries) ListImportJobs(ctx context.Context, arg ListImportJobsParams) ([]uint64, error) {
+	rows, err := q.db.QueryContext(ctx, listImportJobs, arg.OwnerUserID, arg.ActiveOnly)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListImportJobsRow{}
+	items := []uint64{}
 	for rows.Next() {
-		var i ListImportJobsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.OwnerUserID,
-			&i.BankID,
-			&i.Mode,
-			&i.Status,
-			&i.ReservedPages,
-			&i.BilledPages,
-			&i.PromptVersions,
-			&i.FailReason,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.ConfirmedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.SubjectID,
-		); err != nil {
+		var id uint64
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		items = append(items, i)
+		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -677,6 +701,31 @@ type SetImportItemCreatedParams struct {
 
 func (q *Queries) SetImportItemCreated(ctx context.Context, arg SetImportItemCreatedParams) error {
 	_, err := q.db.ExecContext(ctx, setImportItemCreated, arg.CreatedEntityID, arg.ID, arg.OwnerUserID)
+	return err
+}
+
+const setImportJobMaterialQuota = `-- name: SetImportJobMaterialQuota :exec
+UPDATE import_job_materials SET reserved_pages = ?, quota_period = ?, settled = ? WHERE job_id = ? AND material_id = ? AND owner_user_id = ?
+`
+
+type SetImportJobMaterialQuotaParams struct {
+	ReservedPages uint32
+	QuotaPeriod   sql.NullString
+	Settled       bool
+	JobID         uint64
+	MaterialID    uint64
+	OwnerUserID   uint64
+}
+
+func (q *Queries) SetImportJobMaterialQuota(ctx context.Context, arg SetImportJobMaterialQuotaParams) error {
+	_, err := q.db.ExecContext(ctx, setImportJobMaterialQuota,
+		arg.ReservedPages,
+		arg.QuotaPeriod,
+		arg.Settled,
+		arg.JobID,
+		arg.MaterialID,
+		arg.OwnerUserID,
+	)
 	return err
 }
 

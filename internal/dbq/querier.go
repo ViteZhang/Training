@@ -15,6 +15,7 @@ type Querier interface {
 	AddImportJobMaterial(ctx context.Context, arg AddImportJobMaterialParams) error
 	AddImportJobPages(ctx context.Context, arg AddImportJobPagesParams) error
 	CancelUserDeletion(ctx context.Context, id uint64) (int64, error)
+	CountActiveImportJobs(ctx context.Context, ownerUserID uint64) (int64, error)
 	CountImportItems(ctx context.Context, arg CountImportItemsParams) (CountImportItemsRow, error)
 	CountKPsFromMaterial(ctx context.Context, materialID uint64) (int64, error)
 	// 删除资料前说明连带影响（3.1d）。调用前已用 GetMaterial 核对资料属于当前用户，下面按资料 ID 统计。
@@ -26,6 +27,7 @@ type Querier interface {
 	CreateSubject(ctx context.Context, arg CreateSubjectParams) (int64, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (int64, error)
 	CreateUserBank(ctx context.Context, arg CreateUserBankParams) (int64, error)
+	DeleteImportAnswersOfMaterial(ctx context.Context, arg DeleteImportAnswersOfMaterialParams) error
 	// 从任务里移除文件（1.6b）时，它还没确认的条目一起删掉。
 	DeleteImportItemsOfMaterial(ctx context.Context, arg DeleteImportItemsOfMaterialParams) error
 	DeleteImportJobMaterial(ctx context.Context, arg DeleteImportJobMaterialParams) (int64, error)
@@ -34,6 +36,8 @@ type Querier interface {
 	// 重跑取文本时删掉多出来的旧页（这次页数变少）。
 	DeleteMaterialPagesAfter(ctx context.Context, arg DeleteMaterialPagesAfterParams) error
 	DeletePaperQuestions(ctx context.Context, arg DeletePaperQuestionsParams) error
+	// 重跑结构化前删掉这份资料用户还没动过的条目；改过、确认过的保留。
+	DeletePendingItemsOfMaterial(ctx context.Context, arg DeletePendingItemsOfMaterialParams) error
 	DeleteQuestionsFromMaterial(ctx context.Context, arg DeleteQuestionsFromMaterialParams) error
 	DeleteSubject(ctx context.Context, arg DeleteSubjectParams) (int64, error)
 	DeleteSubjectExports(ctx context.Context, arg DeleteSubjectExportsParams) error
@@ -44,10 +48,13 @@ type Querier interface {
 	DetachPapersFromMaterial(ctx context.Context, arg DetachPapersFromMaterialParams) error
 	// 额度计数与流水（T08，PRD 13.1）。扣减时先锁计数行，防止并发超额；流水的幂等键防止重复扣。
 	EnsureQuotaCounter(ctx context.Context, arg EnsureQuotaCounterParams) error
+	// 按「父节点 + 层级 + 名称」找已有知识点，导入时同名节点复用，树不重复（parent_id 可空，用 <=> 比较）。
+	FindKPByName(ctx context.Context, arg FindKPByNameParams) (uint64, error)
 	GetAIRollout(ctx context.Context, capability string) (AiRollout, error)
 	GetAppVersion(ctx context.Context, platform AppVersionsPlatform) (AppVersion, error)
 	// 资料（T08）。每条查询都带 owner_user_id 归属条件。
 	GetBankForSubject(ctx context.Context, arg GetBankForSubjectParams) (Bank, error)
+	GetBankKP(ctx context.Context, arg GetBankKPParams) (KnowledgePoint, error)
 	// 覆盖此刻、未收回的会员时段。
 	GetCurrentMembership(ctx context.Context, arg GetCurrentMembershipParams) (Membership, error)
 	GetExamDate(ctx context.Context, examYear uint16) (ExamDate, error)
@@ -94,7 +101,7 @@ type Querier interface {
 	ListImportAnswers(ctx context.Context, arg ListImportAnswersParams) ([]ImportAnswer, error)
 	ListImportItemsPage(ctx context.Context, arg ListImportItemsPageParams) ([]ImportItem, error)
 	ListImportJobMaterials(ctx context.Context, arg ListImportJobMaterialsParams) ([]ListImportJobMaterialsRow, error)
-	ListImportJobs(ctx context.Context, ownerUserID uint64) ([]ListImportJobsRow, error)
+	ListImportJobs(ctx context.Context, arg ListImportJobsParams) ([]uint64, error)
 	ListJobItems(ctx context.Context, arg ListJobItemsParams) ([]ImportItem, error)
 	// 只来自这份资料的知识点：它有来源记录，且全部来源都是这份资料。
 	// 调用前已核对资料属于当前用户；再限定在资料所在的题库内。
@@ -112,6 +119,7 @@ type Querier interface {
 	ListUserFeatureFlags(ctx context.Context, userID uint64) ([]string, error)
 	ListUsersDueForDeletion(ctx context.Context, arg ListUsersDueForDeletionParams) ([]uint64, error)
 	LockQuotaCounter(ctx context.Context, arg LockQuotaCounterParams) (QuotaCounter, error)
+	MaxKPSort(ctx context.Context, arg MaxKPSortParams) (int64, error)
 	// 知识点在真题中出现的次数（3.1、3.8；回忆版不计入）。
 	RecountKPExamCounts(ctx context.Context, arg RecountKPExamCountsParams) error
 	// 参数依次：资料 ID（题目来源）、资料 ID（知识点来源）、资料 ID、所有者。
@@ -124,6 +132,7 @@ type Querier interface {
 	RevokeDeviceTokens(ctx context.Context, arg RevokeDeviceTokensParams) (int64, error)
 	RevokeRefreshToken(ctx context.Context, arg RevokeRefreshTokenParams) error
 	SetImportItemCreated(ctx context.Context, arg SetImportItemCreatedParams) error
+	SetImportJobMaterialQuota(ctx context.Context, arg SetImportJobMaterialQuotaParams) error
 	SetImportJobPromptVersions(ctx context.Context, arg SetImportJobPromptVersionsParams) error
 	SetMaterialObjectKey(ctx context.Context, arg SetMaterialObjectKeyParams) error
 	TouchUserActive(ctx context.Context, arg TouchUserActiveParams) error

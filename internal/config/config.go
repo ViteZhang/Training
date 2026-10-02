@@ -76,6 +76,9 @@ type AIConfig struct {
 	BailianAPIKey  string
 	AltBaseURL     string
 	AltAPIKey      string
+	// ModelStrong / ModelCheap 是两档模型的默认名（Q02 定之前的开发值；后台 7.8 可按能力覆盖）。
+	ModelStrong string
+	ModelCheap  string
 }
 
 // Load 从环境变量读取配置并校验。
@@ -120,6 +123,8 @@ func load(getenv func(string) string) (*Config, error) {
 			BailianAPIKey:  get("BAILIAN_API_KEY", ""),
 			AltBaseURL:     get("AI_ALT_BASE_URL", ""),
 			AltAPIKey:      get("AI_ALT_API_KEY", ""),
+			ModelStrong:    get("AI_MODEL_STRONG", "qwen-plus"),
+			ModelCheap:     get("AI_MODEL_CHEAP", "qwen-turbo"),
 		},
 		OCR:        ProviderConfig{Provider: get("OCR_PROVIDER", ProviderMock)},
 		ASR:        ProviderConfig{Provider: get("ASR_PROVIDER", ProviderMock)},
