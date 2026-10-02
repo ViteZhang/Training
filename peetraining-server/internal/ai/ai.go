@@ -116,6 +116,9 @@ func (e *Engine) route(ctx context.Context, d Def, userID uint64) (Meta, error) 
 		model = e.models.Cheap
 	}
 	m := Meta{Model: model, Version: d.Version}
+	if e.q == nil {
+		return m, nil // 评测命令不连数据库
+	}
 	r, err := e.q.GetAIRollout(ctx, d.Name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, nil
@@ -296,6 +299,9 @@ func errorKind(err error) string {
 
 // record 写 ai_calls。账本写失败不影响业务调用。
 func (e *Engine) record(ctx context.Context, d Def, m Meta, userID uint64, resp cloudai.Response, start time.Time, errKind string, retried bool) {
+	if e.q == nil {
+		return
+	}
 	p := e.prices[m.Model]
 	cost := (int64(resp.InputTokens)*p.InputPer1K + int64(resp.OutputTokens)*p.OutputPer1K) / 1000
 	h := sha256.Sum256([]byte(fmt.Sprintf("%s:%d", e.salt, userID)))

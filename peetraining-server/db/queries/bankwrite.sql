@@ -60,3 +60,13 @@ WHERE k.bank_id = ? AND k.owner_user_id = ?;
 SELECT s.id FROM subjects s JOIN banks b ON b.subject_id = s.id
 WHERE s.owner_user_id = ? AND NOT EXISTS (SELECT 1 FROM materials m WHERE m.bank_id = b.id)
 ORDER BY s.id;
+
+-- name: FindKPByName :one
+-- 按「父节点 + 层级 + 名称」找已有知识点，导入时同名节点复用，树不重复（parent_id 可空，用 <=> 比较）。
+SELECT id FROM knowledge_points WHERE bank_id = ? AND owner_user_id = ? AND parent_id <=> ? AND level = ? AND name = ? LIMIT 1;
+
+-- name: GetBankKP :one
+SELECT * FROM knowledge_points WHERE id = ? AND bank_id = ? AND owner_user_id = ?;
+
+-- name: MaxKPSort :one
+SELECT CAST(COALESCE(MAX(sort_order), 0) AS SIGNED) FROM knowledge_points WHERE bank_id = ? AND owner_user_id = ?;

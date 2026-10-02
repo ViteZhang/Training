@@ -27,6 +27,68 @@ func (q *Queries) DeletePaperQuestions(ctx context.Context, arg DeletePaperQuest
 	return err
 }
 
+const findKPByName = `-- name: FindKPByName :one
+SELECT id FROM knowledge_points WHERE bank_id = ? AND owner_user_id = ? AND parent_id <=> ? AND level = ? AND name = ? LIMIT 1
+`
+
+type FindKPByNameParams struct {
+	BankID      uint64
+	OwnerUserID sql.NullInt64
+	ParentID    sql.NullInt64
+	Level       KnowledgePointsLevel
+	Name        string
+}
+
+// 按「父节点 + 层级 + 名称」找已有知识点，导入时同名节点复用，树不重复（parent_id 可空，用 <=> 比较）。
+func (q *Queries) FindKPByName(ctx context.Context, arg FindKPByNameParams) (uint64, error) {
+	row := q.db.QueryRowContext(ctx, findKPByName,
+		arg.BankID,
+		arg.OwnerUserID,
+		arg.ParentID,
+		arg.Level,
+		arg.Name,
+	)
+	var id uint64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const getBankKP = `-- name: GetBankKP :one
+SELECT id, owner_user_id, bank_id, parent_id, level, name, original_text, source_material_id, source_page, origin, needs_review, ai_explanation, ai_explanation_at, exam_count, official_kp_id, sort_order, created_at, updated_at FROM knowledge_points WHERE id = ? AND bank_id = ? AND owner_user_id = ?
+`
+
+type GetBankKPParams struct {
+	ID          uint64
+	BankID      uint64
+	OwnerUserID sql.NullInt64
+}
+
+func (q *Queries) GetBankKP(ctx context.Context, arg GetBankKPParams) (KnowledgePoint, error) {
+	row := q.db.QueryRowContext(ctx, getBankKP, arg.ID, arg.BankID, arg.OwnerUserID)
+	var i KnowledgePoint
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerUserID,
+		&i.BankID,
+		&i.ParentID,
+		&i.Level,
+		&i.Name,
+		&i.OriginalText,
+		&i.SourceMaterialID,
+		&i.SourcePage,
+		&i.Origin,
+		&i.NeedsReview,
+		&i.AiExplanation,
+		&i.AiExplanationAt,
+		&i.ExamCount,
+		&i.OfficialKpID,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getRealExamPaper = `-- name: GetRealExamPaper :one
 SELECT id, owner_user_id, bank_id, kind, title, exam_year, full_score, actual_score, duration_minutes, structure, missing_note, source_material_id, created_at FROM papers WHERE bank_id = ? AND owner_user_id = ? AND kind = 'real_exam' AND exam_year = ? LIMIT 1
 `
@@ -363,6 +425,22 @@ func (q *Queries) ListSubjectsWithoutContent(ctx context.Context, ownerUserID ui
 		return nil, err
 	}
 	return items, nil
+}
+
+const maxKPSort = `-- name: MaxKPSort :one
+SELECT CAST(COALESCE(MAX(sort_order), 0) AS SIGNED) FROM knowledge_points WHERE bank_id = ? AND owner_user_id = ?
+`
+
+type MaxKPSortParams struct {
+	BankID      uint64
+	OwnerUserID sql.NullInt64
+}
+
+func (q *Queries) MaxKPSort(ctx context.Context, arg MaxKPSortParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, maxKPSort, arg.BankID, arg.OwnerUserID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const recountKPExamCounts = `-- name: RecountKPExamCounts :exec

@@ -185,3 +185,8 @@ func IsPermanent(err error) bool {
 	}
 	return errors.Is(err, ErrNotUploaded)
 }
+
+// SetStatus 更新资料状态与面向用户的原因（导入流水线结束时调用）。
+func (s *Service) SetStatus(ctx context.Context, userID, id uint64, st dbq.MaterialsStatus, reason string) error {
+	return s.setStatus(ctx, userID, id, st, reason)
+}

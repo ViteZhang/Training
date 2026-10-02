@@ -5,7 +5,9 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,6 +17,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
 
+	"peetraining-server/internal/ai"
 	"peetraining-server/internal/auth"
 	"peetraining-server/internal/cloud"
 	"peetraining-server/internal/cloud/oss"
@@ -22,6 +25,7 @@ import (
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/flags"
 	apihttp "peetraining-server/internal/http"
+	"peetraining-server/internal/importer"
 	"peetraining-server/internal/jobs"
 	"peetraining-server/internal/logx"
 	"peetraining-server/internal/material"
@@ -57,6 +61,8 @@ type Base struct {
 	Profile  *profile.Service
 	Quota    *quota.Service
 	Material *material.Service
+	AI       *ai.Engine
+	Importer *importer.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -79,13 +85,23 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	ps := params.New(q)
 	qs := quota.New(q, ps, nil)
 	fl := flags.New(q)
+	mat := material.New(material.Deps{
+		DB: db, OSS: clients.OSS, Moderation: clients.Moderation, Quota: qs, Params: ps,
+		OCR: clients.OCR, PDF: clients.PDF, Flags: fl,
+	})
+	salt := sha256.Sum256([]byte("ai-calls:" + cfg.JWTSecret))
+	engine := ai.NewEngine(ai.Config{
+		Client: clients.AI, Queries: q, UseMock: cfg.AI.Provider == config.ProviderMock,
+		Models: ai.Models{Strong: cfg.AI.ModelStrong, Cheap: cfg.AI.ModelCheap}, Salt: hex.EncodeToString(salt[:]),
+	})
+	queue := asynq.NewClientFromRedisClient(rdb)
 	return &Base{
 		Config: cfg,
 		Logger: log,
 		DB:     db,
 		Redis:  rdb,
 		Cloud:  clients,
-		Queue:  asynq.NewClientFromRedisClient(rdb),
+		Queue:  queue,
 		Params: ps,
 		Flags:  fl,
 		Auth: auth.New(auth.Deps{
@@ -93,12 +109,11 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 			JWTSecret: cfg.JWTSecret, Logger: log,
 			LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock,
 		}),
-		Profile: profile.New(db, ps, clients.OSS, nil),
-		Quota:   qs,
-		Material: material.New(material.Deps{
-			DB: db, OSS: clients.OSS, Moderation: clients.Moderation, Quota: qs, Params: ps,
-			OCR: clients.OCR, PDF: clients.PDF, Flags: fl,
-		}),
+		Profile:  profile.New(db, ps, clients.OSS, nil),
+		Quota:    qs,
+		Material: mat,
+		AI:       engine,
+		Importer: importer.New(importer.Deps{DB: db, Material: mat, Quota: qs, AI: engine, Queue: queue}),
 	}, nil
 }
 
@@ -133,6 +148,7 @@ func (b *Base) Handler() (http.Handler, error) {
 		Profile:  b.Profile,
 		Material: b.Material,
 		Quota:    b.Quota,
+		Importer: b.Importer,
 		DevOSS:   b.devOSS(),
 	})
 }
@@ -197,7 +213,7 @@ func NewWorker(b *Base) (*Worker, error) {
 	if err := jobs.RegisterSchedules(scheduler); err != nil {
 		return nil, fmt.Errorf("注册定时任务：%w", err)
 	}
-	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent}
+	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer}
 	return &Worker{server: server, scheduler: scheduler, mux: h.Mux()}, nil
 }
 

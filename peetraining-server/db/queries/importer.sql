@@ -12,8 +12,10 @@ JOIN banks b ON b.id = j.bank_id JOIN subjects s ON s.id = b.subject_id
 WHERE j.id = ? AND j.owner_user_id = ?;
 
 -- name: ListImportJobs :many
-SELECT j.*, b.subject_id FROM import_jobs j JOIN banks b ON b.id = j.bank_id
-WHERE j.owner_user_id = ? ORDER BY j.created_at DESC, j.id DESC LIMIT 50;
+SELECT j.id FROM import_jobs j
+WHERE j.owner_user_id = sqlc.arg(owner_user_id)
+  AND (sqlc.arg(active_only) = 0 OR j.status IN ('queued', 'running', 'reviewing'))
+ORDER BY j.created_at DESC, j.id DESC LIMIT 50;
 
 -- name: ListImportJobMaterials :many
 SELECT jm.*, m.file_name, m.format, m.billed_pages, m.page_count,
@@ -108,3 +110,16 @@ SELECT id, qtype, stem, content_hash FROM questions WHERE bank_id = ? AND owner_
 
 -- name: ListBankKPs :many
 SELECT id, parent_id, level, name FROM knowledge_points WHERE bank_id = ? AND owner_user_id = ? ORDER BY sort_order, id;
+
+-- name: SetImportJobMaterialQuota :exec
+UPDATE import_job_materials SET reserved_pages = ?, quota_period = ?, settled = ? WHERE job_id = ? AND material_id = ? AND owner_user_id = ?;
+
+-- name: DeletePendingItemsOfMaterial :exec
+-- 重跑结构化前删掉这份资料用户还没动过的条目；改过、确认过的保留。
+DELETE FROM import_items WHERE job_id = ? AND material_id = ? AND owner_user_id = ? AND status = 'pending' AND created_entity_id IS NULL;
+
+-- name: DeleteImportAnswersOfMaterial :exec
+DELETE FROM import_answers WHERE job_id = ? AND material_id = ? AND owner_user_id = ?;
+
+-- name: CountActiveImportJobs :one
+SELECT COUNT(*) FROM import_jobs WHERE owner_user_id = ? AND status IN ('queued', 'running');
