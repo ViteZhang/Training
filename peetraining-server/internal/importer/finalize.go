@@ -138,6 +138,10 @@ func (s *Service) Finalize(ctx context.Context, userID, jobID uint64) error {
 	for _, w := range ws {
 		h := ContentHash(w.q.Stem)
 		for _, b := range bank {
+			// 不同年份的真题考了同一题不算重复。
+			if b.ExamYear.Valid && w.q.ExamYear != nil && int(b.ExamYear.Int16) != *w.q.ExamYear {
+				continue
+			}
 			if b.ContentHash == h || (string(b.Qtype) == w.q.QType && ai.Overlap(w.q.Stem, b.Stem) >= 0.9 && ai.Overlap(b.Stem, w.q.Stem) >= 0.9) {
 				w.dupOf, w.changed = b.ID, true
 				w.reasons = append(w.reasons, ReasonDuplicate)

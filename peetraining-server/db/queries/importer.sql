@@ -106,7 +106,7 @@ ON DUPLICATE KEY UPDATE answer = VALUES(answer), page = VALUES(page);
 SELECT * FROM import_answers WHERE job_id = ? AND owner_user_id = ? ORDER BY id;
 
 -- name: ListBankQuestionsForDedupe :many
-SELECT id, qtype, stem, content_hash FROM questions WHERE bank_id = ? AND owner_user_id = ? AND status = 'active';
+SELECT id, qtype, stem, content_hash, exam_year FROM questions WHERE bank_id = ? AND owner_user_id = ? AND status = 'active';
 
 -- name: ListBankKPs :many
 SELECT id, parent_id, level, name FROM knowledge_points WHERE bank_id = ? AND owner_user_id = ? ORDER BY sort_order, id;

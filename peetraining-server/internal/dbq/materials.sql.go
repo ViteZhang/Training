@@ -181,7 +181,7 @@ func (q *Queries) DetachPapersFromMaterial(ctx context.Context, arg DetachPapers
 
 const getBankForSubject = `-- name: GetBankForSubject :one
 
-SELECT b.id, b.source, b.owner_user_id, b.subject_id, b.title, b.school_major_tag, b.subject_code, b.created_at, b.updated_at FROM banks b JOIN subjects s ON s.id = b.subject_id
+SELECT b.id, b.source, b.owner_user_id, b.subject_id, b.title, b.school_major_tag, b.subject_code, b.created_at, b.updated_at, b.exam_style, b.exam_style_key, b.relations_generated_at FROM banks b JOIN subjects s ON s.id = b.subject_id
 WHERE s.id = ? AND s.owner_user_id = ? AND b.owner_user_id = ?
 `
 
@@ -205,6 +205,9 @@ func (q *Queries) GetBankForSubject(ctx context.Context, arg GetBankForSubjectPa
 		&i.SubjectCode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExamStyle,
+		&i.ExamStyleKey,
+		&i.RelationsGeneratedAt,
 	)
 	return i, err
 }
