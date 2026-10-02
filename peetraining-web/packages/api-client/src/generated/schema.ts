@@ -1087,10 +1087,441 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/subjects/{subjectId}/practice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        /** 训练首页（4.1） */
+        get: operations["getPracticeHome"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/practice/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 自定义练习实时显示符合条件的题数和预计用时（4.2） */
+        post: operations["previewPractice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 开始一组练习（今日训练、题型专项、自定义、错题重做、摸底测）
+         * @description 今日训练当天只有一个会话，重复开始返回同一个（从断点继续）。
+         *     自定义练习打开「AI 出变式题」且题库不够时，按资料里的知识点出题补足，消耗 AI 出题额度；额度不够时只用题库里的题。
+         */
+        post: operations["createPracticeSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice-sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        /** 练习会话（含整组题目与客观题答案，供离线作答） */
+        get: operations["getPracticeSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice-sessions/{sessionId}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** 退出时保存断点（4.10） */
+        put: operations["savePracticeProgress"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice-sessions/{sessionId}/attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 提交一次作答（客观题判分、看答案、自评；离线作答联网后用同一接口补交，服务端复核）
+         * @description 同一个 idempotency_key 重复提交返回第一次的结果，不重复更新掌握分。
+         */
+        post: operations["submitAttempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice-sessions/{sessionId}/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 结束本组并生成总结（4.11）；已结束的再调用返回同一份总结 */
+        post: operations["finishPracticeSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/wrong-book": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        /** 错题本（4.12） */
+        get: operations["getWrongBook"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wrong-book/{questionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: components["parameters"]["QuestionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 手动移出错题本 */
+        delete: operations["removeFromWrongBook"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questions/{questionId}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: components["parameters"]["QuestionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 「题目有问题」报错（4.3）；AI 出的题被报错 3 次自动下线 */
+        post: operations["reportQuestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description 今日训练 / 题型专项 / 自定义 / 错题重做 / 摸底测
+         * @enum {string}
+         */
+        PracticeKind: "daily" | "type_drill" | "custom" | "wrong_redo" | "placement";
+        PracticeConfig: {
+            /** @description 板块或章节，空表示全部 */
+            section_ids?: number[];
+            /** @description 空表示全部 */
+            qtypes?: components["schemas"]["QuestionType"][];
+            /** @default 10 */
+            count: number;
+            /**
+             * @description 只练未掌握的知识点
+             * @default false
+             */
+            only_unmastered: boolean;
+            /**
+             * @description 题库不够时 AI 出变式题
+             * @default false
+             */
+            ai_fill: boolean;
+        };
+        PracticePreview: {
+            /** @description 符合条件的题数 */
+            available: number;
+            /** @description 本组实际题数（不超过题量） */
+            count: number;
+            /** @description 需要 AI 补的题数 */
+            ai_fill?: number;
+            /** @description 预计用时 */
+            minutes: number;
+        };
+        /** @enum {string} */
+        WrongGroupBy: "kp" | "qtype" | "loss";
+        CreatePracticeSessionRequest: {
+            /** Format: int64 */
+            subject_id: number;
+            kind: components["schemas"]["PracticeKind"];
+            qtype?: components["schemas"]["QuestionType"];
+            config?: components["schemas"]["PracticeConfig"];
+            /** @description 错题重做只做某一组（不传为全部，按下次复习日升序） */
+            wrong_group?: {
+                by: components["schemas"]["WrongGroupBy"];
+                key: string;
+            };
+        };
+        AttemptBrief: {
+            is_correct?: boolean;
+            revealed: boolean;
+            self_assess?: components["schemas"]["SelfAssessLevel"];
+            selected?: string[];
+        };
+        PracticeQuestion: {
+            /** Format: int64 */
+            id: number;
+            qtype: components["schemas"]["QuestionType"];
+            stem: string;
+            options?: components["schemas"]["ChoiceOption"][];
+            /** @description 客观题正确答案或主观题参考答案（离线判分用，联网后服务端复核） */
+            answer?: string;
+            analysis?: string;
+            score?: number;
+            source: components["schemas"]["QuestionSource"];
+            exam_year?: number;
+            source_ref?: components["schemas"]["SourceRef"];
+            origin_tags: string[];
+            plan_group?: components["schemas"]["PlanGroupKey"];
+            knowledge_points: {
+                /** Format: int64 */
+                id: number;
+                name: string;
+                is_primary: boolean;
+            }[];
+            /** @description 采分点个数（主观题「按你资料里的 N 个采分点批改」） */
+            rubric_count: number;
+            answered?: components["schemas"]["AttemptBrief"];
+        };
+        PracticeSession: {
+            /** Format: int64 */
+            id: number;
+            kind: components["schemas"]["PracticeKind"];
+            title: string;
+            /** Format: int64 */
+            subject_id: number;
+            /** @enum {string} */
+            status: "in_progress" | "finished" | "abandoned";
+            cursor_index: number;
+            /** Format: date-time */
+            started_at: string;
+            questions: components["schemas"]["PracticeQuestion"][];
+            done_count: number;
+            /** @description 本组 AI 补的题数 */
+            ai_filled?: number;
+            /** @description 题库与 AI 都不够、少出的题数 */
+            shortfall?: number;
+        };
+        SubmitAttemptRequest: {
+            /** Format: int64 */
+            question_id: number;
+            idempotency_key: string;
+            /** @description 选择题、判断题选中的选项 key */
+            selected?: string[];
+            /** @description 填空题作答 */
+            answer_text?: string;
+            /**
+             * @description 点了「不会，看答案」
+             * @default false
+             */
+            revealed: boolean;
+            self_assess?: components["schemas"]["SelfAssessLevel"];
+            duration_seconds: number;
+            /** @default false */
+            offline: boolean;
+            /**
+             * Format: date-time
+             * @description 离线作答的客户端时间
+             */
+            answered_at?: string;
+        };
+        MasteryChange: {
+            /** Format: int64 */
+            kp_id: number;
+            name: string;
+            from: components["schemas"]["MasteryState"];
+            to: components["schemas"]["MasteryState"];
+            /** @description 新的掌握分 0–100 */
+            m: number;
+        };
+        AttemptResult: {
+            /** Format: int64 */
+            attempt_id: number;
+            /** @description 客观题服务端判定；主观题自评不判对错 */
+            is_correct?: boolean;
+            correct_answer?: string;
+            analysis?: string;
+            /**
+             * @description 加入错题本 / 仍在错题本 / 自动移出（已消灭） / 无变化
+             * @enum {string}
+             */
+            wrong_book: "added" | "still" | "removed" | "none";
+            kp_changes: components["schemas"]["MasteryChange"][];
+        };
+        PracticeSummary: {
+            /** Format: int64 */
+            session_id: number;
+            title: string;
+            question_count: number;
+            answered: number;
+            /** @description 0–1，按判了对错的题算 */
+            correct_rate: number;
+            minutes: number;
+            by_qtype: {
+                qtype: components["schemas"]["QuestionType"];
+                total: number;
+                correct: number;
+            }[];
+            from_bank: number;
+            from_ai: number;
+            /** @description 需要再看的知识点，最多 3 个 */
+            review_kps: {
+                /** Format: int64 */
+                kp_id: number;
+                name: string;
+                reason: string;
+            }[];
+            /** @description 一句总结，只描述数据 */
+            comment: string;
+        };
+        PracticeHome: {
+            /** Format: int64 */
+            subject_id: number;
+            stage: components["schemas"]["Stage"];
+            today?: {
+                total: number;
+                done: number;
+                minutes: number;
+                /** Format: int64 */
+                session_id?: number;
+            };
+            type_drill?: {
+                qtype?: components["schemas"]["QuestionType"];
+                done_this_week: number;
+                weekly_target: number;
+            };
+            qtype_counts: {
+                qtype: components["schemas"]["QuestionType"];
+                count: number;
+            }[];
+            total_questions: number;
+            wrong_book: {
+                total: number;
+                due: number;
+            };
+            /** @description 待背诵的知识点数 */
+            recite_due: number;
+            /** @description 冲刺期、考前期把整卷置顶 */
+            paper_first: boolean;
+            in_progress?: {
+                /** Format: int64 */
+                session_id: number;
+                title: string;
+                kind: components["schemas"]["PracticeKind"];
+                done: number;
+                total: number;
+            };
+        };
+        WrongItem: {
+            /** Format: int64 */
+            question_id: number;
+            qtype: components["schemas"]["QuestionType"];
+            stem: string;
+            source: components["schemas"]["QuestionSource"];
+            exam_year?: number;
+            wrong_count: number;
+            last_score_rate?: number;
+            /** @enum {string} */
+            loss_type?: "knowledge" | "norm" | "time";
+            /** @enum {string} */
+            added_reason: "wrong" | "partial" | "revealed";
+            /** Format: date */
+            next_review_on?: string;
+            kp?: {
+                /** Format: int64 */
+                id: number;
+                name: string;
+            };
+        };
+        WrongBook: {
+            total: number;
+            /** @description 到了复习日、待重做的题数 */
+            to_redo: number;
+            week_new: number;
+            eliminated: number;
+            items: components["schemas"]["WrongItem"][];
+        };
         /**
          * @description 新知识点 / 到期复习 / 薄弱查漏（强化期以后为题型专项）/ 背诵
          * @enum {string}
@@ -2285,6 +2716,7 @@ export interface components {
         };
     };
     parameters: {
+        SessionId: number;
         /** @description 客户端为每次写操作生成的唯一键（UUID），重试时保持不变 */
         IdempotencyKey: string;
         /** @description 上一页响应里的 next_cursor */
@@ -4010,6 +4442,259 @@ export interface operations {
                     "application/json": components["schemas"]["TodaySummary"];
                 };
             };
+        };
+    };
+    getPracticeHome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeHome"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    previewPractice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PracticeConfig"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticePreview"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createPracticeSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePracticeSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description 已创建（或返回已有的进行中会话） */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeSession"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getPracticeSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeSession"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    savePracticeProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    cursor_index: number;
+                };
+            };
+        };
+        responses: {
+            /** @description 已保存 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    submitAttempt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitAttemptRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttemptResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    finishPracticeSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeSummary"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getWrongBook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WrongBook"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    removeFromWrongBook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: components["parameters"]["QuestionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已移出 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    reportQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: components["parameters"]["QuestionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description 题目已下线，不再出现在练习里 */
+                        offline: boolean;
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
 }

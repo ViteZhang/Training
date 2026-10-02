@@ -1,13 +1,14 @@
-// 1.8 题库建好了：题数、知识点数、待核对数；可选「先做个摸底测」（从题库抽 20 题，可跳过，T17 接通）；
+// 1.8 题库建好了：题数、知识点数、待核对数；可选「先做个摸底测」（从题库抽 20 题，可跳过）；
 // 「开始今天的训练」；还有专业课没导入时提示继续导入。
 import { semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, Screen, Text, toast } from '@/components';
+import { Button, Card, Screen, Text } from '@/components';
 import { useImportFlow } from '@/features/import/store';
 import { setStep } from '@/features/onboarding/api';
+import { useStartPractice } from '@/features/practice/api';
 import { Footer } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
 
@@ -23,7 +24,13 @@ function Stat({ n, label, danger }: { n: string; label: string; danger?: boolean
 }
 
 export default function DoneScreen() {
-  const p = useLocalSearchParams<{ questions?: string; kps?: string; review?: string; papers?: string; without?: string }>();
+  const p = useLocalSearchParams<{ id: string; questions?: string; kps?: string; review?: string; papers?: string; without?: string }>();
+  const job = useQuery({
+    queryKey: ['import', 'job', Number(p.id)],
+    queryFn: () => unwrap(api.GET('/import-jobs/{jobId}', { params: { path: { jobId: Number(p.id) } } })),
+    enabled: !!p.id,
+  });
+  const start = useStartPractice();
   const { onboarding, reset } = useImportFlow();
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => unwrap(api.GET('/subjects')) });
   const without = (p.without ?? '').split(',').filter(Boolean).map(Number);
@@ -56,7 +63,16 @@ export default function DoneScreen() {
         <Card style={styles.card}>
           <Text variant="bodyStrong">先做个摸底测？</Text>
           <Text variant="caption">从题库抽 20 题，找出薄弱的地方，计划会更准。可以跳过</Text>
-          <Button title="做摸底测" kind="secondary" onPress={() => toast('摸底测马上上线，先开始今天的训练吧')} />
+          <Button
+            title="做摸底测"
+            kind="secondary"
+            loading={start.isPending}
+            disabled={!job.data?.subject_id}
+            onPress={() => {
+              reset();
+              start.mutate({ subject_id: job.data!.subject_id!, kind: 'placement' });
+            }}
+          />
         </Card>
         {pending.length > 0 ? (
           <Card style={styles.card}>
