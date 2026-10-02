@@ -4,9 +4,12 @@
 // 每行一个样本：{"name": "...", "pages": ["第 1 页文字", ...] 或 "file": "相对 evals/private 的 .docx/.xlsx/.txt", "expected": [...]}
 //   - import：expected 为 [{"stem": "题干", "answer": "答案，可为空"}]，指标是题干识别正确率与答案识别正确率，门槛 95%
 //   - kp：expected 为 [{"name": "知识点名", "original_text": "原文表述"}]，指标是知识点召回率（门槛 85%）与原文一致率（门槛 90%）
+//   - grading：每行一道题 {"name","subject","qtype","stem","reference","points":[{"seq","content","score"}],
+//     "answers":[{"text":"考生答案","human":人工评分}]}；指标是与人工偏差 ≤ 1 分的比例（门槛 80%）
+//     与重批一致性（同一答案批 3 次，最高最低分差 ≤ 1 分的比例，PRD 11.14 要求全部做到）
 //
 // 模型按环境变量选择：AI_PROVIDER=bailian（BAILIAN_BASE_URL、BAILIAN_API_KEY、AI_MODEL_STRONG、AI_MODEL_CHEAP），默认 mock。
-// 其余能力（grading、essay、ocr）在 T18、T23、T19 实现。
+// 其余能力（essay、ocr）在 T23、T19 实现。
 package main
 
 import (
@@ -32,7 +35,16 @@ import (
 var capabilities = []string{"import", "kp", "grading", "essay", "ocr"}
 
 type sample struct {
-	Name     string            `json:"name"`
+	Name      string          `json:"name"`
+	Subject   string          `json:"subject"`
+	QType     string          `json:"qtype"`
+	Stem      string          `json:"stem"`
+	Reference string          `json:"reference"`
+	Points    []ai.GradePoint `json:"points"`
+	Answers   []struct {
+		Text  string  `json:"text"`
+		Human float64 `json:"human"`
+	} `json:"answers"`
 	Pages    []string          `json:"pages"`
 	File     string            `json:"file"`
 	Expected []json.RawMessage `json:"expected"`
@@ -57,7 +69,7 @@ func main() {
 }
 
 func run(ctx context.Context, capability, dir string) (bool, error) {
-	if capability != "import" && capability != "kp" {
+	if capability != "import" && capability != "kp" && capability != "grading" {
 		return false, fmt.Errorf("%s 评测尚未实现（见 docs/tasks 对应卡片）", capability)
 	}
 	cfg, err := config.Load()
@@ -83,9 +95,12 @@ func run(ctx context.Context, capability, dir string) (bool, error) {
 	fmt.Printf("能力 %s · 样本 %d 份 · 模型 %s / %s · AI_PROVIDER=%s\n", capability, len(samples), cfg.AI.ModelStrong, cfg.AI.ModelCheap, cfg.AI.Provider)
 	start := time.Now()
 	var pass bool
-	if capability == "import" {
+	switch capability {
+	case "import":
 		pass, err = evalImport(ctx, engine, base, samples)
-	} else {
+	case "grading":
+		pass, err = evalGrading(ctx, engine, samples)
+	default:
 		pass, err = evalKP(ctx, engine, base, samples)
 	}
 	fmt.Printf("耗时 %s\n", time.Since(start).Round(time.Second))
@@ -272,4 +287,44 @@ func evalKP(ctx context.Context, e *ai.Engine, base string, samples []sample) (b
 	fmt.Printf("知识点召回率 %.1f%%（%d/%d）%s；原文一致率 %.1f%% %s；不合格批次 %d\n",
 		rec*100, recalled, total, verdict(rec, 0.85), cons*100, verdict(cons, 0.9), failed)
 	return rec >= 0.85 && cons >= 0.9, nil
+}
+
+// gradingRepeats 是一致性评测里同一答案的批改次数。
+const gradingRepeats = 3
+
+func evalGrading(ctx context.Context, e *ai.Engine, samples []sample) (bool, error) {
+	total, close1, consistent, failed := 0, 0, 0, 0
+	for _, s := range samples {
+		in := ai.GradeIn{Subject: s.Subject, QType: s.QType, Stem: s.Stem, Reference: s.Reference, Points: s.Points}
+		ok, cons := 0, 0
+		for _, a := range s.Answers {
+			in.Answer = a.Text
+			var scores []float64
+			for range gradingRepeats {
+				out, _, err := ai.Grade.Run(ctx, e, 0, in)
+				if err != nil {
+					failed++
+					continue
+				}
+				scores = append(scores, out.Total())
+			}
+			total++
+			if len(scores) == 0 {
+				continue
+			}
+			if d := scores[0] - a.Human; d <= 1 && d >= -1 {
+				close1++
+				ok++
+			}
+			if len(scores) == gradingRepeats && slices.Max(scores)-slices.Min(scores) <= 1 {
+				consistent++
+				cons++
+			}
+		}
+		fmt.Printf("  %-20s 偏差 ≤ 1 分 %d/%d  三次一致 %d/%d\n", s.Name, ok, len(s.Answers), cons, len(s.Answers))
+	}
+	dev, con := pct(close1, total), pct(consistent, total)
+	fmt.Printf("与人工偏差 ≤ 1 分 %.1f%%（%d/%d）%s；重批一致性 %.1f%%（%d/%d）%s；批改失败 %d 次\n",
+		dev*100, close1, total, verdict(dev, 0.8), con*100, consistent, total, verdict(con, 1), failed)
+	return dev >= 0.8 && con >= 1, nil
 }

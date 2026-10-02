@@ -16,6 +16,7 @@ AI_PROVIDER=bailian BAILIAN_BASE_URL=... BAILIAN_API_KEY=... make eval cap=impor
 - PDF 与拍照：先用识别服务转成文字填进 pages（识别本身的评测是 cap=ocr）
 - import：`"expected": [{"stem": "题干", "answer": "答案，没有留空"}]`，指标：题干识别正确率、答案识别正确率，门槛 95%
 - kp：`"expected": [{"name": "知识点", "original_text": "原文表述"}]`，指标：知识点召回率（门槛 85%）、原文一致率（门槛 90%）
+- grading：每行一道题 `{"name","subject","qtype","stem","reference","points":[{"seq":1,"content":"采分点","score":4}],"answers":[{"text":"考生答案","human":人工评分}]}`；指标：与人工偏差 ≤ 1 分的比例（门槛 80%）、重批一致性（同一答案批 3 次分差 ≤ 1 分，要求 100%）。样本规模：20 道题 × 三档答案（扩到 50 道）
 
 最省事的标注方法（dev-spec 第七节）：先让流水线跑一遍，在 App 1.7 确认页里改对，把改对后的题干与答案整理成 expected。
 
