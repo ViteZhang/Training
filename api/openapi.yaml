@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.3.0
+  version: 0.4.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -25,6 +25,8 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: practice
+    description: 模块 4 · 练习、客观题与错题本
   - name: today
     description: 模块 2 · 今日首页与今日计划
   - name: system
@@ -1240,6 +1242,188 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/TodaySummary" }
 
+  /subjects/{subjectId}/practice:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [practice]
+      operationId: getPracticeHome
+      summary: 训练首页（4.1）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PracticeHome" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /subjects/{subjectId}/practice/preview:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    post:
+      tags: [practice]
+      operationId: previewPractice
+      summary: 自定义练习实时显示符合条件的题数和预计用时（4.2）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PracticeConfig" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PracticePreview" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /practice-sessions:
+    post:
+      tags: [practice]
+      operationId: createPracticeSession
+      summary: 开始一组练习（今日训练、题型专项、自定义、错题重做、摸底测）
+      description: |
+        今日训练当天只有一个会话，重复开始返回同一个（从断点继续）。
+        自定义练习打开「AI 出变式题」且题库不够时，按资料里的知识点出题补足，消耗 AI 出题额度；额度不够时只用题库里的题。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePracticeSessionRequest" }
+      responses:
+        "201":
+          description: 已创建（或返回已有的进行中会话）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PracticeSession" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /practice-sessions/{sessionId}:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    get:
+      tags: [practice]
+      operationId: getPracticeSession
+      summary: 练习会话（含整组题目与客观题答案，供离线作答）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PracticeSession" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /practice-sessions/{sessionId}/progress:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    put:
+      tags: [practice]
+      operationId: savePracticeProgress
+      summary: 退出时保存断点（4.10）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cursor_index]
+              properties:
+                cursor_index: { type: integer, minimum: 0 }
+      responses:
+        "204": { description: 已保存 }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /practice-sessions/{sessionId}/attempts:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      tags: [practice]
+      operationId: submitAttempt
+      summary: 提交一次作答（客观题判分、看答案、自评；离线作答联网后用同一接口补交，服务端复核）
+      description: 同一个 idempotency_key 重复提交返回第一次的结果，不重复更新掌握分。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmitAttemptRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AttemptResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /practice-sessions/{sessionId}/finish:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      tags: [practice]
+      operationId: finishPracticeSession
+      summary: 结束本组并生成总结（4.11）；已结束的再调用返回同一份总结
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PracticeSummary" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /subjects/{subjectId}/wrong-book:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [practice]
+      operationId: getWrongBook
+      summary: 错题本（4.12）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WrongBook" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /wrong-book/{questionId}:
+    parameters:
+      - $ref: "#/components/parameters/QuestionId"
+    delete:
+      tags: [practice]
+      operationId: removeFromWrongBook
+      summary: 手动移出错题本
+      responses:
+        "204": { description: 已移出 }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /questions/{questionId}/report:
+    parameters:
+      - $ref: "#/components/parameters/QuestionId"
+    post:
+      tags: [practice]
+      operationId: reportQuestion
+      summary: 「题目有问题」报错（4.3）；AI 出的题被报错 3 次自动下线
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, maxLength: 255 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [offline]
+                properties:
+                  offline: { type: boolean, description: 题目已下线，不再出现在练习里 }
+        "404": { $ref: "#/components/responses/NotFound" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1248,6 +1432,11 @@ components:
       bearerFormat: JWT
 
   parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -1337,6 +1526,234 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    PracticeKind:
+      type: string
+      description: 今日训练 / 题型专项 / 自定义 / 错题重做 / 摸底测
+      enum: [daily, type_drill, custom, wrong_redo, placement]
+    PracticeConfig:
+      type: object
+      properties:
+        section_ids: { type: array, items: { type: integer, format: int64 }, description: 板块或章节，空表示全部 }
+        qtypes: { type: array, items: { $ref: "#/components/schemas/QuestionType" }, description: 空表示全部 }
+        count: { type: integer, minimum: 1, maximum: 50, default: 10 }
+        only_unmastered: { type: boolean, default: false, description: 只练未掌握的知识点 }
+        ai_fill: { type: boolean, default: false, description: 题库不够时 AI 出变式题 }
+    PracticePreview:
+      type: object
+      required: [available, count, minutes]
+      properties:
+        available: { type: integer, description: 符合条件的题数 }
+        count: { type: integer, description: 本组实际题数（不超过题量） }
+        ai_fill: { type: integer, description: 需要 AI 补的题数 }
+        minutes: { type: number, description: 预计用时 }
+    WrongGroupBy:
+      type: string
+      enum: [kp, qtype, loss]
+    CreatePracticeSessionRequest:
+      type: object
+      required: [subject_id, kind]
+      properties:
+        subject_id: { type: integer, format: int64 }
+        kind: { $ref: "#/components/schemas/PracticeKind" }
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        config: { $ref: "#/components/schemas/PracticeConfig" }
+        wrong_group:
+          type: object
+          description: 错题重做只做某一组（不传为全部，按下次复习日升序）
+          required: [by, key]
+          properties:
+            by: { $ref: "#/components/schemas/WrongGroupBy" }
+            key: { type: string }
+    AttemptBrief:
+      type: object
+      required: [revealed]
+      properties:
+        is_correct: { type: boolean }
+        revealed: { type: boolean }
+        self_assess: { $ref: "#/components/schemas/SelfAssessLevel" }
+        selected: { type: array, items: { type: string } }
+    PracticeQuestion:
+      type: object
+      required: [id, qtype, stem, source, origin_tags, knowledge_points, rubric_count]
+      properties:
+        id: { type: integer, format: int64 }
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        stem: { type: string }
+        options: { type: array, items: { $ref: "#/components/schemas/ChoiceOption" } }
+        answer: { type: string, description: 客观题正确答案或主观题参考答案（离线判分用，联网后服务端复核） }
+        analysis: { type: string }
+        score: { type: number }
+        source: { $ref: "#/components/schemas/QuestionSource" }
+        exam_year: { type: integer }
+        source_ref: { $ref: "#/components/schemas/SourceRef" }
+        origin_tags: { type: array, items: { type: string } }
+        plan_group: { $ref: "#/components/schemas/PlanGroupKey" }
+        knowledge_points:
+          type: array
+          items:
+            type: object
+            required: [id, name, is_primary]
+            properties:
+              id: { type: integer, format: int64 }
+              name: { type: string }
+              is_primary: { type: boolean }
+        rubric_count: { type: integer, description: 采分点个数（主观题「按你资料里的 N 个采分点批改」） }
+        answered: { $ref: "#/components/schemas/AttemptBrief" }
+    PracticeSession:
+      type: object
+      required: [id, kind, title, subject_id, status, cursor_index, started_at, questions, done_count]
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { $ref: "#/components/schemas/PracticeKind" }
+        title: { type: string }
+        subject_id: { type: integer, format: int64 }
+        status: { type: string, enum: [in_progress, finished, abandoned] }
+        cursor_index: { type: integer }
+        started_at: { type: string, format: date-time }
+        questions: { type: array, items: { $ref: "#/components/schemas/PracticeQuestion" } }
+        done_count: { type: integer }
+        ai_filled: { type: integer, description: 本组 AI 补的题数 }
+        shortfall: { type: integer, description: 题库与 AI 都不够、少出的题数 }
+    SubmitAttemptRequest:
+      type: object
+      required: [question_id, idempotency_key, duration_seconds]
+      properties:
+        question_id: { type: integer, format: int64 }
+        idempotency_key: { type: string, minLength: 8, maxLength: 64 }
+        selected: { type: array, items: { type: string }, description: 选择题、判断题选中的选项 key }
+        answer_text: { type: string, description: 填空题作答 }
+        revealed: { type: boolean, default: false, description: 点了「不会，看答案」 }
+        self_assess: { $ref: "#/components/schemas/SelfAssessLevel" }
+        duration_seconds: { type: integer, minimum: 0 }
+        offline: { type: boolean, default: false }
+        answered_at: { type: string, format: date-time, description: 离线作答的客户端时间 }
+    MasteryChange:
+      type: object
+      required: [kp_id, name, from, to, m]
+      properties:
+        kp_id: { type: integer, format: int64 }
+        name: { type: string }
+        from: { $ref: "#/components/schemas/MasteryState" }
+        to: { $ref: "#/components/schemas/MasteryState" }
+        m: { type: number, description: 新的掌握分 0–100 }
+    AttemptResult:
+      type: object
+      required: [attempt_id, wrong_book, kp_changes]
+      properties:
+        attempt_id: { type: integer, format: int64 }
+        is_correct: { type: boolean, description: 客观题服务端判定；主观题自评不判对错 }
+        correct_answer: { type: string }
+        analysis: { type: string }
+        wrong_book: { type: string, enum: [added, still, removed, none], description: 加入错题本 / 仍在错题本 / 自动移出（已消灭） / 无变化 }
+        kp_changes: { type: array, items: { $ref: "#/components/schemas/MasteryChange" } }
+    PracticeSummary:
+      type: object
+      required: [session_id, title, question_count, answered, correct_rate, minutes, by_qtype, from_bank, from_ai, review_kps, comment]
+      properties:
+        session_id: { type: integer, format: int64 }
+        title: { type: string }
+        question_count: { type: integer }
+        answered: { type: integer }
+        correct_rate: { type: number, description: 0–1，按判了对错的题算 }
+        minutes: { type: number }
+        by_qtype:
+          type: array
+          items:
+            type: object
+            required: [qtype, total, correct]
+            properties:
+              qtype: { $ref: "#/components/schemas/QuestionType" }
+              total: { type: integer }
+              correct: { type: integer }
+        from_bank: { type: integer }
+        from_ai: { type: integer }
+        review_kps:
+          type: array
+          description: 需要再看的知识点，最多 3 个
+          items:
+            type: object
+            required: [kp_id, name, reason]
+            properties:
+              kp_id: { type: integer, format: int64 }
+              name: { type: string }
+              reason: { type: string }
+        comment: { type: string, description: 一句总结，只描述数据 }
+    PracticeHome:
+      type: object
+      required: [subject_id, stage, qtype_counts, wrong_book, recite_due, paper_first, total_questions]
+      properties:
+        subject_id: { type: integer, format: int64 }
+        stage: { $ref: "#/components/schemas/Stage" }
+        today:
+          type: object
+          required: [total, done, minutes]
+          properties:
+            total: { type: integer }
+            done: { type: integer }
+            minutes: { type: number }
+            session_id: { type: integer, format: int64 }
+        type_drill:
+          type: object
+          required: [done_this_week, weekly_target]
+          properties:
+            qtype: { $ref: "#/components/schemas/QuestionType" }
+            done_this_week: { type: integer }
+            weekly_target: { type: integer }
+        qtype_counts:
+          type: array
+          items:
+            type: object
+            required: [qtype, count]
+            properties:
+              qtype: { $ref: "#/components/schemas/QuestionType" }
+              count: { type: integer }
+        total_questions: { type: integer }
+        wrong_book:
+          type: object
+          required: [total, due]
+          properties:
+            total: { type: integer }
+            due: { type: integer }
+        recite_due: { type: integer, description: 待背诵的知识点数 }
+        paper_first: { type: boolean, description: 冲刺期、考前期把整卷置顶 }
+        in_progress:
+          type: object
+          required: [session_id, title, kind, done, total]
+          properties:
+            session_id: { type: integer, format: int64 }
+            title: { type: string }
+            kind: { $ref: "#/components/schemas/PracticeKind" }
+            done: { type: integer }
+            total: { type: integer }
+    WrongItem:
+      type: object
+      required: [question_id, qtype, stem, source, wrong_count, added_reason]
+      properties:
+        question_id: { type: integer, format: int64 }
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        stem: { type: string }
+        source: { $ref: "#/components/schemas/QuestionSource" }
+        exam_year: { type: integer }
+        wrong_count: { type: integer }
+        last_score_rate: { type: number }
+        loss_type: { type: string, enum: [knowledge, norm, time] }
+        added_reason: { type: string, enum: [wrong, partial, revealed] }
+        next_review_on: { type: string, format: date }
+        kp:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: integer, format: int64 }
+            name: { type: string }
+    WrongBook:
+      type: object
+      required: [total, to_redo, week_new, eliminated, items]
+      properties:
+        total: { type: integer }
+        to_redo: { type: integer, description: 到了复习日、待重做的题数 }
+        week_new: { type: integer }
+        eliminated: { type: integer }
+        items: { type: array, items: { $ref: "#/components/schemas/WrongItem" } }
     PlanGroupKey:
       type: string
       description: 新知识点 / 到期复习 / 薄弱查漏（强化期以后为题型专项）/ 背诵

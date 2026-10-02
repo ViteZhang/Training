@@ -19,14 +19,20 @@ type Querier interface {
 	// 2.1e：接受时立即切换阶段（不是手动选择）；不管接受与否，同一目标阶段只弹一次。
 	AnswerStagePrompt(ctx context.Context, arg AnswerStagePromptParams) error
 	BankCounts(ctx context.Context, arg BankCountsParams) (BankCountsRow, error)
+	// 每次报错计数；AI 出的题累计 3 次自动下线（PRD 4.3）。SET 从左到右执行，判断时 report_count 已经加过 1。
+	BumpQuestionReport(ctx context.Context, arg BumpQuestionReportParams) error
 	CancelUserDeletion(ctx context.Context, id uint64) (int64, error)
 	CopyKPSources(ctx context.Context, arg CopyKPSourcesParams) error
 	CountActiveImportJobs(ctx context.Context, ownerUserID uint64) (int64, error)
+	CountAttempts(ctx context.Context, arg CountAttemptsParams) (int64, error)
 	CountImportItems(ctx context.Context, arg CountImportItemsParams) (CountImportItemsRow, error)
 	CountKPsFromMaterial(ctx context.Context, materialID uint64) (int64, error)
 	CountMasteredSince(ctx context.Context, arg CountMasteredSinceParams) (int64, error)
 	// 删除资料前说明连带影响（3.1d）。调用前已用 GetMaterial 核对资料属于当前用户，下面按资料 ID 统计。
 	CountMaterialImpact(ctx context.Context, arg CountMaterialImpactParams) (CountMaterialImpactRow, error)
+	// 待背诵：知识点有采分关键词，从没背过或背诵复习日已到。
+	CountReciteDue(ctx context.Context, arg CountReciteDueParams) (int64, error)
+	CountSessionsSince(ctx context.Context, arg CountSessionsSinceParams) (int64, error)
 	// 作文课判断（PRD 11.12）：这门课已解析的资料里作文类占多少。
 	CountSubjectMaterialCategories(ctx context.Context, arg CountSubjectMaterialCategoriesParams) (CountSubjectMaterialCategoriesRow, error)
 	CountSubjects(ctx context.Context, ownerUserID uint64) (int64, error)
@@ -68,10 +74,12 @@ type Querier interface {
 	EssayMaterialExists(ctx context.Context, arg EssayMaterialExistsParams) (bool, error)
 	// 按「父节点 + 层级 + 名称」找已有知识点，导入时同名节点复用，树不重复（parent_id 可空，用 <=> 比较）。
 	FindKPByName(ctx context.Context, arg FindKPByNameParams) (uint64, error)
+	FinishPracticeSession(ctx context.Context, arg FinishPracticeSessionParams) error
 	GetAIRollout(ctx context.Context, capability string) (AiRollout, error)
 	// 当前评分标准：用户资料里识别出的优先，没有时用通用五维度（PRD 11.13）。
 	GetActiveEssayRubric(ctx context.Context, arg GetActiveEssayRubricParams) (GetActiveEssayRubricRow, error)
 	GetAppVersion(ctx context.Context, platform AppVersionsPlatform) (AppVersion, error)
+	GetAttemptByKey(ctx context.Context, arg GetAttemptByKeyParams) (Attempt, error)
 	// 资料（T08）。每条查询都带 owner_user_id 归属条件。
 	GetBankForSubject(ctx context.Context, arg GetBankForSubjectParams) (Bank, error)
 	GetBankInsight(ctx context.Context, arg GetBankInsightParams) (GetBankInsightRow, error)
@@ -86,6 +94,7 @@ type Querier interface {
 	// 知识点与所在题库、专业课；归属按题库的所有者判断。
 	GetKP(ctx context.Context, arg GetKPParams) (GetKPRow, error)
 	GetKPMastery(ctx context.Context, arg GetKPMasteryParams) (KpMastery, error)
+	GetKPMasteryForUpdate(ctx context.Context, arg GetKPMasteryForUpdateParams) (KpMastery, error)
 	GetKPRelation(ctx context.Context, arg GetKPRelationParams) (KpRelation, error)
 	GetLatestAgreement(ctx context.Context, arg GetLatestAgreementParams) (Agreement, error)
 	// 时长叠加后的最晚结束时间（会员条上显示「有效期至」）。
@@ -93,8 +102,11 @@ type Querier interface {
 	GetMaterial(ctx context.Context, arg GetMaterialParams) (GetMaterialRow, error)
 	GetMaterialBySha(ctx context.Context, arg GetMaterialByShaParams) (Material, error)
 	GetMaterialPage(ctx context.Context, arg GetMaterialPageParams) (GetMaterialPageRow, error)
+	GetPracticeSession(ctx context.Context, arg GetPracticeSessionParams) (PracticeSession, error)
+	GetPracticeSessionForUpdate(ctx context.Context, arg GetPracticeSessionForUpdateParams) (PracticeSession, error)
 	GetPublishedAgreementByID(ctx context.Context, id uint64) (Agreement, error)
 	GetQuestionFull(ctx context.Context, arg GetQuestionFullParams) (GetQuestionFullRow, error)
+	GetQuestionStatus(ctx context.Context, arg GetQuestionStatusParams) (GetQuestionStatusRow, error)
 	GetQuotaCounter(ctx context.Context, arg GetQuotaCounterParams) (QuotaCounter, error)
 	GetQuotaLedgerByKey(ctx context.Context, arg GetQuotaLedgerByKeyParams) (QuotaLedger, error)
 	GetRealExamPaper(ctx context.Context, arg GetRealExamPaperParams) (Paper, error)
@@ -107,9 +119,11 @@ type Querier interface {
 	// 规矩：查询用户内容一律带归属条件（CLAUDE.md 必须遵守第 4 条）；这里的表以 user_id / id 为归属。
 	GetUserByID(ctx context.Context, id uint64) (User, error)
 	GetUserByPhone(ctx context.Context, phone string) (User, error)
+	GetWrongBookForUpdate(ctx context.Context, arg GetWrongBookForUpdateParams) (WrongBook, error)
 	InWrongBook(ctx context.Context, arg InWrongBookParams) (bool, error)
 	// AI 调用账本与灰度（T10）。不含用户内容，user_hash 是用户 ID 的哈希。
 	InsertAICall(ctx context.Context, arg InsertAICallParams) error
+	InsertAttempt(ctx context.Context, arg InsertAttemptParams) (int64, error)
 	InsertEssayMaterial(ctx context.Context, arg InsertEssayMaterialParams) (int64, error)
 	InsertEssayRubric(ctx context.Context, arg InsertEssayRubricParams) (int64, error)
 	// 合并掌握度：目标没有记录时沿用来源的；都有时保留作答过的、掌握分取较高者。
@@ -121,6 +135,7 @@ type Querier interface {
 	InsertModelEssay(ctx context.Context, arg InsertModelEssayParams) (int64, error)
 	InsertPaper(ctx context.Context, arg InsertPaperParams) (int64, error)
 	InsertPaperQuestion(ctx context.Context, arg InsertPaperQuestionParams) error
+	InsertPracticeSession(ctx context.Context, arg InsertPracticeSessionParams) (int64, error)
 	// 确认导入后写入题库（T10）。每条都带 owner_user_id。
 	InsertQuestion(ctx context.Context, arg InsertQuestionParams) (int64, error)
 	InsertQuestionKP(ctx context.Context, arg InsertQuestionKPParams) error
@@ -129,6 +144,7 @@ type Querier interface {
 	InsertRubricPoint(ctx context.Context, arg InsertRubricPointParams) error
 	InsertStudyProfile(ctx context.Context, arg InsertStudyProfileParams) error
 	InsertWritingMethod(ctx context.Context, arg InsertWritingMethodParams) (int64, error)
+	LatestInProgressSession(ctx context.Context, arg LatestInProgressSessionParams) (PracticeSession, error)
 	ListAcceptedAgreementIDs(ctx context.Context, userID uint64) ([]uint64, error)
 	ListActiveImportJobs(ctx context.Context, ownerUserID uint64) ([]ListActiveImportJobsRow, error)
 	// 有作答或背诵的北京时间日期（连续打卡）。
@@ -172,6 +188,9 @@ type Querier interface {
 	// 今日计划与首页（T16）。每条查询都带 owner_user_id。
 	// 每天 0 点给这些用户生成计划：账号正常、建了备考档案、至少有一门专业课。
 	ListPlanUsers(ctx context.Context, arg ListPlanUsersParams) ([]uint64, error)
+	// 练习、作答、错题本（T17）。每条查询都带归属条件。
+	// 选题池：题库里在用的题、主知识点、错题本状态。
+	ListPracticePool(ctx context.Context, arg ListPracticePoolParams) ([]ListPracticePoolRow, error)
 	// 我的每次作答（3.3）与最近一次批改的逐点结果、失分归因。
 	ListQuestionAttempts(ctx context.Context, arg ListQuestionAttemptsParams) ([]ListQuestionAttemptsRow, error)
 	ListQuestionKPs(ctx context.Context, arg ListQuestionKPsParams) ([]ListQuestionKPsRow, error)
@@ -182,6 +201,7 @@ type Querier interface {
 	ListRelatedQuestions(ctx context.Context, arg ListRelatedQuestionsParams) ([]ListRelatedQuestionsRow, error)
 	// 规则参数与功能开关（T06 读取，T07 / T29 管理）。
 	ListRuleParams(ctx context.Context) ([]ListRuleParamsRow, error)
+	ListSessionAttempts(ctx context.Context, arg ListSessionAttemptsParams) ([]ListSessionAttemptsRow, error)
 	ListSubjects(ctx context.Context, ownerUserID uint64) ([]ListSubjectsRow, error)
 	// 还没导入任何资料的专业课（1.8 提示继续导入）。
 	ListSubjectsWithoutContent(ctx context.Context, ownerUserID uint64) ([]uint64, error)
@@ -190,6 +210,7 @@ type Querier interface {
 	ListUserFeatureFlags(ctx context.Context, userID uint64) ([]string, error)
 	ListUsersDueForDeletion(ctx context.Context, arg ListUsersDueForDeletionParams) ([]uint64, error)
 	ListWritingMethods(ctx context.Context, arg ListWritingMethodsParams) ([]ListWritingMethodsRow, error)
+	ListWrongBook(ctx context.Context, arg ListWrongBookParams) ([]ListWrongBookRow, error)
 	// 到期复习的错题：没排过复习日的、复习日已到的。
 	ListWrongBookDue(ctx context.Context, arg ListWrongBookDueParams) ([]uint64, error)
 	LockQuotaCounter(ctx context.Context, arg LockQuotaCounterParams) (QuotaCounter, error)
@@ -199,10 +220,12 @@ type Querier interface {
 	MoveKPRubric(ctx context.Context, arg MoveKPRubricParams) error
 	// 合并：把来源知识点的题目关联挂到目标知识点（已挂的跳过）。
 	MoveQuestionKPs(ctx context.Context, arg MoveQuestionKPsParams) error
+	QTypeCounts(ctx context.Context, arg QTypeCountsParams) ([]QTypeCountsRow, error)
 	// 知识点在真题中出现的次数（3.1、3.8；回忆版不计入）。
 	RecountKPExamCounts(ctx context.Context, arg RecountKPExamCountsParams) error
 	// 参数依次：资料 ID（题目来源）、资料 ID（知识点来源）、资料 ID、所有者。
 	RecountMaterial(ctx context.Context, arg RecountMaterialParams) error
+	RemoveWrongBook(ctx context.Context, arg RemoveWrongBookParams) (int64, error)
 	// 保留下来的知识点（其他资料也有）把「出处」改指到另一份资料，避免指向已删除的资料。
 	// 三个参数依次是：要删除的资料 ID、题库 ID、要删除的资料 ID。
 	RepointKPSources(ctx context.Context, arg RepointKPSourcesParams) error
@@ -215,13 +238,16 @@ type Querier interface {
 	SearchQuestions(ctx context.Context, arg SearchQuestionsParams) ([]SearchQuestionsRow, error)
 	SetBankExamStyle(ctx context.Context, arg SetBankExamStyleParams) error
 	SetDailyPlanCompleted(ctx context.Context, arg SetDailyPlanCompletedParams) error
+	SetDailyPlanSession(ctx context.Context, arg SetDailyPlanSessionParams) error
 	SetEssayMaterialFavorite(ctx context.Context, arg SetEssayMaterialFavoriteParams) (int64, error)
 	SetImportItemCreated(ctx context.Context, arg SetImportItemCreatedParams) error
 	SetImportJobMaterialQuota(ctx context.Context, arg SetImportJobMaterialQuotaParams) error
 	SetImportJobPromptVersions(ctx context.Context, arg SetImportJobPromptVersionsParams) error
 	SetKPExplanation(ctx context.Context, arg SetKPExplanationParams) error
 	SetMaterialObjectKey(ctx context.Context, arg SetMaterialObjectKeyParams) error
+	SetQuestionGeneratedFrom(ctx context.Context, arg SetQuestionGeneratedFromParams) error
 	SetQuestionRequiredWords(ctx context.Context, arg SetQuestionRequiredWordsParams) error
+	SetSessionCursor(ctx context.Context, arg SetSessionCursorParams) error
 	// 自动判断只在用户没改过时生效（essay_set_by = 'user' 后不再自动改）。
 	SetSubjectEssayAuto(ctx context.Context, arg SetSubjectEssayAutoParams) error
 	TouchUserActive(ctx context.Context, arg TouchUserActiveParams) error
@@ -246,9 +272,13 @@ type Querier interface {
 	UpsertImportAnswer(ctx context.Context, arg UpsertImportAnswerParams) error
 	// 重跑同一步时按 dedupe_key 覆盖：用户还没动过（pending）的条目更新内容，已改过或已确认的保留用户的版本。
 	UpsertImportItem(ctx context.Context, arg UpsertImportItemParams) error
+	// 作答验证后的掌握分、状态、答对日期与复习排期（PRD 11.1–11.3）。
+	UpsertKPMasteryAnswer(ctx context.Context, arg UpsertKPMasteryAnswerParams) error
 	// 三档自评（3.4）：没有作答记录时设 M 与状态，有作答记录时只记录自评（D16）。
 	UpsertKPSelfAssess(ctx context.Context, arg UpsertKPSelfAssessParams) error
 	UpsertMaterialPage(ctx context.Context, arg UpsertMaterialPageParams) error
+	UpsertQuestionReport(ctx context.Context, arg UpsertQuestionReportParams) error
+	UpsertWrongBook(ctx context.Context, arg UpsertWrongBookParams) error
 }
 
 var _ Querier = (*Queries)(nil)
