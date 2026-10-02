@@ -19,6 +19,7 @@ import (
 
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/auth"
+	"peetraining-server/internal/bank"
 	"peetraining-server/internal/cloud"
 	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/config"
@@ -63,6 +64,7 @@ type Base struct {
 	Material *material.Service
 	AI       *ai.Engine
 	Importer *importer.Service
+	Bank     *bank.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -114,6 +116,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 		Material: mat,
 		AI:       engine,
 		Importer: importer.New(importer.Deps{DB: db, Material: mat, Quota: qs, AI: engine, Queue: queue}),
+		Bank:     bank.New(bank.Deps{DB: db, AI: engine, Quota: qs, Params: ps}),
 	}, nil
 }
 
@@ -149,6 +152,7 @@ func (b *Base) Handler() (http.Handler, error) {
 		Material: b.Material,
 		Quota:    b.Quota,
 		Importer: b.Importer,
+		Bank:     b.Bank,
 		DevOSS:   b.devOSS(),
 	})
 }

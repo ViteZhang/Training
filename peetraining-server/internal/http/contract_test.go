@@ -1,6 +1,8 @@
 package http
 
 import (
+	"github.com/gin-gonic/gin"
+
 	"context"
 	"encoding/json"
 	"net/http"
@@ -24,8 +26,11 @@ func TestOpenAPISpecIsValid(t *testing.T) {
 
 // 契约里有、还没实现的接口返回 501 NOT_IMPLEMENTED（T03 验收）。
 func TestUnimplementedReturns501(t *testing.T) {
-	r, _ := newTestRouter(t, fakePinger{}, fakePinger{})
-	w := do(r, http.MethodGet, "/api/v1/subjects/1/knowledge-tree", map[string]string{"Authorization": "Bearer user-1"})
+	// 契约里的接口目前都已实现；新增接口还没实现时，stubgen 生成的占位处理器返回 ErrNotImplemented，这里检查它的响应。
+	r := gin.New()
+	r.Use(Errors())
+	r.GET("/stub", func(c *gin.Context) { _ = c.Error(ErrNotImplemented()) })
+	w := do(r, http.MethodGet, "/stub", nil)
 	if w.Code != http.StatusNotImplemented {
 		t.Fatalf("status = %d，body = %s", w.Code, w.Body)
 	}
