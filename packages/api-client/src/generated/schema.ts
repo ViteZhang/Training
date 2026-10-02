@@ -1015,10 +1015,208 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 今日首页聚合（2.1、2.1b、2.1c、2.1d）
+         * @description 首页按状态四选一：还没导入资料（no_material）→ 题库整理中（organizing）→ 今日已完成（done）→ 正常（normal）。
+         *     今日计划不存在时当场生成（北京时间 0 点定时任务之外的兜底）。预估分卡在 T22 接通前为空数组。
+         */
+        get: operations["getHome"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/home/stage-prompt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 进入新阶段提示（2.1e）：「好的」切换，「暂不切换」留在当前阶段；同一目标阶段只弹一次 */
+        post: operations["answerStagePrompt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/plans/today": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 今日计划明细（各组题目、预计用时、完成情况） */
+        get: operations["getTodayPlan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/plans/today/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 今日训练完成（2.2）：连续打卡、题数、正确率、用时、掌握度变化、失分归因、明天的预计计划 */
+        get: operations["getTodaySummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description 新知识点 / 到期复习 / 薄弱查漏（强化期以后为题型专项）/ 背诵
+         * @enum {string}
+         */
+        PlanGroupKey: "new" | "review" | "weak" | "recite";
+        PlanGroupSummary: {
+            group: components["schemas"]["PlanGroupKey"];
+            count: number;
+            minutes: number;
+            done: number;
+        };
+        TodayPlan: {
+            /** Format: date */
+            date: string;
+            stage: components["schemas"]["Stage"];
+            budget_minutes: number;
+            total_minutes: number;
+            done_minutes: number;
+            completed: boolean;
+            groups: components["schemas"]["PlanGroupSummary"][];
+            items: {
+                /** Format: int64 */
+                subject_id: number;
+                group: components["schemas"]["PlanGroupKey"];
+                /**
+                 * Format: int64
+                 * @description 背诵条目为空
+                 */
+                question_id?: number;
+                /** Format: int64 */
+                kp_id: number;
+                qtype?: components["schemas"]["QuestionType"];
+                minutes: number;
+                done: boolean;
+            }[];
+            /** @description 题量不够、没填满的分钟数 */
+            shortfall_minutes?: number;
+        };
+        StagePrompt: {
+            to: components["schemas"]["Stage"];
+            /** @enum {string} */
+            reason: "by_date" | "early_sprint";
+            /** @description 新阶段的计划构成对比（2.1e） */
+            mix: {
+                current: {
+                    [key: string]: number;
+                };
+                next: {
+                    [key: string]: number;
+                };
+            };
+        };
+        Home: {
+            /** @enum {string} */
+            state: "no_material" | "organizing" | "done" | "normal";
+            days_to_exam: number;
+            stage: components["schemas"]["Stage"];
+            stage_prompt?: components["schemas"]["StagePrompt"];
+            /** @description 冲刺期覆盖率不足，提示先补新知识点（PRD 11.4） */
+            low_coverage?: boolean;
+            /** @description 预估分卡（T22 接通前为空） */
+            estimates: {
+                [key: string]: unknown;
+            }[];
+            plan?: components["schemas"]["TodayPlan"];
+            /** @description 阶段主推：基础期新知识点进度、强化期本周题型专项、冲刺期本周整卷、考前期模拟考试 */
+            stage_push?: {
+                /** @enum {string} */
+                kind: "new_kp_progress" | "weekly_qtype_drill" | "weekly_paper" | "mock_exam";
+                title: string;
+                desc: string;
+                qtype?: components["schemas"]["QuestionType"];
+                /** @description 0–1 */
+                progress?: number;
+            };
+            banks: {
+                /** Format: int64 */
+                subject_id: number;
+                name: string;
+                code?: string;
+                is_essay?: boolean;
+                question_count: number;
+                kp_count: number;
+                organizing: boolean;
+                recognized_count?: number;
+                mastery_distribution: {
+                    unlearned: number;
+                    learning: number;
+                    consolidating: number;
+                    mastered: number;
+                };
+            }[];
+            /**
+             * Format: int64
+             * @description 题库整理中的导入任务（2.1b）
+             */
+            organizing_job_id?: number;
+            /** @description 「以为会了」：自评掌握但近期作答正确率低的知识点数，为 0 时隐藏 */
+            false_mastery_count: number;
+            /** @description 连续打卡天数 */
+            streak_days: number;
+            unread_messages: number;
+            /** @description 2.1d 明天的预计计划用时 */
+            tomorrow_minutes?: number;
+        };
+        TodaySummary: {
+            streak_days: number;
+            question_count: number;
+            /** @description 0–1 */
+            correct_rate: number;
+            minutes: number;
+            new_mastered: number;
+            mastery_changes: {
+                /** Format: int64 */
+                kp_id: number;
+                name: string;
+                from: components["schemas"]["MasteryState"];
+                to: components["schemas"]["MasteryState"];
+            }[];
+            /** @description 主观题失分归因占比 */
+            loss_shares: {
+                knowledge?: number;
+                norm?: number;
+                time?: number;
+            };
+        };
         ExamProfile: {
             /** @description 至少 2 套真题卷才显示统计 */
             ready: boolean;
@@ -3726,6 +3924,92 @@ export interface operations {
                 content?: never;
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    getHome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Home"];
+                };
+            };
+        };
+    };
+    answerStagePrompt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    accept: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Home"];
+                };
+            };
+        };
+    };
+    getTodayPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodayPlan"];
+                };
+            };
+        };
+    };
+    getTodaySummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodaySummary"];
+                };
+            };
         };
     };
 }

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.2.0
+  version: 0.3.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -18,12 +18,15 @@ info:
     契约版本：
     - api-v0.1：模块 0 账号、模块 1 引导与导入、模块 3 题库、额度、功能开关
     - api-v0.2：考情分析 3.8、知识图谱 3.9、作文知识库 3.10（T14）
+    - api-v0.3：今日首页 2.1、阶段提示 2.1e、今日计划与完成统计 2.2（T16）
     - 其余模块随对应任务卡增量加入，10/11 冻结 api-v1.0
 servers:
   - url: /api/v1
 security:
   - bearerAuth: []
 tags:
+  - name: today
+    description: 模块 2 · 今日首页与今日计划
   - name: system
     description: 健康检查与启动配置
   - name: auth
@@ -1177,6 +1180,66 @@ paths:
         "204": { description: OK }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /home:
+    get:
+      tags: [today]
+      operationId: getHome
+      summary: 今日首页聚合（2.1、2.1b、2.1c、2.1d）
+      description: |
+        首页按状态四选一：还没导入资料（no_material）→ 题库整理中（organizing）→ 今日已完成（done）→ 正常（normal）。
+        今日计划不存在时当场生成（北京时间 0 点定时任务之外的兜底）。预估分卡在 T22 接通前为空数组。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Home" }
+
+  /home/stage-prompt:
+    post:
+      tags: [today]
+      operationId: answerStagePrompt
+      summary: 进入新阶段提示（2.1e）：「好的」切换，「暂不切换」留在当前阶段；同一目标阶段只弹一次
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accept]
+              properties:
+                accept: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Home" }
+
+  /plans/today:
+    get:
+      tags: [today]
+      operationId: getTodayPlan
+      summary: 今日计划明细（各组题目、预计用时、完成情况）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TodayPlan" }
+
+  /plans/today/summary:
+    get:
+      tags: [today]
+      operationId: getTodaySummary
+      summary: 今日训练完成（2.2）：连续打卡、题数、正确率、用时、掌握度变化、失分归因、明天的预计计划
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TodaySummary" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1274,6 +1337,133 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    PlanGroupKey:
+      type: string
+      description: 新知识点 / 到期复习 / 薄弱查漏（强化期以后为题型专项）/ 背诵
+      enum: [new, review, weak, recite]
+    PlanGroupSummary:
+      type: object
+      required: [group, count, minutes, done]
+      properties:
+        group: { $ref: "#/components/schemas/PlanGroupKey" }
+        count: { type: integer }
+        minutes: { type: number }
+        done: { type: integer }
+    TodayPlan:
+      type: object
+      required: [date, stage, budget_minutes, total_minutes, done_minutes, groups, items, completed]
+      properties:
+        date: { type: string, format: date }
+        stage: { $ref: "#/components/schemas/Stage" }
+        budget_minutes: { type: integer }
+        total_minutes: { type: number }
+        done_minutes: { type: number }
+        completed: { type: boolean }
+        groups: { type: array, items: { $ref: "#/components/schemas/PlanGroupSummary" } }
+        items:
+          type: array
+          items:
+            type: object
+            required: [subject_id, group, kp_id, minutes, done]
+            properties:
+              subject_id: { type: integer, format: int64 }
+              group: { $ref: "#/components/schemas/PlanGroupKey" }
+              question_id: { type: integer, format: int64, description: 背诵条目为空 }
+              kp_id: { type: integer, format: int64 }
+              qtype: { $ref: "#/components/schemas/QuestionType" }
+              minutes: { type: number }
+              done: { type: boolean }
+        shortfall_minutes: { type: number, description: 题量不够、没填满的分钟数 }
+    StagePrompt:
+      type: object
+      required: [to, reason, mix]
+      properties:
+        to: { $ref: "#/components/schemas/Stage" }
+        reason: { type: string, enum: [by_date, early_sprint] }
+        mix:
+          type: object
+          description: 新阶段的计划构成对比（2.1e）
+          required: [current, next]
+          properties:
+            current: { type: object, additionalProperties: { type: number } }
+            next: { type: object, additionalProperties: { type: number } }
+    Home:
+      type: object
+      required: [state, days_to_exam, stage, estimates, banks, false_mastery_count, streak_days, unread_messages]
+      properties:
+        state: { type: string, enum: [no_material, organizing, done, normal] }
+        days_to_exam: { type: integer }
+        stage: { $ref: "#/components/schemas/Stage" }
+        stage_prompt: { $ref: "#/components/schemas/StagePrompt" }
+        low_coverage: { type: boolean, description: 冲刺期覆盖率不足，提示先补新知识点（PRD 11.4） }
+        estimates:
+          type: array
+          description: 预估分卡（T22 接通前为空）
+          items: { type: object, additionalProperties: true }
+        plan: { $ref: "#/components/schemas/TodayPlan" }
+        stage_push:
+          type: object
+          description: 阶段主推：基础期新知识点进度、强化期本周题型专项、冲刺期本周整卷、考前期模拟考试
+          required: [kind, title, desc]
+          properties:
+            kind: { type: string, enum: [new_kp_progress, weekly_qtype_drill, weekly_paper, mock_exam] }
+            title: { type: string }
+            desc: { type: string }
+            qtype: { $ref: "#/components/schemas/QuestionType" }
+            progress: { type: number, description: 0–1 }
+        banks:
+          type: array
+          items:
+            type: object
+            required: [subject_id, name, question_count, kp_count, mastery_distribution, organizing]
+            properties:
+              subject_id: { type: integer, format: int64 }
+              name: { type: string }
+              code: { type: string }
+              is_essay: { type: boolean }
+              question_count: { type: integer }
+              kp_count: { type: integer }
+              organizing: { type: boolean }
+              recognized_count: { type: integer }
+              mastery_distribution:
+                type: object
+                required: [unlearned, learning, consolidating, mastered]
+                properties:
+                  unlearned: { type: integer }
+                  learning: { type: integer }
+                  consolidating: { type: integer }
+                  mastered: { type: integer }
+        organizing_job_id: { type: integer, format: int64, description: 题库整理中的导入任务（2.1b） }
+        false_mastery_count: { type: integer, description: 「以为会了」：自评掌握但近期作答正确率低的知识点数，为 0 时隐藏 }
+        streak_days: { type: integer, description: 连续打卡天数 }
+        unread_messages: { type: integer }
+        tomorrow_minutes: { type: number, description: 2.1d 明天的预计计划用时 }
+    TodaySummary:
+      type: object
+      required: [streak_days, question_count, correct_rate, minutes, new_mastered, mastery_changes, loss_shares]
+      properties:
+        streak_days: { type: integer }
+        question_count: { type: integer }
+        correct_rate: { type: number, description: 0–1 }
+        minutes: { type: number }
+        new_mastered: { type: integer }
+        mastery_changes:
+          type: array
+          items:
+            type: object
+            required: [kp_id, name, from, to]
+            properties:
+              kp_id: { type: integer, format: int64 }
+              name: { type: string }
+              from: { $ref: "#/components/schemas/MasteryState" }
+              to: { $ref: "#/components/schemas/MasteryState" }
+        loss_shares:
+          type: object
+          description: 主观题失分归因占比
+          properties:
+            knowledge: { type: number }
+            norm: { type: number }
+            time: { type: number }
     ExamProfile:
       type: object
       required: [ready, paper_count, min_papers, years, excluded_count, structure, sections, high_freq, missing_sections, style_tags, basis]
