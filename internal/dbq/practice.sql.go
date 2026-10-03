@@ -52,6 +52,7 @@ const countReciteDue = `-- name: CountReciteDue :one
 SELECT COUNT(*) FROM knowledge_points k
 LEFT JOIN kp_mastery m ON m.kp_id = k.id AND m.owner_user_id = k.owner_user_id
 WHERE k.bank_id = ? AND k.owner_user_id = ? AND k.level = 'point'
+  AND k.original_text IS NOT NULL AND k.original_text <> ''
   AND (m.recite_next_review_on IS NULL OR m.recite_next_review_on <= ?)
 `
 
@@ -61,7 +62,7 @@ type CountReciteDueParams struct {
 	ReciteNextReviewOn sql.NullTime
 }
 
-// 待背诵：知识点有采分关键词，从没背过或背诵复习日已到。
+// 待背诵：有原文表述可背的知识点，从没背过或背诵复习日已到（与 4.14 背诵队列一致）。
 func (q *Queries) CountReciteDue(ctx context.Context, arg CountReciteDueParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countReciteDue, arg.BankID, arg.OwnerUserID, arg.ReciteNextReviewOn)
 	var count int64

@@ -15,6 +15,7 @@ import (
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/bank"
+	"peetraining-server/internal/cloud/asr"
 	"peetraining-server/internal/cloud/moderation"
 	"peetraining-server/internal/cloud/ocr"
 	"peetraining-server/internal/cloud/oss"
@@ -47,6 +48,9 @@ type fx struct {
 	prof  *profile.Service
 	pr    *practice.Service
 	oss   *oss.Mock
+	asr   *asr.Mock
+	flags *flags.Service
+	plan  *plan.Service
 	clock time.Time
 }
 
@@ -77,8 +81,9 @@ func setup(t *testing.T) *fx {
 	queue.h = &jobs.Handlers{Logger: logx.New(io.Discard, slog.LevelInfo), Import: f.imp, Material: f.mat, Permanent: material.IsPermanent}
 	bk := bank.New(bank.Deps{DB: db, AI: engine, Quota: qs, Params: ps, Now: now})
 	pl := plan.New(plan.Deps{DB: db, Params: ps, Profile: f.prof, Bank: bk, Now: now})
-	f.oss = o
-	f.pr = practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: o, OCR: ocr.NewMock(), Moderation: moderation.NewMock(), Now: now})
+	f.oss, f.asr, f.flags, f.plan = o, asr.NewMock(), flags.New(q), pl
+	f.pr = practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: o, OCR: ocr.NewMock(), Moderation: moderation.NewMock(),
+		ASR: f.asr, Flags: f.flags, Now: now})
 	return f
 }
 

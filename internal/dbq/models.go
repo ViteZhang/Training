@@ -6294,8 +6294,9 @@ type ReciteRecord struct {
 	Mode   ReciteRecordsMode
 	Result NullReciteRecordsResult
 	// 默写与口述的关键词覆盖
-	Coverage  dbtypes.NullJSON
-	CreatedAt time.Time
+	Coverage       dbtypes.NullJSON
+	CreatedAt      time.Time
+	IdempotencyKey sql.NullString
 }
 
 // 兑换码批次（7.4）

@@ -129,7 +129,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 		Importer: imp,
 		Bank:     bk,
 		Plan:     pl,
-		Practice: practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: clients.OSS, OCR: clients.OCR, Moderation: clients.Moderation}),
+		Practice: practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: clients.OSS, OCR: clients.OCR, Moderation: clients.Moderation, ASR: clients.ASR, Flags: fl}),
 	}, nil
 }
 

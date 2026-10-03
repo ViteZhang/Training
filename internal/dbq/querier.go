@@ -36,7 +36,7 @@ type Querier interface {
 	CountMasteredSince(ctx context.Context, arg CountMasteredSinceParams) (int64, error)
 	// 删除资料前说明连带影响（3.1d）。调用前已用 GetMaterial 核对资料属于当前用户，下面按资料 ID 统计。
 	CountMaterialImpact(ctx context.Context, arg CountMaterialImpactParams) (CountMaterialImpactRow, error)
-	// 待背诵：知识点有采分关键词，从没背过或背诵复习日已到。
+	// 待背诵：有原文表述可背的知识点，从没背过或背诵复习日已到（与 4.14 背诵队列一致）。
 	CountReciteDue(ctx context.Context, arg CountReciteDueParams) (int64, error)
 	CountSessionsSince(ctx context.Context, arg CountSessionsSinceParams) (int64, error)
 	// 作文课判断（PRD 11.12）：这门课已解析的资料里作文类占多少。
@@ -123,6 +123,7 @@ type Querier interface {
 	GetQuotaCounter(ctx context.Context, arg GetQuotaCounterParams) (QuotaCounter, error)
 	GetQuotaLedgerByKey(ctx context.Context, arg GetQuotaLedgerByKeyParams) (QuotaLedger, error)
 	GetRealExamPaper(ctx context.Context, arg GetRealExamPaperParams) (Paper, error)
+	GetReciteRecordByKey(ctx context.Context, arg GetReciteRecordByKeyParams) (ReciteRecord, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error)
 	GetStudyProfile(ctx context.Context, userID uint64) (StudyProfile, error)
 	GetSubject(ctx context.Context, arg GetSubjectParams) (GetSubjectRow, error)
@@ -157,6 +158,7 @@ type Querier interface {
 	InsertQuestion(ctx context.Context, arg InsertQuestionParams) (int64, error)
 	InsertQuestionKP(ctx context.Context, arg InsertQuestionKPParams) error
 	InsertQuotaLedger(ctx context.Context, arg InsertQuotaLedgerParams) error
+	InsertReciteRecord(ctx context.Context, arg InsertReciteRecordParams) (int64, error)
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
 	InsertRubricPoint(ctx context.Context, arg InsertRubricPointParams) error
 	InsertStudyProfile(ctx context.Context, arg InsertStudyProfileParams) error
@@ -218,11 +220,15 @@ type Querier interface {
 	ListQueuedGradings(ctx context.Context, ownerUserID uint64) ([]ListQueuedGradingsRow, error)
 	// 「以为会了」（PRD 11.2）：自评掌握的知识点近期作答情况。
 	ListRecentKPAttempts(ctx context.Context, arg ListRecentKPAttemptsParams) ([]ListRecentKPAttemptsRow, error)
+	// 背诵（T20）。每条查询都带归属条件。
+	// 可背的知识点：有原文表述的知识点，带掌握分与背诵复习日。
+	ListReciteCandidates(ctx context.Context, arg ListReciteCandidatesParams) ([]ListReciteCandidatesRow, error)
 	ListRecitedSince(ctx context.Context, arg ListRecitedSinceParams) ([]uint64, error)
 	ListRelatedQuestions(ctx context.Context, arg ListRelatedQuestionsParams) ([]ListRelatedQuestionsRow, error)
 	// 规则参数与功能开关（T06 读取，T07 / T29 管理）。
 	ListRuleParams(ctx context.Context) ([]ListRuleParamsRow, error)
 	ListSessionAttempts(ctx context.Context, arg ListSessionAttemptsParams) ([]ListSessionAttemptsRow, error)
+	ListSessionRecites(ctx context.Context, arg ListSessionRecitesParams) ([]ListSessionRecitesRow, error)
 	ListSubjects(ctx context.Context, ownerUserID uint64) ([]ListSubjectsRow, error)
 	// 还没导入任何资料的专业课（1.8 提示继续导入）。
 	ListSubjectsWithoutContent(ctx context.Context, ownerUserID uint64) ([]uint64, error)
@@ -243,6 +249,7 @@ type Querier interface {
 	MoveQuestionKPs(ctx context.Context, arg MoveQuestionKPsParams) error
 	// 高分写法：同题型里有采分点的题，用户确认过的采分点、有资料出处的优先。
 	NormExampleQuestion(ctx context.Context, arg NormExampleQuestionParams) (NormExampleQuestionRow, error)
+	PreviousFinishedSession(ctx context.Context, arg PreviousFinishedSessionParams) (dbtypes.NullJSON, error)
 	QTypeCounts(ctx context.Context, arg QTypeCountsParams) ([]QTypeCountsRow, error)
 	// 知识点在真题中出现的次数（3.1、3.8；回忆版不计入）。
 	RecountKPExamCounts(ctx context.Context, arg RecountKPExamCountsParams) error
@@ -301,6 +308,8 @@ type Querier interface {
 	UpsertImportItem(ctx context.Context, arg UpsertImportItemParams) error
 	// 作答验证后的掌握分、状态、答对日期与复习排期（PRD 11.1–11.3）。
 	UpsertKPMasteryAnswer(ctx context.Context, arg UpsertKPMasteryAnswerParams) error
+	// 背诵只改掌握分与背诵复习日，不算作答验证（PRD 11.1 补充）。
+	UpsertKPRecite(ctx context.Context, arg UpsertKPReciteParams) error
 	// 三档自评（3.4）：没有作答记录时设 M 与状态，有作答记录时只记录自评（D16）。
 	UpsertKPSelfAssess(ctx context.Context, arg UpsertKPSelfAssessParams) error
 	UpsertMaterialPage(ctx context.Context, arg UpsertMaterialPageParams) error

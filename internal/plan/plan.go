@@ -158,7 +158,8 @@ func (s *Service) candidates(ctx context.Context, userID uint64, subject dbq.Get
 	// 背诵：复习日已到或从没背过、而且有原文或采分点可背的知识点。
 	for id, k := range info {
 		mr, ok := mastery[id]
-		due := !ok || mr.ReciteIntervalStep == 0 || (mr.ReciteNextReviewOn.Valid && rules.DayFromDateColumn(mr.ReciteNextReviewOn.Time) <= today)
+		// 从没背过（没有背诵复习日），或背诵复习日已到（PRD 11.3：没记住的 1 天后再背）。
+		due := !ok || !mr.ReciteNextReviewOn.Valid || rules.DayFromDateColumn(mr.ReciteNextReviewOn.Time) <= today
 		if !due || (k.state == rules.StateUnlearned && !hasQuestion[id] && stage == rules.Foundation) {
 			continue
 		}
