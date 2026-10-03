@@ -2354,7 +2354,7 @@ export interface paths {
         /**
          * 消息中心（2.3）
          * @description 近 30 天的消息，新的在前，每页 30 条。点击按 page 跳转并标已读。page 取值：import_review（params.job_id）、import、today、
-         *     paper_report（session_id）、essay_result（essay_id）、export（job_id）、agreement（kind）、feedback（feedback_id）、member；为空时只展示不跳转。
+         *     paper_report（session_id）、essay_result（essay_id）、export（job_id）、agreement（kind）、feedback（feedback_id）、member、library；为空时只展示不跳转。
          */
         get: operations["listMessages"];
         put?: never;
@@ -2410,6 +2410,725 @@ export interface paths {
         put?: never;
         /** 全部已读 */
         post: operations["readAllMessages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 后台登录第一步：账号密码
+         * @description 密码正确后给账号绑定的手机发短信验证码（所有后台账号强制两步验证）。15 分钟内错 5 次暂停登录。
+         */
+        post: operations["adminLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 后台登录第二步：短信验证码 */
+        post: operations["adminVerify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 退出后台 */
+        post: operations["adminLogout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 当前后台账号 */
+        get: operations["getAdminMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 修改密码（首次登录必须修改） */
+        post: operations["changeAdminPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 7.1 概览
+         * @description 只读 Worker 每小时汇总的 stats_hourly。
+         */
+        get: operations["getAdminOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 7.2 用户列表
+         * @description 搜索手机号、用户 ID、邀请码；手机号脱敏。
+         */
+        get: operations["listAdminUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 7.2 用户详情
+         * @description 只有数量与状态，没有资料与题目内容。
+         */
+        get: operations["getAdminUser"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/phone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查看完整手机号（只有管理员，记日志） */
+        get: operations["getAdminUserPhone"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/parse-pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 加解析额度 / 补偿解析额度 */
+        post: operations["grantParsePages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/membership-days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 赠送会员天数 */
+        post: operations["grantMembershipDays"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/reparse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 重新解析失败文件 */
+        post: operations["reparseUserFailed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 给用户发站内消息 */
+        post: operations["sendAdminMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 封禁 / 解封账号 */
+        post: operations["setAdminUserStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 操作记录 */
+        get: operations["listAdminAudit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/access-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 授权查看日志 */
+        get: operations["listAccessLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.3 订单列表 */
+        get: operations["listAdminOrders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/orders/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.3 会员与订单汇总 */
+        get: operations["getAdminOrderSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/orders/{orderNo}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 退款前查看用户使用情况 */
+        get: operations["getAdminOrderUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/orders/{orderNo}/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 同意退款（全额，收回本单会员） */
+        post: operations["refundAdminOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/redeem/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.4 兑换码汇总 */
+        get: operations["getRedeemSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/redeem/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.4 批次列表 */
+        get: operations["listRedeemBatches"];
+        put?: never;
+        /**
+         * 新建兑换码批次
+         * @description 库里只存哈希，codes 明文只在这次响应里返回，后台当场导出（D37）。
+         */
+        post: operations["createRedeemBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/redeem/batches/{batchId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 批次明细 */
+        get: operations["getRedeemBatch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/redeem/batches/{batchId}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 停用批次 */
+        post: operations["disableRedeemBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/redeem/codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 单码查询 */
+        get: operations["findRedeemCode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/redeem/codes/{codeId}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 作废单码并收回会员 */
+        post: operations["voidRedeemCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/parse/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.5 解析监控汇总（近 7 天） */
+        get: operations["getParseStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/parse/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 失败与部分成功的任务 */
+        get: operations["listFailedImports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/parse/jobs/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 任务详情（格式、页数、识别日志、失败环节，不含内容） */
+        get: operations["getAdminImportJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/parse/jobs/{jobId}/rerun": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 重跑失败的文件 */
+        post: operations["rerunImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/parse/jobs/{jobId}/tips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 给用户发拍照建议 */
+        post: operations["sendPhotoTips"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/disputes/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.6 批改异议汇总（本周） */
+        get: operations["getDisputeStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/disputes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 异议与抽检队列 */
+        get: operations["listAdminDisputes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/disputes/{disputeId}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 授权查看异议的题目与作答
+         * @description 用户勾选授权后 72 小时内可看；每次查看都记日志并给用户发消息；没有授权返回 403。
+         */
+        get: operations["viewDisputeContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/disputes/{disputeId}/attribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 人工抽检归因 */
+        post: operations["attributeDispute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/feedbacks/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.7 用户反馈汇总 */
+        get: operations["getFeedbackStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/feedbacks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 反馈列表 */
+        get: operations["listAdminFeedbacks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/feedbacks/{feedbackId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 反馈详情 */
+        get: operations["getAdminFeedback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/feedbacks/{feedbackId}/material": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 授权查看反馈关联的资料
+         * @description 每次查看都记日志并给用户发消息；没有授权或已过期返回 403。
+         */
+        get: operations["viewFeedbackMaterial"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/feedbacks/{feedbackId}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 回复到用户消息中心 */
+        post: operations["replyFeedback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/feedbacks/{feedbackId}/reparse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 重新识别反馈关联的资料 */
+        post: operations["reparseFeedbackMaterial"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3692,6 +4411,347 @@ export interface components {
             items: components["schemas"]["Message"][];
             next_cursor?: string;
             unread: number;
+        };
+        AdminChallenge: {
+            challenge_id: string;
+            phone_masked: string;
+        };
+        AdminMe: {
+            /** Format: int64 */
+            id: number;
+            username: string;
+            display_name: string;
+            roles: ("admin" | "support" | "content_lead" | "content_editor" | "analyst")[];
+            must_change_password: boolean;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        AdminSession: {
+            token: string;
+            admin: components["schemas"]["AdminMe"];
+        };
+        AdminCount: {
+            count: number;
+        };
+        AdminNamed: {
+            name: string;
+            value: number;
+        };
+        AdminDayPoint: {
+            day: string;
+            new_users: number;
+            active_users: number;
+            answers: number;
+            parse_pages: number;
+            /** Format: int64 */
+            revenue_cents: number;
+        };
+        AdminOverview: {
+            /** Format: date-time */
+            updated_at?: string;
+            users_total: number;
+            week_new_users: number;
+            week_active_users: number;
+            week_parse_pages: number;
+            week_parse_rate: number;
+            paid_users: number;
+            members: number;
+            conversion: number;
+            /** Format: int64 */
+            month_revenue_cents: number;
+            week_dispute_rate: number;
+            funnel: components["schemas"]["AdminNamed"][];
+            import_modes: components["schemas"]["AdminNamed"][];
+            hot_subjects: components["schemas"]["AdminNamed"][];
+            days: components["schemas"]["AdminDayPoint"][];
+            alerts: string[];
+        };
+        AdminUser: {
+            /** Format: int64 */
+            id: number;
+            phone_masked: string;
+            invite_code: string;
+            /** @enum {string} */
+            status: "active" | "banned" | "deleting";
+            subjects: string;
+            materials: number;
+            questions: number;
+            is_member: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            last_active_at?: string;
+        };
+        AdminSubjectStat: {
+            name: string;
+            code?: string;
+            full_score: number;
+            target_score?: number;
+            est_low?: number;
+            est_high?: number;
+        };
+        AdminUserDetail: components["schemas"]["AdminUser"] & {
+            nickname: string;
+            failed_materials: number;
+            pages: number;
+            knowledge_points: number;
+            papers: number;
+            week_gradings: number;
+            invited: number;
+            invite_days: number;
+            member_tier?: string;
+            /** Format: date-time */
+            member_until?: string;
+            subject_stats: components["schemas"]["AdminSubjectStat"][];
+            quota: components["schemas"]["QuotaItem"][];
+        };
+        AdminAudit: {
+            /** Format: int64 */
+            id: number;
+            admin_name: string;
+            action: string;
+            target_type?: string;
+            target_id?: string;
+            detail?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            created_at: string;
+        };
+        AdminAccessLog: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            grant_id: number;
+            admin_name: string;
+            /** Format: int64 */
+            user_id: number;
+            target_type: string;
+            /** Format: int64 */
+            target_id: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        AdminOrder: {
+            order_no: string;
+            /** Format: int64 */
+            user_id: number;
+            tier: components["schemas"]["PlanTier"];
+            channel: components["schemas"]["PayChannel"];
+            /** Format: int64 */
+            amount_cents: number;
+            status: components["schemas"]["OrderStatus"];
+            refund_status?: string;
+            /** Format: date-time */
+            paid_at?: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        AdminTierSales: {
+            tier: components["schemas"]["PlanTier"];
+            orders: number;
+            /** Format: int64 */
+            revenue_cents: number;
+        };
+        AdminOrderSummary: {
+            /** Format: int64 */
+            month_revenue_cents: number;
+            paid_users: number;
+            imported_users: number;
+            conversion: number;
+            pending_refunds: number;
+            tiers: components["schemas"]["AdminTierSales"][];
+        };
+        AdminOrderUsage: {
+            pages: number;
+            gradings: number;
+            answers: number;
+            failed_materials: number;
+            days_since_paid: number;
+        };
+        AdminRedeemSummary: {
+            generated: number;
+            used: number;
+            available: number;
+            inactive: number;
+        };
+        AdminBatch: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** @enum {string} */
+            tier: "sprint" | "season" | "monthly" | "gift";
+            days: number;
+            quantity: number;
+            used: number;
+            /** Format: date-time */
+            expires_at: string;
+            channel: string;
+            /** @enum {string} */
+            status: "active" | "disabled";
+            /** Format: date-time */
+            created_at: string;
+        };
+        AdminBatchCreated: {
+            batch: components["schemas"]["AdminBatch"];
+            codes: string[];
+        };
+        AdminCode: {
+            /** Format: int64 */
+            id: number;
+            tail: string;
+            /** @enum {string} */
+            status: "unused" | "used" | "void";
+            /** Format: int64 */
+            used_by?: number;
+            /** Format: date-time */
+            used_at?: string;
+            /** Format: int64 */
+            batch_id: number;
+            batch_name: string;
+            tier: string;
+            days?: number;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        AdminFormatStat: {
+            format: string;
+            files: number;
+            pages: number;
+            ok: number;
+            partial: number;
+            failed: number;
+            rate: number;
+        };
+        AdminParseStats: {
+            success_rate: number;
+            pages: number;
+            files: number;
+            avg_seconds: number;
+            p95_seconds: number;
+            formats: components["schemas"]["AdminFormatStat"][];
+        };
+        AdminImportJob: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            user_id: number;
+            mode: string;
+            status: string;
+            files: number;
+            failed_files: number;
+            partial_files: number;
+            billed_pages: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            finished_at?: string;
+        };
+        AdminImportFile: {
+            /** Format: int64 */
+            material_id: number;
+            format: string;
+            pages: number;
+            step: string;
+            status: string;
+            attempts: number;
+            fail_reason?: string;
+            failed_pages?: number[];
+            /** Format: date-time */
+            updated_at: string;
+        };
+        AdminImportJobDetail: components["schemas"]["AdminImportJob"] & {
+            reserved_pages: number;
+            prompt_versions?: {
+                [key: string]: string;
+            };
+            file_logs: components["schemas"]["AdminImportFile"][];
+        };
+        AdminDisputeStats: {
+            disputes: number;
+            gradings: number;
+            rate: number;
+            changed_ratio: number;
+            avg_seconds: number;
+            reasons: {
+                [key: string]: number;
+            };
+        };
+        AdminDispute: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            user_id: number;
+            reason: string;
+            status: string;
+            score_before?: number;
+            score_after?: number;
+            attribution?: string;
+            granted: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            resolved_at?: string;
+        };
+        AdminGrantedGrading: {
+            stem: string;
+            qtype: string;
+            answer: string;
+            rubric?: unknown;
+            point_results?: unknown;
+            score?: number;
+            full_score?: number;
+            regrade?: {
+                rubric?: unknown;
+                point_results?: unknown;
+                score?: number;
+            };
+            /** Format: date-time */
+            grant_expires_at: string;
+        };
+        AdminFeedbackStats: {
+            open: number;
+            avg_reply_seconds: number;
+            top_type: string;
+            satisfaction: number;
+            types: {
+                [key: string]: number;
+            };
+        };
+        AdminFeedback: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            user_id: number;
+            type: components["schemas"]["FeedbackType"];
+            content: string;
+            allow_access: boolean;
+            /** @enum {string} */
+            status: "open" | "replied" | "closed";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            replied_at?: string;
+        };
+        AdminFeedbackDetail: components["schemas"]["AdminFeedback"] & {
+            reply?: string;
+            screenshots: string[];
+            /** Format: date-time */
+            grant_expires_at?: string;
+            /** Format: int64 */
+            material_id?: number;
+            /** Format: int64 */
+            related_import_id?: number;
+        };
+        AdminGrantedMaterial: {
+            /** Format: int64 */
+            id: number;
+            format: string;
+            pages: number;
+            status: string;
+            page_texts: string[];
+            /** Format: date-time */
+            grant_expires_at: string;
         };
         RedeemResult: {
             /** @enum {string} */
@@ -8425,6 +9485,1049 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    adminLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    username: string;
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminChallenge"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    adminVerify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    challenge_id: string;
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSession"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    adminLogout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getAdminMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminMe"];
+                };
+            };
+        };
+    };
+    changeAdminPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    old_password: string;
+                    new_password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    getAdminOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOverview"];
+                };
+            };
+        };
+    };
+    listAdminUsers: {
+        parameters: {
+            query?: {
+                q?: string;
+                filter?: "" | "paid" | "quota_out" | "parse_failed" | "no_material";
+                /** @description 上一页响应里的 next_cursor */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminUser"][];
+                        next_cursor?: string;
+                    };
+                };
+            };
+        };
+    };
+    getAdminUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserDetail"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAdminUserPhone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        phone: string;
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    grantParsePages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    pages: number;
+                    idempotency_key: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    grantMembershipDays: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    days: number;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        ends_at: string;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    reparseUserFailed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCount"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    sendAdminMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                    body: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setAdminUserStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    banned: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listAdminAudit: {
+        parameters: {
+            query?: {
+                target_type?: string;
+                target_id?: string;
+                /** @description 上一页响应里的 next_cursor */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminAudit"][];
+                        next_cursor?: string;
+                    };
+                };
+            };
+        };
+    };
+    listAccessLogs: {
+        parameters: {
+            query?: {
+                user_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminAccessLog"][];
+                    };
+                };
+            };
+        };
+    };
+    listAdminOrders: {
+        parameters: {
+            query?: {
+                status?: "" | "created" | "paid" | "closed" | "refunding" | "refunded";
+                user_id?: number;
+                /** @description 上一页响应里的 next_cursor */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminOrder"][];
+                        next_cursor?: string;
+                    };
+                };
+            };
+        };
+    };
+    getAdminOrderSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrderSummary"];
+                };
+            };
+        };
+    };
+    getAdminOrderUsage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderNo: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrderUsage"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    refundAdminOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderNo: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getRedeemSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRedeemSummary"];
+                };
+            };
+        };
+    };
+    listRedeemBatches: {
+        parameters: {
+            query?: {
+                /** @description 上一页响应里的 next_cursor */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminBatch"][];
+                        next_cursor?: string;
+                    };
+                };
+            };
+        };
+    };
+    createRedeemBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    /** @enum {string} */
+                    tier: "sprint" | "season" | "monthly" | "gift";
+                    days?: number;
+                    quantity: number;
+                    /** Format: date-time */
+                    expires_at: string;
+                    channel?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBatchCreated"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    getRedeemBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batchId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        batch: components["schemas"]["AdminBatch"];
+                        codes: components["schemas"]["AdminCode"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    disableRedeemBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batchId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    findRedeemCode: {
+        parameters: {
+            query: {
+                code: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCode"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    voidRedeemCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                codeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getParseStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminParseStats"];
+                };
+            };
+        };
+    };
+    listFailedImports: {
+        parameters: {
+            query?: {
+                /** @description 上一页响应里的 next_cursor */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminImportJob"][];
+                        next_cursor?: string;
+                    };
+                };
+            };
+        };
+    };
+    getAdminImportJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminImportJobDetail"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    rerunImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCount"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    sendPhotoTips: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getDisputeStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDisputeStats"];
+                };
+            };
+        };
+    };
+    listAdminDisputes: {
+        parameters: {
+            query?: {
+                status?: "" | "rechecking" | "rechecked" | "sampled" | "manual_changed" | "closed";
+                /** @description 上一页响应里的 next_cursor */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminDispute"][];
+                        next_cursor?: string;
+                    };
+                };
+            };
+        };
+    };
+    viewDisputeContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                disputeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminGrantedGrading"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    attributeDispute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                disputeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    attribution: "rubric_incomplete" | "model_error" | "answer_insufficient";
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getFeedbackStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFeedbackStats"];
+                };
+            };
+        };
+    };
+    listAdminFeedbacks: {
+        parameters: {
+            query?: {
+                status?: "" | "open" | "replied" | "closed";
+                /** @description 上一页响应里的 next_cursor */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminFeedback"][];
+                        next_cursor?: string;
+                    };
+                };
+            };
+        };
+    };
+    getAdminFeedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                feedbackId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFeedbackDetail"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    viewFeedbackMaterial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                feedbackId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminGrantedMaterial"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    replyFeedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                feedbackId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reply: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    reparseFeedbackMaterial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                feedbackId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
 }

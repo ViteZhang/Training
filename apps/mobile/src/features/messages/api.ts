@@ -47,6 +47,8 @@ export function messageHref(m: Schemas['Message']): Href | undefined {
       return { pathname: '/(auth)/agreement', params: { kind: str(p.kind) || 'user' } };
     case 'feedback':
       return '/mine/feedback';
+    case 'library':
+      return '/library';
     case 'member':
       return '/member';
     default:

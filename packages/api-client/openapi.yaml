@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.14.0
+  version: 0.15.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -22,6 +22,7 @@ info:
     - api-v0.12：会员中心 6.5、订单与支付结果 6.6、支付回调（T25）
     - api-v0.13：邀请研友 6.8（T26）
     - api-v0.14：消息中心 2.3（T27）
+    - api-v0.15：管理后台运营与质量 7.1–7.7、后台账号与两步验证（T28）
     - 其余模块随对应任务卡增量加入，10/11 冻结 api-v1.0
 servers:
   - url: /api/v1
@@ -30,6 +31,11 @@ security:
 tags:
   - name: membership
     description: 会员中心与在线支付（T25）；在线支付受 online_payment 开关控制，默认关闭
+  - name: admin
+    description: |
+      管理后台（T28）。鉴权用 adminAuth（后台会话令牌，8 小时），与 App 的用户令牌分开；每个接口在 x-roles 声明可访问的角色，
+      没声明的一律拒绝；管理员拥有全部权限。所有写操作记 admin_audit_logs。后台看不到用户内容，只有授权查看接口能读，
+      每次读取都记 content_access_logs 并通知用户。
   - name: mine
     description: 模块 6 · 我的：导出题库、兑换码、意见反馈、考后回访
   - name: essay
@@ -2597,7 +2603,7 @@ paths:
       summary: 消息中心（2.3）
       description: |
         近 30 天的消息，新的在前，每页 30 条。点击按 page 跳转并标已读。page 取值：import_review（params.job_id）、import、today、
-        paper_report（session_id）、essay_result（essay_id）、export（job_id）、agreement（kind）、feedback（feedback_id）、member；为空时只展示不跳转。
+        paper_report（session_id）、essay_result（essay_id）、export（job_id）、agreement（kind）、feedback（feedback_id）、member、library；为空时只展示不跳转。
       parameters:
         - $ref: "#/components/parameters/Cursor"
       responses:
@@ -2642,12 +2648,1258 @@ paths:
       responses:
         "204": { description: 已读 }
 
+  /admin/auth/login:
+    post:
+      tags:
+      - admin
+      operationId: adminLogin
+      summary: 后台登录第一步：账号密码
+      description: 密码正确后给账号绑定的手机发短信验证码（所有后台账号强制两步验证）。15 分钟内错 5 次暂停登录。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - username
+              - password
+              properties:
+                username:
+                  type: string
+                  maxLength: 32
+                password:
+                  type: string
+                  maxLength: 128
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminChallenge'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /admin/auth/verify:
+    post:
+      tags:
+      - admin
+      operationId: adminVerify
+      summary: 后台登录第二步：短信验证码
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - challenge_id
+              - code
+              properties:
+                challenge_id:
+                  type: string
+                  maxLength: 64
+                code:
+                  type: string
+                  pattern: ^[0-9]{6}$
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /admin/auth/logout:
+    post:
+      tags:
+      - admin
+      operationId: adminLogout
+      summary: 退出后台
+      x-roles:
+      - '*'
+      security:
+      - adminAuth: []
+      responses:
+        '204':
+          description: 完成
+  /admin/me:
+    get:
+      tags:
+      - admin
+      operationId: getAdminMe
+      summary: 当前后台账号
+      x-roles:
+      - '*'
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMe'
+  /admin/me/password:
+    post:
+      tags:
+      - admin
+      operationId: changeAdminPassword
+      summary: 修改密码（首次登录必须修改）
+      x-roles:
+      - '*'
+      security:
+      - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - old_password
+              - new_password
+              properties:
+                old_password:
+                  type: string
+                  maxLength: 128
+                new_password:
+                  type: string
+                  minLength: 10
+                  maxLength: 128
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /admin/overview:
+    get:
+      tags:
+      - admin
+      operationId: getAdminOverview
+      summary: 7.1 概览
+      x-roles:
+      - admin
+      - analyst
+      description: 只读 Worker 每小时汇总的 stats_hourly。
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOverview'
+  /admin/users:
+    get:
+      tags:
+      - admin
+      operationId: listAdminUsers
+      summary: 7.2 用户列表
+      x-roles: &id001
+      - admin
+      - support
+      description: 搜索手机号、用户 ID、邀请码；手机号脱敏。
+      security:
+      - adminAuth: []
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+      - name: filter
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - ''
+          - paid
+          - quota_out
+          - parse_failed
+          - no_material
+      - &id003
+        $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminUser'
+                  next_cursor:
+                    type: string
+  /admin/users/{userId}:
+    get:
+      tags:
+      - admin
+      operationId: getAdminUser
+      summary: 7.2 用户详情
+      x-roles: *id001
+      description: 只有数量与状态，没有资料与题目内容。
+      security:
+      - adminAuth: []
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/users/{userId}/phone:
+    get:
+      tags:
+      - admin
+      operationId: getAdminUserPhone
+      summary: 查看完整手机号（只有管理员，记日志）
+      x-roles: &id002
+      - admin
+      security:
+      - adminAuth: []
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - phone
+                properties:
+                  phone:
+                    type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/users/{userId}/parse-pages:
+    post:
+      tags:
+      - admin
+      operationId: grantParsePages
+      summary: 加解析额度 / 补偿解析额度
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - pages
+              - idempotency_key
+              properties:
+                pages:
+                  type: integer
+                  minimum: 1
+                  maximum: 2000
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 64
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/users/{userId}/membership-days:
+    post:
+      tags:
+      - admin
+      operationId: grantMembershipDays
+      summary: 赠送会员天数
+      x-roles: *id002
+      security:
+      - adminAuth: []
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - days
+              properties:
+                days:
+                  type: integer
+                  minimum: 1
+                  maximum: 400
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - ends_at
+                properties:
+                  ends_at:
+                    type: string
+                    format: date-time
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/users/{userId}/reparse:
+    post:
+      tags:
+      - admin
+      operationId: reparseUserFailed
+      summary: 重新解析失败文件
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCount'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/users/{userId}/messages:
+    post:
+      tags:
+      - admin
+      operationId: sendAdminMessage
+      summary: 给用户发站内消息
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - title
+              - body
+              properties:
+                title:
+                  type: string
+                  minLength: 2
+                  maxLength: 64
+                body:
+                  type: string
+                  minLength: 2
+                  maxLength: 500
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/users/{userId}/status:
+    post:
+      tags:
+      - admin
+      operationId: setAdminUserStatus
+      summary: 封禁 / 解封账号
+      x-roles: *id002
+      security:
+      - adminAuth: []
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - banned
+              properties:
+                banned:
+                  type: boolean
+      responses:
+        '204':
+          description: 完成
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/audit-logs:
+    get:
+      tags:
+      - admin
+      operationId: listAdminAudit
+      summary: 操作记录
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: target_type
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+      - name: target_id
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 64
+      - *id003
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminAudit'
+                  next_cursor:
+                    type: string
+  /admin/access-logs:
+    get:
+      tags:
+      - admin
+      operationId: listAccessLogs
+      summary: 授权查看日志
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: user_id
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminAccessLog'
+  /admin/orders:
+    get:
+      tags:
+      - admin
+      operationId: listAdminOrders
+      summary: 7.3 订单列表
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - ''
+          - created
+          - paid
+          - closed
+          - refunding
+          - refunded
+      - name: user_id
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - *id003
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminOrder'
+                  next_cursor:
+                    type: string
+  /admin/orders/summary:
+    get:
+      tags:
+      - admin
+      operationId: getAdminOrderSummary
+      summary: 7.3 会员与订单汇总
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderSummary'
+  /admin/orders/{orderNo}/usage:
+    get:
+      tags:
+      - admin
+      operationId: getAdminOrderUsage
+      summary: 退款前查看用户使用情况
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: orderNo
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 32
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderUsage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/orders/{orderNo}/refund:
+    post:
+      tags:
+      - admin
+      operationId: refundAdminOrder
+      summary: 同意退款（全额，收回本单会员）
+      x-roles: *id002
+      security:
+      - adminAuth: []
+      parameters:
+      - name: orderNo
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 32
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 2
+                  maxLength: 200
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/redeem/summary:
+    get:
+      tags:
+      - admin
+      operationId: getRedeemSummary
+      summary: 7.4 兑换码汇总
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRedeemSummary'
+  /admin/redeem/batches:
+    get:
+      tags:
+      - admin
+      operationId: listRedeemBatches
+      summary: 7.4 批次列表
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - *id003
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminBatch'
+                  next_cursor:
+                    type: string
+    post:
+      tags:
+      - admin
+      operationId: createRedeemBatch
+      summary: 新建兑换码批次
+      x-roles: *id002
+      description: 库里只存哈希，codes 明文只在这次响应里返回，后台当场导出（D37）。
+      security:
+      - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - name
+              - tier
+              - quantity
+              - expires_at
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+                tier:
+                  type: string
+                  enum:
+                  - sprint
+                  - season
+                  - monthly
+                  - gift
+                days:
+                  type: integer
+                  minimum: 1
+                  maximum: 400
+                quantity:
+                  type: integer
+                  minimum: 1
+                  maximum: 5000
+                expires_at:
+                  type: string
+                  format: date-time
+                channel:
+                  type: string
+                  maxLength: 32
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBatchCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /admin/redeem/batches/{batchId}:
+    get:
+      tags:
+      - admin
+      operationId: getRedeemBatch
+      summary: 批次明细
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: batchId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - batch
+                - codes
+                properties:
+                  batch:
+                    $ref: '#/components/schemas/AdminBatch'
+                  codes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminCode'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/redeem/batches/{batchId}/disable:
+    post:
+      tags:
+      - admin
+      operationId: disableRedeemBatch
+      summary: 停用批次
+      x-roles: *id002
+      security:
+      - adminAuth: []
+      parameters:
+      - name: batchId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '204':
+          description: 完成
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/redeem/codes:
+    get:
+      tags:
+      - admin
+      operationId: findRedeemCode
+      summary: 单码查询
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: code
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 32
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCode'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/redeem/codes/{codeId}/void:
+    post:
+      tags:
+      - admin
+      operationId: voidRedeemCode
+      summary: 作废单码并收回会员
+      x-roles: *id002
+      security:
+      - adminAuth: []
+      parameters:
+      - name: codeId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '204':
+          description: 完成
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/parse/stats:
+    get:
+      tags:
+      - admin
+      operationId: getParseStats
+      summary: 7.5 解析监控汇总（近 7 天）
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminParseStats'
+  /admin/parse/jobs:
+    get:
+      tags:
+      - admin
+      operationId: listFailedImports
+      summary: 失败与部分成功的任务
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - *id003
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminImportJob'
+                  next_cursor:
+                    type: string
+  /admin/parse/jobs/{jobId}:
+    get:
+      tags:
+      - admin
+      operationId: getAdminImportJob
+      summary: 任务详情（格式、页数、识别日志、失败环节，不含内容）
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminImportJobDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/parse/jobs/{jobId}/rerun:
+    post:
+      tags:
+      - admin
+      operationId: rerunImport
+      summary: 重跑失败的文件
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCount'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/parse/jobs/{jobId}/tips:
+    post:
+      tags:
+      - admin
+      operationId: sendPhotoTips
+      summary: 给用户发拍照建议
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '204':
+          description: 完成
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/disputes/stats:
+    get:
+      tags:
+      - admin
+      operationId: getDisputeStats
+      summary: 7.6 批改异议汇总（本周）
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDisputeStats'
+  /admin/disputes:
+    get:
+      tags:
+      - admin
+      operationId: listAdminDisputes
+      summary: 异议与抽检队列
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - ''
+          - rechecking
+          - rechecked
+          - sampled
+          - manual_changed
+          - closed
+      - *id003
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminDispute'
+                  next_cursor:
+                    type: string
+  /admin/disputes/{disputeId}/content:
+    get:
+      tags:
+      - admin
+      operationId: viewDisputeContent
+      summary: 授权查看异议的题目与作答
+      x-roles: *id001
+      description: 用户勾选授权后 72 小时内可看；每次查看都记日志并给用户发消息；没有授权返回 403。
+      security:
+      - adminAuth: []
+      parameters:
+      - name: disputeId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminGrantedGrading'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/disputes/{disputeId}/attribution:
+    post:
+      tags:
+      - admin
+      operationId: attributeDispute
+      summary: 人工抽检归因
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: disputeId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - attribution
+              properties:
+                attribution:
+                  type: string
+                  enum:
+                  - rubric_incomplete
+                  - model_error
+                  - answer_insufficient
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/feedbacks/stats:
+    get:
+      tags:
+      - admin
+      operationId: getFeedbackStats
+      summary: 7.7 用户反馈汇总
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFeedbackStats'
+  /admin/feedbacks:
+    get:
+      tags:
+      - admin
+      operationId: listAdminFeedbacks
+      summary: 反馈列表
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - ''
+          - open
+          - replied
+          - closed
+      - *id003
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminFeedback'
+                  next_cursor:
+                    type: string
+  /admin/feedbacks/{feedbackId}:
+    get:
+      tags:
+      - admin
+      operationId: getAdminFeedback
+      summary: 反馈详情
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: feedbackId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFeedbackDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/feedbacks/{feedbackId}/material:
+    get:
+      tags:
+      - admin
+      operationId: viewFeedbackMaterial
+      summary: 授权查看反馈关联的资料
+      x-roles: *id001
+      description: 每次查看都记日志并给用户发消息；没有授权或已过期返回 403。
+      security:
+      - adminAuth: []
+      parameters:
+      - name: feedbackId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminGrantedMaterial'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/feedbacks/{feedbackId}/reply:
+    post:
+      tags:
+      - admin
+      operationId: replyFeedback
+      summary: 回复到用户消息中心
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: feedbackId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - reply
+              properties:
+                reply:
+                  type: string
+                  minLength: 2
+                  maxLength: 1000
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/feedbacks/{feedbackId}/reparse:
+    post:
+      tags:
+      - admin
+      operationId: reparseFeedbackMaterial
+      summary: 重新识别反馈关联的资料
+      x-roles: *id001
+      security:
+      - adminAuth: []
+      parameters:
+      - name: feedbackId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    adminAuth:
+      type: http
+      scheme: bearer
+      description: 后台会话令牌（两步验证后签发，8 小时有效）
 
   parameters:
     EssayId:
@@ -3997,6 +5249,623 @@ components:
         items: { type: array, items: { $ref: "#/components/schemas/Message" } }
         next_cursor: { type: string }
         unread: { type: integer }
+    AdminChallenge:
+      type: object
+      required:
+      - challenge_id
+      - phone_masked
+      properties:
+        challenge_id: &id001
+          type: string
+        phone_masked: *id001
+    AdminMe:
+      type: object
+      required:
+      - id
+      - username
+      - display_name
+      - roles
+      - must_change_password
+      - expires_at
+      properties:
+        id: &id003
+          type: integer
+          format: int64
+        username: *id001
+        display_name: *id001
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+            - admin
+            - support
+            - content_lead
+            - content_editor
+            - analyst
+        must_change_password: &id007
+          type: boolean
+        expires_at: &id004
+          type: string
+          format: date-time
+    AdminSession:
+      type: object
+      required:
+      - token
+      - admin
+      properties:
+        token: *id001
+        admin:
+          $ref: '#/components/schemas/AdminMe'
+    AdminCount:
+      type: object
+      required:
+      - count
+      properties:
+        count: &id002
+          type: integer
+    AdminNamed:
+      type: object
+      required:
+      - name
+      - value
+      properties:
+        name: *id001
+        value: *id002
+    AdminDayPoint:
+      type: object
+      required:
+      - day
+      - new_users
+      - active_users
+      - answers
+      - parse_pages
+      - revenue_cents
+      properties:
+        day: *id001
+        new_users: *id002
+        active_users: *id002
+        answers: *id002
+        parse_pages: *id002
+        revenue_cents: *id003
+    AdminOverview:
+      type: object
+      required:
+      - users_total
+      - week_new_users
+      - week_active_users
+      - week_parse_pages
+      - week_parse_rate
+      - paid_users
+      - members
+      - conversion
+      - month_revenue_cents
+      - week_dispute_rate
+      - funnel
+      - import_modes
+      - hot_subjects
+      - days
+      - alerts
+      properties:
+        updated_at: *id004
+        users_total: *id002
+        week_new_users: *id002
+        week_active_users: *id002
+        week_parse_pages: *id002
+        week_parse_rate: &id005
+          type: number
+        paid_users: *id002
+        members: *id002
+        conversion: *id005
+        month_revenue_cents: *id003
+        week_dispute_rate: *id005
+        funnel: &id006
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminNamed'
+        import_modes: *id006
+        hot_subjects: *id006
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminDayPoint'
+        alerts:
+          type: array
+          items: *id001
+    AdminUser:
+      type: object
+      required:
+      - id
+      - phone_masked
+      - invite_code
+      - status
+      - subjects
+      - materials
+      - questions
+      - is_member
+      - created_at
+      properties:
+        id: *id003
+        phone_masked: *id001
+        invite_code: *id001
+        status:
+          type: string
+          enum:
+          - active
+          - banned
+          - deleting
+        subjects: *id001
+        materials: *id002
+        questions: *id002
+        is_member: *id007
+        created_at: *id004
+        last_active_at: *id004
+    AdminSubjectStat:
+      type: object
+      required:
+      - name
+      - full_score
+      properties:
+        name: *id001
+        code: *id001
+        full_score: *id002
+        target_score: *id002
+        est_low: *id002
+        est_high: *id002
+    AdminUserDetail:
+      allOf:
+      - $ref: '#/components/schemas/AdminUser'
+      - type: object
+        required:
+        - nickname
+        - failed_materials
+        - pages
+        - knowledge_points
+        - papers
+        - week_gradings
+        - invited
+        - invite_days
+        - subject_stats
+        - quota
+        properties:
+          nickname: *id001
+          failed_materials: *id002
+          pages: *id002
+          knowledge_points: *id002
+          papers: *id002
+          week_gradings: *id002
+          invited: *id002
+          invite_days: *id002
+          member_tier: *id001
+          member_until: *id004
+          subject_stats:
+            type: array
+            items:
+              $ref: '#/components/schemas/AdminSubjectStat'
+          quota:
+            type: array
+            items:
+              $ref: '#/components/schemas/QuotaItem'
+    AdminAudit:
+      type: object
+      required:
+      - id
+      - admin_name
+      - action
+      - created_at
+      properties:
+        id: *id003
+        admin_name: *id001
+        action: *id001
+        target_type: *id001
+        target_id: *id001
+        detail:
+          type: object
+          additionalProperties: true
+        created_at: *id004
+    AdminAccessLog:
+      type: object
+      required:
+      - id
+      - grant_id
+      - admin_name
+      - user_id
+      - target_type
+      - target_id
+      - created_at
+      properties:
+        id: *id003
+        grant_id: *id003
+        admin_name: *id001
+        user_id: *id003
+        target_type: *id001
+        target_id: *id003
+        created_at: *id004
+    AdminOrder:
+      type: object
+      required:
+      - order_no
+      - user_id
+      - tier
+      - channel
+      - amount_cents
+      - status
+      - created_at
+      properties:
+        order_no: *id001
+        user_id: *id003
+        tier:
+          $ref: '#/components/schemas/PlanTier'
+        channel:
+          $ref: '#/components/schemas/PayChannel'
+        amount_cents: *id003
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        refund_status: *id001
+        paid_at: *id004
+        created_at: *id004
+    AdminTierSales:
+      type: object
+      required:
+      - tier
+      - orders
+      - revenue_cents
+      properties:
+        tier:
+          $ref: '#/components/schemas/PlanTier'
+        orders: *id002
+        revenue_cents: *id003
+    AdminOrderSummary:
+      type: object
+      required:
+      - month_revenue_cents
+      - paid_users
+      - imported_users
+      - conversion
+      - pending_refunds
+      - tiers
+      properties:
+        month_revenue_cents: *id003
+        paid_users: *id002
+        imported_users: *id002
+        conversion: *id005
+        pending_refunds: *id002
+        tiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminTierSales'
+    AdminOrderUsage:
+      type: object
+      required:
+      - pages
+      - gradings
+      - answers
+      - failed_materials
+      - days_since_paid
+      properties:
+        pages: *id002
+        gradings: *id002
+        answers: *id002
+        failed_materials: *id002
+        days_since_paid: *id002
+    AdminRedeemSummary:
+      type: object
+      required:
+      - generated
+      - used
+      - available
+      - inactive
+      properties:
+        generated: *id002
+        used: *id002
+        available: *id002
+        inactive: *id002
+    AdminBatch:
+      type: object
+      required:
+      - id
+      - name
+      - tier
+      - days
+      - quantity
+      - used
+      - expires_at
+      - channel
+      - status
+      - created_at
+      properties:
+        id: *id003
+        name: *id001
+        tier:
+          type: string
+          enum:
+          - sprint
+          - season
+          - monthly
+          - gift
+        days: *id002
+        quantity: *id002
+        used: *id002
+        expires_at: *id004
+        channel: *id001
+        status:
+          type: string
+          enum:
+          - active
+          - disabled
+        created_at: *id004
+    AdminBatchCreated:
+      type: object
+      required:
+      - batch
+      - codes
+      properties:
+        batch:
+          $ref: '#/components/schemas/AdminBatch'
+        codes:
+          type: array
+          items: *id001
+    AdminCode:
+      type: object
+      required:
+      - id
+      - tail
+      - status
+      - batch_id
+      - batch_name
+      - tier
+      - expires_at
+      properties:
+        id: *id003
+        tail: *id001
+        status:
+          type: string
+          enum:
+          - unused
+          - used
+          - void
+        used_by: *id003
+        used_at: *id004
+        batch_id: *id003
+        batch_name: *id001
+        tier: *id001
+        days: *id002
+        expires_at: *id004
+    AdminFormatStat:
+      type: object
+      required:
+      - format
+      - files
+      - pages
+      - ok
+      - partial
+      - failed
+      - rate
+      properties:
+        format: *id001
+        files: *id002
+        pages: *id002
+        ok: *id002
+        partial: *id002
+        failed: *id002
+        rate: *id005
+    AdminParseStats:
+      type: object
+      required:
+      - success_rate
+      - pages
+      - files
+      - avg_seconds
+      - p95_seconds
+      - formats
+      properties:
+        success_rate: *id005
+        pages: *id002
+        files: *id002
+        avg_seconds: *id002
+        p95_seconds: *id002
+        formats:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminFormatStat'
+    AdminImportJob:
+      type: object
+      required:
+      - id
+      - user_id
+      - mode
+      - status
+      - files
+      - failed_files
+      - partial_files
+      - billed_pages
+      - created_at
+      properties:
+        id: *id003
+        user_id: *id003
+        mode: *id001
+        status: *id001
+        files: *id002
+        failed_files: *id002
+        partial_files: *id002
+        billed_pages: *id002
+        created_at: *id004
+        finished_at: *id004
+    AdminImportFile:
+      type: object
+      required:
+      - material_id
+      - format
+      - pages
+      - step
+      - status
+      - attempts
+      - updated_at
+      properties:
+        material_id: *id003
+        format: *id001
+        pages: *id002
+        step: *id001
+        status: *id001
+        attempts: *id002
+        fail_reason: *id001
+        failed_pages:
+          type: array
+          items: *id002
+        updated_at: *id004
+    AdminImportJobDetail:
+      allOf:
+      - $ref: '#/components/schemas/AdminImportJob'
+      - type: object
+        required:
+        - reserved_pages
+        - file_logs
+        properties:
+          reserved_pages: *id002
+          prompt_versions:
+            type: object
+            additionalProperties:
+              type: string
+          file_logs:
+            type: array
+            items:
+              $ref: '#/components/schemas/AdminImportFile'
+    AdminDisputeStats:
+      type: object
+      required:
+      - disputes
+      - gradings
+      - rate
+      - changed_ratio
+      - avg_seconds
+      - reasons
+      properties:
+        disputes: *id002
+        gradings: *id002
+        rate: *id005
+        changed_ratio: *id005
+        avg_seconds: *id002
+        reasons:
+          type: object
+          additionalProperties:
+            type: integer
+    AdminDispute:
+      type: object
+      required:
+      - id
+      - user_id
+      - reason
+      - status
+      - granted
+      - created_at
+      properties:
+        id: *id003
+        user_id: *id003
+        reason: *id001
+        status: *id001
+        score_before: *id005
+        score_after: *id005
+        attribution: *id001
+        granted: *id007
+        created_at: *id004
+        resolved_at: *id004
+    AdminGrantedGrading:
+      type: object
+      required:
+      - stem
+      - qtype
+      - answer
+      - grant_expires_at
+      properties:
+        stem: *id001
+        qtype: *id001
+        answer: *id001
+        rubric: {}
+        point_results: {}
+        score: *id005
+        full_score: *id005
+        regrade:
+          type: object
+          required: []
+          properties:
+            rubric: {}
+            point_results: {}
+            score: *id005
+        grant_expires_at: *id004
+    AdminFeedbackStats:
+      type: object
+      required:
+      - open
+      - avg_reply_seconds
+      - top_type
+      - satisfaction
+      - types
+      properties:
+        open: *id002
+        avg_reply_seconds: *id002
+        top_type: *id001
+        satisfaction: *id005
+        types:
+          type: object
+          additionalProperties:
+            type: integer
+    AdminFeedback:
+      type: object
+      required:
+      - id
+      - user_id
+      - type
+      - content
+      - allow_access
+      - status
+      - created_at
+      properties:
+        id: *id003
+        user_id: *id003
+        type:
+          $ref: '#/components/schemas/FeedbackType'
+        content: *id001
+        allow_access: *id007
+        status:
+          type: string
+          enum:
+          - open
+          - replied
+          - closed
+        created_at: *id004
+        replied_at: *id004
+    AdminFeedbackDetail:
+      allOf:
+      - $ref: '#/components/schemas/AdminFeedback'
+      - type: object
+        required:
+        - screenshots
+        properties:
+          reply: *id001
+          screenshots:
+            type: array
+            items: *id001
+          grant_expires_at: *id004
+          material_id: *id003
+          related_import_id: *id003
+    AdminGrantedMaterial:
+      type: object
+      required:
+      - id
+      - format
+      - pages
+      - status
+      - page_texts
+      - grant_expires_at
+      properties:
+        id: *id003
+        format: *id001
+        pages: *id002
+        status: *id001
+        page_texts:
+          type: array
+          items: *id001
+        grant_expires_at: *id004
     RedeemResult:
       type: object
       required: [tier, days, starts_at, ends_at, membership]

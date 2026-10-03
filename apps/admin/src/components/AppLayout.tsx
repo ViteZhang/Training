@@ -1,4 +1,4 @@
-import { Layout, Menu, Typography, Watermark } from 'antd';
+import { Button, Layout, Menu, Space, Typography, Watermark } from 'antd';
 import { useMemo, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
 import { visibleMenu, type Role } from '../lib/menu';
@@ -10,10 +10,11 @@ export interface AppLayoutProps {
   children: ReactNode;
   /** 水印时间，测试时注入 */
   now?: Date;
+  onLogout?: () => void;
 }
 
 /** 带侧边菜单的布局；每个后台页面叠加「账号名 + 时间」水印（dev-spec 第十节）。 */
-export function AppLayout({ account, children, now = new Date() }: AppLayoutProps) {
+export function AppLayout({ account, children, now = new Date(), onLogout }: AppLayoutProps) {
   const location = useLocation();
   const groups = useMemo(() => visibleMenu(account.roles), [account.roles]);
   const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -34,7 +35,14 @@ export function AppLayout({ account, children, now = new Date() }: AppLayoutProp
       </Sider>
       <Layout>
         <Header style={{ background: '#fff', borderBottom: '1px solid #E4DFD4', display: 'flex', justifyContent: 'flex-end' }}>
-          <Typography.Text>{account.name}</Typography.Text>
+          <Space>
+            <Typography.Text>{account.name}</Typography.Text>
+            {onLogout ? (
+              <Button type="link" onClick={onLogout}>
+                退出
+              </Button>
+            ) : null}
+          </Space>
         </Header>
         <Watermark content={[account.name, stamp]} font={{ color: 'rgba(35,31,85,0.08)' }}>
           <Content style={{ padding: 24, minHeight: 'calc(100vh - 64px)' }}>{children}</Content>
