@@ -1403,10 +1403,148 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/handwriting/upload-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 拍手写稿：申请照片直传地址（4.5，一次最多 6 张，单张 10MB 以内） */
+        post: operations["requestHandwritingUploads"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/handwriting/recognize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 识别手写稿（4.5）：多张按顺序拼接，返回文字与不确定的字词位置 */
+        post: operations["recognizeHandwriting"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/answer-norms/{qtype}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+                qtype: "term" | "short_answer" | "discussion";
+            };
+            cookie?: never;
+        };
+        /** 答题规范（4.13）：题型结构、高分写法（用户资料原文与采分点）、你上次的写法（标出缺了什么） */
+        get: operations["getAnswerNorm"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questions/{questionId}/norm-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: components["parameters"]["QuestionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 按结构写一道（4.13）：AI 按题型结构批改各要素是否具备，扣 1 次批改次数 */
+        post: operations["checkAnswerNorm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        HandwritingResult: {
+            /** @description 各张按顺序拼接（换行分隔），可在 4.5 修改后提交批改 */
+            text: string;
+            pages: {
+                object_key: string;
+                text: string;
+                low_confidence: components["schemas"]["TextRange"][];
+            }[];
+            /** @description 拼接后全文里不确定的字词位置 */
+            low_confidence: components["schemas"]["TextRange"][];
+            /** @description 需要核对的处数 */
+            uncertain_count: number;
+        };
+        NormElement: {
+            name: string;
+            desc: string;
+            /** @description 约占分值比例 0–1 */
+            share: number;
+        };
+        AnswerNorm: {
+            qtype: components["schemas"]["QuestionType"];
+            elements: components["schemas"]["NormElement"][];
+            tips: string[];
+            /** @description 高分写法：用户资料里的原文与采分点 */
+            example?: {
+                /** Format: int64 */
+                question_id: number;
+                stem: string;
+                kp_name?: string;
+                original_text?: string;
+                reference_answer?: string;
+                rubric_points: string[];
+                source_ref?: components["schemas"]["SourceRef"];
+            };
+            /** @description 你上次的写法：最近一次批改过的同题型作答，标出缺了什么 */
+            last?: {
+                /** Format: int64 */
+                question_id: number;
+                stem: string;
+                answer_text: string;
+                /** Format: int64 */
+                grading_id: number;
+                score?: number;
+                full_score?: number;
+                missing: string[];
+            };
+            /**
+             * Format: int64
+             * @description 「按结构写一道」用的题
+             */
+            practice_question_id?: number;
+        };
+        NormCheckResult: {
+            /** Format: int64 */
+            grading_id: number;
+            /** @description 结构要素都具备 */
+            complete: boolean;
+            elements: {
+                name: string;
+                present: boolean;
+                quote?: string;
+                suggestion?: string;
+            }[];
+            suggestions: string[];
+        };
         SubmitSubjectiveRequest: {
             /** Format: int64 */
             question_id: number;
@@ -1417,6 +1555,8 @@ export interface components {
              * @enum {string}
              */
             answer_mode: "typed" | "voice" | "photo";
+            /** @description 拍手写稿的照片（answer_mode=photo 时），答案原文为识别后用户核对过的文字 */
+            photo_keys?: string[];
             duration_seconds: number;
             /**
              * @description 限时作答（失分诊断「时间不够」只在这里判定）
@@ -1554,6 +1694,11 @@ export interface components {
             kind: components["schemas"]["PracticeKind"];
             qtype?: components["schemas"]["QuestionType"];
             config?: components["schemas"]["PracticeConfig"];
+            /**
+             * @description 今日训练：题量不够排满每日时长时 AI 补变式题（计 AI 出题额度）
+             * @default false
+             */
+            ai_fill: boolean;
             /** @description 错题重做只做某一组（不传为全部，按下次复习日升序） */
             wrong_group?: {
                 by: components["schemas"]["WrongGroupBy"];
@@ -5074,6 +5219,132 @@ export interface operations {
                     };
                 };
             };
+        };
+    };
+    requestHandwritingUploads: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    files: {
+                        /** @enum {string} */
+                        content_type: "image/jpeg" | "image/png" | "image/heic" | "image/webp";
+                        size: number;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            object_key: string;
+                            upload_url: string;
+                            upload_headers: {
+                                [key: string]: string;
+                            };
+                            /** Format: date-time */
+                            expires_at: string;
+                        }[];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    recognizeHandwriting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    object_keys: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HandwritingResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAnswerNorm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+                qtype: "term" | "short_answer" | "discussion";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnswerNorm"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    checkAnswerNorm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: components["parameters"]["QuestionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    answer_text: string;
+                    idempotency_key: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NormCheckResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            402: components["responses"]["QuotaExceeded"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["AIFailed"];
         };
     };
 }

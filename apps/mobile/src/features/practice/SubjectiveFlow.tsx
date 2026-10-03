@@ -6,6 +6,7 @@ import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { AIFailed, Button, QuotaSheet, Text, toast } from '@/components';
 import type { PracticeQuestion } from './api';
+import { HandwritingFlow } from './handwriting';
 import { GradingProgress, SubjectiveInput, useDraft, useSubmitSubjective, type GradingResult } from './grading';
 
 type Level = 'unknown' | 'vague' | 'mastered';
@@ -28,19 +29,25 @@ export function SubjectiveFlow({
   const [showRef, setShowRef] = useState(false);
   const [quotaOut, setQuotaOut] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [photo, setPhoto] = useState(false);
+  const last = useRef<{ text: string; keys?: string[] }>({ text: '' });
   const [started] = useState(() => Date.now());
   const key = useRef('');
   const submit = useSubmitSubjective(sessionId);
 
-  const send = () => {
+  // 拍照作答时提交的是识别后核对过的文字与照片；重试沿用上一次的内容。
+  const send = (answer?: { text: string; keys?: string[] }) => {
+    if (answer) last.current = answer;
+    else if (!photo) last.current = { text: draft.text };
     setFailed(false);
     if (!key.current) key.current = Crypto.randomUUID();
     submit.mutate(
       {
         question_id: q.id,
         idempotency_key: key.current,
-        answer_text: draft.text,
-        answer_mode: 'typed',
+        answer_text: last.current.text,
+        answer_mode: last.current.keys ? 'photo' : 'typed',
+        photo_keys: last.current.keys,
         duration_seconds: Math.round((Date.now() - started) / 1000),
         timed,
       },
@@ -61,7 +68,8 @@ export function SubjectiveFlow({
   };
 
   if (submit.isPending) return <GradingProgress q={q} />;
-  if (failed) return <AIFailed onRetry={send} />;
+  if (failed) return <AIFailed onRetry={() => send()} />;
+  if (photo) return <HandwritingFlow onConfirm={(text, keys) => send({ text, keys })} onCancel={() => setPhoto(false)} />;
 
   if (showRef) {
     return (
@@ -88,8 +96,8 @@ export function SubjectiveFlow({
 
   return (
     <View style={styles.gap}>
-      <SubjectiveInput q={q} text={draft.text} onChange={draft.setText} timed={timed} onTimed={setTimed} />
-      <Button title="提交批改" disabled={!draft.text.trim()} onPress={send} />
+      <SubjectiveInput q={q} text={draft.text} onChange={draft.setText} timed={timed} onTimed={setTimed} onPhoto={() => setPhoto(true)} />
+      <Button title="提交批改" disabled={!draft.text.trim()} onPress={() => send()} />
       <Button title="看参考答案" kind="text" onPress={() => setShowRef(true)} />
       <QuotaSheet
         visible={quotaOut}

@@ -54,11 +54,13 @@ export function useSession(id: number) {
   });
 }
 
+type StartBody = Omit<Schemas['CreatePracticeSessionRequest'], 'ai_fill'> & { ai_fill?: boolean };
+
 /** 开始一组练习并进入答题页。 */
 export function useStartPractice() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: Schemas['CreatePracticeSessionRequest']) => unwrap(api.POST('/practice-sessions', { body })),
+    mutationFn: (body: StartBody) => unwrap(api.POST('/practice-sessions', { body: { ...body, ai_fill: body.ai_fill ?? false } })),
     onSuccess: (s) => {
       cacheSession(s);
       qc.setQueryData(practiceKeys.session(s.id), s);

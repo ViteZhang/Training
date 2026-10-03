@@ -4,13 +4,13 @@ import { radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Button, Card, EmptyState, ErrorState, Loading, ProgressBar, Screen, Text, toast } from '@/components';
 import { qtypeNames } from '@/features/import/api';
 import { stageInfo } from '@/features/onboarding/api';
 import { usePracticeHome, useStartPractice } from '@/features/practice/api';
 import { PendingGradingsCard } from '@/features/practice/grading';
-import { flush, usePending } from '@/features/practice/offline';
+import { flush, useAIFillPref, usePending } from '@/features/practice/offline';
 import { api, unwrap } from '@/lib/api';
 
 function Row({ title, desc, onPress }: { title: string; desc: string; onPress: () => void }) {
@@ -35,6 +35,7 @@ export default function TrainTab() {
   const home = usePracticeHome(subject?.id);
   const start = useStartPractice();
   const pending = usePending((s) => s.count);
+  const [aiFill, setAiFill] = useAIFillPref();
 
   // 有离线作答没交时，进入训练页就试着补交。
   useEffect(() => {
@@ -113,12 +114,20 @@ export default function TrainTab() {
                   onPress={() =>
                     h.today?.session_id
                       ? router.push({ pathname: '/practice/[id]', params: { id: String(h.today.session_id) } })
-                      : start.mutate({ subject_id: sid, kind: 'daily' })
+                      : start.mutate({ subject_id: sid, kind: 'daily', ai_fill: aiFill })
                   }
                 />
               ) : (
                 <Text variant="caption">这门课今天没有安排题目，可以按题型练或自定义练习</Text>
               )}
+              {h.today && !h.today.session_id ? (
+                <View style={styles.rowInline}>
+                  <Text variant="caption" style={styles.flex}>
+                    题量不够时 AI 按你的知识点补变式题
+                  </Text>
+                  <Switch accessibilityLabel="今日训练 AI 补题" value={aiFill} onValueChange={setAiFill} trackColor={{ true: semantic.primary }} />
+                </View>
+              ) : null}
             </Card>
 
             {h.type_drill?.qtype ? (
@@ -162,6 +171,11 @@ export default function TrainTab() {
             <Card style={styles.list}>
               {h.paper_first ? null : paper}
               <Row title="背诵" desc={`${h.recite_due} 条待背 · 挖空 · 默写`} onPress={() => toast('背诵马上上线')} />
+              <Row
+                title="答题规范"
+                desc="名词解释、简答、论述怎么写才拿分"
+                onPress={() => router.push({ pathname: '/practice/norm', params: { subjectId: String(sid), qtype: h.type_drill?.qtype ?? 'term' } })}
+              />
               <Row
                 title="错题本"
                 desc={h.wrong_book.total > 0 ? `${h.wrong_book.total} 题 · ${h.wrong_book.due} 题到了复习日` : '还没有错题'}
