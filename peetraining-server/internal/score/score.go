@@ -71,6 +71,9 @@ type estimateDetails struct {
 	Model    float64           `json:"model"`
 	Papers   []float64         `json:"papers"`
 	QTypes   []estimateQTStats `json:"qtypes"`
+	// 作文课（PRD 11.13）：计入的作文得分，与失分主项（得分率最低的维度）。
+	Essays           []float64 `json:"essays,omitempty"`
+	MainGapDimension string    `json:"main_gap_dimension,omitempty"`
 }
 
 type estimateQTStats struct {
@@ -86,6 +89,13 @@ func (s *Service) Recompute(ctx context.Context, userID, subjectID uint64, reaso
 	p, err := s.params.Rules(ctx)
 	if err != nil {
 		return err
+	}
+	sub, err := s.subject(ctx, userID, subjectID)
+	if err != nil {
+		return err
+	}
+	if sub.IsEssay {
+		return s.recomputeEssay(ctx, userID, sub, reason, p)
 	}
 	sessions, err := s.q.ListGradedPaperSessions(ctx, dbq.ListGradedPaperSessionsParams{OwnerUserID: userID, SubjectID: subjectID})
 	if err != nil {
@@ -158,6 +168,56 @@ func (s *Service) Recompute(ctx context.Context, userID, subjectID uint64, reaso
 		MainGapQtype: sql.NullString{String: string(est.MainGap), Valid: est.MainGap != ""}, Details: dbtypes.NullJSON(raw), TriggerReason: reason, ComputedAt: s.now().UTC()})
 }
 
+// essayDim 是 essays.dimension_scores 里的一个维度。
+type essayDim struct {
+	Name  string  `json:"name"`
+	Score float64 `json:"score"`
+	Max   float64 `json:"max"`
+}
+
+// recomputeEssay 是作文课预估分（PRD 11.13）：最近 3 篇按用户评分细则批改、且以真题限时完成的作文得分平均，区间宽度按篇数同 11.6；
+// 主要差在 = 这几篇里得分率最低的维度。
+func (s *Service) recomputeEssay(ctx context.Context, userID uint64, sub subjectInfo, reason string, p rules.Params) error {
+	rows, err := s.q.ListEstimateEssays(ctx, dbq.ListEstimateEssaysParams{OwnerUserID: userID, SubjectID: sub.ID})
+	if err != nil {
+		return err
+	}
+	scores := make([]float64, len(rows))
+	for i, r := range rows {
+		scores[i] = dec(r.Score.String)
+	}
+	est, ok := rules.EstimateEssay(scores, float64(sub.FullScore), p.ScoreEstimate)
+	if !ok {
+		return nil
+	}
+	agg := map[string]*rules.DimScore{}
+	var order []string
+	for _, r := range rows[:est.BasisPapers] {
+		var ds []essayDim
+		_ = json.Unmarshal(r.DimensionScores, &ds)
+		for _, d := range ds {
+			a, ok := agg[d.Name]
+			if !ok {
+				a = &rules.DimScore{Name: d.Name}
+				agg[d.Name] = a
+				order = append(order, d.Name)
+			}
+			a.Score += d.Score
+			a.Max += d.Max
+		}
+	}
+	dims := make([]rules.DimScore, 0, len(order))
+	for _, n := range order {
+		dims = append(dims, *agg[n])
+	}
+	weak, _ := rules.WeakestDimension(dims)
+	det := estimateDetails{Measured: round1(est.Mid), Essays: scores[:est.BasisPapers], MainGapDimension: weak}
+	raw, _ := json.Marshal(det)
+	return s.q.InsertScoreEstimate(ctx, dbq.InsertScoreEstimateParams{OwnerUserID: userID, SubjectID: sub.ID, Low: uint16(est.Low), High: uint16(est.High),
+		Mid: strconv.FormatFloat(est.Mid, 'f', 2, 64), BasisPapers: uint8(est.BasisPapers), Details: dbtypes.NullJSON(raw), TriggerReason: reason,
+		ComputedAt: s.now().UTC()})
+}
+
 // RecomputeForQuestion 重算一道题所在课的预估分（改采分点重批后）。
 func (s *Service) RecomputeForQuestion(ctx context.Context, userID, questionID uint64, reason string) error {
 	sid, err := s.q.SubjectOfQuestion(ctx, dbq.SubjectOfQuestionParams{ID: questionID, OwnerUserID: sql.NullInt64{Int64: int64(userID), Valid: true}})
@@ -172,19 +232,21 @@ func (s *Service) RecomputeForQuestion(ctx context.Context, userID, questionID u
 
 // Card 是一门课的预估分卡（2.1 第一张卡、6.2 顶部）。
 type Card struct {
-	SubjectID      uint64
-	Name           string
-	IsEssay        bool
-	FullScore      int
-	Target         *int
-	Ready          bool
-	Low, High      int
-	Gap            *int // 目标分 − 预估上限，达到目标时为 0
-	MainGap        string
-	BasisPapers    int
-	BasisQuestions int
-	TodayChange    *int // 今天的变化（中值，四舍五入）；今天没变时为空
-	ComputedAt     time.Time
+	SubjectID uint64
+	Name      string
+	IsEssay   bool
+	FullScore int
+	Target    *int
+	Ready     bool
+	Low, High int
+	Gap       *int // 目标分 − 预估上限，达到目标时为 0
+	MainGap   string
+	// MainGapDimension 是作文课的失分主项（得分率最低的维度，PRD 11.13）；作文课的 BasisPapers 是依据的作文篇数。
+	MainGapDimension string
+	BasisPapers      int
+	BasisQuestions   int
+	TodayChange      *int // 今天的变化（中值，四舍五入）；今天没变时为空
+	ComputedAt       time.Time
 }
 
 type subjectInfo struct {
@@ -210,6 +272,10 @@ func (s *Service) card(ctx context.Context, userID uint64, sub subjectInfo) (Car
 	}
 	c.Ready, c.Low, c.High = true, int(e.Low), int(e.High)
 	c.MainGap, c.BasisPapers, c.BasisQuestions, c.ComputedAt = e.MainGapQtype.String, int(e.BasisPapers), int(e.BasisQuestions), e.ComputedAt
+	var det estimateDetails
+	if len(e.Details) > 0 && json.Unmarshal(e.Details, &det) == nil {
+		c.MainGapDimension = det.MainGapDimension
+	}
 	if c.Target != nil {
 		g := max(*c.Target-c.High, 0)
 		c.Gap = &g

@@ -761,3 +761,26 @@ func TestDayDateColumn(t *testing.T) {
 		t.Error("DayFromDateColumn")
 	}
 }
+
+func TestEstimateEssay(t *testing.T) {
+	p := P.ScoreEstimate
+	if _, ok := EstimateEssay(nil, 150, p); ok {
+		t.Error("没有计入的作文不显示预估分")
+	}
+	// 1 篇 ±10%；最近 3 篇平均 ±4%，更早的不算。
+	e, _ := EstimateEssay([]float64{100}, 150, p)
+	if e.Low != 90 || e.High != 110 || e.BasisPapers != 1 {
+		t.Errorf("1 篇：%+v", e)
+	}
+	e, _ = EstimateEssay([]float64{110, 100, 90, 30}, 150, p)
+	if !near(e.Mid, 100) || e.Low != 96 || e.High != 104 || e.BasisPapers != 3 {
+		t.Errorf("最近 3 篇：%+v", e)
+	}
+	e, _ = EstimateEssay([]float64{148, 146}, 150, p)
+	if e.High != 150 {
+		t.Errorf("截断在满分：%+v", e)
+	}
+	if w, ok := WeakestDimension([]DimScore{{"立意", 24, 30}, {"结构", 18, 30}, {"文采", 9, 15}, {"语言", 0, 0}}); !ok || w != "结构" {
+		t.Errorf("得分率最低的维度：%s", w)
+	}
+}

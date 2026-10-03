@@ -5639,6 +5639,33 @@ type Essay struct {
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	GradedAt          sql.NullTime
+	// AI 命题（essay_ai_topics）
+	AiTopicID sql.NullInt64
+	// 提交时预占作文批改次数的周期，批改完成结算、失败退回
+	QuotaPeriod sql.NullString
+	// 第几次批改（复核重批加 1）
+	GradingRound uint8
+	SubmittedAt  sql.NullTime
+	FailReason   sql.NullString
+	// 每篇只能复核一次（与主观题相同）
+	Disputed      bool
+	DisputeReason sql.NullString
+	DisputeNote   sql.NullString
+	// 复核前的总分
+	ScoreBefore sql.NullString
+}
+
+// 作文 AI 命题（5.1，标「AI 出题」）
+type EssayAiTopic struct {
+	ID            uint64
+	OwnerUserID   uint64
+	SubjectID     uint64
+	Topic         string
+	RequiredWords sql.NullInt16
+	Note          sql.NullString
+	Model         sql.NullString
+	PromptVersion sql.NullString
+	CreatedAt     time.Time
 }
 
 // 作文素材（3.10、5.3）

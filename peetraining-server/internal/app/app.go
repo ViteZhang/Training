@@ -24,6 +24,7 @@ import (
 	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/config"
 	"peetraining-server/internal/dbq"
+	"peetraining-server/internal/essay"
 	"peetraining-server/internal/flags"
 	apihttp "peetraining-server/internal/http"
 	"peetraining-server/internal/importer"
@@ -71,6 +72,7 @@ type Base struct {
 	Plan     *plan.Service
 	Practice *practice.Service
 	Score    *score.Service
+	Essay    *essay.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -140,6 +142,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 		Plan:     pl,
 		Practice: practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: clients.OSS, OCR: clients.OCR, Moderation: clients.Moderation, ASR: clients.ASR, Flags: fl, Queue: queue, Score: sc}),
 		Score:    sc,
+		Essay:    essay.New(essay.Deps{DB: db, Params: ps, AI: engine, Quota: qs, Queue: queue, Score: sc}),
 	}, nil
 }
 
@@ -179,6 +182,7 @@ func (b *Base) Handler() (http.Handler, error) {
 		Plan:     b.Plan,
 		Practice: b.Practice,
 		Score:    b.Score,
+		Essay:    b.Essay,
 		DevOSS:   b.devOSS(),
 	})
 }
@@ -243,7 +247,7 @@ func NewWorker(b *Base) (*Worker, error) {
 	if err := jobs.RegisterSchedules(scheduler); err != nil {
 		return nil, fmt.Errorf("注册定时任务：%w", err)
 	}
-	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice}
+	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice, Essay: b.Essay}
 	return &Worker{server: server, scheduler: scheduler, mux: h.Mux()}, nil
 }
 

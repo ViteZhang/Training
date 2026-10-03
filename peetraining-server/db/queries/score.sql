@@ -32,7 +32,7 @@ WHERE owner_user_id = ? AND subject_id = ? AND computed_at >= ?
 ORDER BY computed_at DESC, id DESC;
 
 -- name: LatestScoreEstimate :one
-SELECT id, low, high, mid, basis_papers, basis_questions, main_gap_qtype, computed_at
+SELECT id, low, high, mid, basis_papers, basis_questions, main_gap_qtype, details, computed_at
 FROM score_estimates
 WHERE owner_user_id = ? AND subject_id = ?
 ORDER BY computed_at DESC, id DESC

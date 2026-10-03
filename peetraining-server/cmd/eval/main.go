@@ -9,7 +9,11 @@
 //     与重批一致性（同一答案批 3 次，最高最低分差 ≤ 1 分的比例，PRD 11.14 要求全部做到）
 //
 // 模型按环境变量选择：AI_PROVIDER=bailian（BAILIAN_BASE_URL、BAILIAN_API_KEY、AI_MODEL_STRONG、AI_MODEL_CHEAP），默认 mock。
-// 其余能力（essay、ocr）在 T23、T19 实现。
+//   - essay：每行一个题目 {"name","subject","topic","required_words","dimensions":[{"name","score","description"}],
+//     "essays":[{"text":"作文全文，空行分段","human":人工总分}]}；指标是与人工总分偏差 ≤ 10 分的比例（门槛 75%）
+//     与重批一致性（同一篇批 3 次，最高最低分差 ≤ 6 分，PRD 11.13 要求全部做到）
+//
+// ocr 评测随真实识别服务接入。
 package main
 
 import (
@@ -45,6 +49,13 @@ type sample struct {
 		Text  string  `json:"text"`
 		Human float64 `json:"human"`
 	} `json:"answers"`
+	Topic         string        `json:"topic"`
+	RequiredWords int           `json:"required_words"`
+	Dimensions    []ai.EssayDim `json:"dimensions"`
+	Essays        []struct {
+		Text  string  `json:"text"`
+		Human float64 `json:"human"`
+	} `json:"essays"`
 	Pages    []string          `json:"pages"`
 	File     string            `json:"file"`
 	Expected []json.RawMessage `json:"expected"`
@@ -69,7 +80,7 @@ func main() {
 }
 
 func run(ctx context.Context, capability, dir string) (bool, error) {
-	if capability != "import" && capability != "kp" && capability != "grading" {
+	if capability == "ocr" {
 		return false, fmt.Errorf("%s 评测尚未实现（见 docs/tasks 对应卡片）", capability)
 	}
 	cfg, err := config.Load()
@@ -104,6 +115,8 @@ func run(ctx context.Context, capability, dir string) (bool, error) {
 		pass, err = evalImport(ctx, engine, base, samples)
 	case "grading":
 		pass, err = evalGrading(ctx, engine, samples)
+	case "essay":
+		pass, err = evalEssay(ctx, engine, samples)
 	default:
 		pass, err = evalKP(ctx, engine, base, samples)
 	}
@@ -331,4 +344,59 @@ func evalGrading(ctx context.Context, e *ai.Engine, samples []sample) (bool, err
 	fmt.Printf("与人工偏差 ≤ 1 分 %.1f%%（%d/%d）%s；重批一致性 %.1f%%（%d/%d）%s；批改失败 %d 次\n",
 		dev*100, close1, total, verdict(dev, 0.8), con*100, consistent, total, verdict(con, 1), failed)
 	return dev >= 0.8 && con >= 1, nil
+}
+
+// 作文批改评测（PRD 12.3、11.13）：与人工总分偏差 ≤ 10 分的比例 ≥ 75%；同一篇批 3 次总分差 ≤ 6 分。
+const (
+	essayRepeats   = 3
+	essayDeviation = 10.0
+	essayRepeatGap = 6.0
+)
+
+func essayParagraphs(text string) []string {
+	var out []string
+	for _, p := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func evalEssay(ctx context.Context, e *ai.Engine, samples []sample) (bool, error) {
+	total, close10, consistent, failed := 0, 0, 0, 0
+	for _, s := range samples {
+		in := ai.EssayGradeIn{Subject: s.Subject, Topic: s.Topic, RequiredWords: s.RequiredWords, Dimensions: s.Dimensions}
+		ok, cons := 0, 0
+		for _, es := range s.Essays {
+			in.Paragraphs = essayParagraphs(es.Text)
+			var scores []float64
+			for range essayRepeats {
+				out, _, err := ai.EssayGrade.Run(ctx, e, 0, in)
+				if err != nil {
+					failed++
+					continue
+				}
+				scores = append(scores, out.Total())
+			}
+			total++
+			if len(scores) == 0 {
+				continue
+			}
+			if d := scores[0] - es.Human; d <= essayDeviation && d >= -essayDeviation {
+				close10++
+				ok++
+			}
+			if len(scores) == essayRepeats && slices.Max(scores)-slices.Min(scores) <= essayRepeatGap {
+				consistent++
+				cons++
+			}
+			fmt.Printf("    人工 %.1f · AI %v\n", es.Human, scores)
+		}
+		fmt.Printf("  %-20s 偏差 ≤ 10 分 %d/%d  三次分差 ≤ 6 分 %d/%d\n", s.Name, ok, len(s.Essays), cons, len(s.Essays))
+	}
+	dev, con := pct(close10, total), pct(consistent, total)
+	fmt.Printf("与人工偏差 ≤ 10 分 %.1f%%（%d/%d）%s；重批一致性 %.1f%%（%d/%d）%s；批改失败 %d 次\n",
+		dev*100, close10, total, verdict(dev, 0.75), con*100, consistent, total, verdict(con, 1), failed)
+	return dev >= 0.75 && con >= 1, nil
 }
