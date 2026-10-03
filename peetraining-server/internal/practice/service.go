@@ -14,6 +14,7 @@ import (
 
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
+	"peetraining-server/internal/cloud/asr"
 	"peetraining-server/internal/cloud/moderation"
 	"peetraining-server/internal/cloud/ocr"
 	"peetraining-server/internal/cloud/oss"
@@ -56,7 +57,14 @@ type Service struct {
 	oss        oss.Store
 	ocr        ocr.Recognizer
 	moderation moderation.Checker
+	asr        asr.Transcriber
+	flags      FlagChecker
 	now        func() time.Time
+}
+
+// FlagChecker 判断功能开关（口述背诵）。
+type FlagChecker interface {
+	Enabled(ctx context.Context, key string, userID uint64) (bool, error)
 }
 
 type Deps struct {
@@ -69,7 +77,10 @@ type Deps struct {
 	OSS        oss.Store
 	OCR        ocr.Recognizer
 	Moderation moderation.Checker
-	Now        func() time.Time
+	// 口述背诵（T20，功能开关 oral_recite）：语音识别。
+	ASR   asr.Transcriber
+	Flags FlagChecker
+	Now   func() time.Time
 }
 
 func New(d Deps) *Service {
@@ -77,7 +88,7 @@ func New(d Deps) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{db: d.DB, q: dbq.New(d.DB), params: d.Params, plan: d.Plan, ai: d.AI, quota: d.Quota, oss: d.OSS, ocr: d.OCR, moderation: d.Moderation, now: now}
+	return &Service{db: d.DB, q: dbq.New(d.DB), params: d.Params, plan: d.Plan, ai: d.AI, quota: d.Quota, oss: d.OSS, ocr: d.OCR, moderation: d.Moderation, asr: d.ASR, flags: d.Flags, now: now}
 }
 
 func (s *Service) today() rules.Day { return rules.DayOf(s.now()) }
