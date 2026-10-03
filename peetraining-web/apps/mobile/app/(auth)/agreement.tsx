@@ -1,4 +1,5 @@
 // 0.4 用户协议与隐私政策：两个 Tab；显示版本号、更新日期、生效日期；正文由后台按版本配置。
+// 从 6.5 会员中心进入时（kind=membership）只显示会员服务协议。
 import type { Schemas } from '@training/api-client';
 import { radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
@@ -9,10 +10,11 @@ import { Button, ErrorState, Loading, Screen, Text } from '@/components';
 import { api, unwrap } from '@/lib/api';
 
 type Kind = Schemas['AgreementKind'];
-const tabs: { kind: Kind; label: string }[] = [
+const defaultTabs: { kind: Kind; label: string }[] = [
   { kind: 'user', label: '用户协议' },
   { kind: 'privacy', label: '隐私政策' },
 ];
+const membershipTabs: { kind: Kind; label: string }[] = [{ kind: 'membership', label: '会员服务协议' }];
 
 function day(iso?: string) {
   return iso ? iso.slice(0, 10) : '';
@@ -20,7 +22,8 @@ function day(iso?: string) {
 
 export default function AgreementPage() {
   const params = useLocalSearchParams<{ kind?: Kind }>();
-  const [kind, setKind] = useState<Kind>(params.kind === 'privacy' ? 'privacy' : 'user');
+  const tabs = params.kind === 'membership' ? membershipTabs : defaultTabs;
+  const [kind, setKind] = useState<Kind>(params.kind === 'privacy' || params.kind === 'membership' ? params.kind : 'user');
   const q = useQuery({
     queryKey: ['agreement', kind],
     queryFn: () => unwrap(api.GET('/agreements/{kind}', { params: { path: { kind } } })),

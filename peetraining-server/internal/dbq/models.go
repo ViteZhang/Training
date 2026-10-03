@@ -6122,6 +6122,9 @@ type Order struct {
 	PaidAt       sql.NullTime
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	// App Store 内购：购买时传给 StoreKit 的 appAccountToken，校验交易属于这个订单
+	AppAccountToken sql.NullString
+	IdempotencyKey  sql.NullString
 }
 
 // 真题卷与 AI 组卷
@@ -6373,13 +6376,15 @@ type RefreshToken struct {
 }
 
 type Refund struct {
-	ID        uint64
-	OrderID   uint64
-	Reason    string
-	Status    RefundsStatus
-	HandledBy sql.NullInt64
-	HandledAt sql.NullTime
-	CreatedAt time.Time
+	ID          uint64
+	OrderID     uint64
+	Reason      string
+	Status      RefundsStatus
+	HandledBy   sql.NullInt64
+	HandledAt   sql.NullTime
+	CreatedAt   time.Time
+	RefundNo    sql.NullString
+	AmountCents sql.NullInt32
 }
 
 // 审核队列（7.13）

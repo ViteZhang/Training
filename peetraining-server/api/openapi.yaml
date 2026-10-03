@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.11.0
+  version: 0.12.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -19,12 +19,15 @@ info:
     - api-v0.1：模块 0 账号、模块 1 引导与导入、模块 3 题库、额度、功能开关
     - api-v0.2：考情分析 3.8、知识图谱 3.9、作文知识库 3.10（T14）
     - api-v0.3：今日首页 2.1、阶段提示 2.1e、今日计划与完成统计 2.2（T16）
+    - api-v0.12：会员中心 6.5、订单与支付结果 6.6、支付回调（T25）
     - 其余模块随对应任务卡增量加入，10/11 冻结 api-v1.0
 servers:
   - url: /api/v1
 security:
   - bearerAuth: []
 tags:
+  - name: membership
+    description: 会员中心与在线支付（T25）；在线支付受 online_payment 开关控制，默认关闭
   - name: mine
     description: 模块 6 · 我的：导出题库、兑换码、意见反馈、考后回访
   - name: essay
@@ -2459,6 +2462,116 @@ paths:
               schema: { $ref: "#/components/schemas/ExportJob" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /membership/plans:
+    get:
+      tags: [membership]
+      operationId: getMembershipCenter
+      summary: 会员中心（6.5）
+      description: |
+        三档会员（冲刺卡、考季卡、月卡）的价格与「现在购买的有效期截止」（叠加到当前会员之后），以及权益对比表。
+        payment_enabled 为 false 时 App 隐藏「立即开通」，只显示兑换码入口。会员一次性购买，不自动续费。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipCenter" }
+
+  /orders:
+    post:
+      tags: [membership]
+      operationId: createOrder
+      summary: 下单（6.5 立即开通）
+      description: |
+        受 online_payment 开关控制，关闭时返回 404。返回调起支付所需的参数：微信 prepay（appid、partnerid、prepayid、package、noncestr、timestamp、sign），
+        支付宝 order_string；App Store 内购返回 apple_product_id 与 app_account_token，App 用 StoreKit 购买时带上 appAccountToken，
+        购买成功后调 apple-verify。同一个 idempotency_key 返回同一个订单。
+        失败 400 detail.reason：channel_off / plan_off；409：no_exam_date（初试日期未公布）/ prepay_failed。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tier, channel]
+              properties:
+                tier: { $ref: "#/components/schemas/PlanTier" }
+                channel: { $ref: "#/components/schemas/PayChannel" }
+                idempotency_key: { type: string, minLength: 8, maxLength: 64 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /orders/{orderNo}:
+    get:
+      tags: [membership]
+      operationId: getOrder
+      summary: 订单状态（6.6 支付结果轮询）
+      description: 支付平台回调到达后 status 变为 paid；App 调起支付返回后轮询几次，仍是 created 时显示「支付结果确认中」。
+      parameters:
+        - { name: orderNo, in: path, required: true, schema: { type: string, maxLength: 32 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /orders/{orderNo}/apple-verify:
+    post:
+      tags: [membership]
+      operationId: verifyAppleOrder
+      summary: App Store 内购校验并开通
+      description: |
+        服务端按交易号向 App Store Server API 查询交易，核对 App、商品、appAccountToken 与是否撤销后开通；重复提交返回同一结果。
+        失败 400 detail.reason：transaction_not_found / bundle_mismatch / product_mismatch / token_mismatch / revoked；409：transaction_used。
+      parameters:
+        - { name: orderNo, in: path, required: true, schema: { type: string, maxLength: 32 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transaction_id]
+              properties:
+                transaction_id: { type: string, maxLength: 128 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /pay/notify/{channel}:
+    post:
+      tags: [membership]
+      operationId: payNotify
+      summary: 支付平台异步通知（微信支付、支付宝）
+      description: |
+        不需要登录，靠渠道签名鉴权：微信 APIv3 平台公钥验签 + AES-256-GCM 解密；支付宝 RSA2 验签。
+        应答按渠道格式原样返回（微信 JSON，支付宝纯文本 success / fail）；重复通知只开通一次。
+      security: []
+      parameters:
+        - { name: channel, in: path, required: true, schema: { type: string, enum: [wechat, alipay] } }
+      responses:
+        "200":
+          description: 渠道格式的应答
+          content:
+            text/plain:
+              schema: { type: string }
+        "404": { $ref: "#/components/responses/NotFound" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -3706,6 +3819,71 @@ components:
         questions: { type: integer }
         wrong: { type: integer, description: 错题本待重做 }
         essays: { type: integer, description: 批改完成的作文篇数 }
+    PlanTier:
+      type: string
+      description: 冲刺卡 / 考季卡 / 月卡
+      enum: [sprint, season, monthly]
+    PayChannel:
+      type: string
+      description: 微信支付 / 支付宝 / App Store 内购
+      enum: [wechat, alipay, apple_iap]
+    MembershipPlan:
+      type: object
+      required: [tier, name, price_cents, recommended, available]
+      properties:
+        tier: { $ref: "#/components/schemas/PlanTier" }
+        name: { type: string }
+        price_cents: { type: integer, format: int64 }
+        apple_product_id: { type: string }
+        recommended: { type: boolean }
+        ends_at: { type: string, format: date-time, description: 现在购买（叠加后）的有效期截止 }
+        available: { type: boolean }
+        unavailable_reason: { type: string, description: 不可购买的原因，如「初试日期公布后开放」 }
+    QuotaRule:
+      type: object
+      required: [period]
+      properties:
+        limit: { type: integer, nullable: true, description: 为空表示不限 }
+        period: { type: string, enum: [total, monthly, daily, weekly] }
+    MembershipBenefit:
+      type: object
+      required: [quota_type, name, free, member]
+      properties:
+        quota_type: { $ref: "#/components/schemas/QuotaType" }
+        name: { type: string }
+        free: { $ref: "#/components/schemas/QuotaRule" }
+        member: { $ref: "#/components/schemas/QuotaRule" }
+    MembershipCenter:
+      type: object
+      required: [payment_enabled, channels, plans, benefits, membership]
+      properties:
+        payment_enabled: { type: boolean, description: 在线支付是否可用（开关打开且渠道已配置） }
+        channels: { type: array, items: { $ref: "#/components/schemas/PayChannel" } }
+        plans: { type: array, items: { $ref: "#/components/schemas/MembershipPlan" } }
+        benefits: { type: array, items: { $ref: "#/components/schemas/MembershipBenefit" } }
+        membership: { $ref: "#/components/schemas/MembershipStatus" }
+    OrderStatus:
+      type: string
+      description: 待支付 / 已支付 / 已关闭 / 退款中 / 已退款
+      enum: [created, paid, closed, refunding, refunded]
+    Order:
+      type: object
+      required: [order_no, tier, channel, amount_cents, status, created_at]
+      properties:
+        order_no: { type: string }
+        tier: { $ref: "#/components/schemas/PlanTier" }
+        channel: { $ref: "#/components/schemas/PayChannel" }
+        amount_cents: { type: integer, format: int64 }
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        created_at: { type: string, format: date-time }
+        paid_at: { type: string, format: date-time }
+        membership_ends_at: { type: string, format: date-time, description: 支付成功后会员叠加到的截止时间 }
+        prepay:
+          type: object
+          additionalProperties: { type: string }
+          description: 只在下单时返回：调起支付的参数
+        apple_product_id: { type: string }
+        app_account_token: { type: string, description: App Store 内购购买时传给 StoreKit 的 appAccountToken }
     RedeemResult:
       type: object
       required: [tier, days, starts_at, ends_at, membership]
