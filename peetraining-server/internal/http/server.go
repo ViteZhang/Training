@@ -15,10 +15,13 @@ import (
 	"peetraining-server/internal/bank"
 	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/essay"
+	"peetraining-server/internal/export"
+	"peetraining-server/internal/feedback"
 	"peetraining-server/internal/flags"
 	"peetraining-server/internal/gen"
 	"peetraining-server/internal/importer"
 	"peetraining-server/internal/material"
+	"peetraining-server/internal/membership"
 	"peetraining-server/internal/plan"
 	"peetraining-server/internal/practice"
 	"peetraining-server/internal/profile"
@@ -52,6 +55,10 @@ type Deps struct {
 	Practice *practice.Service
 	Score    *score.Service
 	Essay    *essay.Service
+	// T24 我的：兑换码、意见反馈、导出题库。
+	Membership *membership.Service
+	Feedback   *feedback.Service
+	Export     *export.Service
 	// DevOSS 不为空时注册本地 mock OSS 的直传入口 PUT /dev/oss/*key（只在非生产环境）。
 	DevOSS *oss.Mock
 	// Tokens 校验访问令牌；为空时用 Auth（测试里可以换成假的）。
@@ -82,6 +89,7 @@ func NewRouter(deps Deps) (*gin.Engine, error) {
 
 	if deps.DevOSS != nil {
 		r.PUT("/dev/oss/*key", devOSSUpload(deps.DevOSS))
+		r.GET("/dev/oss/*key", devOSSDownload(deps.DevOSS))
 	}
 
 	api := r.Group(APIPrefix)

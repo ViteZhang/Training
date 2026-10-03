@@ -12,6 +12,9 @@ ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOPROXY=${GOPROXY}
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+# 导出题库的 PDF 需要 TrueType 字体：中文 Droid Sans Fallback（Apache 2.0）、字母数字 DejaVu Sans（自由许可）；
+# 运行镜像不含字体，从构建阶段复制过去。
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-droid-fallback fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
 ARG VERSION=dev
 RUN go build -trimpath -ldflags "-s -w -X peetraining-server/internal/app.Version=${VERSION}" -o /out/api ./cmd/api \
  && go build -trimpath -ldflags "-s -w -X peetraining-server/internal/app.Version=${VERSION}" -o /out/worker ./cmd/worker
@@ -21,6 +24,7 @@ RUN go build -trimpath -ldflags "-s -w -X peetraining-server/internal/app.Versio
 FROM ${RUNTIME_IMAGE}
 WORKDIR /app
 COPY --from=build /out/api /out/worker /app/
+COPY --from=build /usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /app/fonts/
 EXPOSE 8080
 USER nonroot:nonroot
 CMD ["/app/api"]

@@ -476,3 +476,16 @@ func setB(dst *bool, v *bool) {
 		*dst = *v
 	}
 }
+
+// Overview 是「我的」页（6.1）各入口的数字：资料份数、题数、错题本待重做、作文篇数。
+type Overview struct {
+	Materials, Questions, Wrong, Essays int
+}
+
+func (s *Service) Overview(ctx context.Context, userID uint64) (Overview, error) {
+	r, err := s.q.MeOverview(ctx, dbq.MeOverviewParams{UserID: userID, Owner: sql.NullInt64{Int64: int64(userID), Valid: true}})
+	if err != nil {
+		return Overview{}, err
+	}
+	return Overview{Materials: int(r.Materials), Questions: int(r.Questions), Wrong: int(r.Wrong), Essays: int(r.Essays)}, nil
+}

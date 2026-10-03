@@ -52,6 +52,8 @@ var ErrNotFound = errors.New("对象不存在")
 type Store interface {
 	// PresignPut 生成客户端直传的预签名 PUT 地址；客户端必须带上返回的请求头。
 	PresignPut(ctx context.Context, key, contentType string, size int64, ttl time.Duration) (Presigned, error)
+	// PresignGet 生成短时效的下载地址；fileName 是保存到手机时的文件名（Content-Disposition）。
+	PresignGet(ctx context.Context, key, fileName string, ttl time.Duration) (Presigned, error)
 	Head(ctx context.Context, key string) (ObjectInfo, error)
 	Get(ctx context.Context, key string) (io.ReadCloser, error)
 	Put(ctx context.Context, key string, data []byte, contentType string) error
@@ -109,6 +111,15 @@ func (m *Mock) PresignPut(ctx context.Context, key, contentType string, _ int64,
 		Headers:   map[string]string{"Content-Type": contentType},
 		ExpiresAt: exp,
 	}, nil
+}
+
+func (m *Mock) PresignGet(ctx context.Context, key, fileName string, ttl time.Duration) (Presigned, error) {
+	if err := ctx.Err(); err != nil {
+		return Presigned{}, err
+	}
+	exp := time.Now().Add(ttl)
+	q := url.Values{"exp": {strconv.FormatInt(exp.Unix(), 10)}, "sig": {m.sign(key, exp.Unix())}, "name": {fileName}}
+	return Presigned{URL: strings.TrimRight(m.BaseURL, "/") + "/dev/oss/" + key + "?" + q.Encode(), Headers: map[string]string{}, ExpiresAt: exp}, nil
 }
 
 // VerifyUpload 校验 /dev/oss/ 上传请求的签名（本地开发用）。
