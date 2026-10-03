@@ -143,6 +143,11 @@ type Querier interface {
 	GetMaterialBySha(ctx context.Context, arg GetMaterialByShaParams) (Material, error)
 	GetMaterialPage(ctx context.Context, arg GetMaterialPageParams) (GetMaterialPageRow, error)
 	GetModelEssay(ctx context.Context, arg GetModelEssayParams) (GetModelEssayRow, error)
+	GetMyOrder(ctx context.Context, arg GetMyOrderParams) (Order, error)
+	GetOrderByIdem(ctx context.Context, arg GetOrderByIdemParams) (Order, error)
+	GetOrderByTransaction(ctx context.Context, arg GetOrderByTransactionParams) (Order, error)
+	// 回调与退款：锁住订单行，重复回调串行执行，第二次看到已支付直接返回。
+	GetOrderForUpdate(ctx context.Context, orderNo string) (Order, error)
 	GetPaper(ctx context.Context, arg GetPaperParams) (GetPaperRow, error)
 	GetPaperSession(ctx context.Context, arg GetPaperSessionParams) (PaperSession, error)
 	GetPaperSessionByKey(ctx context.Context, arg GetPaperSessionByKeyParams) (PaperSession, error)
@@ -196,6 +201,8 @@ type Querier interface {
 	InsertMessage(ctx context.Context, arg InsertMessageParams) error
 	InsertModelEssay(ctx context.Context, arg InsertModelEssayParams) (int64, error)
 	InsertNormGrading(ctx context.Context, arg InsertNormGradingParams) (int64, error)
+	// 会员与支付（T25）。用户发起的查询都带归属条件；支付回调没有登录用户，按全局唯一的订单号定位（验签之后）。
+	InsertOrder(ctx context.Context, arg InsertOrderParams) (int64, error)
 	InsertPaper(ctx context.Context, arg InsertPaperParams) (int64, error)
 	// 整卷里的一道作答（模拟考试记为限时作答，失分诊断「时间不够」只在这里判定）。
 	InsertPaperAttempt(ctx context.Context, arg InsertPaperAttemptParams) (int64, error)
@@ -209,6 +216,7 @@ type Querier interface {
 	InsertQuotaLedger(ctx context.Context, arg InsertQuotaLedgerParams) error
 	InsertReciteRecord(ctx context.Context, arg InsertReciteRecordParams) (int64, error)
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
+	InsertRefund(ctx context.Context, arg InsertRefundParams) (int64, error)
 	InsertRubricPoint(ctx context.Context, arg InsertRubricPointParams) error
 	InsertScoreEstimate(ctx context.Context, arg InsertScoreEstimateParams) error
 	InsertStudyProfile(ctx context.Context, arg InsertStudyProfileParams) error
@@ -327,6 +335,8 @@ type Querier interface {
 	// 到期复习的错题：没排过复习日的、复习日已到的。
 	ListWrongBookDue(ctx context.Context, arg ListWrongBookDueParams) ([]uint64, error)
 	LockQuotaCounter(ctx context.Context, arg LockQuotaCounterParams) (QuotaCounter, error)
+	MarkOrderPaid(ctx context.Context, arg MarkOrderPaidParams) (int64, error)
+	MarkOrderRefunded(ctx context.Context, id uint64) (int64, error)
 	MarkRelationsGenerated(ctx context.Context, arg MarkRelationsGeneratedParams) error
 	MaxKPSort(ctx context.Context, arg MaxKPSortParams) (int64, error)
 	// 6.1 我的：资料份数、题数、错题本待重做、作文篇数。
@@ -357,6 +367,7 @@ type Querier interface {
 	ResumePaperSession(ctx context.Context, arg ResumePaperSessionParams) error
 	RevokeAllUserTokens(ctx context.Context, arg RevokeAllUserTokensParams) error
 	RevokeDeviceTokens(ctx context.Context, arg RevokeDeviceTokensParams) (int64, error)
+	RevokeMembership(ctx context.Context, arg RevokeMembershipParams) error
 	RevokeRefreshToken(ctx context.Context, arg RevokeRefreshTokenParams) error
 	// 草稿（客户端每 5 秒存一次）；提交后不能再改。
 	SaveEssayDraft(ctx context.Context, arg SaveEssayDraftParams) (int64, error)

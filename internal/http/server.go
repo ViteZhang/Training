@@ -22,6 +22,7 @@ import (
 	"peetraining-server/internal/importer"
 	"peetraining-server/internal/material"
 	"peetraining-server/internal/membership"
+	"peetraining-server/internal/payment"
 	"peetraining-server/internal/plan"
 	"peetraining-server/internal/practice"
 	"peetraining-server/internal/profile"
@@ -59,6 +60,10 @@ type Deps struct {
 	Membership *membership.Service
 	Feedback   *feedback.Service
 	Export     *export.Service
+	// T25 会员中心与支付。
+	Payment *payment.Service
+	// DevMockPay 为 true 时注册本地「模拟支付成功」入口 POST /dev/pay/mock/:orderNo（只在非生产环境、mock 渠道）。
+	DevMockPay bool
 	// DevOSS 不为空时注册本地 mock OSS 的直传入口 PUT /dev/oss/*key（只在非生产环境）。
 	DevOSS *oss.Mock
 	// Tokens 校验访问令牌；为空时用 Auth（测试里可以换成假的）。
@@ -92,11 +97,15 @@ func NewRouter(deps Deps) (*gin.Engine, error) {
 		r.GET("/dev/oss/*key", devOSSDownload(deps.DevOSS))
 	}
 
-	api := r.Group(APIPrefix)
 	tokens := deps.Tokens
 	if tokens == nil {
 		tokens = deps.Auth
 	}
+	if deps.DevMockPay && deps.Payment != nil {
+		r.POST("/dev/pay/mock/:orderNo", Identify(tokens), devMockPay(deps.Payment))
+	}
+
+	api := r.Group(APIPrefix)
 	validator, err := RequestValidator()
 	if err != nil {
 		return nil, err

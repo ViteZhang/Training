@@ -22,6 +22,7 @@ import (
 	"peetraining-server/internal/bank"
 	"peetraining-server/internal/cloud"
 	"peetraining-server/internal/cloud/oss"
+	"peetraining-server/internal/cloud/pay"
 	"peetraining-server/internal/config"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/essay"
@@ -35,6 +36,7 @@ import (
 	"peetraining-server/internal/material"
 	"peetraining-server/internal/membership"
 	"peetraining-server/internal/params"
+	"peetraining-server/internal/payment"
 	"peetraining-server/internal/plan"
 	"peetraining-server/internal/practice"
 	"peetraining-server/internal/profile"
@@ -80,6 +82,8 @@ type Base struct {
 	Membership *membership.Service
 	Feedback   *feedback.Service
 	Export     *export.Service
+	// T25 会员中心与支付。
+	Payment *payment.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -153,6 +157,8 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 		Membership: membership.New(membership.Deps{DB: db, Redis: rdb}),
 		Feedback:   feedback.New(db, nil),
 		Export:     export.New(export.Deps{DB: db, OSS: clients.OSS, Queue: queue, Fonts: export.Fonts{CJK: cfg.ExportFontPath, Latin: cfg.ExportLatinFontPath}}),
+		Payment: payment.New(payment.Deps{DB: db, Params: ps, Quota: qs, Flags: fl, Gateway: clients.Pay, NotifyBaseURL: cfg.Pay.NotifyBaseURL,
+			AppleBundleID: cfg.Pay.AppleBundleID, Log: log}),
 	}, nil
 }
 
@@ -197,6 +203,8 @@ func (b *Base) Handler() (http.Handler, error) {
 		Feedback:   b.Feedback,
 		Export:     b.Export,
 		DevOSS:     b.devOSS(),
+		Payment:    b.Payment,
+		DevMockPay: b.devMockPay(),
 	})
 }
 
@@ -323,6 +331,12 @@ func Migrate(ctx context.Context, cfg *config.Config, log *slog.Logger, action s
 }
 
 // devOSS 返回本地 mock OSS，用来注册直传入口；生产环境永远返回 nil。
+// devMockPay 只在非生产环境、mock 支付渠道时注册「模拟支付成功」入口。
+func (b *Base) devMockPay() bool {
+	_, ok := b.Cloud.Pay.(*pay.Mock)
+	return ok && !b.Config.IsProduction()
+}
+
 func (b *Base) devOSS() *oss.Mock {
 	if b.Config.IsProduction() {
 		return nil

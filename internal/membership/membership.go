@@ -47,8 +47,8 @@ const monthlyDays = 30
 // shanghai 是初试日期所在时区：初试最后一天 24 点（北京时间）结束。
 var shanghai = time.FixedZone("Asia/Shanghai", 8*3600)
 
-// Apply 在调用方的事务里发放会员：时长叠加到当前会员之后（PRD 13.3、13.4）。
-func Apply(ctx context.Context, q *dbq.Queries, g Grant) (Granted, error) {
+// Span 计算一次发放的起止时间：起点叠加到当前会员之后（PRD 13.3、13.4）。会员中心预览「有效期至」也用它。
+func Span(ctx context.Context, q dbq.Querier, g Grant) (time.Time, time.Time, error) {
 	now := g.Now.UTC()
 	start := now
 	if last, err := q.GetLatestMembershipEnd(ctx, dbq.GetLatestMembershipEndParams{OwnerUserID: g.UserID, EndsAt: now}); err == nil {
@@ -56,30 +56,37 @@ func Apply(ctx context.Context, q *dbq.Queries, g Grant) (Granted, error) {
 			start = last.EndsAt.UTC()
 		}
 	} else if !errors.Is(err, sql.ErrNoRows) {
-		return Granted{}, err
+		return time.Time{}, time.Time{}, err
 	}
-	var end time.Time
 	switch {
 	case g.Days > 0:
-		end = start.AddDate(0, 0, g.Days)
+		return start, start.AddDate(0, 0, g.Days), nil
 	case g.Tier == "monthly":
-		end = start.AddDate(0, 0, monthlyDays)
+		return start, start.AddDate(0, 0, monthlyDays), nil
 	case g.Tier == "sprint" || g.Tier == "season":
 		dates, err := q.ListExamEndsFrom(ctx, start)
 		if err != nil {
-			return Granted{}, err
+			return time.Time{}, time.Time{}, err
 		}
 		idx := 0
 		if g.Tier == "season" {
 			idx = 1
 		}
 		if len(dates) <= idx {
-			return Granted{}, ErrNoExamDate
+			return time.Time{}, time.Time{}, ErrNoExamDate
 		}
 		d := dates[idx].FirstExamEnd
-		end = time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, shanghai).AddDate(0, 0, 1).UTC()
+		return start, time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, shanghai).AddDate(0, 0, 1).UTC(), nil
 	default:
-		return Granted{}, errors.New("membership: 赠送天数必须大于 0")
+		return time.Time{}, time.Time{}, errors.New("membership: 赠送天数必须大于 0")
+	}
+}
+
+// Apply 在调用方的事务里发放会员：时长叠加到当前会员之后（PRD 13.3、13.4）。
+func Apply(ctx context.Context, q *dbq.Queries, g Grant) (Granted, error) {
+	start, end, err := Span(ctx, q, g)
+	if err != nil {
+		return Granted{}, err
 	}
 	ref := sql.NullInt64{Int64: int64(g.SourceRef), Valid: g.SourceRef != 0}
 	id, err := q.InsertMembership(ctx, dbq.InsertMembershipParams{OwnerUserID: g.UserID, Tier: dbq.MembershipsTier(g.Tier), Source: dbq.MembershipsSource(g.Source),

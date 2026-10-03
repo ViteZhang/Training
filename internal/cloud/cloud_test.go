@@ -3,6 +3,7 @@ package cloud
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 
 	"peetraining-server/internal/cloud/ai"
@@ -19,7 +20,7 @@ func mockConfig() *config.Config {
 		AppEnv: config.EnvLocal,
 		SMS:    config.SMSConfig{Provider: config.ProviderMock},
 		AI:     config.AIConfig{Provider: config.ProviderMock},
-		OCR:    p, ASR: p, Moderation: p, Pay: p,
+		OCR:    p, ASR: p, Moderation: p, Pay: config.PayConfig{Provider: config.ProviderMock},
 		OSS: config.OSSConfig{Provider: config.ProviderMock},
 	}
 }
@@ -102,13 +103,28 @@ func TestMocks(t *testing.T) {
 		t.Error("含拦截词应不通过并给原因")
 	}
 
-	g := pay.NewMock()
-	if _, err := g.VerifyNotification(ctx, pay.ChannelWechat, []byte("o1|t1|5900"), nil); !errors.Is(err, pay.ErrInvalidSignature) {
+	if _, err := pay.NewMock("s").VerifyNotification(ctx, pay.ChannelWechat, []byte(`{"order_no":"o1"}`), http.Header{}); !errors.Is(err, pay.ErrInvalidSignature) {
 		t.Error("缺签名应验签失败")
 	}
-	n, err := g.VerifyNotification(ctx, pay.ChannelWechat, []byte("o1|t1|5900"), map[string]string{"X-Mock-Sign": "ok"})
-	if err != nil || n.OrderNo != "o1" || n.AmountCents != 5900 || !n.Paid {
-		t.Errorf("pay mock: %+v %v", n, err)
+}
+
+func TestPayProduction(t *testing.T) {
+	cfg := mockConfig()
+	cfg.AppEnv = config.EnvProduction
+	cfg.SMS.Provider = "aliyun"
+	cfg.Pay.Provider = config.ProviderMock
+	c, err := New(cfg)
+	if err == nil && c.Pay != nil {
+		t.Error("生产环境不使用 mock 支付")
+	}
+	cfg = mockConfig()
+	cfg.Pay = config.PayConfig{Provider: "real", WechatAppID: "wx"}
+	if _, err := New(cfg); err == nil {
+		t.Error("微信支付只配了一半应报错")
+	}
+	cfg.Pay = config.PayConfig{Provider: "real"}
+	if c, err := New(cfg); err != nil || c.Pay == nil || len(c.Pay.Channels()) != 0 {
+		t.Errorf("没配渠道时没有可用渠道：%v", err)
 	}
 }
 

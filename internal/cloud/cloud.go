@@ -78,7 +78,21 @@ func New(cfg *config.Config) (*Clients, error) {
 	pick("OCR", cfg.OCR.Provider, func() { c.OCR, c.PDF = ocr.NewMock(), ocr.NewMock() })
 	pick("ASR", cfg.ASR.Provider, func() { c.ASR = asr.NewMock() })
 	pick("MODERATION", cfg.Moderation.Provider, func() { c.Moderation = moderation.NewMock() })
-	pick("PAY", cfg.Pay.Provider, func() { c.Pay = pay.NewMock() })
+	switch cfg.Pay.Provider {
+	case "real":
+		r, err := newRealPay(cfg.Pay)
+		if err != nil {
+			errs = append(errs, err)
+		}
+		c.Pay = r
+	default:
+		// mock 回调只用本机密钥签名，生产环境不创建，避免伪造回调白开会员；生产不配 real 时支付不可用。
+		pick("PAY", cfg.Pay.Provider, func() {
+			if !cfg.IsProduction() {
+				c.Pay = pay.NewMock(cfg.JWTSecret)
+			}
+		})
+	}
 	pick("OSS", cfg.OSS.Provider, func() {
 		m := oss.NewMock()
 		if cfg.OSS.MockBaseURL != "" {
@@ -94,4 +108,33 @@ func New(cfg *config.Config) (*Clients, error) {
 		return nil, errors.Join(errs...)
 	}
 	return &c, nil
+}
+
+// newRealPay 按配置创建真实支付渠道：只配了的渠道才可用；配了一半（缺密钥）时报错。
+func newRealPay(p config.PayConfig) (*pay.Real, error) {
+	var r pay.Real
+	var errs []error
+	if p.WechatAppID != "" || p.WechatMchID != "" {
+		w, err := pay.NewWechat(pay.WechatConfig{AppID: p.WechatAppID, MchID: p.WechatMchID, SerialNo: p.WechatSerialNo, PrivateKey: p.WechatPrivateKey,
+			APIv3Key: p.WechatAPIv3Key, PlatformPublicKey: p.WechatPlatformPublicKey, PlatformSerial: p.WechatPlatformSerial})
+		if err != nil {
+			errs = append(errs, err)
+		}
+		r.Wechat = w
+	}
+	if p.AlipayAppID != "" {
+		a, err := pay.NewAlipay(pay.AlipayConfig{AppID: p.AlipayAppID, PrivateKey: p.AlipayPrivateKey, PublicKey: p.AlipayPublicKey})
+		if err != nil {
+			errs = append(errs, err)
+		}
+		r.Alipay = a
+	}
+	if p.AppleIssuerID != "" || p.AppleKeyID != "" {
+		a, err := pay.NewApple(pay.AppleConfig{IssuerID: p.AppleIssuerID, KeyID: p.AppleKeyID, PrivateKey: p.ApplePrivateKey, BundleID: p.AppleBundleID})
+		if err != nil {
+			errs = append(errs, err)
+		}
+		r.Apple = a
+	}
+	return &r, errors.Join(errs...)
 }

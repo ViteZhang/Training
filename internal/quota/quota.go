@@ -119,6 +119,33 @@ func (s *Service) Rules(ctx context.Context, userID uint64) (map[Type]Rule, bool
 	}, false, nil
 }
 
+// Benefit 是会员中心权益对比表的一行（PRD 13.1、6.5）：免费版与会员的上限与周期，上限 nil 表示不限。
+type Benefit struct {
+	Type   Type
+	Name   string
+	Free   Rule
+	Member Rule
+}
+
+// Benefits 读 rule_params.quota 生成权益对比（后台 7.8 改了额度，会员中心跟着变）。
+func (s *Service) Benefits(ctx context.Context) ([]Benefit, error) {
+	var l limits
+	if err := s.params.Get(ctx, "quota", &l); err != nil {
+		return nil, err
+	}
+	free := map[Type]Rule{ParsePages: {l.Free.ParsePagesTotal, Total}, ImportQuestions: {l.Free.ImportQuestionsTotal, Total},
+		Grading: {l.Free.GradingDaily, Daily}, AIQuestions: {l.Free.AIQuestionsDaily, Daily}, PaperGrading: {l.Free.PaperGradingWeekly, Weekly},
+		EssayGrading: {l.Free.EssayGradingWeekly, Weekly}}
+	member := map[Type]Rule{ParsePages: {l.Member.ParsePagesMonthly, Monthly}, ImportQuestions: {l.Member.ImportQuestionsTotal, Total},
+		Grading: {l.Member.GradingDaily, Daily}, AIQuestions: {l.Member.AIQuestionsDaily, Daily}, PaperGrading: {l.Member.PaperGradingWeekly, Weekly},
+		EssayGrading: {l.Member.EssayGradingWeekly, Weekly}}
+	out := make([]Benefit, len(AllTypes))
+	for i, t := range AllTypes {
+		out[i] = Benefit{Type: t, Name: names[t], Free: free[t], Member: member[t]}
+	}
+	return out, nil
+}
+
 // PeriodKey 返回某周期在某时刻（北京时间）的键：total / 2026-10 / 2026-10-01 / 2026-W40。
 func PeriodKey(p Period, t time.Time) string {
 	day := rules.DayOf(t)

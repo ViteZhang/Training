@@ -43,7 +43,7 @@ type Config struct {
 	OCR        ProviderConfig
 	ASR        ProviderConfig
 	Moderation ProviderConfig
-	Pay        ProviderConfig
+	Pay        PayConfig
 
 	// ExportFontPath / ExportLatinFontPath 是导出 PDF 用的中文与西文字体（TrueType）；镜像里放在 /app/fonts。
 	ExportFontPath      string
@@ -66,6 +66,30 @@ type OSSConfig struct {
 
 type ProviderConfig struct {
 	Provider string
+}
+
+// PayConfig 是支付配置（T25，ADR 0011）。PAY_PROVIDER=real 时按各渠道是否配置决定可用渠道；mock 只用于本地与测试。
+type PayConfig struct {
+	Provider string
+	// NotifyBaseURL 是支付平台回调本服务的地址前缀，如 https://training.dreamelab.cn/api/v1。
+	NotifyBaseURL string
+
+	WechatAppID             string
+	WechatMchID             string
+	WechatSerialNo          string
+	WechatPrivateKey        string
+	WechatAPIv3Key          string
+	WechatPlatformPublicKey string
+	WechatPlatformSerial    string
+
+	AlipayAppID      string
+	AlipayPrivateKey string
+	AlipayPublicKey  string
+
+	AppleIssuerID   string
+	AppleKeyID      string
+	ApplePrivateKey string
+	AppleBundleID   string
 }
 
 type SMSConfig struct {
@@ -149,7 +173,24 @@ func load(getenv func(string) string) (*Config, error) {
 		OCR:        ProviderConfig{Provider: get("OCR_PROVIDER", ProviderMock)},
 		ASR:        ProviderConfig{Provider: get("ASR_PROVIDER", ProviderMock)},
 		Moderation: ProviderConfig{Provider: get("MODERATION_PROVIDER", ProviderMock)},
-		Pay:        ProviderConfig{Provider: get("PAY_PROVIDER", ProviderMock)},
+		Pay: PayConfig{
+			Provider:                get("PAY_PROVIDER", ProviderMock),
+			NotifyBaseURL:           get("PAY_NOTIFY_BASE_URL", "https://training.dreamelab.cn/api/v1"),
+			WechatAppID:             get("WECHAT_PAY_APP_ID", ""),
+			WechatMchID:             get("WECHAT_PAY_MCH_ID", ""),
+			WechatSerialNo:          get("WECHAT_PAY_SERIAL_NO", ""),
+			WechatPrivateKey:        get("WECHAT_PAY_PRIVATE_KEY", ""),
+			WechatAPIv3Key:          get("WECHAT_PAY_APIV3_KEY", ""),
+			WechatPlatformPublicKey: get("WECHAT_PAY_PLATFORM_PUBLIC_KEY", ""),
+			WechatPlatformSerial:    get("WECHAT_PAY_PLATFORM_SERIAL", ""),
+			AlipayAppID:             get("ALIPAY_APP_ID", ""),
+			AlipayPrivateKey:        get("ALIPAY_PRIVATE_KEY", ""),
+			AlipayPublicKey:         get("ALIPAY_PUBLIC_KEY", ""),
+			AppleIssuerID:           get("APPLE_IAP_ISSUER_ID", ""),
+			AppleKeyID:              get("APPLE_IAP_KEY_ID", ""),
+			ApplePrivateKey:         get("APPLE_IAP_PRIVATE_KEY", ""),
+			AppleBundleID:           get("APPLE_IAP_BUNDLE_ID", "cn.dreamelab.training"),
+		},
 
 		AliyunAccessKeyID:     get("ALIYUN_ACCESS_KEY_ID", ""),
 		AliyunAccessKeySecret: get("ALIYUN_ACCESS_KEY_SECRET", ""),
