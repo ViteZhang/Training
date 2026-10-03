@@ -38,6 +38,8 @@ const (
 	TypePaperGrade    = "paper:grade"
 	TypePaperDeadline = "paper:deadline"
 	TypeEssayGrade    = "essay:grade"
+	TypeExport        = "export:generate"
+	TypeExportCleanup = "export:cleanup"
 )
 
 // PingPayload 用于检查「API 入队 → Worker 执行」整条链路。
@@ -112,6 +114,29 @@ type Handlers struct {
 	Plan      PlanGenerator
 	Paper     PaperGrader
 	Essay     EssayGrader
+	Export    Exporter
+}
+
+// Exporter 是导出题库的后台任务（export.Service 实现）：生成文档；每小时删除 24 小时前的导出文件。
+type Exporter interface {
+	Generate(ctx context.Context, userID, jobID uint64, last bool) error
+	Cleanup(ctx context.Context) (int, error)
+}
+
+// ExportPayload 指定一次导出。
+type ExportPayload struct {
+	UserID uint64 `json:"user_id"`
+	JobID  uint64 `json:"job_id"`
+}
+
+// NewExportTask 创建导出任务（用户在等，但可以离开，放 default 队列）。同一次导出只排一个。
+func NewExportTask(userID, jobID uint64) (*asynq.Task, error) {
+	b, err := json.Marshal(ExportPayload{UserID: userID, JobID: jobID})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TypeExport, b, asynq.Queue(QueueDefault), asynq.MaxRetry(2), asynq.Timeout(10*time.Minute),
+		asynq.TaskID(fmt.Sprintf("%s:%d", TypeExport, jobID))), nil
 }
 
 // EssayGrader 是作文的后台批改（essay.Service 实现）：提交后约 30 秒批完，完成后发消息。
@@ -202,6 +227,8 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 	mux.HandleFunc(TypePaperGrade, h.handlePaperGrade)
 	mux.HandleFunc(TypePaperDeadline, h.handlePaperDeadline)
 	mux.HandleFunc(TypeEssayGrade, h.handleEssayGrade)
+	mux.HandleFunc(TypeExport, h.handleExport)
+	mux.HandleFunc(TypeExportCleanup, h.handleExportCleanup)
 	return mux
 }
 
@@ -306,6 +333,23 @@ func (h *Handlers) handleEssayGrade(ctx context.Context, t *asynq.Task) error {
 	return h.Essay.GradeEssay(ctx, p.UserID, p.EssayID)
 }
 
+func (h *Handlers) handleExport(ctx context.Context, t *asynq.Task) error {
+	var p ExportPayload
+	if err := json.Unmarshal(t.Payload(), &p); err != nil {
+		return fmt.Errorf("解析导出载荷：%w", errors.Join(err, asynq.SkipRetry))
+	}
+	return h.Export.Generate(ctx, p.UserID, p.JobID, lastAttempt(ctx))
+}
+
+// handleExportCleanup 删除过期的导出文件（24 小时后，PRD 6.4）。
+func (h *Handlers) handleExportCleanup(ctx context.Context, _ *asynq.Task) error {
+	n, err := h.Export.Cleanup(ctx)
+	if n > 0 {
+		logx.From(ctx).Info("export files deleted", "count", n)
+	}
+	return err
+}
+
 // lastAttempt 报告这是不是最后一次重试（重试用完后 Asynq 不再执行，需要把状态收尾）。
 func lastAttempt(ctx context.Context) bool {
 	retry, ok1 := asynq.GetRetryCount(ctx)
@@ -324,6 +368,7 @@ type Schedule struct {
 var Schedules = []Schedule{
 	{Cron: "17 * * * *", Type: TypePurgeAccounts},
 	{Cron: "0 0 * * *", Type: TypeDailyPlan},
+	{Cron: "23 * * * *", Type: TypeExportCleanup},
 }
 
 // RegisterSchedules 注册定时任务。调度器全局只启一个，跑在 Worker 里。

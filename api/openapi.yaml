@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.10.0
+  version: 0.11.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -25,6 +25,8 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: mine
+    description: 模块 6 · 我的：导出题库、兑换码、意见反馈、考后回访
   - name: essay
     description: 模块 5 · 作文（选题、写作、拍照、批改、作文本、评分标准）
   - name: score
@@ -2273,6 +2275,190 @@ paths:
               schema: { $ref: "#/components/schemas/ModelEssayDetail" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /me/overview:
+    get:
+      tags: [mine]
+      operationId: getMeOverview
+      summary: 「我的」页各入口的数字（6.1）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MeOverview" }
+
+  /me/redeem:
+    post:
+      tags: [mine]
+      operationId: redeemCode
+      summary: 兑换码（6.7）
+      description: |
+        不区分大小写，空格与连字符会被忽略；一码一次，时长叠加到当前会员之后。
+        失败返回 400，detail.reason：invalid 无效 / used 已被使用 / void 已作废 / disabled 已停用 / expired 已过期；
+        一小时内失败 10 次后返回 429。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, maxLength: 32 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RedeemResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /me/survey:
+    get:
+      tags: [mine]
+      operationId: getSurvey
+      summary: 考后回访（6.14）
+      description: 初试开始后开放；每门课显示考前预估（没有时不返回 low/high，显示「考前没有预估分」）。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Survey" }
+    post:
+      tags: [mine]
+      operationId: submitSurvey
+      summary: 提交考后回访
+      description: 第一次提交送 30 天会员（每人一次）；之后再提交只更新复试与录取结果（可稍后补）。初试开始前返回 409。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scores, retest_result]
+              properties:
+                scores:
+                  type: array
+                  items:
+                    type: object
+                    required: [subject_id, score]
+                    properties:
+                      subject_id: { type: integer, format: int64 }
+                      score: { type: number, minimum: 0 }
+                retest_result: { $ref: "#/components/schemas/RetestResult" }
+                admission: { $ref: "#/components/schemas/Admission" }
+                share_consent: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Survey" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /feedbacks:
+    get:
+      tags: [mine]
+      operationId: listFeedbacks
+      summary: 我的反馈记录（6.13 历史）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Feedback" } }
+    post:
+      tags: [mine]
+      operationId: submitFeedback
+      summary: 提交意见反馈（6.13）
+      description: 截图用 /handwriting/upload-requests 上传后的对象键，最多 3 张；勾选 allow_access 时客服 72 小时内可查看相关资料，每次查看都会通知你。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ftype, content]
+              properties:
+                ftype: { $ref: "#/components/schemas/FeedbackType" }
+                content: { type: string, minLength: 5, maxLength: 2000 }
+                screenshot_keys: { type: array, items: { type: string }, maxItems: 3 }
+                allow_access: { type: boolean }
+                related_material_id: { type: integer, format: int64 }
+      responses:
+        "201":
+          description: 已提交
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Feedback" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /subjects/{subjectId}/export-preview:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [mine]
+      operationId: getExportPreview
+      summary: 导出题库的可选内容与预计页数（6.4）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExportPreview" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /exports:
+    post:
+      tags: [mine]
+      operationId: createExport
+      summary: 导出题库（6.4）
+      description: 后台生成 PDF 或 Word，只包含本人的内容；生成后用 GET /exports/{exportId} 取 1 小时有效的下载链接，文件 24 小时后删除。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject_id, options, format]
+              properties:
+                subject_id: { type: integer, format: int64 }
+                options: { $ref: "#/components/schemas/ExportOptions" }
+                format: { type: string, enum: [pdf, docx] }
+      responses:
+        "202":
+          description: 已开始生成
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExportJob" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /exports/{exportId}:
+    parameters:
+      - { name: exportId, in: path, required: true, schema: { type: integer, format: int64 } }
+    get:
+      tags: [mine]
+      operationId: getExport
+      summary: 导出进度与下载链接
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExportJob" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -3512,6 +3698,107 @@ components:
         avg_max: { type: number }
         method_id: { type: integer, format: int64, description: 对应的写作方法（「去学」→ 3.10） }
         method_title: { type: string }
+    MeOverview:
+      type: object
+      required: [materials, questions, wrong, essays]
+      properties:
+        materials: { type: integer }
+        questions: { type: integer }
+        wrong: { type: integer, description: 错题本待重做 }
+        essays: { type: integer, description: 批改完成的作文篇数 }
+    RedeemResult:
+      type: object
+      required: [tier, days, starts_at, ends_at, membership]
+      properties:
+        tier: { type: string, enum: [sprint, season, monthly, gift] }
+        days: { type: integer }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        membership: { $ref: "#/components/schemas/MembershipStatus" }
+    RetestResult:
+      type: string
+      description: 进复试 / 没进 / 还不知道
+      enum: [in, out, unknown]
+    Admission:
+      type: string
+      description: 已录取 / 调剂 / 未录取 / 待定
+      enum: [admitted, adjusted, rejected, pending]
+    Survey:
+      type: object
+      required: [open, exam_year, submitted, reward_days, subjects, share_consent]
+      properties:
+        open: { type: boolean, description: 初试开始后开放 }
+        exam_year: { type: integer }
+        submitted: { type: boolean }
+        reward_days: { type: integer }
+        subjects: { type: array, items: { $ref: "#/components/schemas/SurveySubject" } }
+        retest_result: { $ref: "#/components/schemas/RetestResult" }
+        admission: { $ref: "#/components/schemas/Admission" }
+        share_consent: { type: boolean }
+    SurveySubject:
+      type: object
+      required: [subject_id, name, full_score]
+      properties:
+        subject_id: { type: integer, format: int64 }
+        name: { type: string }
+        full_score: { type: integer }
+        low: { type: integer, description: 考前预估下限；没有预估分时不返回 }
+        high: { type: integer }
+        actual: { type: number, description: 已填的实际成绩 }
+    FeedbackType:
+      type: string
+      description: 功能建议 / 识别不准 / 批改不准 / 出现问题 / 侵权投诉
+      enum: [suggestion, recognition, grading, bug, infringement]
+    Feedback:
+      type: object
+      required: [id, ftype, content, screenshot_keys, allow_access, status, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        ftype: { $ref: "#/components/schemas/FeedbackType" }
+        content: { type: string }
+        screenshot_keys: { type: array, items: { type: string } }
+        allow_access: { type: boolean }
+        status: { type: string, enum: [open, replied, closed] }
+        reply: { type: string }
+        replied_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+    ExportOptions:
+      type: object
+      required: [questions, kps, wrong, ai_variants]
+      properties:
+        questions: { type: boolean, description: 题目和参考答案 }
+        kps: { type: boolean, description: 知识点卡片 }
+        wrong: { type: boolean, description: 错题和我的作答（附失分原因） }
+        ai_variants: { type: boolean, description: AI 出的变式题（默认不勾，会标「AI 出题」） }
+    ExportItem:
+      type: object
+      required: [count, pages]
+      properties:
+        count: { type: integer }
+        pages: { type: integer, description: 预计页数 }
+    ExportPreview:
+      type: object
+      required: [subject_id, questions, kps, wrong, ai_variants]
+      properties:
+        subject_id: { type: integer, format: int64 }
+        questions: { $ref: "#/components/schemas/ExportItem" }
+        kps: { $ref: "#/components/schemas/ExportItem" }
+        wrong: { $ref: "#/components/schemas/ExportItem" }
+        ai_variants: { $ref: "#/components/schemas/ExportItem" }
+    ExportJob:
+      type: object
+      required: [id, subject_id, format, options, status, pages, file_name, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        subject_id: { type: integer, format: int64 }
+        format: { type: string, enum: [pdf, docx] }
+        options: { $ref: "#/components/schemas/ExportOptions" }
+        status: { type: string, enum: [queued, running, done, failed, expired], description: expired = 已超过 24 小时，文件已删除 }
+        pages: { type: integer }
+        file_name: { type: string }
+        download_url: { type: string, description: 1 小时有效的下载链接（status=done 时） }
+        expires_at: { type: string, format: date-time, description: 文件删除时间 }
+        created_at: { type: string, format: date-time }
     ExamProfile:
       type: object
       required: [ready, paper_count, min_papers, years, excluded_count, structure, sections, high_freq, missing_sections, style_tags, basis]

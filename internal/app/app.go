@@ -25,12 +25,15 @@ import (
 	"peetraining-server/internal/config"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/essay"
+	"peetraining-server/internal/export"
+	"peetraining-server/internal/feedback"
 	"peetraining-server/internal/flags"
 	apihttp "peetraining-server/internal/http"
 	"peetraining-server/internal/importer"
 	"peetraining-server/internal/jobs"
 	"peetraining-server/internal/logx"
 	"peetraining-server/internal/material"
+	"peetraining-server/internal/membership"
 	"peetraining-server/internal/params"
 	"peetraining-server/internal/plan"
 	"peetraining-server/internal/practice"
@@ -73,6 +76,10 @@ type Base struct {
 	Practice *practice.Service
 	Score    *score.Service
 	Essay    *essay.Service
+	// T24 我的。
+	Membership *membership.Service
+	Feedback   *feedback.Service
+	Export     *export.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -133,16 +140,19 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 			JWTSecret: cfg.JWTSecret, Logger: log,
 			LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock,
 		}),
-		Profile:  prof,
-		Quota:    qs,
-		Material: mat,
-		AI:       engine,
-		Importer: imp,
-		Bank:     bk,
-		Plan:     pl,
-		Practice: practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: clients.OSS, OCR: clients.OCR, Moderation: clients.Moderation, ASR: clients.ASR, Flags: fl, Queue: queue, Score: sc}),
-		Score:    sc,
-		Essay:    essay.New(essay.Deps{DB: db, Params: ps, AI: engine, Quota: qs, Queue: queue, Score: sc}),
+		Profile:    prof,
+		Quota:      qs,
+		Material:   mat,
+		AI:         engine,
+		Importer:   imp,
+		Bank:       bk,
+		Plan:       pl,
+		Practice:   practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: clients.OSS, OCR: clients.OCR, Moderation: clients.Moderation, ASR: clients.ASR, Flags: fl, Queue: queue, Score: sc}),
+		Score:      sc,
+		Essay:      essay.New(essay.Deps{DB: db, Params: ps, AI: engine, Quota: qs, Queue: queue, Score: sc}),
+		Membership: membership.New(membership.Deps{DB: db, Redis: rdb}),
+		Feedback:   feedback.New(db, nil),
+		Export:     export.New(export.Deps{DB: db, OSS: clients.OSS, Queue: queue, Fonts: export.Fonts{CJK: cfg.ExportFontPath, Latin: cfg.ExportLatinFontPath}}),
 	}, nil
 }
 
@@ -167,23 +177,26 @@ func appName() string {
 // Handler 组装 API 的 HTTP 处理器。
 func (b *Base) Handler() (http.Handler, error) {
 	return apihttp.NewRouter(apihttp.Deps{
-		Logger:   b.Logger,
-		Version:  Version,
-		AppName:  appName(),
-		MySQL:    store.SQLPinger{DB: b.DB},
-		Redis:    store.RedisPinger{Client: b.Redis},
-		Auth:     b.Auth,
-		Flags:    b.Flags,
-		Profile:  b.Profile,
-		Material: b.Material,
-		Quota:    b.Quota,
-		Importer: b.Importer,
-		Bank:     b.Bank,
-		Plan:     b.Plan,
-		Practice: b.Practice,
-		Score:    b.Score,
-		Essay:    b.Essay,
-		DevOSS:   b.devOSS(),
+		Logger:     b.Logger,
+		Version:    Version,
+		AppName:    appName(),
+		MySQL:      store.SQLPinger{DB: b.DB},
+		Redis:      store.RedisPinger{Client: b.Redis},
+		Auth:       b.Auth,
+		Flags:      b.Flags,
+		Profile:    b.Profile,
+		Material:   b.Material,
+		Quota:      b.Quota,
+		Importer:   b.Importer,
+		Bank:       b.Bank,
+		Plan:       b.Plan,
+		Practice:   b.Practice,
+		Score:      b.Score,
+		Essay:      b.Essay,
+		Membership: b.Membership,
+		Feedback:   b.Feedback,
+		Export:     b.Export,
+		DevOSS:     b.devOSS(),
 	})
 }
 
@@ -247,7 +260,7 @@ func NewWorker(b *Base) (*Worker, error) {
 	if err := jobs.RegisterSchedules(scheduler); err != nil {
 		return nil, fmt.Errorf("注册定时任务：%w", err)
 	}
-	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice, Essay: b.Essay}
+	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice, Essay: b.Essay, Export: b.Export}
 	return &Worker{server: server, scheduler: scheduler, mux: h.Mux()}, nil
 }
 

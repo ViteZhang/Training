@@ -45,6 +45,10 @@ type Config struct {
 	Moderation ProviderConfig
 	Pay        ProviderConfig
 
+	// ExportFontPath / ExportLatinFontPath 是导出 PDF 用的中文与西文字体（TrueType）；镜像里放在 /app/fonts。
+	ExportFontPath      string
+	ExportLatinFontPath string
+
 	// AliyunAccessKeyID / Secret 供 OCR、语音、内容安全等阿里云服务共用。
 	AliyunAccessKeyID     string
 	AliyunAccessKeySecret string
@@ -110,6 +114,9 @@ func load(getenv func(string) string) (*Config, error) {
 		RedisPassword: get("REDIS_PASSWORD", ""),
 
 		JWTSecret: get("JWT_SECRET", ""),
+
+		ExportFontPath:      get("EXPORT_FONT_PATH", "/app/fonts/DroidSansFallbackFull.ttf"),
+		ExportLatinFontPath: get("EXPORT_LATIN_FONT_PATH", "/app/fonts/DejaVuSans.ttf"),
 
 		OSS: OSSConfig{
 			Provider:        get("OSS_PROVIDER", ProviderMock),

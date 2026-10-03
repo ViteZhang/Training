@@ -24,6 +24,7 @@ import (
 
 // Service 计算与读取预估分、整卷报告与提分看板。
 type Service struct {
+	db      *sql.DB
 	q       *dbq.Queries
 	params  *params.Store
 	profile *profile.Service
@@ -47,7 +48,7 @@ func New(d Deps) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{q: dbq.New(d.DB), params: d.Params, profile: d.Profile, bank: d.Bank, plan: d.Plan, now: now}
+	return &Service{db: d.DB, q: dbq.New(d.DB), params: d.Params, profile: d.Profile, bank: d.Bank, plan: d.Plan, now: now}
 }
 
 func dec(s string) float64 {
