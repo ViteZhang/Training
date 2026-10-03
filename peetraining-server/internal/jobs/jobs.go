@@ -40,6 +40,11 @@ const (
 	TypeEssayGrade    = "essay:grade"
 	TypeExport        = "export:generate"
 	TypeExportCleanup = "export:cleanup"
+	// 消息中心（T27）。
+	TypeMessageCleanup  = "message:cleanup"
+	TypeAnnouncements   = "message:announcements"
+	TypeAgreementNotice = "message:agreement_update"
+	TypeReviewDue       = "message:review_due"
 )
 
 // PingPayload 用于检查「API 入队 → Worker 执行」整条链路。
@@ -115,6 +120,15 @@ type Handlers struct {
 	Paper     PaperGrader
 	Essay     EssayGrader
 	Export    Exporter
+	Notify    Notifier
+}
+
+// Notifier 是消息中心的定时任务（notify.Service 实现）：清理 30 天前的消息、发送到点的公告、协议更新、复习到期提醒。
+type Notifier interface {
+	Cleanup(ctx context.Context) (int, error)
+	SendAnnouncements(ctx context.Context) (int, error)
+	SendAgreementUpdates(ctx context.Context) (int, error)
+	SendReviewDue(ctx context.Context) (int, error)
 }
 
 // Exporter 是导出题库的后台任务（export.Service 实现）：生成文档；每小时删除 24 小时前的导出文件。
@@ -229,6 +243,10 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 	mux.HandleFunc(TypeEssayGrade, h.handleEssayGrade)
 	mux.HandleFunc(TypeExport, h.handleExport)
 	mux.HandleFunc(TypeExportCleanup, h.handleExportCleanup)
+	mux.HandleFunc(TypeMessageCleanup, h.notifyTask("messages deleted", func(ctx context.Context) (int, error) { return h.Notify.Cleanup(ctx) }))
+	mux.HandleFunc(TypeAnnouncements, h.notifyTask("announcements sent", func(ctx context.Context) (int, error) { return h.Notify.SendAnnouncements(ctx) }))
+	mux.HandleFunc(TypeAgreementNotice, h.notifyTask("agreement notices sent", func(ctx context.Context) (int, error) { return h.Notify.SendAgreementUpdates(ctx) }))
+	mux.HandleFunc(TypeReviewDue, h.notifyTask("review due sent", func(ctx context.Context) (int, error) { return h.Notify.SendReviewDue(ctx) }))
 	return mux
 }
 
@@ -350,6 +368,20 @@ func (h *Handlers) handleExportCleanup(ctx context.Context, _ *asynq.Task) error
 	return err
 }
 
+// notifyTask 包装消息中心的定时任务：没配置 Notify（测试）时跳过。
+func (h *Handlers) notifyTask(what string, run func(context.Context) (int, error)) func(context.Context, *asynq.Task) error {
+	return func(ctx context.Context, _ *asynq.Task) error {
+		if h.Notify == nil {
+			return nil
+		}
+		n, err := run(ctx)
+		if n > 0 {
+			logx.From(ctx).Info(what, "count", n)
+		}
+		return err
+	}
+}
+
 // lastAttempt 报告这是不是最后一次重试（重试用完后 Asynq 不再执行，需要把状态收尾）。
 func lastAttempt(ctx context.Context) bool {
 	retry, ok1 := asynq.GetRetryCount(ctx)
@@ -369,6 +401,11 @@ var Schedules = []Schedule{
 	{Cron: "17 * * * *", Type: TypePurgeAccounts},
 	{Cron: "0 0 * * *", Type: TypeDailyPlan},
 	{Cron: "23 * * * *", Type: TypeExportCleanup},
+	{Cron: "41 3 * * *", Type: TypeMessageCleanup},
+	{Cron: "*/5 * * * *", Type: TypeAnnouncements},
+	{Cron: "37 * * * *", Type: TypeAgreementNotice},
+	// 复习到期提醒每天早上发一次（北京时间 7:05，在大多数学习提醒之前）。
+	{Cron: "5 7 * * *", Type: TypeReviewDue},
 }
 
 // RegisterSchedules 注册定时任务。调度器全局只启一个，跑在 Worker 里。

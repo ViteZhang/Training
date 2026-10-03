@@ -5,11 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
+	"peetraining-server/internal/notify"
 )
 
 // Finalize 在任务的全部文件都结束后整理（第 7–10 步）：按「年份 + 题号」跨文件配答案、提取采分点、打知识点标签、
@@ -179,8 +182,39 @@ func (s *Service) Finalize(ctx context.Context, userID, jobID uint64) error {
 			st = dbq.ImportJobsStatusReviewing
 		}
 	}
-	return s.q.UpdateImportJobStatus(ctx, dbq.UpdateImportJobStatusParams{Status: st, FailReason: reason,
-		FinishedAt: sql.NullTime{Time: s.now().UTC(), Valid: true}, ID: jobID, OwnerUserID: userID})
+	if err := s.q.UpdateImportJobStatus(ctx, dbq.UpdateImportJobStatusParams{Status: st, FailReason: reason,
+		FinishedAt: sql.NullTime{Time: s.now().UTC(), Valid: true}, ID: jobID, OwnerUserID: userID}); err != nil {
+		return err
+	}
+	return s.notifyFinished(ctx, userID, jobID, st)
+}
+
+// notifyFinished 发「题库整理完成」，有待核对的再发「需核对」（2.3）。dedupe_key 按任务去重，任务重试不重复发。
+func (s *Service) notifyFinished(ctx context.Context, userID, jobID uint64, st dbq.ImportJobsStatus) error {
+	id := strconv.FormatUint(jobID, 10)
+	link := notify.Link("import_review", map[string]any{"job_id": jobID})
+	if st == dbq.ImportJobsStatusFailed {
+		return s.q.InsertMessage(ctx, dbq.InsertMessageParams{OwnerUserID: userID, Mtype: dbq.MessagesMtypeImportDone, Title: "资料解析失败",
+			Body: "这次导入的文件都没能解析，可以换清晰的文件或粘贴文字重新导入", Link: notify.Link("import", nil), DedupeKey: sql.NullString{String: "import_done:" + id, Valid: true}})
+	}
+	c, err := s.q.CountImportItems(ctx, dbq.CountImportItemsParams{JobID: jobID, OwnerUserID: userID})
+	if err != nil {
+		return err
+	}
+	body := fmt.Sprintf("识别出 %d 道题、%d 个知识点，确认后就能开始练", c.Questions, c.KnowledgePoints)
+	if c.EssayItems > 0 {
+		body = fmt.Sprintf("识别出 %d 条作文资料，确认后就能开始练", c.EssayItems)
+	}
+	if err := s.q.InsertMessage(ctx, dbq.InsertMessageParams{OwnerUserID: userID, Mtype: dbq.MessagesMtypeImportDone, Title: "题库整理完成", Body: body,
+		Link: link, DedupeKey: sql.NullString{String: "import_done:" + id, Valid: true}}); err != nil {
+		return err
+	}
+	if c.NeedsReview == 0 {
+		return nil
+	}
+	return s.q.InsertMessage(ctx, dbq.InsertMessageParams{OwnerUserID: userID, Mtype: dbq.MessagesMtypeReviewNeeded, Title: "有内容需要核对",
+		Body: fmt.Sprintf("%d 处需要你核对（采分点、答案或识别不清的地方），核对后批改更准", c.NeedsReview), Link: link,
+		DedupeKey: sql.NullString{String: "review_needed:" + id, Valid: true}})
 }
 
 func sameYear(a sql.NullInt16, b *int) bool {

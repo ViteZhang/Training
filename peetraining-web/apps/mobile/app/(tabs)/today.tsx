@@ -4,8 +4,9 @@ import { semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, ErrorState, Loading, ProgressBar, Screen, Tag, Text } from '@/components';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Button, Card, ErrorState, Icon, Loading, ProgressBar, Screen, Tag, Text } from '@/components';
+import { useUnreadCount } from '@/features/messages/api';
 import { isRunning, useActiveImportJobs } from '@/features/import/api';
 import { stageInfo } from '@/features/onboarding/api';
 import { useHome, useTodaySummary } from '@/features/today/api';
@@ -14,11 +15,17 @@ import { StagePromptSheet, TargetSheet } from '@/features/today/Sheets';
 import { api, unwrap } from '@/lib/api';
 
 function Top({ days, stage }: { days?: number; stage?: keyof typeof stageInfo }) {
+  const unread = useUnreadCount().data?.count ?? 0;
   return (
     <View style={styles.top}>
       <Text variant="score">{days ?? '—'}</Text>
       <Text variant="body">天后初试</Text>
       {stage ? <Tag label={stageInfo[stage].name} tone="brand" /> : null}
+      <View style={styles.flex} />
+      <Pressable accessibilityRole="button" accessibilityLabel={unread > 0 ? `消息，${unread} 条未读` : '消息'} onPress={() => router.push('/messages')} style={styles.bell}>
+        <Icon name="bell" />
+        {unread > 0 ? <View style={styles.badge} /> : null}
+      </Pressable>
     </View>
   );
 }
@@ -134,5 +141,8 @@ export default function TodayTab() {
 const styles = StyleSheet.create({
   scroll: { paddingBottom: spacing.xl, gap: spacing.md },
   top: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm, marginTop: spacing.lg },
+  flex: { flex: 1 },
+  bell: { alignSelf: 'center', width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  badge: { position: 'absolute', top: 10, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: semantic.danger },
   card: { gap: spacing.sm },
 });

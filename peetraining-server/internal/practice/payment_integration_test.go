@@ -65,7 +65,7 @@ func paymentFx(t *testing.T, f *fx) (*payment.Service, *pay.Mock) {
 		NotifyBaseURL: "https://x/api/v1", AppleBundleID: "cn.dreamelab.training", Log: logx.New(io.Discard, slog.LevelInfo), Now: func() time.Time { return f.clock }}), m
 }
 
-func notify(m *pay.Mock, orderNo, txn string, cents int64) (http.Header, []byte) {
+func mockNotify(m *pay.Mock, orderNo, txn string, cents int64) (http.Header, []byte) {
 	body := payment.MockBody(orderNo, txn, cents)
 	h := http.Header{}
 	h.Set("X-Mock-Signature", m.Sign(body))
@@ -128,11 +128,11 @@ func TestMockPaymentFlow(t *testing.T) {
 	}
 
 	// 伪造签名、金额不符都不开通。
-	h, body := notify(pay.NewMock("attacker"), o.OrderNo, "TX1", 2990)
+	h, body := mockNotify(pay.NewMock("attacker"), o.OrderNo, "TX1", 2990)
 	if code, _, _ := svc.HandleNotify(ctx, pay.ChannelWechat, body, h); code == http.StatusOK {
 		t.Error("伪造签名的回调应失败")
 	}
-	h, body = notify(m, o.OrderNo, "TX1", 1)
+	h, body = mockNotify(m, o.OrderNo, "TX1", 1)
 	if code, _, _ := svc.HandleNotify(ctx, pay.ChannelWechat, body, h); code == http.StatusOK {
 		t.Error("金额不符应失败")
 	}
@@ -141,7 +141,7 @@ func TestMockPaymentFlow(t *testing.T) {
 	}
 
 	// 回调 → 开通；重复回调不重复开通。
-	h, body = notify(m, o.OrderNo, "TX1", 2990)
+	h, body = mockNotify(m, o.OrderNo, "TX1", 2990)
 	for range 3 {
 		if code, _, b := svc.HandleNotify(ctx, pay.ChannelWechat, body, h); code != http.StatusOK || string(b) != `{"code":"SUCCESS","message":"成功"}` {
 			t.Fatalf("回调应答：%d %s", code, b)
@@ -164,7 +164,7 @@ func TestMockPaymentFlow(t *testing.T) {
 	}
 	// 支付宝渠道的订单收到微信回调：不开通。
 	ali, _ := svc.CreateOrder(ctx, uid, "monthly", pay.ChannelAlipay, "")
-	h, body = notify(m, ali.OrderNo, "TX2", 2990)
+	h, body = mockNotify(m, ali.OrderNo, "TX2", 2990)
 	if code, _, _ := svc.HandleNotify(ctx, pay.ChannelWechat, body, h); code == http.StatusOK {
 		t.Error("渠道不一致应失败")
 	}

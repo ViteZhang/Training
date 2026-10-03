@@ -17,6 +17,7 @@ import (
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/jobs"
 	"peetraining-server/internal/logx"
+	"peetraining-server/internal/notify"
 )
 
 // 下载链接与文件保留时长（PRD 6.4：生成后保存到手机或分享到微信，24 小时后删除）。
@@ -426,8 +427,13 @@ func (s *Service) generate(ctx context.Context, userID uint64, j dbq.ExportJob) 
 		return err
 	}
 	now := s.now().UTC()
-	return s.q.FinishExportJob(ctx, dbq.FinishExportJobParams{ObjectKey: sql.NullString{String: key, Valid: true}, PageEstimate: sql.NullInt32{Int32: int32(d.Pages()), Valid: true},
-		ExpiresAt: sql.NullTime{Time: now.Add(keepFor), Valid: true}, FinishedAt: sql.NullTime{Time: now, Valid: true}, ID: j.ID, OwnerUserID: userID})
+	if err := s.q.FinishExportJob(ctx, dbq.FinishExportJobParams{ObjectKey: sql.NullString{String: key, Valid: true}, PageEstimate: sql.NullInt32{Int32: int32(d.Pages()), Valid: true},
+		ExpiresAt: sql.NullTime{Time: now.Add(keepFor), Valid: true}, FinishedAt: sql.NullTime{Time: now, Valid: true}, ID: j.ID, OwnerUserID: userID}); err != nil {
+		return err
+	}
+	return s.q.InsertMessage(ctx, dbq.InsertMessageParams{OwnerUserID: userID, Mtype: dbq.MessagesMtypeExportReady, Title: "题库导出完成",
+		Body: "导出文件已生成，24 小时内可以下载", Link: notify.Link("export", map[string]any{"job_id": j.ID}),
+		DedupeKey: sql.NullString{String: "export_ready:" + strconv.FormatUint(j.ID, 10), Valid: true}})
 }
 
 // Cleanup 删除 24 小时前生成的导出文件（定时任务，每小时一次）。

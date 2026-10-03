@@ -20,6 +20,7 @@ const paths = {
   lock: <Path d="M6 10h12v10H6zM8 10V7a4 4 0 0 1 8 0v3" />,
   close: <Path d="M6 6l12 12M18 6L6 18" />,
   check: <Path d="M5 12l5 5L20 7" />,
+  bell: <Path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0" />,
 } as const;
 
 export type IconName = keyof typeof paths;

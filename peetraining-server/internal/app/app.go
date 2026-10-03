@@ -36,6 +36,7 @@ import (
 	"peetraining-server/internal/logx"
 	"peetraining-server/internal/material"
 	"peetraining-server/internal/membership"
+	"peetraining-server/internal/notify"
 	"peetraining-server/internal/params"
 	"peetraining-server/internal/payment"
 	"peetraining-server/internal/plan"
@@ -87,6 +88,8 @@ type Base struct {
 	Payment *payment.Service
 	// T26 邀请研友。
 	Invite *invite.Service
+	// T27 消息中心。
+	Notify *notify.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -213,6 +216,7 @@ func (b *Base) Handler() (http.Handler, error) {
 		DevOSS:     b.devOSS(),
 		Payment:    b.Payment,
 		Invite:     b.Invite,
+		Notify:     b.Notify,
 		DevMockPay: b.devMockPay(),
 	})
 }
@@ -277,7 +281,7 @@ func NewWorker(b *Base) (*Worker, error) {
 	if err := jobs.RegisterSchedules(scheduler); err != nil {
 		return nil, fmt.Errorf("注册定时任务：%w", err)
 	}
-	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice, Essay: b.Essay, Export: b.Export}
+	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice, Essay: b.Essay, Export: b.Export, Notify: b.Notify}
 	return &Worker{server: server, scheduler: scheduler, mux: h.Mux()}, nil
 }
 
