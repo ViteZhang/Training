@@ -1,6 +1,6 @@
 // 6.2 提分看板：按专业课切换；预估分趋势（按周）与目标线；失分归因近 30 天三类占比，点击看相关错题；
 // 各板块掌握度 × 用户真题里的分值占比（与 3.8 一致）；「以为会了」列表，可一键加入今日训练；最近整卷与模拟考试成绩。
-// 作文课的五维平均分随作文模块（T23）接入。
+// 作文课显示各维度平均分（T23）。
 import type { Schemas } from '@training/api-client';
 import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
@@ -158,6 +158,26 @@ export default function DashboardPage() {
             <Text variant="bodyStrong">{d.false_mastery.length} 个「以为会了」</Text>
             <Text variant="caption">自评掌握但最近作答正确率偏低：{d.false_mastery.map((k) => k.name).join('、')}</Text>
             <Button title="加入今日训练" kind="secondary" loading={add.isPending} onPress={() => add.mutate()} />
+          </Card>
+        ) : null}
+
+        {d.essay_dims.length > 0 ? (
+          <Card style={styles.gap}>
+            <Text variant="h3">作文各维度平均分</Text>
+            {d.essay_dims.map((x) => (
+              <View key={x.name} style={styles.section}>
+                <View style={styles.row}>
+                  <Text variant="body" style={styles.flex}>
+                    {x.name}
+                  </Text>
+                  <Text variant="bodyStrong">
+                    {x.score} / {x.max}
+                  </Text>
+                </View>
+                <ProgressBar value={x.max ? x.score / x.max : 0} />
+              </View>
+            ))}
+            <Button title="去作文本" kind="text" onPress={() => router.push({ pathname: '/essay/book', params: { subjectId: String(sid) } })} />
           </Card>
         ) : null}
 

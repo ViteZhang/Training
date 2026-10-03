@@ -61,6 +61,7 @@ const dashboard = (over: object = {}) => ({
   sections: [{ id: 1, name: '中国古代文学', share: 0.3, mastery: 38, kp_count: 12 }],
   false_mastery: [{ kp_id: 3, name: '意境' }, { kp_id: 4, name: '典型' }],
   recent_papers: [{ session_id: 90, title: '2023 年真题', kind: 'real_exam', mode: 'mock', score: 98, full_score: 150, counts_for_estimate: true, graded_at: '2026-10-02T08:00:00Z' }],
+  essay_dims: [],
   ...over,
 });
 const subjects = { items: [{ id: 7, name: '语言文学基础', code: '654', full_score: 150, target_score: 115, is_essay: false, bank_id: 1, question_count: 246, kp_count: 58, material_count: 2 },
@@ -158,7 +159,7 @@ describe('6.2 提分看板', () => {
       const last = [...mockCalls].reverse().find((c) => c.path === '/subjects/{subjectId}/dashboard');
       const sid = (last?.init as { params: { path: { subjectId: number } } }).params.path.subjectId;
       return sid === 8
-        ? { status: 200, data: dashboard({ estimate: { subject_id: 8, name: '作文', is_essay: true, full_score: 150, ready: false }, trend: [], loss_points: { knowledge: 0, norm: 0, time: 0 }, loss_shares: { knowledge: 0, norm: 0, time: 0 }, sections: [], sections_ready: false, false_mastery: [], recent_papers: [] }) }
+        ? { status: 200, data: dashboard({ estimate: { subject_id: 8, name: '作文', is_essay: true, full_score: 150, ready: false }, trend: [], loss_points: { knowledge: 0, norm: 0, time: 0 }, loss_shares: { knowledge: 0, norm: 0, time: 0 }, sections: [], sections_ready: false, false_mastery: [], recent_papers: [], essay_dims: [{ name: '立意', score: 22, max: 30 }] }) }
         : { status: 200, data: dashboard() };
     };
     const r = await wrap(<DashboardPage />);
@@ -166,6 +167,8 @@ describe('6.2 提分看板', () => {
     await fireEvent.press(screen.getByText('908 作文'));
     expect(await screen.findByText('做完一套导入的真题卷后生成预估分，AI 组卷的成绩不计入')).toBeTruthy();
     expect(screen.getByText('近 30 天还没有主观题批改，做几道主观题后显示')).toBeTruthy();
+    expect(screen.getByText('作文各维度平均分')).toBeTruthy();
+    expect(screen.getByText('22 / 30')).toBeTruthy();
     await fireEvent.press(screen.getByText('去做整卷'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/paper/list', params: { subjectId: '8' } });
     await r.unmount();
