@@ -20,7 +20,8 @@ import (
 
 // fill 在题库不够时让 AI 按资料里的知识点出变式题（PRD 模块 4），一律标 AI 出题并记录依据的知识点与资料页。
 // 每题扣 1 次 AI 出题额度，额度用完或出题失败就停，少出的题算缺题，不报错。
-func (s *Service) fill(ctx context.Context, userID uint64, b dbq.GetSubjectBankRow, c Config, n int, kps map[uint64]dbq.ListBankKPsFullRow, r *rand.Rand) ([]uint64, error) {
+// charge 为 false 时不扣 AI 出题额度（AI 组卷补足的变式题计入整卷额度，PRD 11.10）。
+func (s *Service) fill(ctx context.Context, userID uint64, b dbq.GetSubjectBankRow, c Config, n int, kps map[uint64]dbq.ListBankKPsFullRow, r *rand.Rand, charge bool) ([]uint64, error) {
 	var cands []dbq.ListBankKPsFullRow
 	for _, k := range kps {
 		// 只基于用户确认过的知识点出题（PRD 12.1：变式题只基于用户确认的内容）。
@@ -53,7 +54,7 @@ func (s *Service) fill(ctx context.Context, userID uint64, b dbq.GetSubjectBankR
 		if qt == "essay" || qt == "calculation" || qt == "other" || qt == "fill_blank" {
 			qt = "term"
 		}
-		id, err := s.generate(ctx, userID, b, k.ID, qt)
+		id, err := s.generate(ctx, userID, b, k.ID, qt, charge)
 		if errors.Is(err, errNoSource) {
 			continue
 		}
@@ -94,11 +95,13 @@ func under(k dbq.ListBankKPsFullRow, sections []uint64, kps map[uint64]dbq.ListB
 	return false
 }
 
-func (s *Service) generate(ctx context.Context, userID uint64, b dbq.GetSubjectBankRow, kpID uint64, qtype string) (uint64, error) {
-	if left, err := s.quota.Remaining(ctx, userID, quota.AIQuestions); err != nil {
-		return 0, err
-	} else if left != nil && *left <= 0 {
-		return 0, apperr.New(apperr.QuotaExceeded, "AI 出题次数用完了")
+func (s *Service) generate(ctx context.Context, userID uint64, b dbq.GetSubjectBankRow, kpID uint64, qtype string, charge bool) (uint64, error) {
+	if charge {
+		if left, err := s.quota.Remaining(ctx, userID, quota.AIQuestions); err != nil {
+			return 0, err
+		} else if left != nil && *left <= 0 {
+			return 0, apperr.New(apperr.QuotaExceeded, "AI 出题次数用完了")
+		}
 	}
 	kp, err := s.q.GetKP(ctx, dbq.GetKPParams{ID: kpID, OwnerUserID: owner(userID)})
 	if err != nil {
@@ -138,6 +141,9 @@ func (s *Service) generate(ctx context.Context, userID uint64, b dbq.GetSubjectB
 		}
 		if err := q.InsertQuestionKP(ctx, dbq.InsertQuestionKPParams{QuestionID: id, KpID: kpID, IsPrimary: true, OwnerUserID: owner(userID)}); err != nil {
 			return err
+		}
+		if !charge {
+			return nil
 		}
 		return s.quota.Consume(ctx, q, quota.Charge{UserID: userID, Type: quota.AIQuestions, Amount: 1, Ref: quota.Ref{Type: "question", ID: id}, Key: quota.KeyFor("ai_question", id)})
 	})

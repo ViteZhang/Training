@@ -83,7 +83,8 @@ func setup(t *testing.T) *fx {
 	pl := plan.New(plan.Deps{DB: db, Params: ps, Profile: f.prof, Bank: bk, Now: now})
 	f.oss, f.asr, f.flags, f.plan = o, asr.NewMock(), flags.New(q), pl
 	f.pr = practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: o, OCR: ocr.NewMock(), Moderation: moderation.NewMock(),
-		ASR: f.asr, Flags: f.flags, Now: now})
+		ASR: f.asr, Flags: f.flags, Queue: queue, Now: now})
+	queue.h.Paper = f.pr
 	return f
 }
 

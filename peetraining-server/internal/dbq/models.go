@@ -6156,6 +6156,8 @@ type PaperSession struct {
 	// 整卷报告与时间分析快照（4.24、4.25）
 	Report         dbtypes.NullJSON
 	IdempotencyKey sql.NullString
+	PausedAt       sql.NullTime
+	QuotaPeriod    sql.NullString
 }
 
 // 整卷里每道题的作答状态与用时（4.22 答题卡）

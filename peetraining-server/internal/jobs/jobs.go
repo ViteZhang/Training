@@ -35,6 +35,8 @@ const (
 	TypeImportFile    = "import:material"
 	TypeImportFinish  = "import:finalize"
 	TypeDailyPlan     = "plan:daily"
+	TypePaperGrade    = "paper:grade"
+	TypePaperDeadline = "paper:deadline"
 )
 
 // PingPayload 用于检查「API 入队 → Worker 执行」整条链路。
@@ -107,6 +109,39 @@ type Handlers struct {
 	Permanent IsPermanent
 	Import    Importer
 	Plan      PlanGenerator
+	Paper     PaperGrader
+}
+
+// PaperGrader 是整卷的后台任务（practice.Service 实现）：交卷后按采分点逐题批改主观题；模拟考试到截止时间自动交卷。
+type PaperGrader interface {
+	GradePaper(ctx context.Context, userID, sessionID uint64) error
+	AutoSubmitPaper(ctx context.Context, userID, sessionID uint64) error
+}
+
+// PaperPayload 指定一次整卷作答。
+type PaperPayload struct {
+	UserID    uint64 `json:"user_id"`
+	SessionID uint64 `json:"session_id"`
+}
+
+// NewPaperGradeTask 创建整卷批改任务（约 2 分钟，用户在等，放 critical 队列）。同一次交卷只排一个。
+func NewPaperGradeTask(userID, sessionID uint64) (*asynq.Task, error) {
+	b, err := json.Marshal(PaperPayload{UserID: userID, SessionID: sessionID})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TypePaperGrade, b, asynq.Queue(QueueCritical), asynq.MaxRetry(3), asynq.Timeout(20*time.Minute),
+		asynq.TaskID(fmt.Sprintf("%s:%d", TypePaperGrade, sessionID))), nil
+}
+
+// NewPaperDeadlineTask 创建模拟考试到点自动交卷的任务，在截止时间执行（恢复中断后截止时间变了，用新的时间再排一个）。
+func NewPaperDeadlineTask(userID, sessionID uint64, deadline time.Time) (*asynq.Task, error) {
+	b, err := json.Marshal(PaperPayload{UserID: userID, SessionID: sessionID})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TypePaperDeadline, b, asynq.Queue(QueueCritical), asynq.MaxRetry(5), asynq.Timeout(time.Minute),
+		asynq.ProcessAt(deadline), asynq.TaskID(fmt.Sprintf("%s:%d:%d", TypePaperDeadline, sessionID, deadline.Unix()))), nil
 }
 
 // PlanGenerator 给所有用户生成今天的计划（plan.Service 实现）。
@@ -140,6 +175,8 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 	mux.HandleFunc(TypeImportFile, h.handleImportFile)
 	mux.HandleFunc(TypeImportFinish, h.handleImportFinish)
 	mux.HandleFunc(TypeDailyPlan, h.handleDailyPlan)
+	mux.HandleFunc(TypePaperGrade, h.handlePaperGrade)
+	mux.HandleFunc(TypePaperDeadline, h.handlePaperDeadline)
 	return mux
 }
 
@@ -218,6 +255,22 @@ func (h *Handlers) handleDailyPlan(ctx context.Context, _ *asynq.Task) error {
 	n, err := h.Plan.GenerateAll(ctx, 200)
 	logx.From(ctx).Info("daily plans generated", "users", n)
 	return err
+}
+
+func (h *Handlers) handlePaperGrade(ctx context.Context, t *asynq.Task) error {
+	var p PaperPayload
+	if err := json.Unmarshal(t.Payload(), &p); err != nil {
+		return fmt.Errorf("解析整卷载荷：%w", errors.Join(err, asynq.SkipRetry))
+	}
+	return h.Paper.GradePaper(ctx, p.UserID, p.SessionID)
+}
+
+func (h *Handlers) handlePaperDeadline(ctx context.Context, t *asynq.Task) error {
+	var p PaperPayload
+	if err := json.Unmarshal(t.Payload(), &p); err != nil {
+		return fmt.Errorf("解析整卷载荷：%w", errors.Join(err, asynq.SkipRetry))
+	}
+	return h.Paper.AutoSubmitPaper(ctx, p.UserID, p.SessionID)
 }
 
 // lastAttempt 报告这是不是最后一次重试（重试用完后 Asynq 不再执行，需要把状态收尾）。

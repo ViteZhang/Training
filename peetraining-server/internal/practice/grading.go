@@ -162,8 +162,17 @@ func (s *Service) grade(ctx context.Context, userID uint64, subject string, qr d
 	return ai.Grade.Run(ctx, s.ai, userID, ai.GradeIn{Subject: subject, QType: string(qr.Qtype), Stem: qr.Stem, Reference: snap.Reference, Points: snap.Points, Answer: answer})
 }
 
+// lossTiming 是判定「时间不够」用的作答情况：只在限时作答与模拟考试中判定（PRD 11.7）。
+type lossTiming struct {
+	Timed, Unanswered bool
+	// Position 是题目在试卷中的相对位置 0–1；单题限时作答为 0。
+	Position         float64
+	SpentSeconds     float64
+	SuggestedSeconds float64
+}
+
 // diagnose 按失分分值归入三类（PRD 11.7）。kpM 是批改前主知识点的掌握分。返回各类失分与主要失分类型。
-func diagnose(snap rubricSnap, out ai.GradeOut, kpM float64, kpName string, timed, unanswered bool, p rules.Params) ([]LossItem, string) {
+func diagnose(snap rubricSnap, out ai.GradeOut, kpM float64, kpName string, tm lossTiming, p rules.Params) ([]LossItem, string) {
 	var inputs []rules.LossInput
 	missed := 0
 	for i, r := range out.Points {
@@ -172,7 +181,7 @@ func diagnose(snap rubricSnap, out ai.GradeOut, kpM float64, kpName string, time
 			missed++
 		}
 		inputs = append(inputs, rules.LossInput{LostScore: lost, MissedOrPartial: r.Verdict != "hit", StructureLacking: !out.StructureOK,
-			KPM: kpM, Timed: timed, Unanswered: unanswered})
+			KPM: kpM, Timed: tm.Timed, Unanswered: tm.Unanswered, Position: tm.Position, TimeSpentSeconds: tm.SpentSeconds, SuggestedSeconds: tm.SuggestedSeconds})
 	}
 	agg := rules.AggregateLoss(inputs, p.LossDiagnosis)
 	reasons := map[rules.LossType]string{
@@ -342,7 +351,7 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 	if err != nil {
 		return Grading{}, err
 	}
-	loss, mainLoss := diagnose(snap, out, kpM, kpName, in.Timed, false, p)
+	loss, mainLoss := diagnose(snap, out, kpM, kpName, lossTiming{Timed: in.Timed}, p)
 	total := out.Total()
 	var gid int64
 	err = s.withTx(ctx, func(q *dbq.Queries) error {
@@ -503,7 +512,7 @@ func (s *Service) regrade(ctx context.Context, userID uint64, old Grading, trigg
 	if err != nil {
 		return Grading{}, err
 	}
-	loss, _ := diagnose(snap, out, kpM, kpName, g.Timed, false, p)
+	loss, _ := diagnose(snap, out, kpM, kpName, lossTiming{Timed: g.Timed}, p)
 	snapJSON, _ := json.Marshal(snap)
 	oldRate := *old.Score / old.FullScore
 	newRate := out.Total() / snap.FullScore
@@ -653,7 +662,7 @@ func (s *Service) SubmitPending(ctx context.Context, userID uint64) ([]Grading, 
 		if err != nil {
 			continue
 		}
-		loss, mainLoss := diagnose(snap, out, kpM, kpName, g.Timed, false, p)
+		loss, mainLoss := diagnose(snap, out, kpM, kpName, lossTiming{Timed: g.Timed}, p)
 		snapJSON, _ := json.Marshal(snap)
 		err = s.withTx(ctx, func(q *dbq.Queries) error {
 			eff, err := Apply(ctx, q, p, userID, qr.ID, Outcome{Graded: true, ScoreRate: out.Total() / snap.FullScore, LossType: mainLoss}, s.today())
