@@ -138,24 +138,11 @@ func (s *Service) ExamProfile(ctx context.Context, userID, subjectID uint64) (Ex
 	}
 
 	// 板块占比、掌握度与缺资料提醒。
-	sectionKPs := map[uint64][]float64{}
-	for _, k := range ix.rows {
-		if k.Level == dbq.KnowledgePointsLevelPoint {
-			sec := ix.section(k.ID)
-			sectionKPs[sec] = append(sectionKPs[sec], m(k.M))
-		}
-	}
+	out.Sections = st.sectionShares(p)
 	var coverage []rules.SectionCoverage
-	for _, k := range ix.rows {
-		if k.Level != dbq.KnowledgePointsLevelSection {
-			continue
-		}
-		avg, _ := rules.SectionMastery(sectionKPs[k.ID], p.MasteryState)
-		sh := SectionShare{ID: k.ID, Name: k.Name, Share: prof.SectionShares[int64(k.ID)], Mastery: avg, KPCount: len(sectionKPs[k.ID])}
-		out.Sections = append(out.Sections, sh)
-		coverage = append(coverage, rules.SectionCoverage{SectionID: int64(k.ID), Share: sh.Share, KPCount: sh.KPCount, Mastery: avg})
+	for _, sh := range out.Sections {
+		coverage = append(coverage, rules.SectionCoverage{SectionID: int64(sh.ID), Share: sh.Share, KPCount: sh.KPCount, Mastery: sh.Mastery})
 	}
-	sort.SliceStable(out.Sections, func(i, j int) bool { return out.Sections[i].Share > out.Sections[j].Share })
 	missing := map[int64]bool{}
 	for _, id := range rules.MissingMaterialSections(coverage, p.ExamProfile) {
 		missing[id] = true
@@ -181,6 +168,44 @@ func (s *Service) ExamProfile(ctx context.Context, userID, subjectID uint64) (Ex
 	}
 	out.StyleTags, err = s.examStyle(ctx, userID, b, qs)
 	return out, err
+}
+
+// sectionShares 是各板块的真题分值占比与掌握度（3.8 与提分看板共用），按占比从高到低。
+func (e ExamStats) sectionShares(p rules.Params) []SectionShare {
+	sectionKPs := map[uint64][]float64{}
+	for _, k := range e.index.rows {
+		if k.Level == dbq.KnowledgePointsLevelPoint {
+			sec := e.index.section(k.ID)
+			sectionKPs[sec] = append(sectionKPs[sec], m(k.M))
+		}
+	}
+	var out []SectionShare
+	for _, k := range e.index.rows {
+		if k.Level != dbq.KnowledgePointsLevelSection {
+			continue
+		}
+		avg, _ := rules.SectionMastery(sectionKPs[k.ID], p.MasteryState)
+		out = append(out, SectionShare{ID: k.ID, Name: k.Name, Share: e.Profile.SectionShares[int64(k.ID)], Mastery: avg, KPCount: len(sectionKPs[k.ID])})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Share > out[j].Share })
+	return out
+}
+
+// Sections 返回一门课各板块的掌握度与真题分值占比（6.2 提分看板，与 3.8 一致）；ready 为 false 时真题不足，占比不展示。
+func (s *Service) Sections(ctx context.Context, userID, subjectID uint64) ([]SectionShare, bool, error) {
+	b, err := s.subject(ctx, userID, subjectID)
+	if err != nil {
+		return nil, false, err
+	}
+	p, err := s.params.Rules(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	st, err := s.examStats(ctx, userID, b.BankID, p)
+	if err != nil {
+		return nil, false, err
+	}
+	return st.sectionShares(p), st.Profile.Ready, nil
 }
 
 // ExamStats 是一门课的真题统计（PRD 11.11），供考情分析与今日计划共用。

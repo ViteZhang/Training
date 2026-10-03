@@ -14,6 +14,7 @@ import (
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/dbtypes"
+	"peetraining-server/internal/logx"
 	"peetraining-server/internal/quota"
 	"peetraining-server/internal/rules"
 )
@@ -559,7 +560,14 @@ func (s *Service) RegradeAfterRubricChange(ctx context.Context, userID, gradingI
 	if !old.RubricChanged {
 		return Grading{}, apperr.New(apperr.Conflict, "采分点没有改过，先去改采分点")
 	}
-	return s.regrade(ctx, userID, old, dbq.GradingsTriggerReasonRubricChanged, nil)
+	g, err := s.regrade(ctx, userID, old, dbq.GradingsTriggerReasonRubricChanged, nil)
+	if err == nil && s.score != nil {
+		// 改采分点重批后重算预估分（PRD 11.6）；失败只记日志。
+		if err := s.score.RecomputeForQuestion(ctx, userID, old.QuestionID, "rubric_changed"); err != nil {
+			logx.From(ctx).Warn("recompute estimate", "err", err, "grading_id", gradingID)
+		}
+	}
+	return g, err
 }
 
 // DisputeInput 是批改异议（4.8）。

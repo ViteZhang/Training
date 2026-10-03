@@ -56,6 +56,29 @@ func Overtime(actualMinutes, suggestedMinutes float64, p PaperTimeParams) bool {
 	return actualMinutes > suggestedMinutes*(1+p.OvertimeRatio)
 }
 
+// TimeStatus 是某题型实际用时与建议用时的对比（4.25）：超过建议 20% 为超时，少于建议 20% 为少用，其余为正常。
+type TimeStatus string
+
+const (
+	TimeOK       TimeStatus = "ok"
+	TimeOvertime TimeStatus = "overtime"
+	TimeUnder    TimeStatus = "under"
+)
+
+// CompareTime 按 PRD 11.9 的超时比例标出超时与少用（少用用同一比例，见 open-questions D22）。
+func CompareTime(actualMinutes, suggestedMinutes float64, p PaperTimeParams) TimeStatus {
+	switch {
+	case suggestedMinutes <= 0:
+		return TimeOK
+	case Overtime(actualMinutes, suggestedMinutes, p):
+		return TimeOvertime
+	case actualMinutes < suggestedMinutes*(1-p.OvertimeRatio):
+		return TimeUnder
+	default:
+		return TimeOK
+	}
+}
+
 // UnansweredQuestion 是一道未作答题。
 type UnansweredQuestion struct {
 	QType     QType

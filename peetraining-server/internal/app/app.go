@@ -35,6 +35,7 @@ import (
 	"peetraining-server/internal/practice"
 	"peetraining-server/internal/profile"
 	"peetraining-server/internal/quota"
+	"peetraining-server/internal/score"
 	"peetraining-server/internal/store"
 )
 
@@ -69,6 +70,7 @@ type Base struct {
 	Bank     *bank.Service
 	Plan     *plan.Service
 	Practice *practice.Service
+	Score    *score.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -108,6 +110,13 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	imp := importer.New(importer.Deps{DB: db, Material: mat, Quota: qs, AI: engine, Queue: queue})
 	// 确认入库后立即重排今日计划（PRD 1.8）。
 	imp.AfterConfirm = func(ctx context.Context, userID, _ uint64) bool { return pl.Regenerate(ctx, userID) }
+	sc := score.New(score.Deps{DB: db, Params: ps, Profile: prof, Bank: bk, Plan: pl})
+	// 删除资料不删除整卷成绩，但会触发预估分重算（PRD 11.6）；失败只记日志。
+	mat.OnDeleted = func(ctx context.Context, userID, subjectID uint64) {
+		if err := sc.Recompute(ctx, userID, subjectID, "material_deleted"); err != nil {
+			log.Warn("recompute estimate", "err", err)
+		}
+	}
 	return &Base{
 		Config: cfg,
 		Logger: log,
@@ -129,7 +138,8 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 		Importer: imp,
 		Bank:     bk,
 		Plan:     pl,
-		Practice: practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: clients.OSS, OCR: clients.OCR, Moderation: clients.Moderation, ASR: clients.ASR, Flags: fl, Queue: queue}),
+		Practice: practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: clients.OSS, OCR: clients.OCR, Moderation: clients.Moderation, ASR: clients.ASR, Flags: fl, Queue: queue, Score: sc}),
+		Score:    sc,
 	}, nil
 }
 
@@ -168,6 +178,7 @@ func (b *Base) Handler() (http.Handler, error) {
 		Bank:     b.Bank,
 		Plan:     b.Plan,
 		Practice: b.Practice,
+		Score:    b.Score,
 		DevOSS:   b.devOSS(),
 	})
 }
