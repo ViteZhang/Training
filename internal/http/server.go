@@ -25,6 +25,7 @@ import (
 	"peetraining-server/internal/material"
 	"peetraining-server/internal/membership"
 	"peetraining-server/internal/notify"
+	"peetraining-server/internal/official"
 	"peetraining-server/internal/payment"
 	"peetraining-server/internal/plan"
 	"peetraining-server/internal/practice"
@@ -71,6 +72,8 @@ type Deps struct {
 	Notify *notify.Service
 	// T28 管理后台。
 	Admin *admin.Service
+	// T30 官方题库。
+	Official *official.Service
 	// DevMockPay 为 true 时注册本地「模拟支付成功」入口 POST /dev/pay/mock/:orderNo（只在非生产环境、mock 渠道）。
 	DevMockPay bool
 	// DevOSS 不为空时注册本地 mock OSS 的直传入口 PUT /dev/oss/*key（只在非生产环境）。

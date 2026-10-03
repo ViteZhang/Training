@@ -2665,6 +2665,61 @@ func AllMessagesMtypeValues() []MessagesMtype {
 	}
 }
 
+type OfficialDemandMarksStatus string
+
+const (
+	OfficialDemandMarksStatusUnplanned OfficialDemandMarksStatus = "unplanned"
+)
+
+func (e *OfficialDemandMarksStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialDemandMarksStatus(s)
+	case string:
+		*e = OfficialDemandMarksStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialDemandMarksStatus: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialDemandMarksStatus struct {
+	OfficialDemandMarksStatus OfficialDemandMarksStatus
+	Valid                     bool // Valid is true if OfficialDemandMarksStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialDemandMarksStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialDemandMarksStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialDemandMarksStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialDemandMarksStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialDemandMarksStatus), nil
+}
+
+func (e OfficialDemandMarksStatus) Valid() bool {
+	switch e {
+	case OfficialDemandMarksStatusUnplanned:
+		return true
+	}
+	return false
+}
+
+func AllOfficialDemandMarksStatusValues() []OfficialDemandMarksStatus {
+	return []OfficialDemandMarksStatus{
+		OfficialDemandMarksStatusUnplanned,
+	}
+}
+
 type OfficialDraftsChangeType string
 
 const (
@@ -5924,6 +5979,10 @@ type KnowledgePoint struct {
 	SortOrder    uint32
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	// 用户副本：上次同步时官方内容的哈希
+	OfficialHash sql.NullString
+	// 新版本新增的知识点在此之前标「新」
+	OfficialNewUntil sql.NullTime
 }
 
 // 知识点掌握度与复习排期
@@ -6062,6 +6121,14 @@ type ModelEssay struct {
 	CreatedAt        time.Time
 }
 
+// 7.10 标为未规划的专业课
+type OfficialDemandMark struct {
+	SubjectCode string
+	Status      OfficialDemandMarksStatus
+	MarkedBy    sql.NullInt64
+	MarkedAt    time.Time
+}
+
 // 官方内容草稿（7.12）
 type OfficialDraft struct {
 	ID         uint64
@@ -6069,12 +6136,14 @@ type OfficialDraft struct {
 	EditorID   uint64
 	EntityType OfficialDraftsEntityType
 	// 修订已有条目时指向它
-	EntityID   sql.NullInt64
-	ChangeType OfficialDraftsChangeType
-	Payload    json.RawMessage
-	Status     OfficialDraftsStatus
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	EntityID     sql.NullInt64
+	ChangeType   OfficialDraftsChangeType
+	Payload      json.RawMessage
+	Status       OfficialDraftsStatus
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	SubmittedAt  sql.NullTime
+	RejectReason sql.NullString
 }
 
 // 官方题库立项（7.11）
@@ -6104,6 +6173,8 @@ type OfficialVersion struct {
 	PublishedBy  uint64
 	PublishedAt  time.Time
 	RolledBackAt sql.NullTime
+	// 回滚用：发布前被改动条目的原内容
+	Snapshot dbtypes.NullJSON
 }
 
 // 订单（支付开关打开后使用）
@@ -6270,6 +6341,8 @@ type Question struct {
 	UpdatedAt          time.Time
 	// 作文要求字数
 	RequiredWords sql.NullInt16
+	// 用户副本：上次同步时官方内容的哈希
+	OfficialHash sql.NullString
 }
 
 // 题目与知识点多对多
@@ -6399,9 +6472,10 @@ type ReviewTask struct {
 	Mode     ReviewTasksMode
 	Decision ReviewTasksDecision
 	// 退回必须填原因
-	Reason    sql.NullString
-	CreatedAt time.Time
-	DecidedAt sql.NullTime
+	Reason        sql.NullString
+	CreatedAt     time.Time
+	DecidedAt     sql.NullTime
+	EditedPayload dbtypes.NullJSON
 }
 
 // 采分点：当前版本；历史版本以快照存在批改记录里

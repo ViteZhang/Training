@@ -47,6 +47,7 @@ func toNodes(ns []*bank.Node) []gen.KnowledgeNode {
 		if n.Level == "point" {
 			st := gen.MasteryState(n.State)
 			g.State, g.ExamCount, g.NeedsReview = &st, &n.ExamCount, &n.NeedsReview
+			g.Official, g.IsNew = &n.Official, &n.IsNew
 		} else {
 			g.KpCount, g.ConsolidatingCount = &n.KPCount, &n.Consolidating
 		}

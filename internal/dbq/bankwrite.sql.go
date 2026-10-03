@@ -54,7 +54,7 @@ func (q *Queries) FindKPByName(ctx context.Context, arg FindKPByNameParams) (uin
 }
 
 const getBankKP = `-- name: GetBankKP :one
-SELECT id, owner_user_id, bank_id, parent_id, level, name, original_text, source_material_id, source_page, origin, needs_review, ai_explanation, ai_explanation_at, exam_count, official_kp_id, sort_order, created_at, updated_at FROM knowledge_points WHERE id = ? AND bank_id = ? AND owner_user_id = ?
+SELECT id, owner_user_id, bank_id, parent_id, level, name, original_text, source_material_id, source_page, origin, needs_review, ai_explanation, ai_explanation_at, exam_count, official_kp_id, sort_order, created_at, updated_at, official_hash, official_new_until FROM knowledge_points WHERE id = ? AND bank_id = ? AND owner_user_id = ?
 `
 
 type GetBankKPParams struct {
@@ -85,6 +85,8 @@ func (q *Queries) GetBankKP(ctx context.Context, arg GetBankKPParams) (Knowledge
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OfficialHash,
+		&i.OfficialNewUntil,
 	)
 	return i, err
 }

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.16.0
+  version: 0.17.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -24,6 +24,7 @@ info:
     - api-v0.14：消息中心 2.3（T27）
     - api-v0.15：管理后台运营与质量 7.1–7.7、后台账号与两步验证（T28）
     - api-v0.16：管理后台配置与系统 7.8、7.9、7.15（T29）
+    - api-v0.17：官方题库 7.10–7.14 与 App 添加官方题库（T30）
     - 其余模块随对应任务卡增量加入，10/11 冻结 api-v1.0
 servers:
   - url: /api/v1
@@ -4639,6 +4640,742 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /official-banks:
+    get:
+      tags:
+      - bank
+      operationId: listOfficialBanks
+      summary: 可添加的官方题库（题库页「添加官方题库」）
+      description: 受 official_bank 开关控制，关闭时返回 404。suggested_subject_id 是专业课代码相同、建议添加到的专业课。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OfficialBank'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /official-banks/{bankId}/subscription:
+    put:
+      tags:
+      - bank
+      operationId: subscribeOfficialBank
+      summary: 添加官方题库到一门专业课
+      description: 官方知识点与题目复制进这门课的题库（标「官方」），同名知识点只建立对应关系、保留你自己的表述。之后官方更新时没改过的内容跟着更新，改过的不覆盖。
+      parameters:
+      - name: bankId
+        in: path
+        required: true
+        schema: &id001
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - subject_id
+              properties:
+                subject_id: *id001
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags:
+      - bank
+      operationId: unsubscribeOfficialBank
+      summary: 移除官方题库
+      description: 没改过的官方内容连同练习记录一起删除；改过的保留为你自己的内容。
+      parameters:
+      - name: bankId
+        in: path
+        required: true
+        schema: *id001
+      responses:
+        '204':
+          description: 完成
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/demand:
+    get:
+      tags:
+      - admin
+      operationId: listAdminDemand
+      summary: 7.10 需求洞察（按专业课代码统计自建用户）
+      x-roles:
+      - content_lead
+      - analyst
+      security:
+      - adminAuth: []
+      description: 只有计数，不含任何用户资料内容。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminDemand'
+  /admin/demand/{subjectCode}:
+    put:
+      tags:
+      - admin
+      operationId: markAdminDemand
+      summary: 标为未规划 / 取消标记
+      x-roles: &id002
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: subjectCode
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 32
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - unplanned
+              properties:
+                unplanned: &id005
+                  type: boolean
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /admin/official/projects:
+    get:
+      tags:
+      - admin
+      operationId: listOfficialProjects
+      summary: 7.11 官方题库项目
+      x-roles:
+      - content_lead
+      - content_editor
+      - analyst
+      security:
+      - adminAuth: []
+      description: 内容编辑只看到分配给自己的项目。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminOfficialProject'
+    post:
+      tags:
+      - admin
+      operationId: createOfficialProject
+      summary: 立项
+      x-roles: *id002
+      security:
+      - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - school
+              - major
+              - subject_code
+              - subject_name
+              properties:
+                school:
+                  type: string
+                  maxLength: 64
+                major:
+                  type: string
+                  maxLength: 64
+                subject_code:
+                  type: string
+                  maxLength: 32
+                subject_name:
+                  type: string
+                  maxLength: 64
+                editor_ids:
+                  type: array
+                  items: *id001
+                  maxItems: 50
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOfficialProject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /admin/official/projects/{projectId}:
+    get:
+      tags:
+      - admin
+      operationId: getOfficialProject
+      summary: 项目详情
+      x-roles:
+      - content_lead
+      - content_editor
+      - analyst
+      security:
+      - adminAuth: []
+      parameters:
+      - &id003
+        name: projectId
+        in: path
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOfficialProject'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+      - admin
+      operationId: updateOfficialProject
+      summary: 分配编辑、授权资料清单、推进阶段
+      x-roles: *id002
+      security:
+      - adminAuth: []
+      description: 授权资料须注明已获授权或公开真题；「发布上线」只能由版本发布设置。
+      parameters:
+      - *id003
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - editor_ids
+              - materials
+              - stage
+              properties:
+                editor_ids:
+                  type: array
+                  items: *id001
+                  maxItems: 50
+                materials:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OfficialMaterial'
+                  maxItems: 200
+                stage:
+                  $ref: '#/components/schemas/OfficialStage'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOfficialProject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/official/projects/{projectId}/items:
+    get:
+      tags:
+      - admin
+      operationId: listOfficialItems
+      summary: 官方题库当前的知识点与题目
+      x-roles: &id004
+      - content_lead
+      - content_editor
+      security:
+      - adminAuth: []
+      parameters:
+      - *id003
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OfficialItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/official/projects/{projectId}/kp-candidates:
+    post:
+      tags:
+      - admin
+      operationId: extractOfficialKPs
+      summary: 7.12 AI 从资料原文拆知识点，并与现有知识点树对齐
+      x-roles: *id004
+      security:
+      - adminAuth: []
+      description: alignment：new 新增 / supplement 同名同表述（补充来源）/ differ 同名不同表述（选以哪个为准）。
+      parameters:
+      - *id003
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - text
+              properties:
+                text:
+                  type: string
+                  minLength: 10
+                  maxLength: 20000
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OfficialCandidate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/official/rubric-candidates:
+    post:
+      tags:
+      - admin
+      operationId: extractOfficialRubric
+      summary: 7.12 AI 从参考答案提采分点
+      x-roles: *id004
+      security:
+      - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - qtype
+              - stem
+              - answer
+              properties:
+                qtype:
+                  $ref: '#/components/schemas/QuestionType'
+                stem:
+                  type: string
+                  maxLength: 5000
+                answer:
+                  type: string
+                  maxLength: 10000
+                score:
+                  type: number
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OfficialPoint'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /admin/official/projects/{projectId}/drafts:
+    get:
+      tags:
+      - admin
+      operationId: listOfficialDrafts
+      summary: 草稿与提交记录
+      x-roles: *id004
+      security:
+      - adminAuth: []
+      parameters:
+      - *id003
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - draft
+          - submitted
+          - approved
+          - rejected
+          - published
+      - name: mine
+        in: query
+        required: false
+        schema: *id005
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OfficialDraft'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+      - admin
+      operationId: createOfficialDraft
+      summary: 新建草稿
+      x-roles: *id004
+      security:
+      - adminAuth: []
+      description: payload：知识点 {section, chapter, name, original_text, rubric[]}；题目 {qtype, stem, options, answer, analysis, score, exam_year, kp_names, rubric[]}。暂只支持新增、修订、下线（题目）。
+      parameters:
+      - *id003
+      requestBody: &id006
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - entity_type
+              - change_type
+              - payload
+              properties:
+                entity_type:
+                  type: string
+                  enum:
+                  - knowledge_point
+                  - question
+                change_type:
+                  type: string
+                  enum:
+                  - add
+                  - revise
+                  - offline
+                entity_id: *id001
+                payload: &id008
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfficialDraft'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/official/projects/{projectId}/drafts/{draftId}:
+    put:
+      tags:
+      - admin
+      operationId: updateOfficialDraft
+      summary: 修改自己的草稿或被退回的
+      x-roles: *id004
+      security:
+      - adminAuth: []
+      parameters:
+      - *id003
+      - &id007
+        name: draftId
+        in: path
+        required: true
+        schema: *id001
+      requestBody: *id006
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfficialDraft'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags:
+      - admin
+      operationId: deleteOfficialDraft
+      summary: 删除自己的草稿
+      x-roles: *id004
+      security:
+      - adminAuth: []
+      parameters:
+      - *id003
+      - *id007
+      responses:
+        '204':
+          description: 完成
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/official/projects/{projectId}/drafts/{draftId}/submit:
+    post:
+      tags:
+      - admin
+      operationId: submitOfficialDraft
+      summary: 提交审核
+      x-roles: *id004
+      security:
+      - adminAuth: []
+      description: 新编辑前 3 次全量审核，之后 30% 抽检；未抽中的直接通过（mode = skipped）。
+      parameters:
+      - *id003
+      - *id007
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfficialSubmitResult'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/official/reviews:
+    get:
+      tags:
+      - admin
+      operationId: listOfficialReviews
+      summary: 7.13 审核队列
+      x-roles: *id002
+      security:
+      - adminAuth: []
+      parameters:
+      - name: project_id
+        in: query
+        required: false
+        schema: *id001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OfficialReview'
+  /admin/official/reviews/{reviewId}:
+    post:
+      tags:
+      - admin
+      operationId: decideOfficialReview
+      summary: 审核：通过、退回、修改后通过
+      x-roles: *id002
+      security:
+      - adminAuth: []
+      description: 退回必须填原因；修改后通过要带 edited_payload；不能审核自己提交的。
+      parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema: *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - decision
+              properties:
+                decision:
+                  type: string
+                  enum:
+                  - approved
+                  - rejected
+                  - edited
+                reason:
+                  type: string
+                  maxLength: 500
+                edited_payload: *id008
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/official/projects/{projectId}/release-preview:
+    get:
+      tags:
+      - admin
+      operationId: previewOfficialRelease
+      summary: 7.14 发布预览：变更清单、自动检查、通知预览
+      x-roles: *id002
+      security:
+      - adminAuth: []
+      parameters:
+      - *id003
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfficialReleasePreview'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/official/projects/{projectId}/releases:
+    get:
+      tags:
+      - admin
+      operationId: listOfficialReleases
+      summary: 版本历史
+      x-roles:
+      - content_lead
+      - content_editor
+      - analyst
+      security:
+      - adminAuth: []
+      parameters:
+      - *id003
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OfficialVersion'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+      - admin
+      operationId: publishOfficialRelease
+      summary: 发布版本
+      x-roles: *id002
+      security:
+      - adminAuth: []
+      description: 不填版本号则自动加一（1.0、1.1…）。发布后通知只发给添加了这个官方题库的用户；首次上线另提醒自建了同一专业课的用户。
+      parameters:
+      - *id003
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: []
+              properties:
+                version:
+                  type: string
+                  maxLength: 16
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfficialVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/official/projects/{projectId}/releases/{versionId}/rollback:
+    post:
+      tags:
+      - admin
+      operationId: rollbackOfficialRelease
+      summary: 回滚最新版本
+      x-roles: *id002
+      security:
+      - adminAuth: []
+      description: 恢复发布前的内容；用户没改过的副本跟着恢复，掌握度与作答记录保留。
+      parameters:
+      - *id003
+      - name: versionId
+        in: path
+        required: true
+        schema: *id001
+      responses:
+        '204':
+          description: 完成
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -6825,6 +7562,306 @@ components:
         must_change_password: *id007
         last_login_at: *id002
         created_at: *id002
+    OfficialBank:
+      type: object
+      required:
+      - bank_id
+      - title
+      - school
+      - major
+      - subject_code
+      - subject_name
+      - version
+      - kp_count
+      - question_count
+      properties:
+        bank_id: &id003
+          type: integer
+          format: int64
+        title: &id001
+          type: string
+        school: *id001
+        major: *id001
+        subject_code: *id001
+        subject_name: *id001
+        version: *id001
+        kp_count: &id002
+          type: integer
+        question_count: *id002
+        added_subject_id: *id003
+        suggested_subject_id: *id003
+    AdminDemand:
+      type: object
+      required:
+      - subject_code
+      - users
+      - avg_questions
+      - week_new
+      - with_target
+      - paid_rate
+      - avg_review
+      - unplanned
+      properties:
+        subject_code: *id001
+        users: *id002
+        avg_questions: *id002
+        week_new: *id002
+        with_target: *id002
+        paid_rate: &id004
+          type: number
+        avg_review: *id002
+        project_id: *id003
+        project_stage: *id001
+        unplanned: &id007
+          type: boolean
+    OfficialStage:
+      type: string
+      enum:
+      - initiated
+      - materials
+      - framework
+      - producing
+      - reviewing
+      - published
+      description: 立项 → 授权资料入库 → 知识框架 → 内容生产 → 审核 → 发布上线
+    OfficialMaterial:
+      type: object
+      required:
+      - name
+      - basis
+      properties:
+        name:
+          type: string
+          maxLength: 128
+        basis:
+          type: string
+          enum:
+          - authorized
+          - public_exam
+        note:
+          type: string
+          maxLength: 255
+    AdminOfficialProject:
+      type: object
+      required:
+      - id
+      - school
+      - major
+      - subject_code
+      - subject_name
+      - bank_id
+      - stage
+      - editor_ids
+      - materials
+      - kp_count
+      - question_count
+      - exam_count
+      - version
+      - subscribers
+      - created_at
+      properties:
+        id: *id003
+        school: *id001
+        major: *id001
+        subject_code: *id001
+        subject_name: *id001
+        bank_id: *id003
+        stage:
+          $ref: '#/components/schemas/OfficialStage'
+        editor_ids:
+          type: array
+          items: *id003
+        materials:
+          type: array
+          items:
+            $ref: '#/components/schemas/OfficialMaterial'
+        kp_count: *id002
+        question_count: *id002
+        exam_count: *id002
+        version: *id001
+        subscribers: *id002
+        created_at: &id006
+          type: string
+          format: date-time
+    OfficialItem:
+      type: object
+      required:
+      - entity_type
+      - id
+      - title
+      - status
+      - payload
+      properties:
+        entity_type: *id001
+        id: *id003
+        title: *id001
+        status: *id001
+        payload: &id005
+          type: object
+          additionalProperties: true
+    OfficialPoint:
+      type: object
+      required:
+      - content
+      - score
+      properties:
+        content: *id001
+        score: *id004
+        keywords:
+          type: array
+          items: *id001
+    OfficialCandidate:
+      type: object
+      required:
+      - section
+      - chapter
+      - name
+      - original_text
+      - rubric
+      - alignment
+      properties:
+        section: *id001
+        chapter: *id001
+        name: *id001
+        original_text: *id001
+        rubric:
+          type: array
+          items:
+            $ref: '#/components/schemas/OfficialPoint'
+        alignment:
+          type: string
+          enum:
+          - new
+          - supplement
+          - differ
+        existing_id: *id003
+        existing_text: *id001
+    OfficialDraft:
+      type: object
+      required:
+      - id
+      - project_id
+      - editor_id
+      - entity_type
+      - change_type
+      - payload
+      - status
+      - created_at
+      properties:
+        id: *id003
+        project_id: *id003
+        editor_id: *id003
+        entity_type: *id001
+        entity_id: *id003
+        change_type: *id001
+        payload: *id005
+        status:
+          type: string
+          enum:
+          - draft
+          - submitted
+          - approved
+          - rejected
+          - published
+        reject_reason: *id001
+        submitted_at: *id006
+        created_at: *id006
+    OfficialSubmitResult:
+      type: object
+      required:
+      - mode
+      properties:
+        mode:
+          type: string
+          enum:
+          - full
+          - sampled
+          - skipped
+    OfficialReview:
+      type: object
+      required:
+      - id
+      - draft_id
+      - project_id
+      - editor_id
+      - mode
+      - entity_type
+      - change_type
+      - payload
+      - created_at
+      properties:
+        id: *id003
+        draft_id: *id003
+        project_id: *id003
+        editor_id: *id003
+        mode: *id001
+        entity_type: *id001
+        entity_id: *id003
+        change_type: *id001
+        payload: *id005
+        before: *id005
+        created_at: *id006
+    OfficialChange:
+      type: object
+      required:
+      - draft_id
+      - entity_type
+      - change_type
+      - entity_id
+      - title
+      - rubric_changed
+      properties:
+        draft_id: *id003
+        entity_type: *id001
+        change_type: *id001
+        entity_id: *id003
+        title: *id001
+        rubric_changed: *id007
+    OfficialCheck:
+      type: object
+      required:
+      - name
+      - passed
+      properties:
+        name: *id001
+        passed: *id007
+        detail: *id001
+    OfficialReleasePreview:
+      type: object
+      required:
+      - changes
+      - checks
+      - next_version
+      - notice
+      - subscribers
+      properties:
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/OfficialChange'
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/OfficialCheck'
+        next_version: *id001
+        notice: *id001
+        subscribers: *id002
+    OfficialVersion:
+      type: object
+      required:
+      - id
+      - version
+      - changes
+      - published_at
+      properties:
+        id: *id003
+        version: *id001
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/OfficialChange'
+        published_at: *id006
+        rolled_back_at: *id006
     RedeemResult:
       type: object
       required: [tier, days, starts_at, ends_at, membership]
@@ -7689,6 +8726,7 @@ components:
         state: { $ref: "#/components/schemas/MasteryState" }
         needs_review: { type: boolean }
         official: { type: boolean, description: 来自官方题库 }
+        is_new: { type: boolean, description: 官方题库新版本新增的知识点，标「新」两周 }
         children: { type: array, items: { $ref: "#/components/schemas/KnowledgeNode" } }
     KnowledgeNodeInput:
       type: object

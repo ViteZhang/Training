@@ -108,7 +108,8 @@ type Node struct {
 	State         string
 	M             float64
 	NeedsReview   bool
-	Official      bool
+	Official      bool // 官方题库复制过来的（同名合并的仍是用户自己的）
+	IsNew         bool // 官方新版本新增的，标「新」两周（PRD 11.15）
 	Children      []*Node
 }
 
@@ -135,7 +136,8 @@ func (s *Service) Tree(ctx context.Context, userID, subjectID uint64, filter str
 	for _, k := range kps {
 		m, _ := strconv.ParseFloat(k.M, 64)
 		nodes[k.ID] = &Node{ID: k.ID, Level: string(k.Level), Name: k.Name, ExamCount: int(k.ExamCount), State: string(k.State), M: m,
-			NeedsReview: k.NeedsReview, Official: k.OfficialKpID.Valid}
+			NeedsReview: k.NeedsReview, Official: k.Origin == dbq.KnowledgePointsOriginOfficial,
+			IsNew: k.OfficialNewUntil.Valid && k.OfficialNewUntil.Time.After(s.now())}
 	}
 	var roots []*Node
 	for _, k := range kps {

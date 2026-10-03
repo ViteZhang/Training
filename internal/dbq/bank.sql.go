@@ -158,7 +158,7 @@ func (q *Queries) DeleteQuestionRubric(ctx context.Context, arg DeleteQuestionRu
 }
 
 const getKP = `-- name: GetKP :one
-SELECT k.id, k.owner_user_id, k.bank_id, k.parent_id, k.level, k.name, k.original_text, k.source_material_id, k.source_page, k.origin, k.needs_review, k.ai_explanation, k.ai_explanation_at, k.exam_count, k.official_kp_id, k.sort_order, k.created_at, k.updated_at, b.subject_id FROM knowledge_points k JOIN banks b ON b.id = k.bank_id
+SELECT k.id, k.owner_user_id, k.bank_id, k.parent_id, k.level, k.name, k.original_text, k.source_material_id, k.source_page, k.origin, k.needs_review, k.ai_explanation, k.ai_explanation_at, k.exam_count, k.official_kp_id, k.sort_order, k.created_at, k.updated_at, k.official_hash, k.official_new_until, b.subject_id FROM knowledge_points k JOIN banks b ON b.id = k.bank_id
 WHERE k.id = ? AND k.owner_user_id = ?
 `
 
@@ -186,6 +186,8 @@ type GetKPRow struct {
 	SortOrder        uint32
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	OfficialHash     sql.NullString
+	OfficialNewUntil sql.NullTime
 	SubjectID        sql.NullInt64
 }
 
@@ -212,6 +214,8 @@ func (q *Queries) GetKP(ctx context.Context, arg GetKPParams) (GetKPRow, error) 
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OfficialHash,
+		&i.OfficialNewUntil,
 		&i.SubjectID,
 	)
 	return i, err
@@ -294,7 +298,7 @@ func (q *Queries) GetMaterialPage(ctx context.Context, arg GetMaterialPageParams
 }
 
 const getQuestionFull = `-- name: GetQuestionFull :one
-SELECT q.id, q.owner_user_id, q.bank_id, q.qtype, q.stem, q.options, q.answer, q.answer_origin, q.analysis, q.score, q.difficulty, q.source, q.exam_year, q.question_no, q.is_recollection, q.source_material_id, q.source_page, q.generated_from_kp_id, q.content_hash, q.rubric_version, q.status, q.needs_review, q.review_reasons, q.report_count, q.official_question_id, q.created_at, q.updated_at, q.required_words, b.subject_id FROM questions q JOIN banks b ON b.id = q.bank_id
+SELECT q.id, q.owner_user_id, q.bank_id, q.qtype, q.stem, q.options, q.answer, q.answer_origin, q.analysis, q.score, q.difficulty, q.source, q.exam_year, q.question_no, q.is_recollection, q.source_material_id, q.source_page, q.generated_from_kp_id, q.content_hash, q.rubric_version, q.status, q.needs_review, q.review_reasons, q.report_count, q.official_question_id, q.created_at, q.updated_at, q.required_words, q.official_hash, b.subject_id FROM questions q JOIN banks b ON b.id = q.bank_id
 WHERE q.id = ? AND q.owner_user_id = ?
 `
 
@@ -332,6 +336,7 @@ type GetQuestionFullRow struct {
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	RequiredWords      sql.NullInt16
+	OfficialHash       sql.NullString
 	SubjectID          sql.NullInt64
 }
 
@@ -367,6 +372,7 @@ func (q *Queries) GetQuestionFull(ctx context.Context, arg GetQuestionFullParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RequiredWords,
+		&i.OfficialHash,
 		&i.SubjectID,
 	)
 	return i, err
@@ -445,7 +451,7 @@ func (q *Queries) InsertKPMasteryCopy(ctx context.Context, arg InsertKPMasteryCo
 }
 
 const listBankKPsFull = `-- name: ListBankKPsFull :many
-SELECT k.id, k.parent_id, k.level, k.name, k.exam_count, k.needs_review, k.official_kp_id, k.sort_order,
+SELECT k.id, k.parent_id, k.level, k.name, k.exam_count, k.needs_review, k.official_kp_id, k.origin, k.official_new_until, k.sort_order,
   COALESCE(m.m, 0) AS m, COALESCE(m.state, 'unlearned') AS state
 FROM knowledge_points k
 LEFT JOIN kp_mastery m ON m.kp_id = k.id AND m.owner_user_id = ?
@@ -460,16 +466,18 @@ type ListBankKPsFullParams struct {
 }
 
 type ListBankKPsFullRow struct {
-	ID           uint64
-	ParentID     sql.NullInt64
-	Level        KnowledgePointsLevel
-	Name         string
-	ExamCount    uint32
-	NeedsReview  bool
-	OfficialKpID sql.NullInt64
-	SortOrder    uint32
-	M            string
-	State        KpMasteryState
+	ID               uint64
+	ParentID         sql.NullInt64
+	Level            KnowledgePointsLevel
+	Name             string
+	ExamCount        uint32
+	NeedsReview      bool
+	OfficialKpID     sql.NullInt64
+	Origin           KnowledgePointsOrigin
+	OfficialNewUntil sql.NullTime
+	SortOrder        uint32
+	M                string
+	State            KpMasteryState
 }
 
 func (q *Queries) ListBankKPsFull(ctx context.Context, arg ListBankKPsFullParams) ([]ListBankKPsFullRow, error) {
@@ -489,6 +497,8 @@ func (q *Queries) ListBankKPsFull(ctx context.Context, arg ListBankKPsFullParams
 			&i.ExamCount,
 			&i.NeedsReview,
 			&i.OfficialKpID,
+			&i.Origin,
+			&i.OfficialNewUntil,
 			&i.SortOrder,
 			&i.M,
 			&i.State,

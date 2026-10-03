@@ -1,13 +1,12 @@
 package http
 
 import (
-	"errors"
-
 	"encoding/json"
-	"github.com/go-sql-driver/mysql"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-sql-driver/mysql"
 
 	"peetraining-server/internal/admin"
 	"peetraining-server/internal/gen"
