@@ -47,12 +47,17 @@ func RequestValidator() (gin.HandlerFunc, error) {
 			MultiError: false,
 			// 令牌已由 Identify 中间件解析：这里只判断有没有识别出用户。
 			// 登录可选的接口（[{}, bearerAuth]）由空要求直接通过，不会走到这里。
-			AuthenticationFunc: func(ctx context.Context, _ *openapi3filter.AuthenticationInput) error {
+			// 后台接口（adminAuth）只认后台会话，App 的用户令牌拿不到后台接口；反之亦然。
+			AuthenticationFunc: func(ctx context.Context, in *openapi3filter.AuthenticationInput) error {
 				c := ginmiddleware.GetGinContext(ctx)
 				if c == nil {
 					return errNoToken
 				}
-				if _, ok := c.Get(ctxUserID); !ok {
+				key := ctxUserID
+				if in.SecuritySchemeName == "adminAuth" {
+					key = ctxAdmin
+				}
+				if _, ok := c.Get(key); !ok {
 					return errNoToken
 				}
 				return nil

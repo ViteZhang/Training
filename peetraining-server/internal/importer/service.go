@@ -325,3 +325,9 @@ func (s *Service) settle(ctx context.Context, q *dbq.Queries, jm dbq.ImportJobMa
 		JobID: jm.JobID, MaterialID: jm.MaterialID, OwnerUserID: jm.OwnerUserID,
 	})
 }
+
+// RetryAsSystem 是后台「重新解析失败文件」（7.2、7.5、7.7）：与用户在 1.6b 点重试相同，失败页的额度仍会退回。
+func (s *Service) RetryAsSystem(ctx context.Context, userID, jobID, materialID uint64) error {
+	_, err := s.Retry(ctx, userID, jobID, materialID)
+	return err
+}

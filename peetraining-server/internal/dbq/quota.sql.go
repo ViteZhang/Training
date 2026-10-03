@@ -10,6 +10,28 @@ import (
 	"database/sql"
 )
 
+const addQuotaBonus = `-- name: AddQuotaBonus :exec
+UPDATE quota_counters SET bonus = bonus + ? WHERE owner_user_id = ? AND quota_type = ? AND period_key = ?
+`
+
+type AddQuotaBonusParams struct {
+	Bonus       uint32
+	OwnerUserID uint64
+	QuotaType   QuotaCountersQuotaType
+	PeriodKey   string
+}
+
+// 后台赠送额度（7.2 加解析额度、7.5 补偿）：只加本周期的上限，不动已用。
+func (q *Queries) AddQuotaBonus(ctx context.Context, arg AddQuotaBonusParams) error {
+	_, err := q.db.ExecContext(ctx, addQuotaBonus,
+		arg.Bonus,
+		arg.OwnerUserID,
+		arg.QuotaType,
+		arg.PeriodKey,
+	)
+	return err
+}
+
 const ensureQuotaCounter = `-- name: EnsureQuotaCounter :exec
 
 INSERT IGNORE INTO quota_counters (owner_user_id, quota_type, period_key) VALUES (?, ?, ?)
@@ -28,7 +50,7 @@ func (q *Queries) EnsureQuotaCounter(ctx context.Context, arg EnsureQuotaCounter
 }
 
 const getQuotaCounter = `-- name: GetQuotaCounter :one
-SELECT owner_user_id, quota_type, period_key, used, reserved, updated_at FROM quota_counters WHERE owner_user_id = ? AND quota_type = ? AND period_key = ?
+SELECT owner_user_id, quota_type, period_key, used, reserved, updated_at, bonus FROM quota_counters WHERE owner_user_id = ? AND quota_type = ? AND period_key = ?
 `
 
 type GetQuotaCounterParams struct {
@@ -47,6 +69,7 @@ func (q *Queries) GetQuotaCounter(ctx context.Context, arg GetQuotaCounterParams
 		&i.Used,
 		&i.Reserved,
 		&i.UpdatedAt,
+		&i.Bonus,
 	)
 	return i, err
 }
@@ -112,7 +135,7 @@ func (q *Queries) InsertQuotaLedger(ctx context.Context, arg InsertQuotaLedgerPa
 }
 
 const lockQuotaCounter = `-- name: LockQuotaCounter :one
-SELECT owner_user_id, quota_type, period_key, used, reserved, updated_at FROM quota_counters WHERE owner_user_id = ? AND quota_type = ? AND period_key = ? FOR UPDATE
+SELECT owner_user_id, quota_type, period_key, used, reserved, updated_at, bonus FROM quota_counters WHERE owner_user_id = ? AND quota_type = ? AND period_key = ? FOR UPDATE
 `
 
 type LockQuotaCounterParams struct {
@@ -131,6 +154,7 @@ func (q *Queries) LockQuotaCounter(ctx context.Context, arg LockQuotaCounterPara
 		&i.Used,
 		&i.Reserved,
 		&i.UpdatedAt,
+		&i.Bonus,
 	)
 	return i, err
 }

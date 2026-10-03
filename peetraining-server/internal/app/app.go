@@ -13,10 +13,12 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
 
+	"peetraining-server/internal/admin"
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/auth"
 	"peetraining-server/internal/bank"
@@ -90,6 +92,8 @@ type Base struct {
 	Invite *invite.Service
 	// T27 消息中心。
 	Notify *notify.Service
+	// T28 管理后台。
+	Admin *admin.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -139,7 +143,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 			log.Warn("recompute estimate", "err", err)
 		}
 	}
-	return &Base{
+	base := &Base{
 		Config: cfg,
 		Logger: log,
 		DB:     db,
@@ -168,9 +172,32 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 		Feedback:   feedback.New(db, nil),
 		Export:     export.New(export.Deps{DB: db, OSS: clients.OSS, Queue: queue, Fonts: export.Fonts{CJK: cfg.ExportFontPath, Latin: cfg.ExportLatinFontPath}}),
 		Invite:     inv,
+		Notify:     notify.New(db, nil),
 		Payment: payment.New(payment.Deps{DB: db, Params: ps, Quota: qs, Flags: fl, Gateway: clients.Pay, NotifyBaseURL: cfg.Pay.NotifyBaseURL,
 			AppleBundleID: cfg.Pay.AppleBundleID, Log: log}),
-	}, nil
+	}
+	base.Admin = admin.New(admin.Deps{DB: db, Redis: rdb, SMS: clients.SMS, OSS: clients.OSS, Params: ps, Quota: qs, Notify: base.Notify, Payment: base.Payment,
+		Import: imp, Log: log, LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock})
+	return base, nil
+}
+
+// CreateAdmin 新建后台账号（命令行；第一个管理员用它建，之后在 7.15 管理）。
+func CreateAdmin(ctx context.Context, cfg *config.Config, log *slog.Logger, username, displayName, phone string, roles []string, password string) error {
+	b, err := Open(ctx, cfg, log)
+	if err != nil {
+		return err
+	}
+	defer b.Close()
+	rs := make([]admin.Role, len(roles))
+	for i, r := range roles {
+		rs[i] = admin.Role(strings.TrimSpace(r))
+	}
+	id, err := b.Admin.CreateAdmin(ctx, username, displayName, phone, password, rs, true)
+	if err != nil {
+		return err
+	}
+	log.Info("admin created", "id", id, "username", username)
+	return nil
 }
 
 // Close 释放资源。Queue 与 Redis 共用连接，只关一次。
@@ -217,6 +244,7 @@ func (b *Base) Handler() (http.Handler, error) {
 		Payment:    b.Payment,
 		Invite:     b.Invite,
 		Notify:     b.Notify,
+		Admin:      b.Admin,
 		DevMockPay: b.devMockPay(),
 	})
 }
@@ -281,7 +309,7 @@ func NewWorker(b *Base) (*Worker, error) {
 	if err := jobs.RegisterSchedules(scheduler); err != nil {
 		return nil, fmt.Errorf("注册定时任务：%w", err)
 	}
-	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice, Essay: b.Essay, Export: b.Export, Notify: b.Notify}
+	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice, Essay: b.Essay, Export: b.Export, Notify: b.Notify, Stats: b.Admin}
 	return &Worker{server: server, scheduler: scheduler, mux: h.Mux()}, nil
 }
 

@@ -45,6 +45,8 @@ const (
 	TypeAnnouncements   = "message:announcements"
 	TypeAgreementNotice = "message:agreement_update"
 	TypeReviewDue       = "message:review_due"
+	// 后台统计（T28）。
+	TypeStatsAggregate = "stats:aggregate"
 )
 
 // PingPayload 用于检查「API 入队 → Worker 执行」整条链路。
@@ -121,6 +123,12 @@ type Handlers struct {
 	Essay     EssayGrader
 	Export    Exporter
 	Notify    Notifier
+	Stats     StatsAggregator
+}
+
+// StatsAggregator 每小时把后台统计汇总到 stats_hourly（admin.Service 实现）。
+type StatsAggregator interface {
+	Aggregate(ctx context.Context) error
 }
 
 // Notifier 是消息中心的定时任务（notify.Service 实现）：清理 30 天前的消息、发送到点的公告、协议更新、复习到期提醒。
@@ -246,6 +254,12 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 	mux.HandleFunc(TypeMessageCleanup, h.notifyTask("messages deleted", func(ctx context.Context) (int, error) { return h.Notify.Cleanup(ctx) }))
 	mux.HandleFunc(TypeAnnouncements, h.notifyTask("announcements sent", func(ctx context.Context) (int, error) { return h.Notify.SendAnnouncements(ctx) }))
 	mux.HandleFunc(TypeAgreementNotice, h.notifyTask("agreement notices sent", func(ctx context.Context) (int, error) { return h.Notify.SendAgreementUpdates(ctx) }))
+	mux.HandleFunc(TypeStatsAggregate, func(ctx context.Context, _ *asynq.Task) error {
+		if h.Stats == nil {
+			return nil
+		}
+		return h.Stats.Aggregate(ctx)
+	})
 	mux.HandleFunc(TypeReviewDue, h.notifyTask("review due sent", func(ctx context.Context) (int, error) { return h.Notify.SendReviewDue(ctx) }))
 	return mux
 }
@@ -406,6 +420,8 @@ var Schedules = []Schedule{
 	{Cron: "37 * * * *", Type: TypeAgreementNotice},
 	// 复习到期提醒每天早上发一次（北京时间 7:05，在大多数学习提醒之前）。
 	{Cron: "5 7 * * *", Type: TypeReviewDue},
+	// 7.1 概览的聚合表每小时汇总一次。
+	{Cron: "7 * * * *", Type: TypeStatsAggregate},
 }
 
 // RegisterSchedules 注册定时任务。调度器全局只启一个，跑在 Worker 里。

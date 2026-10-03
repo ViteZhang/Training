@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"peetraining-server/internal/admin"
 	"peetraining-server/internal/auth"
 	"peetraining-server/internal/bank"
 	"peetraining-server/internal/cloud/oss"
@@ -68,6 +69,8 @@ type Deps struct {
 	Invite *invite.Service
 	// T27 消息中心。
 	Notify *notify.Service
+	// T28 管理后台。
+	Admin *admin.Service
 	// DevMockPay 为 true 时注册本地「模拟支付成功」入口 POST /dev/pay/mock/:orderNo（只在非生产环境、mock 渠道）。
 	DevMockPay bool
 	// DevOSS 不为空时注册本地 mock OSS 的直传入口 PUT /dev/oss/*key（只在非生产环境）。
@@ -116,9 +119,20 @@ func NewRouter(deps Deps) (*gin.Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	api.Use(Identify(tokens), validator)
+	api.Use(Identify(tokens))
+	if deps.Admin != nil {
+		api.Use(IdentifyAdmin(deps.Admin))
+	}
+	api.Use(validator)
 	if deps.Flags != nil {
 		api.Use(FeatureGate(deps.Flags, flagGuards))
+	}
+	if deps.Admin != nil {
+		roles, err := AdminRoles()
+		if err != nil {
+			return nil, err
+		}
+		api.Use(AdminGate(roles, deps.Admin))
 	}
 	gen.RegisterHandlersWithOptions(api, &Handlers{deps: deps}, gen.GinServerOptions{
 		ErrorHandler: func(c *gin.Context, err error, status int) {

@@ -18,3 +18,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: GetQuotaLedgerByKey :one
 SELECT * FROM quota_ledger WHERE owner_user_id = ? AND idempotency_key = ?;
+
+-- name: AddQuotaBonus :exec
+-- 后台赠送额度（7.2 加解析额度、7.5 补偿）：只加本周期的上限，不动已用。
+UPDATE quota_counters SET bonus = bonus + ? WHERE owner_user_id = ? AND quota_type = ? AND period_key = ?;
