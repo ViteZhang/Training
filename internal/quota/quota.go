@@ -207,7 +207,7 @@ func (s *Service) Summary(ctx context.Context, userID uint64) ([]Item, bool, err
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, false, err
 		}
-		out = append(out, Item{Type: t, Used: int(c.Used + c.Reserved), Limit: r.Limit, Period: r.Period, ResetsAt: ResetsAt(r.Period, now)})
+		out = append(out, Item{Type: t, Used: int(c.Used + c.Reserved), Limit: withBonus(r.Limit, c.Bonus), Period: r.Period, ResetsAt: ResetsAt(r.Period, now)})
 	}
 	return out, member, nil
 }
@@ -253,7 +253,7 @@ func (s *Service) Remaining(ctx context.Context, userID uint64, t Type) (*int, e
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
-	left := max(*r.Limit-int(c.Used+c.Reserved), 0)
+	left := max(*withBonus(r.Limit, c.Bonus)-int(c.Used+c.Reserved), 0)
 	return &left, nil
 }
 
@@ -287,8 +287,8 @@ func (s *Service) apply(ctx context.Context, q *dbq.Queries, c Charge, action st
 	if err != nil {
 		return Ticket{}, err
 	}
-	if r.Limit != nil && int(row.Used+row.Reserved)+c.Amount > *r.Limit {
-		return Ticket{}, errExceeded.With("quota_type", string(c.Type)).With("limit", *r.Limit).
+	if limit := withBonus(r.Limit, row.Bonus); limit != nil && int(row.Used+row.Reserved)+c.Amount > *limit {
+		return Ticket{}, errExceeded.With("quota_type", string(c.Type)).With("limit", *limit).
 			With("used", int(row.Used+row.Reserved)).With("need", c.Amount).
 			With("period", string(r.Period)).Wrap(fmt.Errorf("%s 不足", names[c.Type]))
 	}
@@ -374,6 +374,37 @@ func (s *Service) ledger(ctx context.Context, q *dbq.Queries, userID uint64, t T
 		Amount: int32(amount), RefType: sql.NullString{String: ref.Type, Valid: ref.Type != ""},
 		RefID: sql.NullInt64{Int64: int64(ref.ID), Valid: ref.ID != 0}, IdempotencyKey: key,
 	})
+}
+
+// withBonus 是规则上限加上后台赠送的额度；不限时仍为不限。
+func withBonus(limit *int, bonus uint32) *int {
+	if limit == nil {
+		return nil
+	}
+	v := *limit + int(bonus)
+	return &v
+}
+
+// Grant 赠送本周期的额度（后台 7.2 加解析额度、7.5 补偿）：上限加 amount，不动已用。同一个幂等键只生效一次。
+func (s *Service) Grant(ctx context.Context, q *dbq.Queries, userID uint64, t Type, amount int, ref Ref, key string) error {
+	if amount <= 0 {
+		return apperr.New(apperr.BadRequest, "赠送数量必须大于 0")
+	}
+	if dup, err := s.seen(ctx, q, userID, key); err != nil || dup {
+		return err
+	}
+	rs, _, err := s.Rules(ctx, userID)
+	if err != nil {
+		return err
+	}
+	period := PeriodKey(rs[t].Period, s.now())
+	if _, err := s.lock(ctx, q, userID, t, period); err != nil {
+		return err
+	}
+	if err := q.AddQuotaBonus(ctx, dbq.AddQuotaBonusParams{Bonus: uint32(amount), OwnerUserID: userID, QuotaType: dbq.QuotaCountersQuotaType(t), PeriodKey: period}); err != nil {
+		return err
+	}
+	return s.ledger(ctx, q, userID, t, period, "grant", amount, ref, key)
 }
 
 // KeyFor 生成幂等键：业务前缀 + ID，保证同一业务对象只扣一次。

@@ -5390,11 +5390,12 @@ type AdminUser struct {
 	// 两步验证短信
 	Phone string
 	// admin / support / content_lead / content_editor / analyst
-	Roles       json.RawMessage
-	Status      AdminUsersStatus
-	LastLoginAt sql.NullTime
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	Roles              json.RawMessage
+	Status             AdminUsersStatus
+	LastLoginAt        sql.NullTime
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	MustChangePassword bool
 }
 
 // 协议正文与版本（0.4、7.8）
@@ -6298,6 +6299,8 @@ type QuotaCounter struct {
 	// 预占未结算（解析）
 	Reserved  uint32
 	UpdatedAt time.Time
+	// 后台赠送的额度（7.2、7.5 补偿），上限 = 规则上限 + bonus
+	Bonus uint32
 }
 
 // 额度流水；扣额度与写结果在同一事务

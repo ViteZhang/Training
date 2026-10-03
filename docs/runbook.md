@@ -141,6 +141,18 @@ crontab -e
 
 ---
 
+### 7. 第一个后台管理员（T28）
+
+后台账号不能在页面上自助注册。第一个管理员在应用机上用命令行建，初始密码从环境变量读（不出现在命令行历史里），首次登录必须修改：
+
+```
+read -s ADMIN_INITIAL_PASSWORD && export ADMIN_INITIAL_PASSWORD
+docker compose -f docker-compose.app.yml run --rm -e ADMIN_INITIAL_PASSWORD api create-admin <账号> <显示名> <手机号> admin
+unset ADMIN_INITIAL_PASSWORD
+```
+
+登录时短信验证码发到这个手机号（两步验证强制开启）。其他账号之后在 7.15 管理（T29）。
+
 ## 二、日常发布与回滚
 
 - 发布：合并到 main 自动触发流水线。发布脚本先备份数据库，迁移失败时不会切换版本；健康检查 60 秒内不通过会自动回滚。
