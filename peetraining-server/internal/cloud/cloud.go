@@ -23,6 +23,8 @@ import (
 type Clients struct {
 	SMS sms.Sender
 	AI  ai.Client
+	// AIFallback 是主用平台失败时的备用（AI_PROVIDER=relay 且配了百炼时为百炼，否则为空）。
+	AIFallback ai.Client
 	// AIAlt 是对照平台（可为空）。
 	AIAlt      ai.Client
 	OCR        ocr.Recognizer
@@ -49,13 +51,24 @@ func New(cfg *config.Config) (*Clients, error) {
 		}
 	}
 	pick("SMS", cfg.SMS.Provider, func() { c.SMS = sms.NewMock() })
-	if cfg.AI.Provider == "bailian" {
+	hasBailian := cfg.AI.BailianBaseURL != "" && cfg.AI.BailianAPIKey != ""
+	switch cfg.AI.Provider {
+	case "bailian":
 		// 百炼的 OpenAI 兼容接口（dev-spec 第七节）。地址与密钥只从环境变量读。
-		if cfg.AI.BailianBaseURL == "" || cfg.AI.BailianAPIKey == "" {
+		if !hasBailian {
 			errs = append(errs, errors.New("AI_PROVIDER=bailian 需要设置 BAILIAN_BASE_URL 与 BAILIAN_API_KEY"))
 		}
 		c.AI = ai.NewOpenAI(cfg.AI.BailianBaseURL, cfg.AI.BailianAPIKey)
-	} else {
+	case "relay":
+		// 中转接口为主；它不可用（网络错误、5xx、超时）时自动改用百炼。
+		if cfg.AI.RelayBaseURL == "" || cfg.AI.RelayAPIKey == "" {
+			errs = append(errs, errors.New("AI_PROVIDER=relay 需要设置 AI_RELAY_BASE_URL 与 AI_RELAY_API_KEY"))
+		}
+		c.AI = ai.NewOpenAI(cfg.AI.RelayBaseURL, cfg.AI.RelayAPIKey)
+		if hasBailian {
+			c.AIFallback = ai.NewOpenAI(cfg.AI.BailianBaseURL, cfg.AI.BailianAPIKey)
+		}
+	default:
 		pick("AI", cfg.AI.Provider, func() { c.AI = ai.NewMock() })
 	}
 	if cfg.AI.AltBaseURL != "" && cfg.AI.AltAPIKey != "" {
