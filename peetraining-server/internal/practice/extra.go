@@ -23,7 +23,8 @@ import (
 func (s *Service) fill(ctx context.Context, userID uint64, b dbq.GetSubjectBankRow, c Config, n int, kps map[uint64]dbq.ListBankKPsFullRow, r *rand.Rand) ([]uint64, error) {
 	var cands []dbq.ListBankKPsFullRow
 	for _, k := range kps {
-		if k.Level != dbq.KnowledgePointsLevelPoint {
+		// 只基于用户确认过的知识点出题（PRD 12.1：变式题只基于用户确认的内容）。
+		if k.Level != dbq.KnowledgePointsLevelPoint || k.NeedsReview {
 			continue
 		}
 		if c.OnlyUnmastered && k.State == dbq.KpMasteryStateMastered {

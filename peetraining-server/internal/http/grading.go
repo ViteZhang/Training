@@ -92,6 +92,9 @@ func (h *Handlers) SubmitSubjective(c *gin.Context, sessionID gen.SessionId) {
 	}
 	in := practice.SubjectiveInput{QuestionID: uint64(body.QuestionId), Key: body.IdempotencyKey, Answer: body.AnswerText, Duration: body.DurationSeconds,
 		Timed: body.Timed != nil && *body.Timed}
+	if body.PhotoKeys != nil {
+		in.PhotoKeys = *body.PhotoKeys
+	}
 	if body.AnswerMode != nil {
 		in.Mode = string(*body.AnswerMode)
 	}

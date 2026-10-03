@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"math"
 	"math/rand/v2"
 	"sort"
 	"strconv"
@@ -13,6 +14,9 @@ import (
 
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
+	"peetraining-server/internal/cloud/moderation"
+	"peetraining-server/internal/cloud/ocr"
+	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/params"
 	"peetraining-server/internal/plan"
@@ -43,13 +47,16 @@ const (
 )
 
 type Service struct {
-	db     *sql.DB
-	q      *dbq.Queries
-	params *params.Store
-	plan   *plan.Service
-	ai     *ai.Engine
-	quota  *quota.Service
-	now    func() time.Time
+	db         *sql.DB
+	q          *dbq.Queries
+	params     *params.Store
+	plan       *plan.Service
+	ai         *ai.Engine
+	quota      *quota.Service
+	oss        oss.Store
+	ocr        ocr.Recognizer
+	moderation moderation.Checker
+	now        func() time.Time
 }
 
 type Deps struct {
@@ -58,7 +65,11 @@ type Deps struct {
 	Plan   *plan.Service
 	AI     *ai.Engine
 	Quota  *quota.Service
-	Now    func() time.Time
+	// 拍手写稿（T19）：照片直传、内容安全检查、手写识别。
+	OSS        oss.Store
+	OCR        ocr.Recognizer
+	Moderation moderation.Checker
+	Now        func() time.Time
 }
 
 func New(d Deps) *Service {
@@ -66,7 +77,7 @@ func New(d Deps) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{db: d.DB, q: dbq.New(d.DB), params: d.Params, plan: d.Plan, ai: d.AI, quota: d.Quota, now: now}
+	return &Service{db: d.DB, q: dbq.New(d.DB), params: d.Params, plan: d.Plan, ai: d.AI, quota: d.Quota, oss: d.OSS, ocr: d.OCR, moderation: d.Moderation, now: now}
 }
 
 func (s *Service) today() rules.Day { return rules.DayOf(s.now()) }
@@ -103,6 +114,8 @@ type CreateInput struct {
 	QType      string
 	Config     Config
 	WrongGroup *WrongGroup
+	// AIFill 只用于今日训练：题量不够时 AI 补变式题。
+	AIFill bool
 }
 
 // sessionMeta 存在 practice_sessions.config：自定义条件、今日训练的分组、AI 补题与缺题数。
@@ -287,6 +300,19 @@ func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (Se
 				meta.Groups[strconv.FormatUint(it.QuestionID, 10)] = it.Group
 			}
 		}
+		// 题量不够排满每日时长时，打开 AI 补题才按缺的分钟数补变式题（4.2 / 今日训练的 AI 补题开关，关闭时不生成）。
+		if in.AIFill && pl.Shortfall > 0 {
+			n := int(math.Ceil(pl.Shortfall / rules.ItemMinutes(rules.QTermExplain, false, p.Plan)))
+			gen, err := s.fill(ctx, userID, b, Config{OnlyUnmastered: true}, min(n, maxAIFill), kps, r)
+			if err != nil {
+				return Session{}, err
+			}
+			for _, id := range gen {
+				ids = append(ids, id)
+				meta.Groups[strconv.FormatUint(id, 10)] = string(rules.GroupWeak)
+			}
+			meta.AIFilled = len(gen)
+		}
 	case KindTypeDrill:
 		qt := in.QType
 		if qt == "" {
@@ -340,11 +366,10 @@ func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (Se
 	if len(ids) == 0 {
 		return Session{}, apperr.New(apperr.BadRequest, "没有符合条件的题目")
 	}
-	_ = p
 	idsJSON, _ := json.Marshal(ids)
 	metaJSON, _ := json.Marshal(meta)
 	id, err := s.q.InsertPracticeSession(ctx, dbq.InsertPracticeSessionParams{OwnerUserID: userID, SubjectID: sql.NullInt64{Int64: int64(b.SubjectID), Valid: true},
-		Kind: dbq.PracticeSessionsKind(in.Kind), Title: title, Config: metaJSON, QuestionIds: idsJSON})
+		Kind: dbq.PracticeSessionsKind(in.Kind), Title: title, Config: metaJSON, QuestionIds: idsJSON, StartedAt: s.now().UTC()})
 	if err != nil {
 		return Session{}, err
 	}
