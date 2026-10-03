@@ -9,6 +9,7 @@ import { Button, Card, EmptyState, ErrorState, Loading, ProgressBar, Screen, Tex
 import { qtypeNames } from '@/features/import/api';
 import { stageInfo } from '@/features/onboarding/api';
 import { usePracticeHome, useStartPractice } from '@/features/practice/api';
+import { PendingGradingsCard } from '@/features/practice/grading';
 import { flush, usePending } from '@/features/practice/offline';
 import { api, unwrap } from '@/lib/api';
 
@@ -77,6 +78,7 @@ export default function TrainTab() {
           </Card>
         ) : null}
 
+        <PendingGradingsCard />
         {home.isLoading ? <Loading rows={4} /> : home.isError ? <ErrorState error={home.error} onRetry={() => void home.refetch()} /> : !h ? null : h.total_questions === 0 ? (
           <EmptyState title="这门课还没有题目" desc="导入真题、习题或讲义后就能练" actionText="导入资料" onAction={() => router.push({ pathname: '/import', params: { subjectId: String(sid) } })} />
         ) : (

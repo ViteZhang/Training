@@ -1282,10 +1282,237 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/practice-sessions/{sessionId}/gradings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 提交主观题并按采分点批改（4.4 → 4.6 → 4.7）
+         * @description 同步批改，目标 8 秒内。成功扣 1 次批改次数（与写结果同一事务）；批改失败返回 AI_FAILED，不扣次数、不保存，客户端保留草稿可重试。
+         *     今日次数用完时答案照样保存，status 为 queued_quota（4.9），次日 0 点后可一键提交待批改。
+         *     同一个 idempotency_key 重复提交返回第一次的结果。
+         */
+        post: operations["submitSubjective"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gradings/{gradingId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gradingId: components["parameters"]["GradingId"];
+            };
+            cookie?: never;
+        };
+        /** 批改结果（4.7） */
+        get: operations["getGrading"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gradings/{gradingId}/regrade": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gradingId: components["parameters"]["GradingId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 改了采分点后按新采分点重批（4.8「采分点本身不对」），不扣次数
+         * @description 采分点没有改过时返回 409。以重批结果为准回算掌握度与错题；历史批改保留。
+         */
+        post: operations["regradeAfterRubricChange"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gradings/{gradingId}/disputes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gradingId: components["parameters"]["GradingId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 批改异议（4.8）：提交复核重批一次，不扣次数
+         * @description 每次批改只能复核一次（重复提交返回 409）。勾选授权时后台可在 72 小时内查看这道题和答案（7.6 抽检）。
+         */
+        post: operations["createDispute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gradings/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 待批改（4.9「明天再批改」存下的答案） */
+        get: operations["listPendingGradings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gradings/pending/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 一键提交待批改：按存入顺序批改，次数用完为止 */
+        post: operations["submitPendingGradings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SubmitSubjectiveRequest: {
+            /** Format: int64 */
+            question_id: number;
+            idempotency_key: string;
+            answer_text: string;
+            /**
+             * @default typed
+             * @enum {string}
+             */
+            answer_mode: "typed" | "voice" | "photo";
+            duration_seconds: number;
+            /**
+             * @description 限时作答（失分诊断「时间不够」只在这里判定）
+             * @default false
+             */
+            timed: boolean;
+        };
+        /**
+         * @description 批改依据的来源：用户确认 / AI 提取待确认 / AI 生成 / 官方 / 没有采分点时按参考答案整体批改
+         * @enum {string}
+         */
+        RubricSource: "user_confirmed" | "ai_extracted" | "ai_generated" | "official" | "reference_answer";
+        GradingPoint: {
+            seq: number;
+            content: string;
+            /** @description 采分点分值 */
+            score: number;
+            got: number;
+            /** @enum {string} */
+            verdict: "hit" | "partial" | "miss";
+            /** @description 考生原话 */
+            quote?: string;
+            reason?: string;
+        };
+        LossItem: {
+            /** @enum {string} */
+            type: "knowledge" | "norm" | "time";
+            points: number;
+            reason: string;
+        };
+        GradingResult: {
+            /** Format: int64 */
+            grading_id: number;
+            /** Format: int64 */
+            attempt_id: number;
+            /** Format: int64 */
+            question_id: number;
+            /** @enum {string} */
+            status: "done" | "queued_quota";
+            score?: number;
+            full_score: number;
+            counts?: {
+                hit: number;
+                partial: number;
+                miss: number;
+            };
+            points: components["schemas"]["GradingPoint"][];
+            rubric_version: number;
+            rubric_source: components["schemas"]["RubricSource"];
+            rubric_ref?: components["schemas"]["SourceRef"];
+            structure_ok: boolean;
+            structure_note?: string;
+            suggestions: string[];
+            loss: components["schemas"]["LossItem"][];
+            kp_changes: components["schemas"]["MasteryChange"][];
+            /** @enum {string} */
+            wrong_book: "added" | "still" | "removed" | "none";
+            reference_answer?: string;
+            answer_text?: string;
+            /** @enum {string} */
+            trigger: "submit" | "pending_resubmit" | "dispute_recheck" | "rubric_changed";
+            /** Format: int64 */
+            parent_grading_id?: number;
+            /** @description 已经提交过复核 */
+            disputed: boolean;
+            quota_charged: boolean;
+            /** @description 采分点在这次批改之后改过，可以按新采分点重批 */
+            rubric_changed?: boolean;
+        };
+        DisputeRequest: {
+            /**
+             * @description 我其实答到了某个采分点 / 采分点本身不对 / 分数给得不合理 / 其他
+             * @enum {string}
+             */
+            reason: "hit_missed" | "rubric_wrong" | "score_unfair" | "other";
+            note?: string;
+            /**
+             * @description 允许后台查看这道题和我的答案
+             * @default false
+             */
+            allow_access: boolean;
+        };
+        PendingGradings: {
+            /** @description 今天还能批几次，null 为不限 */
+            remaining_today: number | null;
+            items: {
+                /** Format: int64 */
+                grading_id: number;
+                /** Format: int64 */
+                question_id: number;
+                qtype: components["schemas"]["QuestionType"];
+                stem: string;
+                /** Format: date-time */
+                saved_at: string;
+            }[];
+        };
         /**
          * @description 今日训练 / 题型专项 / 自定义 / 错题重做 / 摸底测
          * @enum {string}
@@ -2716,6 +2943,7 @@ export interface components {
         };
     };
     parameters: {
+        GradingId: number;
         SessionId: number;
         /** @description 客户端为每次写操作生成的唯一键（UUID），重试时保持不变 */
         IdempotencyKey: string;
@@ -4695,6 +4923,157 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    submitSubjective: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitSubjectiveRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradingResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["AIFailed"];
+        };
+    };
+    getGrading: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gradingId: components["parameters"]["GradingId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradingResult"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    regradeAfterRubricChange: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gradingId: components["parameters"]["GradingId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 重批结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradingResult"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["AIFailed"];
+        };
+    };
+    createDispute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gradingId: components["parameters"]["GradingId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisputeRequest"];
+            };
+        };
+        responses: {
+            /** @description 复核重批结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradingResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["AIFailed"];
+        };
+    };
+    listPendingGradings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingGradings"];
+                };
+            };
+        };
+    };
+    submitPendingGradings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        graded: number;
+                        remaining_pending: number;
+                        results: components["schemas"]["GradingResult"][];
+                    };
+                };
+            };
         };
     };
 }
