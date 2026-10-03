@@ -51,7 +51,7 @@ export default function TrainTab() {
   const sid = subject.id;
 
   const paper = (
-    <Row key="paper" title="整卷 · 模拟考试" desc="按你导入的真题卷限时作答" onPress={() => toast('整卷练习马上上线')} />
+    <Row key="paper" title="整卷 · 模拟考试" desc="按你导入的真题卷限时作答" onPress={() => router.push({ pathname: '/paper/list', params: { subjectId: String(sid) } })} />
   );
 
   return (
