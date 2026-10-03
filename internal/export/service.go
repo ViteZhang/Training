@@ -431,6 +431,9 @@ func (s *Service) generate(ctx context.Context, userID uint64, j dbq.ExportJob) 
 		ExpiresAt: sql.NullTime{Time: now.Add(keepFor), Valid: true}, FinishedAt: sql.NullTime{Time: now, Valid: true}, ID: j.ID, OwnerUserID: userID}); err != nil {
 		return err
 	}
+	if !notify.TaskDoneEnabled(ctx, s.q) {
+		return nil
+	}
 	return s.q.InsertMessage(ctx, dbq.InsertMessageParams{OwnerUserID: userID, Mtype: dbq.MessagesMtypeExportReady, Title: "题库导出完成",
 		Body: "导出文件已生成，24 小时内可以下载", Link: notify.Link("export", map[string]any{"job_id": j.ID}),
 		DedupeKey: sql.NullString{String: "export_ready:" + strconv.FormatUint(j.ID, 10), Valid: true}})

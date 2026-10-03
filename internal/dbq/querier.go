@@ -13,6 +13,9 @@ import (
 )
 
 type Querier interface {
+	AICostSince(ctx context.Context, createdAt time.Time) (int64, error)
+	// 7.8 AI 任务：按能力与「模型 + 提示词版本」统计调用次数、成功率、单次成本、耗时（ai_calls 不存输入输出原文）。
+	AIStatsByVersion(ctx context.Context, createdAt time.Time) ([]AIStatsByVersionRow, error)
 	AbandonPaperSession(ctx context.Context, arg AbandonPaperSessionParams) error
 	AcceptAgreement(ctx context.Context, arg AcceptAgreementParams) error
 	ActivateEssayRubric(ctx context.Context, arg ActivateEssayRubricParams) (int64, error)
@@ -114,7 +117,9 @@ type Querier interface {
 	// 作文资料入库（T11）。每条都带 owner_user_id。
 	DeactivateEssayRubrics(ctx context.Context, arg DeactivateEssayRubricsParams) error
 	DeleteAdminSession(ctx context.Context, tokenHash string) error
+	DeleteAdminSessionsFor(ctx context.Context, adminID uint64) error
 	DeleteExpiredAdminSessions(ctx context.Context, expiresAt time.Time) error
+	DeleteFlagUsers(ctx context.Context, flagKey string) error
 	DeleteImportAnswersOfMaterial(ctx context.Context, arg DeleteImportAnswersOfMaterialParams) error
 	// 从任务里移除文件（1.6b）时，它还没确认的条目一起删掉。
 	DeleteImportItemsOfMaterial(ctx context.Context, arg DeleteImportItemsOfMaterialParams) error
@@ -139,6 +144,7 @@ type Querier interface {
 	DeleteSubjectExports(ctx context.Context, arg DeleteSubjectExportsParams) error
 	DeleteSubjectPracticeSessions(ctx context.Context, arg DeleteSubjectPracticeSessionsParams) error
 	DeleteSubjectSessions(ctx context.Context, arg DeleteSubjectSessionsParams) error
+	DeleteUnsentAnnouncement(ctx context.Context, id uint64) (int64, error)
 	DeleteUser(ctx context.Context, id uint64) error
 	// 用它做过的整卷成绩保留：试卷本身删除，paper_sessions.paper_id 置空（外键 SET NULL）。
 	DetachPapersFromMaterial(ctx context.Context, arg DetachPapersFromMaterialParams) error
@@ -176,6 +182,7 @@ type Querier interface {
 	// 原文只能经 content_access_grants 授权、由 notify.RecordAccess 记日志后在 admincontent.sql 里读。
 	GetAdminByUsername(ctx context.Context, username string) (AdminUser, error)
 	GetAdminSession(ctx context.Context, arg GetAdminSessionParams) (GetAdminSessionRow, error)
+	GetAgreement(ctx context.Context, id uint64) (Agreement, error)
 	GetAppVersion(ctx context.Context, platform AppVersionsPlatform) (AppVersion, error)
 	GetAttemptByKey(ctx context.Context, arg GetAttemptByKeyParams) (Attempt, error)
 	// 资料（T08）。每条查询都带 owner_user_id 归属条件。
@@ -237,6 +244,7 @@ type Querier interface {
 	GetReciteRecordByKey(ctx context.Context, arg GetReciteRecordByKeyParams) (ReciteRecord, error)
 	GetRedeemCodeForUpdate(ctx context.Context, codeHash string) (GetRedeemCodeForUpdateRow, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error)
+	GetRuleParam(ctx context.Context, paramKey string) (RuleParam, error)
 	GetStudyProfile(ctx context.Context, userID uint64) (StudyProfile, error)
 	GetSubject(ctx context.Context, arg GetSubjectParams) (GetSubjectRow, error)
 	// 题库：知识点、题目、资料（T13）。每条查询都带 owner_user_id 归属条件。
@@ -261,6 +269,8 @@ type Querier interface {
 	InsertAdmin(ctx context.Context, arg InsertAdminParams) (int64, error)
 	InsertAdminAudit(ctx context.Context, arg InsertAdminAuditParams) error
 	InsertAdminSession(ctx context.Context, arg InsertAdminSessionParams) error
+	InsertAgreement(ctx context.Context, arg InsertAgreementParams) (int64, error)
+	InsertAnnouncement(ctx context.Context, arg InsertAnnouncementParams) (int64, error)
 	InsertAttempt(ctx context.Context, arg InsertAttemptParams) (int64, error)
 	InsertComposedPaper(ctx context.Context, arg InsertComposedPaperParams) (int64, error)
 	InsertContentAccessGrant(ctx context.Context, arg InsertContentAccessGrantParams) error
@@ -275,6 +285,7 @@ type Querier interface {
 	InsertFeedback(ctx context.Context, arg InsertFeedbackParams) (int64, error)
 	// 勾选「允许客服查看相关资料」：72 小时内有效，每次查看都通知用户（PRD 6.13、10.1）。
 	InsertFeedbackGrant(ctx context.Context, arg InsertFeedbackGrantParams) error
+	InsertFlagUser(ctx context.Context, arg InsertFlagUserParams) error
 	InsertGrading(ctx context.Context, arg InsertGradingParams) (int64, error)
 	InsertInvite(ctx context.Context, arg InsertInviteParams) error
 	// 合并掌握度：目标没有记录时沿用来源的；都有时保留作答过的、掌握分取较高者。
@@ -318,11 +329,16 @@ type Querier interface {
 	LatestInProgressSession(ctx context.Context, arg LatestInProgressSessionParams) (PracticeSession, error)
 	LatestRealExamPaper(ctx context.Context, arg LatestRealExamPaperParams) (Paper, error)
 	LatestScoreEstimate(ctx context.Context, arg LatestScoreEstimateParams) (LatestScoreEstimateRow, error)
+	ListAIRollouts(ctx context.Context) ([]AiRollout, error)
 	ListAcceptedAgreementIDs(ctx context.Context, userID uint64) ([]uint64, error)
 	ListActiveImportJobs(ctx context.Context, ownerUserID uint64) ([]ListActiveImportJobsRow, error)
 	// 有作答或背诵的北京时间日期（连续打卡）。
 	ListActivityDays(ctx context.Context, arg ListActivityDaysParams) ([]interface{}, error)
 	ListAdminAudit(ctx context.Context, arg ListAdminAuditParams) ([]ListAdminAuditRow, error)
+	ListAdmins(ctx context.Context) ([]ListAdminsRow, error)
+	ListAllAgreements(ctx context.Context) ([]ListAllAgreementsRow, error)
+	ListAnnouncements(ctx context.Context) ([]Announcement, error)
+	ListAppVersions(ctx context.Context) ([]AppVersion, error)
 	ListAttemptedSince(ctx context.Context, arg ListAttemptedSinceParams) ([]uint64, error)
 	ListAttemptsSince(ctx context.Context, arg ListAttemptsSinceParams) ([]ListAttemptsSinceRow, error)
 	ListBankEssayTopics(ctx context.Context, arg ListBankEssayTopicsParams) ([]ListBankEssayTopicsRow, error)
@@ -343,6 +359,7 @@ type Querier interface {
 	ListEssayTopicsKB(ctx context.Context, arg ListEssayTopicsKBParams) ([]ListEssayTopicsKBRow, error)
 	// 作文课预估分（PRD 11.13）：按用户评分细则批改、且以真题限时完成的作文，新的在前。
 	ListEstimateEssays(ctx context.Context, arg ListEstimateEssaysParams) ([]ListEstimateEssaysRow, error)
+	ListExamDates(ctx context.Context) ([]ExamDate, error)
 	// 备考档案与专业课（T07）。每条查询都带 owner_user_id / user_id 归属条件。
 	ListExamDatesFrom(ctx context.Context, subjectExamDate time.Time) ([]ExamDate, error)
 	// 冲刺卡至当年初试结束、考季卡至次年初试结束（PRD 13.2）。
@@ -352,6 +369,7 @@ type Querier interface {
 	// 24 小时后删除 OSS 对象（定时任务）。
 	ListExpiredExports(ctx context.Context, expiresAt sql.NullTime) ([]ListExpiredExportsRow, error)
 	ListFeatureFlags(ctx context.Context) ([]ListFeatureFlagsRow, error)
+	ListFeatureFlagsFull(ctx context.Context) ([]ListFeatureFlagsFullRow, error)
 	ListFeedbacks(ctx context.Context, ownerUserID uint64) ([]ListFeedbacksRow, error)
 	// 预估分、整卷报告与提分看板（T22，PRD 11.6、4.24、4.25、6.2）。
 	// 一门课批改完成的整卷，新的在前（预估分、较上次、趋势、最近成绩）。
@@ -404,6 +422,8 @@ type Querier interface {
 	ListRelatedQuestions(ctx context.Context, arg ListRelatedQuestionsParams) ([]ListRelatedQuestionsRow, error)
 	// 规则参数与功能开关（T06 读取，T07 / T29 管理）。
 	ListRuleParams(ctx context.Context) ([]ListRuleParamsRow, error)
+	// 管理后台：配置与系统（T29：7.8、7.9、7.15）。这里只有配置表，不涉及用户内容。
+	ListRuleParamsFull(ctx context.Context) ([]RuleParam, error)
 	// 一门课的预估分历史，新的在前（当前值、今天的变化、按周趋势）。
 	ListScoreEstimates(ctx context.Context, arg ListScoreEstimatesParams) ([]ListScoreEstimatesRow, error)
 	ListSessionAttempts(ctx context.Context, arg ListSessionAttemptsParams) ([]ListSessionAttemptsRow, error)
@@ -452,6 +472,7 @@ type Querier interface {
 	OwnsMaterial(ctx context.Context, arg OwnsMaterialParams) (bool, error)
 	PausePaperSession(ctx context.Context, arg PausePaperSessionParams) error
 	PreviousFinishedSession(ctx context.Context, arg PreviousFinishedSessionParams) (dbtypes.NullJSON, error)
+	PublishAgreement(ctx context.Context, arg PublishAgreementParams) (int64, error)
 	QTypeCounts(ctx context.Context, arg QTypeCountsParams) ([]QTypeCountsRow, error)
 	// 用户各题型的平均得分率（估计时间失分，PRD 11.9）。
 	QTypeScoreRates(ctx context.Context, ownerUserID uint64) ([]QTypeScoreRatesRow, error)
@@ -468,6 +489,7 @@ type Querier interface {
 	// 三个参数依次是：要删除的资料 ID、题库 ID、要删除的资料 ID。
 	RepointKPSources(ctx context.Context, arg RepointKPSourcesParams) error
 	RequestUserDeletion(ctx context.Context, arg RequestUserDeletionParams) error
+	ResetAdminPassword(ctx context.Context, arg ResetAdminPasswordParams) error
 	ResumePaperSession(ctx context.Context, arg ResumePaperSessionParams) error
 	RevokeAllUserTokens(ctx context.Context, arg RevokeAllUserTokensParams) error
 	RevokeDeviceTokens(ctx context.Context, arg RevokeDeviceTokensParams) (int64, error)
@@ -514,12 +536,17 @@ type Querier interface {
 	SubmitEssay(ctx context.Context, arg SubmitEssayParams) error
 	SubmitPaperSession(ctx context.Context, arg SubmitPaperSessionParams) error
 	SumInviterDays(ctx context.Context, inviterID uint64) (int64, error)
+	// 聚合表里某指标在一段时间的和（如活跃用户日累计、收入）。
+	SumStat(ctx context.Context, arg SumStatParams) (string, error)
 	TouchAdminLogin(ctx context.Context, arg TouchAdminLoginParams) error
 	TouchUserActive(ctx context.Context, arg TouchUserActiveParams) error
+	UpdateAdmin(ctx context.Context, arg UpdateAdminParams) (int64, error)
 	UpdateAdminPassword(ctx context.Context, arg UpdateAdminPasswordParams) error
+	UpdateAgreementDraft(ctx context.Context, arg UpdateAgreementDraftParams) (int64, error)
 	UpdateBankForSubject(ctx context.Context, arg UpdateBankForSubjectParams) error
 	// 用户编辑评分标准：只影响之后的批改，已批改的作文存了标准快照，分数不变。
 	UpdateEssayRubric(ctx context.Context, arg UpdateEssayRubricParams) (int64, error)
+	UpdateFeatureFlag(ctx context.Context, arg UpdateFeatureFlagParams) (int64, error)
 	UpdateImportItem(ctx context.Context, arg UpdateImportItemParams) error
 	UpdateImportJobMaterial(ctx context.Context, arg UpdateImportJobMaterialParams) error
 	// 时间由调用方给（数据库时间一律 UTC）；不改的时间传 NULL。
@@ -532,6 +559,8 @@ type Querier interface {
 	UpdatePaperScores(ctx context.Context, arg UpdatePaperScoresParams) error
 	UpdateQuestion(ctx context.Context, arg UpdateQuestionParams) error
 	UpdateQuotaCounter(ctx context.Context, arg UpdateQuotaCounterParams) error
+	// 乐观锁：version 不一致说明别人刚改过，返回 0 行。
+	UpdateRuleParam(ctx context.Context, arg UpdateRuleParamParams) (int64, error)
 	UpdateStudyProfile(ctx context.Context, arg UpdateStudyProfileParams) error
 	UpdateSubject(ctx context.Context, arg UpdateSubjectParams) error
 	// 录取结果可以稍后补（6.14）；不重复送会员。
@@ -539,7 +568,10 @@ type Querier interface {
 	UpdateUserNickname(ctx context.Context, arg UpdateUserNicknameParams) error
 	UpdateUserOnboarding(ctx context.Context, arg UpdateUserOnboardingParams) error
 	UpdateUserPhone(ctx context.Context, arg UpdateUserPhoneParams) error
+	UpsertAIRollout(ctx context.Context, arg UpsertAIRolloutParams) error
+	UpsertAppVersion(ctx context.Context, arg UpsertAppVersionParams) error
 	UpsertDailyPlan(ctx context.Context, arg UpsertDailyPlanParams) error
+	UpsertExamDate(ctx context.Context, arg UpsertExamDateParams) error
 	UpsertImportAnswer(ctx context.Context, arg UpsertImportAnswerParams) error
 	// 重跑同一步时按 dedupe_key 覆盖：用户还没动过（pending）的条目更新内容，已改过或已确认的保留用户的版本。
 	UpsertImportItem(ctx context.Context, arg UpsertImportItemParams) error

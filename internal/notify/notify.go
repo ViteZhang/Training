@@ -199,8 +199,12 @@ func (s *Service) SendAgreementUpdates(ctx context.Context) (int, error) {
 	return total, nil
 }
 
-// SendReviewDue 发今天的复习到期提醒（定时任务，每天早上一次；打开了「复习到期提醒」的用户）。
+// SendReviewDue 发今天的复习到期提醒（定时任务每小时跑一次，到后台 7.9 设的北京时间整点才发；打开了「复习到期提醒」的用户）。
 func (s *Service) SendReviewDue(ctx context.Context) (int, error) {
+	sm := LoadSystemMessages(ctx, s.q)
+	if !sm.ReviewDueEnabled || s.now().In(shanghai).Hour() != sm.ReviewDueHour {
+		return 0, nil
+	}
 	day := rules.DayOf(s.now())
 	n, err := s.q.SendReviewDue(ctx, dbq.SendReviewDueParams{Day: sql.NullTime{Time: day.Date(), Valid: true}, Link: Link("today", nil),
 		DedupeKey: sql.NullString{String: "review_due:" + day.Date().Format("2006-01-02"), Valid: true}})
@@ -274,4 +278,25 @@ func (s *Service) Reply(ctx context.Context, adminID, feedbackID uint64, reply s
 			Link:      Link("feedback", map[string]any{"feedback_id": feedbackID}),
 			DedupeKey: sql.NullString{String: "reply:" + strconv.FormatUint(feedbackID, 10) + ":" + strconv.FormatInt(now.UnixMilli(), 10), Valid: true}})
 	})
+}
+
+// SystemMessages 是 7.9 系统自动消息的配置（rule_params.system_messages）。
+type SystemMessages struct {
+	ReviewDueEnabled bool `json:"review_due_enabled"`
+	ReviewDueHour    int  `json:"review_due_hour"`
+	TaskDoneEnabled  bool `json:"task_done_enabled"`
+}
+
+// LoadSystemMessages 读系统消息配置；读不到时按默认（都打开、复习到期 7 点）。只在发消息时读一次，不走缓存，后台改了立即生效。
+func LoadSystemMessages(ctx context.Context, q dbq.Querier) SystemMessages {
+	sm := SystemMessages{ReviewDueEnabled: true, ReviewDueHour: 7, TaskDoneEnabled: true}
+	if row, err := q.GetRuleParam(ctx, "system_messages"); err == nil {
+		_ = json.Unmarshal(row.Value, &sm)
+	}
+	return sm
+}
+
+// TaskDoneEnabled 判断「解析和批改完成」类消息是否打开（7.9）。
+func TaskDoneEnabled(ctx context.Context, q dbq.Querier) bool {
+	return LoadSystemMessages(ctx, q).TaskDoneEnabled
 }

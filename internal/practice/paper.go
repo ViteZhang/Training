@@ -19,6 +19,7 @@ import (
 	"peetraining-server/internal/dbtypes"
 	"peetraining-server/internal/jobs"
 	"peetraining-server/internal/logx"
+	"peetraining-server/internal/notify"
 	"peetraining-server/internal/quota"
 	"peetraining-server/internal/rules"
 )
@@ -1130,6 +1131,9 @@ func (s *Service) finishPaper(ctx context.Context, userID uint64, row dbq.PaperS
 		if err := q.FinishPaperGrading(ctx, dbq.FinishPaperGradingParams{GradedAt: sql.NullTime{Time: s.now().UTC(), Valid: true}, Score: fmtScore(rep.Score),
 			Report: dbtypes.NullJSON(raw), ID: row.ID, OwnerUserID: userID}); err != nil {
 			return err
+		}
+		if !notify.TaskDoneEnabled(ctx, q) {
+			return nil
 		}
 		link, _ := json.Marshal(map[string]any{"page": "paper_report", "params": map[string]any{"session_id": row.ID}})
 		return q.InsertMessage(ctx, dbq.InsertMessageParams{OwnerUserID: userID, Mtype: dbq.MessagesMtypePaperGraded, Title: "整卷批改完成",

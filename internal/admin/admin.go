@@ -83,6 +83,8 @@ type Deps struct {
 	Import  Retrier
 	Log     *slog.Logger
 	Now     func() time.Time
+	// Invalidate 是改配置后要立即失效的缓存（规则参数、功能开关）。
+	Invalidate []Invalidator
 	// LogCodes 为 true 时把两步验证码写进日志（只在本地与测试环境用 mock 短信时打开）。
 	LogCodes bool
 }
