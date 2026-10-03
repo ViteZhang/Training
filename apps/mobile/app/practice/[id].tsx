@@ -10,7 +10,9 @@ import { BottomSheet, Button, ConfirmDialog, EmptyState, ErrorState, Loading, Sc
 import { practiceKeys, useSession } from '@/features/practice/api';
 import { isObjective, judge } from '@/features/practice/judge';
 import { cacheSession, submitAttempt } from '@/features/practice/offline';
+import { DisputeSheet, GradingResultView, useRegrade } from '@/features/practice/grading';
 import { FillBlank, Options, QuestionHeader, ResultPanel, type LocalResult } from '@/features/practice/QuestionView';
+import { SubjectiveFlow } from '@/features/practice/SubjectiveFlow';
 import { api, unwrap } from '@/lib/api';
 
 const reportReasons = ['答案不对', '题干有错字或缺字', '选项有问题', '和知识点不相关'];
@@ -34,7 +36,7 @@ export default function PracticeRunner() {
   const [reporting, setReporting] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [finishing, setFinishing] = useState(false);
-  const [showRef, setShowRef] = useState(false);
+  const [disputing, setDisputing] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const shownAt = useRef(0);
 
@@ -58,6 +60,7 @@ export default function PracticeRunner() {
   }, [index]);
 
   const q = s ? s.questions[index] : undefined;
+  const regrade = useRegrade((g) => q && setResults((r) => ({ ...r, [q.id]: { ...(r[q.id] as LocalResult), grading: g } })));
   const result = q ? (results[q.id] ?? fromAnswered(q.answered)) : undefined;
   const done = useMemo(() => (s ? s.questions.filter((x) => x.answered || results[x.id]).length : 0), [s, results]);
 
@@ -106,7 +109,6 @@ export default function PracticeRunner() {
       setIndex(index + 1);
       setSelected([]);
       setText('');
-      setShowRef(false);
       return;
     }
     setFinishing(true);
@@ -154,33 +156,27 @@ export default function PracticeRunner() {
         </Text>
         {q.options?.length ? <Options q={q} selected={result?.revealed ? [] : (result && q.answered?.selected) || selected} result={result} onToggle={toggle} /> : null}
         {q.qtype === 'fill_blank' ? <FillBlank value={text} onChange={setText} disabled={!!result} /> : null}
-        {!objective && !result && !showRef ? (
-          <View style={styles.subjective}>
-            <Text variant="caption">
-              {q.rubric_count > 0 ? `按你资料里的 ${q.rubric_count} 个采分点批改` : '这道题还没有采分点'} · 打字作答与 AI 批改即将上线，先对照参考答案自评
-            </Text>
-          </View>
+        {result?.grading ? (
+          <GradingResultView g={result.grading} kpId={q.knowledge_points[0]?.id} onDispute={() => setDisputing(true)} onRegrade={() => regrade.mutate(result.grading!.grading_id)} regrading={regrade.isPending} />
+        ) : result?.queued ? (
+          <Text variant="body" color={semantic.info}>
+            答案已保存为待批改，明天 0 点后在训练页一键提交
+          </Text>
+        ) : result ? (
+          <ResultPanel q={q} result={result} onReport={() => setReporting(true)} />
         ) : null}
-        {result ? <ResultPanel q={q} result={result} onReport={() => setReporting(true)} /> : null}
-        {!objective && showRef && !result ? (
-          <View style={styles.assess}>
-            <View style={styles.subjective}>
-              <Text variant="bodyStrong">参考答案</Text>
-              <Text variant="body">{q.answer ?? '这道题还没有参考答案'}</Text>
-            </View>
-            <Text variant="bodyStrong">对照参考答案，你掌握得怎么样？</Text>
-            <View style={styles.row}>
-              {(
-                [
-                  ['unknown', '不会'],
-                  ['vague', '模糊'],
-                  ['mastered', '掌握'],
-                ] as const
-              ).map(([k, label]) => (
-                <Button key={k} title={label} kind="secondary" style={styles.flex} onPress={() => void send({ revealed: true, self_assess: k })} />
-              ))}
-            </View>
-          </View>
+        {result?.grading ? (
+          <DisputeSheet g={result.grading} visible={disputing} onClose={() => setDisputing(false)} onDone={(g) => setResults((r) => ({ ...r, [q.id]: { ...result, grading: g } }))} />
+        ) : null}
+        {!objective && !result ? (
+          <SubjectiveFlow
+            key={q.id}
+            q={q}
+            sessionId={sessionId}
+            onGraded={(g) => setResults((r) => ({ ...r, [q.id]: { correct: null, revealed: false, synced: true, grading: g } }))}
+            onQueued={() => setResults((r) => ({ ...r, [q.id]: { correct: null, revealed: false, synced: true, queued: true } }))}
+            onSelfAssess={(k) => void send({ revealed: true, self_assess: k })}
+          />
         ) : null}
       </ScrollView>
       <View style={styles.footer}>
@@ -192,9 +188,7 @@ export default function PracticeRunner() {
             {q.qtype === 'fill_blank' ? <Button title="提交" disabled={!text.trim()} onPress={() => void send({ answer_text: text })} /> : null}
             <Button title="不会，看答案" kind="text" onPress={() => void send({ revealed: true })} />
           </>
-        ) : showRef ? null : (
-          <Button title="看参考答案" onPress={() => setShowRef(true)} />
-        )}
+        ) : null}
       </View>
       <ConfirmDialog
         visible={exiting}

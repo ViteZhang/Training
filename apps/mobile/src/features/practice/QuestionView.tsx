@@ -16,6 +16,10 @@ export interface LocalResult {
   analysis?: string;
   wrongBook?: Schemas['AttemptResult']['wrong_book'];
   selfAssess?: Schemas['SelfAssessLevel'];
+  /** 主观题批改结果（4.7） */
+  grading?: Schemas['GradingResult'];
+  /** 次数用完，答案存为待批改（4.9） */
+  queued?: boolean;
 }
 
 export function QuestionHeader({ q }: { q: PracticeQuestion }) {
