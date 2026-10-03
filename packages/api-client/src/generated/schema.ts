@@ -2217,6 +2217,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/membership/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 会员中心（6.5）
+         * @description 三档会员（冲刺卡、考季卡、月卡）的价格与「现在购买的有效期截止」（叠加到当前会员之后），以及权益对比表。
+         *     payment_enabled 为 false 时 App 隐藏「立即开通」，只显示兑换码入口。会员一次性购买，不自动续费。
+         */
+        get: operations["getMembershipCenter"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 下单（6.5 立即开通）
+         * @description 受 online_payment 开关控制，关闭时返回 404。返回调起支付所需的参数：微信 prepay（appid、partnerid、prepayid、package、noncestr、timestamp、sign），
+         *     支付宝 order_string；App Store 内购返回 apple_product_id 与 app_account_token，App 用 StoreKit 购买时带上 appAccountToken，
+         *     购买成功后调 apple-verify。同一个 idempotency_key 返回同一个订单。
+         *     失败 400 detail.reason：channel_off / plan_off；409：no_exam_date（初试日期未公布）/ prepay_failed。
+         */
+        post: operations["createOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/{orderNo}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 订单状态（6.6 支付结果轮询）
+         * @description 支付平台回调到达后 status 变为 paid；App 调起支付返回后轮询几次，仍是 created 时显示「支付结果确认中」。
+         */
+        get: operations["getOrder"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/{orderNo}/apple-verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * App Store 内购校验并开通
+         * @description 服务端按交易号向 App Store Server API 查询交易，核对 App、商品、appAccountToken 与是否撤销后开通；重复提交返回同一结果。
+         *     失败 400 detail.reason：transaction_not_found / bundle_mismatch / product_mismatch / token_mismatch / revoked；409：transaction_used。
+         */
+        post: operations["verifyAppleOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/pay/notify/{channel}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 支付平台异步通知（微信支付、支付宝）
+         * @description 不需要登录，靠渠道签名鉴权：微信 APIv3 平台公钥验签 + AES-256-GCM 解密；支付宝 RSA2 验签。
+         *     应答按渠道格式原样返回（微信 JSON，支付宝纯文本 success / fail）；重复通知只开通一次。
+         */
+        post: operations["payNotify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3373,6 +3479,81 @@ export interface components {
             wrong: number;
             /** @description 批改完成的作文篇数 */
             essays: number;
+        };
+        /**
+         * @description 冲刺卡 / 考季卡 / 月卡
+         * @enum {string}
+         */
+        PlanTier: "sprint" | "season" | "monthly";
+        /**
+         * @description 微信支付 / 支付宝 / App Store 内购
+         * @enum {string}
+         */
+        PayChannel: "wechat" | "alipay" | "apple_iap";
+        MembershipPlan: {
+            tier: components["schemas"]["PlanTier"];
+            name: string;
+            /** Format: int64 */
+            price_cents: number;
+            apple_product_id?: string;
+            recommended: boolean;
+            /**
+             * Format: date-time
+             * @description 现在购买（叠加后）的有效期截止
+             */
+            ends_at?: string;
+            available: boolean;
+            /** @description 不可购买的原因，如「初试日期公布后开放」 */
+            unavailable_reason?: string;
+        };
+        QuotaRule: {
+            /** @description 为空表示不限 */
+            limit?: number | null;
+            /** @enum {string} */
+            period: "total" | "monthly" | "daily" | "weekly";
+        };
+        MembershipBenefit: {
+            quota_type: components["schemas"]["QuotaType"];
+            name: string;
+            free: components["schemas"]["QuotaRule"];
+            member: components["schemas"]["QuotaRule"];
+        };
+        MembershipCenter: {
+            /** @description 在线支付是否可用（开关打开且渠道已配置） */
+            payment_enabled: boolean;
+            channels: components["schemas"]["PayChannel"][];
+            plans: components["schemas"]["MembershipPlan"][];
+            benefits: components["schemas"]["MembershipBenefit"][];
+            membership: components["schemas"]["MembershipStatus"];
+        };
+        /**
+         * @description 待支付 / 已支付 / 已关闭 / 退款中 / 已退款
+         * @enum {string}
+         */
+        OrderStatus: "created" | "paid" | "closed" | "refunding" | "refunded";
+        Order: {
+            order_no: string;
+            tier: components["schemas"]["PlanTier"];
+            channel: components["schemas"]["PayChannel"];
+            /** Format: int64 */
+            amount_cents: number;
+            status: components["schemas"]["OrderStatus"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            paid_at?: string;
+            /**
+             * Format: date-time
+             * @description 支付成功后会员叠加到的截止时间
+             */
+            membership_ends_at?: string;
+            /** @description 只在下单时返回：调起支付的参数 */
+            prepay?: {
+                [key: string]: string;
+            };
+            apple_product_id?: string;
+            /** @description App Store 内购购买时传给 StoreKit 的 appAccountToken */
+            app_account_token?: string;
         };
         RedeemResult: {
             /** @enum {string} */
@@ -7870,6 +8051,134 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExportJob"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getMembershipCenter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipCenter"];
+                };
+            };
+        };
+    };
+    createOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    tier: components["schemas"]["PlanTier"];
+                    channel: components["schemas"]["PayChannel"];
+                    idempotency_key?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderNo: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    verifyAppleOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderNo: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    transaction_id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    payNotify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channel: "wechat" | "alipay";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 渠道格式的应答 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
                 };
             };
             404: components["responses"]["NotFound"];
