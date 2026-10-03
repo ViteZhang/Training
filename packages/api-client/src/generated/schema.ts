@@ -1822,6 +1822,259 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/subjects/{subjectId}/essay-home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * 作文训练（5.1、5.1b）
+         * @description 本周目标与完成、平均分、当前评分标准；真题题目（已写稿数、最高分、范文数）、AI 命题、未提交的草稿。no_material=true 时显示 5.1b 引导导入。
+         */
+        get: operations["getEssayHome"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/essay-topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * AI 命题（5.1「再出一道」）
+         * @description 按用户作文真题的命题方式出一道新题，标「AI 出题」；计 1 道 AI 出题额度。
+         */
+        post: operations["generateEssayTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/essays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 开始写一篇作文（5.2）
+         * @description 真题（question_id）、AI 命题（ai_topic_id）、自拟（topic_text）三选一；parent_essay_id 为「按建议重写」，沿用原题记为下一稿。真题默认限时。
+         */
+        post: operations["createEssay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/essays/{essayId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                essayId: components["parameters"]["EssayId"];
+            };
+            cookie?: never;
+        };
+        /** 一篇作文（写作页 5.2、批改中 5.5、批改结果 5.6） */
+        get: operations["getEssay"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/essays/{essayId}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                essayId: components["parameters"]["EssayId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 保存草稿（每 5 秒）
+         * @description 不传的字段不改；photo_keys 是 /handwriting/upload-requests 返回的对象键（拍照上传手写稿 5.4）。提交后返回 409。
+         */
+        put: operations["saveEssayDraft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/essays/{essayId}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                essayId: components["parameters"]["EssayId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 提交批改（5.5）
+         * @description 按当前评分标准批改，约 30 秒，可先离开，完成后发消息；预占 1 次作文批改（免费版每周 1 篇），批改失败退回。重复提交返回同一结果。
+         */
+        post: operations["submitEssay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/essays/{essayId}/dispute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                essayId: components["parameters"]["EssayId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 对作文批改有异议（与主观题相同）
+         * @description 每篇复核一次，重批不计次，以重批结果为准。
+         */
+        post: operations["disputeEssay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/essays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        /** 作文本（5.8） */
+        get: operations["getEssayNotebook"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/essay-rubrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        /** 评分标准（5.9）：你的资料与通用标准 */
+        get: operations["getEssayRubrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/essay-rubrics/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 切换评分标准（5.9）
+         * @description 之后新写的作文按它批改，已批改的分数不变。
+         */
+        put: operations["selectEssayRubric"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/essay-rubrics/user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 编辑「你的资料」评分标准（5.9）
+         * @description 维度、说明、分值与分档；满分 = 各维度分值之和。通用标准不能改（409）。只影响之后的批改。
+         */
+        put: operations["updateEssayRubric"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/model-essays/{modelEssayId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                modelEssayId: number;
+            };
+            cookie?: never;
+        };
+        /**
+         * 范文详情（5.7）
+         * @description 只展示用户自己导入的范文；AI 结构拆解（开头立意、分论点、升华、结尾）。
+         */
+        get: operations["getModelEssay"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2608,7 +2861,9 @@ export interface components {
             /** @description 目标分 − 预估上限，达到目标为 0；没设目标时不返回 */
             gap?: number;
             main_gap_qtype?: components["schemas"]["QuestionType"];
-            /** @description 依据了几套导入真题卷 */
+            /** @description 作文课的失分主项（得分率最低的维度，PRD 11.13） */
+            main_gap_dimension?: string;
+            /** @description 依据了几套导入真题卷；作文课为依据的作文篇数 */
             basis_papers?: number;
             /** @description 依据了近多少道主观题 */
             basis_questions?: number;
@@ -2688,6 +2943,8 @@ export interface components {
             sections: components["schemas"]["SectionMastery"][];
             false_mastery: components["schemas"]["KPRef"][];
             recent_papers: components["schemas"]["RecentPaper"][];
+            /** @description 作文课各维度平均分（非作文课为空） */
+            essay_dims: components["schemas"]["EssayDimScore"][];
         };
         QTypeScore: {
             qtype: components["schemas"]["QuestionType"];
@@ -2745,6 +3002,227 @@ export interface components {
             counts_for_estimate: boolean;
             /** Format: date-time */
             graded_at: string;
+        };
+        /**
+         * @description 真题 / AI 命题 / 自拟
+         * @enum {string}
+         */
+        EssayTopicSource: "exam" | "ai" | "custom";
+        /**
+         * @description 你的资料（从用户资料识别）/ 通用五维度
+         * @enum {string}
+         */
+        EssayRubricSource: "user_material" | "generic";
+        /**
+         * @description 草稿 / 额度不足待批改 / 批改中 / 已批改 / 批改失败（未扣次数，可重新提交）
+         * @enum {string}
+         */
+        EssayStatus: "draft" | "queued_quota" | "grading" | "graded" | "failed";
+        EssayDimension: {
+            name: string;
+            description?: string;
+            /** @description 该维度分值 */
+            score: number;
+            bands?: {
+                range: string;
+                description: string;
+            }[];
+        };
+        EssayRubric: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            source: components["schemas"]["EssayRubricSource"];
+            /** @enum {string} */
+            origin: "user_confirmed" | "ai_extracted" | "official";
+            full_score: number;
+            dimensions: components["schemas"]["EssayDimension"][];
+            source_ref?: components["schemas"]["SourceRef"];
+        };
+        EssayRubrics: {
+            /** Format: int64 */
+            active_id: number;
+            user?: components["schemas"]["EssayRubric"];
+            generic: components["schemas"]["EssayRubric"];
+        };
+        /** @description 批改所用的评分标准（快照）；source=generic 时分数只作参考、不计入预估分 */
+        EssayRubricInfo: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            source: components["schemas"]["EssayRubricSource"];
+            full_score: number;
+            source_ref?: components["schemas"]["SourceRef"];
+        };
+        EssayDimScore: {
+            name: string;
+            score: number;
+            max: number;
+            comment?: string;
+        };
+        EssayAnnotation: {
+            /** @description 段号，从 1 开始 */
+            paragraph: number;
+            /** @description 原文 */
+            quote: string;
+            issue: string;
+            suggestion: string;
+        };
+        /** @description AI 结构拆解 */
+        ModelEssayStructure: {
+            opening?: string;
+            points?: string[];
+            elevation?: string;
+            ending?: string;
+        };
+        Essay: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            subject_id: number;
+            topic_source: components["schemas"]["EssayTopicSource"];
+            /** Format: int64 */
+            topic_question_id?: number;
+            /** Format: int64 */
+            ai_topic_id?: number;
+            topic: string;
+            required_words?: number;
+            /** @description 真题默认倒计时（可关闭） */
+            time_limit_minutes: number;
+            /** @description 同题第几稿 */
+            draft_no: number;
+            /** Format: int64 */
+            parent_essay_id?: number;
+            content: string;
+            photo_keys: string[];
+            word_count: number;
+            timed: boolean;
+            duration_seconds: number;
+            status: components["schemas"]["EssayStatus"];
+            fail_reason?: string;
+            /** @description AI 批改得分，仅供参考 */
+            score?: number;
+            full_score?: number;
+            /** @description 较上篇 */
+            prev_delta?: number;
+            rubric?: components["schemas"]["EssayRubricInfo"];
+            dimensions?: components["schemas"]["EssayDimScore"][];
+            /** @description 失分主项（得分率最低的维度） */
+            weakest_dimension?: string;
+            /** @description 提取的立意 */
+            thesis?: string;
+            highlights?: string[];
+            problems?: string[];
+            suggestions?: string[];
+            annotations?: components["schemas"]["EssayAnnotation"][];
+            /** @description 批改时的分段，批注按段号对应 */
+            paragraphs?: string[];
+            /** @description 范文对比：用户导入的同题范文要点 */
+            model_essays?: components["schemas"]["ModelEssayRef"][];
+            /** @description 按用户评分细则批改且真题限时完成，计入作文课预估分 */
+            counts_for_estimate: boolean;
+            disputed: boolean;
+            /** @description 复核前的分数 */
+            score_before?: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            submitted_at?: string;
+            /** Format: date-time */
+            graded_at?: string;
+        };
+        EssayBrief: {
+            /** Format: int64 */
+            id: number;
+            topic: string;
+            topic_source: components["schemas"]["EssayTopicSource"];
+            draft_no: number;
+            status: components["schemas"]["EssayStatus"];
+            score?: number;
+            full_score?: number;
+            word_count: number;
+            counts_for_estimate: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            graded_at?: string;
+        };
+        EssayAITopic: {
+            /** Format: int64 */
+            id: number;
+            topic: string;
+            required_words: number;
+            note?: string;
+            drafts?: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        EssayHome: {
+            weekly_goal: number;
+            week_done: number;
+            avg_score?: number;
+            rubric: components["schemas"]["EssayRubricInfo"];
+            no_material: boolean;
+            /** @description 本周还能批改几篇；会员为 null */
+            weekly_remaining?: number | null;
+            exam_topics: components["schemas"]["EssayExamTopic"][];
+            ai_topics: components["schemas"]["EssayAITopic"][];
+            drafts: components["schemas"]["EssayBrief"][];
+        };
+        EssayNotebook: {
+            count: number;
+            avg_score?: number;
+            best?: number;
+            /** @description 最近 10 篇的分数，旧的在前 */
+            trend: components["schemas"]["EssayTrendPoint"][];
+            weakest?: components["schemas"]["EssayWeakest"];
+            dim_avgs: components["schemas"]["EssayDimScore"][];
+            items: components["schemas"]["EssayBrief"][];
+        };
+        ModelEssayDetail: {
+            /** Format: int64 */
+            id: number;
+            title: string;
+            topic?: string;
+            content: string;
+            structure?: components["schemas"]["ModelEssayStructure"];
+            source_ref?: components["schemas"]["SourceRef"];
+        };
+        ModelEssayRef: {
+            /** Format: int64 */
+            id: number;
+            title: string;
+            structure?: components["schemas"]["ModelEssayStructure"];
+        };
+        EssayExamTopic: {
+            /** Format: int64 */
+            id: number;
+            stem: string;
+            exam_year?: number;
+            required_words?: number;
+            drafts: number;
+            best?: number;
+            model_essay_count: number;
+        };
+        EssayTrendPoint: {
+            /** Format: int64 */
+            essay_id: number;
+            /** Format: date-time */
+            date: string;
+            score: number;
+            full_score: number;
+        };
+        /** @description 失分主项（得分率最低的维度）与对应的写作方法 */
+        EssayWeakest: {
+            name: string;
+            avg_score: number;
+            avg_max: number;
+            /**
+             * Format: int64
+             * @description 对应的写作方法（「去学」→ 3.10）
+             */
+            method_id?: number;
+            method_title?: string;
         };
         ExamProfile: {
             /** @description 至少 2 套真题卷才显示统计 */
@@ -3814,6 +4292,7 @@ export interface components {
         };
     };
     parameters: {
+        EssayId: number;
         PaperId: number;
         GradingId: number;
         SessionId: number;
@@ -6559,6 +7038,340 @@ export interface operations {
                     "application/json": {
                         added: number;
                     };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getEssayHome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EssayHome"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    generateEssayTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已出题 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EssayAITopic"];
+                };
+            };
+            402: components["responses"]["QuotaExceeded"];
+            404: components["responses"]["NotFound"];
+            502: components["responses"]["AIFailed"];
+        };
+    };
+    createEssay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    subject_id?: number;
+                    topic_source?: components["schemas"]["EssayTopicSource"];
+                    /** Format: int64 */
+                    question_id?: number;
+                    /** Format: int64 */
+                    ai_topic_id?: number;
+                    topic_text?: string;
+                    required_words?: number;
+                    /** Format: int64 */
+                    parent_essay_id?: number;
+                    idempotency_key: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Essay"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getEssay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                essayId: components["parameters"]["EssayId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Essay"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    saveEssayDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                essayId: components["parameters"]["EssayId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    content?: string;
+                    duration_seconds?: number;
+                    timed?: boolean;
+                    photo_keys?: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Essay"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    submitEssay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                essayId: components["parameters"]["EssayId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Essay"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            402: components["responses"]["QuotaExceeded"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    disputeEssay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                essayId: components["parameters"]["EssayId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    reason: "hit_missed" | "rubric_wrong" | "score_unfair" | "other";
+                    note?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Essay"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getEssayNotebook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EssayNotebook"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getEssayRubrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EssayRubrics"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    selectEssayRubric: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    source: components["schemas"]["EssayRubricSource"];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EssayRubrics"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateEssayRubric: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    dimensions: components["schemas"]["EssayDimension"][];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EssayRubrics"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getModelEssay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                modelEssayId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelEssayDetail"];
                 };
             };
             404: components["responses"]["NotFound"];

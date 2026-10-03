@@ -78,7 +78,7 @@ export function EstimateLine({ e, onBrand = true }: { e: Schemas['EstimateCard']
   const fg = onBrand ? semantic.textOnBrand : undefined;
   const gap =
     e.gap === undefined ? null : e.gap > 0 ? `还差约 ${e.gap} 分` : '预估上限已到目标';
-  const main = e.main_gap_qtype ? `主要差在${qtypeNames[e.main_gap_qtype]}题` : '';
+  const main = e.main_gap_dimension ? `主要差在${e.main_gap_dimension}` : e.main_gap_qtype ? `主要差在${qtypeNames[e.main_gap_qtype]}题` : '';
   return (
     <View style={styles.estimateBody}>
       <View style={styles.rowBase}>
@@ -100,7 +100,9 @@ export function EstimateLine({ e, onBrand = true }: { e: Schemas['EstimateCard']
         </Text>
       ) : null}
       <Text variant="small" color={fg}>
-        依据你导入的 {e.basis_papers} 套真题卷实测{e.basis_questions ? `和近 ${e.basis_questions} 道主观题` : ''}估算
+        {e.is_essay
+          ? `依据你最近 ${e.basis_papers} 篇按评分细则批改的真题限时作文估算`
+          : `依据你导入的 ${e.basis_papers} 套真题卷实测${e.basis_questions ? `和近 ${e.basis_questions} 道主观题` : ''}估算`}
       </Text>
     </View>
   );
