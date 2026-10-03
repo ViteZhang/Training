@@ -10,7 +10,7 @@ WHERE q.bank_id = ? AND q.owner_user_id = ? AND q.status = 'active'
 ORDER BY q.id;
 
 -- name: InsertPracticeSession :execlastid
-INSERT INTO practice_sessions (owner_user_id, subject_id, kind, title, config, question_ids) VALUES (?, ?, ?, ?, ?, ?);
+INSERT INTO practice_sessions (owner_user_id, subject_id, kind, title, config, question_ids, started_at) VALUES (?, ?, ?, ?, ?, ?, ?);
 
 -- name: GetPracticeSession :one
 SELECT * FROM practice_sessions WHERE id = ? AND owner_user_id = ?;

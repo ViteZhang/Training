@@ -18,6 +18,8 @@ type Querier interface {
 	AddImportJobPages(ctx context.Context, arg AddImportJobPagesParams) error
 	// 2.1e：接受时立即切换阶段（不是手动选择）；不管接受与否，同一目标阶段只弹一次。
 	AnswerStagePrompt(ctx context.Context, arg AnswerStagePromptParams) error
+	// 「按结构写一道」用的题：同题型里最近没做过的。
+	AnyQuestionOfQType(ctx context.Context, arg AnyQuestionOfQTypeParams) (uint64, error)
 	BankCounts(ctx context.Context, arg BankCountsParams) (BankCountsRow, error)
 	// 每次报错计数；AI 出的题累计 3 次自动下线（PRD 4.3）。SET 从左到右执行，判断时 report_count 已经加过 1。
 	BumpQuestionReport(ctx context.Context, arg BumpQuestionReportParams) error
@@ -147,6 +149,7 @@ type Querier interface {
 	InsertKPSource(ctx context.Context, arg InsertKPSourceParams) error
 	InsertKnowledgePoint(ctx context.Context, arg InsertKnowledgePointParams) (int64, error)
 	InsertModelEssay(ctx context.Context, arg InsertModelEssayParams) (int64, error)
+	InsertNormGrading(ctx context.Context, arg InsertNormGradingParams) (int64, error)
 	InsertPaper(ctx context.Context, arg InsertPaperParams) (int64, error)
 	InsertPaperQuestion(ctx context.Context, arg InsertPaperQuestionParams) error
 	InsertPracticeSession(ctx context.Context, arg InsertPracticeSessionParams) (int64, error)
@@ -159,6 +162,8 @@ type Querier interface {
 	InsertStudyProfile(ctx context.Context, arg InsertStudyProfileParams) error
 	InsertWritingMethod(ctx context.Context, arg InsertWritingMethodParams) (int64, error)
 	LatestDoneGrading(ctx context.Context, arg LatestDoneGradingParams) (Grading, error)
+	// 你上次的写法：最近一次批改完的同题型作答。
+	LatestGradingOfQType(ctx context.Context, arg LatestGradingOfQTypeParams) (LatestGradingOfQTypeRow, error)
 	LatestInProgressSession(ctx context.Context, arg LatestInProgressSessionParams) (PracticeSession, error)
 	ListAcceptedAgreementIDs(ctx context.Context, userID uint64) ([]uint64, error)
 	ListActiveImportJobs(ctx context.Context, ownerUserID uint64) ([]ListActiveImportJobsRow, error)
@@ -236,6 +241,8 @@ type Querier interface {
 	MoveKPRubric(ctx context.Context, arg MoveKPRubricParams) error
 	// 合并：把来源知识点的题目关联挂到目标知识点（已挂的跳过）。
 	MoveQuestionKPs(ctx context.Context, arg MoveQuestionKPsParams) error
+	// 高分写法：同题型里有采分点的题，用户确认过的采分点、有资料出处的优先。
+	NormExampleQuestion(ctx context.Context, arg NormExampleQuestionParams) (NormExampleQuestionRow, error)
 	QTypeCounts(ctx context.Context, arg QTypeCountsParams) ([]QTypeCountsRow, error)
 	// 知识点在真题中出现的次数（3.1、3.8；回忆版不计入）。
 	RecountKPExamCounts(ctx context.Context, arg RecountKPExamCountsParams) error
@@ -252,6 +259,8 @@ type Querier interface {
 	SearchKPs(ctx context.Context, arg SearchKPsParams) ([]SearchKPsRow, error)
 	SearchMaterialPages(ctx context.Context, arg SearchMaterialPagesParams) ([]SearchMaterialPagesRow, error)
 	SearchQuestions(ctx context.Context, arg SearchQuestionsParams) ([]SearchQuestionsRow, error)
+	// 拍手写稿与答题规范（T19）。每条查询都带归属条件。
+	SetAttemptPhotos(ctx context.Context, arg SetAttemptPhotosParams) error
 	SetAttemptScore(ctx context.Context, arg SetAttemptScoreParams) error
 	SetAttemptTimed(ctx context.Context, arg SetAttemptTimedParams) error
 	SetBankExamStyle(ctx context.Context, arg SetBankExamStyleParams) error

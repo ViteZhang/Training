@@ -91,6 +91,8 @@ type SubjectiveInput struct {
 	Mode       string
 	Duration   int
 	Timed      bool
+	// PhotoKeys 是拍手写稿的照片（Mode=photo），Answer 是识别后用户核对过的文字。
+	PhotoKeys []string
 }
 
 func parseScore(s sql.NullString) (float64, bool) {
@@ -283,6 +285,11 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 	if in.Mode == "voice" || in.Mode == "photo" {
 		mode = dbq.AttemptsAnswerMode(in.Mode)
 	}
+	if len(in.PhotoKeys) > 0 {
+		if err := ownPhotos(userID, in.PhotoKeys); err != nil {
+			return Grading{}, err
+		}
+	}
 	now := s.now().UTC()
 	attempt := dbq.InsertAttemptParams{OwnerUserID: userID, QuestionID: qr.ID, PracticeSessionID: sql.NullInt64{Int64: int64(sessionID), Valid: true},
 		AnswerMode: mode, AnswerText: sql.NullString{String: answer, Valid: true}, FullScore: fmtScore(snap.FullScore),
@@ -301,7 +308,7 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 			if err != nil {
 				return err
 			}
-			if err := s.markTimed(ctx, q, userID, uint64(aid), in.Timed); err != nil {
+			if err := s.annotate(ctx, q, userID, uint64(aid), in); err != nil {
 				return err
 			}
 			gid, err = q.InsertGrading(ctx, dbq.InsertGradingParams{OwnerUserID: userID, AttemptID: uint64(aid), TriggerReason: dbq.GradingsTriggerReasonSubmit,
@@ -344,7 +351,7 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 		if err != nil {
 			return err
 		}
-		if err := s.markTimed(ctx, q, userID, uint64(aid), in.Timed); err != nil {
+		if err := s.annotate(ctx, q, userID, uint64(aid), in); err != nil {
 			return err
 		}
 		eff, err := Apply(ctx, q, p, userID, qr.ID, Outcome{Graded: true, ScoreRate: total / snap.FullScore, LossType: mainLoss}, rules.DayOf(now))
@@ -373,11 +380,18 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 	return s.Grading(ctx, userID, uint64(gid))
 }
 
-func (s *Service) markTimed(ctx context.Context, q *dbq.Queries, userID, attemptID uint64, timed bool) error {
-	if !timed {
+// annotate 记下限时作答与手写稿照片。
+func (s *Service) annotate(ctx context.Context, q *dbq.Queries, userID, attemptID uint64, in SubjectiveInput) error {
+	if in.Timed {
+		if err := q.SetAttemptTimed(ctx, dbq.SetAttemptTimedParams{ID: attemptID, OwnerUserID: userID}); err != nil {
+			return err
+		}
+	}
+	if len(in.PhotoKeys) == 0 {
 		return nil
 	}
-	return q.SetAttemptTimed(ctx, dbq.SetAttemptTimedParams{ID: attemptID, OwnerUserID: userID})
+	keys, _ := json.Marshal(in.PhotoKeys)
+	return q.SetAttemptPhotos(ctx, dbq.SetAttemptPhotosParams{PhotoKeys: keys, ID: attemptID, OwnerUserID: userID})
 }
 
 func (s *Service) insertDone(ctx context.Context, q *dbq.Queries, userID, attemptID uint64, trigger dbq.GradingsTriggerReason, parent uint64, snap rubricSnap,

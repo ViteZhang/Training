@@ -46,6 +46,7 @@ type fx struct {
 	mat   *material.Service
 	prof  *profile.Service
 	pr    *practice.Service
+	oss   *oss.Mock
 	clock time.Time
 }
 
@@ -76,7 +77,8 @@ func setup(t *testing.T) *fx {
 	queue.h = &jobs.Handlers{Logger: logx.New(io.Discard, slog.LevelInfo), Import: f.imp, Material: f.mat, Permanent: material.IsPermanent}
 	bk := bank.New(bank.Deps{DB: db, AI: engine, Quota: qs, Params: ps, Now: now})
 	pl := plan.New(plan.Deps{DB: db, Params: ps, Profile: f.prof, Bank: bk, Now: now})
-	f.pr = practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, Now: now})
+	f.oss = o
+	f.pr = practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: o, OCR: ocr.NewMock(), Moderation: moderation.NewMock(), Now: now})
 	return f
 }
 

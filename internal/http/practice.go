@@ -170,7 +170,7 @@ func (h *Handlers) CreatePracticeSession(c *gin.Context) {
 	if !bind(c, &body) {
 		return
 	}
-	in := practice.CreateInput{SubjectID: uint64(body.SubjectId), Kind: practice.Kind(body.Kind), Config: toConfig(body.Config)}
+	in := practice.CreateInput{SubjectID: uint64(body.SubjectId), Kind: practice.Kind(body.Kind), Config: toConfig(body.Config), AIFill: body.AiFill != nil && *body.AiFill}
 	if body.Qtype != nil {
 		in.QType = string(*body.Qtype)
 	}

@@ -343,7 +343,7 @@ func (q *Queries) InsertAttempt(ctx context.Context, arg InsertAttemptParams) (i
 }
 
 const insertPracticeSession = `-- name: InsertPracticeSession :execlastid
-INSERT INTO practice_sessions (owner_user_id, subject_id, kind, title, config, question_ids) VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO practice_sessions (owner_user_id, subject_id, kind, title, config, question_ids, started_at) VALUES (?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertPracticeSessionParams struct {
@@ -353,6 +353,7 @@ type InsertPracticeSessionParams struct {
 	Title       string
 	Config      dbtypes.NullJSON
 	QuestionIds json.RawMessage
+	StartedAt   time.Time
 }
 
 func (q *Queries) InsertPracticeSession(ctx context.Context, arg InsertPracticeSessionParams) (int64, error) {
@@ -363,6 +364,7 @@ func (q *Queries) InsertPracticeSession(ctx context.Context, arg InsertPracticeS
 		arg.Title,
 		arg.Config,
 		arg.QuestionIds,
+		arg.StartedAt,
 	)
 	if err != nil {
 		return 0, err
