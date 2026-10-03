@@ -37,6 +37,7 @@ const (
 	TypeDailyPlan     = "plan:daily"
 	TypePaperGrade    = "paper:grade"
 	TypePaperDeadline = "paper:deadline"
+	TypeEssayGrade    = "essay:grade"
 )
 
 // PingPayload 用于检查「API 入队 → Worker 执行」整条链路。
@@ -110,6 +111,29 @@ type Handlers struct {
 	Import    Importer
 	Plan      PlanGenerator
 	Paper     PaperGrader
+	Essay     EssayGrader
+}
+
+// EssayGrader 是作文的后台批改（essay.Service 实现）：提交后约 30 秒批完，完成后发消息。
+type EssayGrader interface {
+	GradeEssay(ctx context.Context, userID, essayID uint64) error
+}
+
+// EssayPayload 指定一次作文批改；Round 是第几次批改（复核重批时加 1，生成新的任务 ID）。
+type EssayPayload struct {
+	UserID  uint64 `json:"user_id"`
+	EssayID uint64 `json:"essay_id"`
+	Round   int    `json:"round"`
+}
+
+// NewEssayGradeTask 创建作文批改任务（用户在等，放 critical 队列）。同一篇同一轮只排一个。
+func NewEssayGradeTask(userID, essayID uint64, round int) (*asynq.Task, error) {
+	b, err := json.Marshal(EssayPayload{UserID: userID, EssayID: essayID, Round: round})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TypeEssayGrade, b, asynq.Queue(QueueCritical), asynq.MaxRetry(2), asynq.Timeout(5*time.Minute),
+		asynq.TaskID(fmt.Sprintf("%s:%d:%d", TypeEssayGrade, essayID, round))), nil
 }
 
 // PaperGrader 是整卷的后台任务（practice.Service 实现）：交卷后按采分点逐题批改主观题；模拟考试到截止时间自动交卷。
@@ -177,6 +201,7 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 	mux.HandleFunc(TypeDailyPlan, h.handleDailyPlan)
 	mux.HandleFunc(TypePaperGrade, h.handlePaperGrade)
 	mux.HandleFunc(TypePaperDeadline, h.handlePaperDeadline)
+	mux.HandleFunc(TypeEssayGrade, h.handleEssayGrade)
 	return mux
 }
 
@@ -271,6 +296,14 @@ func (h *Handlers) handlePaperDeadline(ctx context.Context, t *asynq.Task) error
 		return fmt.Errorf("解析整卷载荷：%w", errors.Join(err, asynq.SkipRetry))
 	}
 	return h.Paper.AutoSubmitPaper(ctx, p.UserID, p.SessionID)
+}
+
+func (h *Handlers) handleEssayGrade(ctx context.Context, t *asynq.Task) error {
+	var p EssayPayload
+	if err := json.Unmarshal(t.Payload(), &p); err != nil {
+		return fmt.Errorf("解析作文载荷：%w", errors.Join(err, asynq.SkipRetry))
+	}
+	return h.Essay.GradeEssay(ctx, p.UserID, p.EssayID)
 }
 
 // lastAttempt 报告这是不是最后一次重试（重试用完后 Asynq 不再执行，需要把状态收尾）。

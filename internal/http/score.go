@@ -21,6 +21,7 @@ func toGenEstimate(c score.Card) gen.EstimateCard {
 		if c.MainGap != "" {
 			out.MainGapQtype = ptr(gen.QuestionType(c.MainGap))
 		}
+		out.MainGapDimension = optStr(c.MainGapDimension)
 	}
 	return out
 }
@@ -71,7 +72,10 @@ func (h *Handlers) GetDashboard(c *gin.Context, subjectID gen.SubjectId) {
 	}
 	out := gen.Dashboard{Estimate: toGenEstimate(d.Card), LossPoints: lossPoints(d.LossPoints), LossShares: lossPoints(d.LossShares), SectionsReady: d.SectionsReady,
 		Trend: make([]gen.EstimateWeek, len(d.Trend)), Sections: make([]gen.SectionMastery, len(d.Sections)), FalseMastery: make([]gen.KPRef, len(d.FalseMastery)),
-		RecentPapers: make([]gen.RecentPaper, len(d.RecentPapers))}
+		RecentPapers: make([]gen.RecentPaper, len(d.RecentPapers)), EssayDims: make([]gen.EssayDimScore, len(d.EssayDims))}
+	for i, e := range d.EssayDims {
+		out.EssayDims[i] = gen.EssayDimScore{Name: e.Name, Score: float32(e.Score), Max: float32(e.Max)}
+	}
 	for i, w := range d.Trend {
 		out.Trend[i] = gen.EstimateWeek{WeekStart: openapi_types.Date{Time: w.WeekStart.Date()}, Low: w.Low, High: w.High, Mid: float32(w.Mid)}
 	}

@@ -47,6 +47,8 @@ type Dashboard struct {
 	Sections      []bank.SectionShare
 	FalseMastery  []plan.KP
 	RecentPapers  []RecentPaper
+	// EssayDims 是作文课各维度的平均分（6.2「作文课显示五维平均分」），按批改完成的全部作文平均。
+	EssayDims []rules.DimScore
 }
 
 func weekStart(d rules.Day) rules.Day {
@@ -54,14 +56,14 @@ func weekStart(d rules.Day) rules.Day {
 	return d.AddDays(-((wd - weekdayMonday + 7) % 7))
 }
 
-// Dashboard 出一门课的提分看板：预估分卡与按周趋势、近 30 天失分归因、各板块掌握度 × 真题分值占比、「以为会了」、最近整卷成绩。
-// 作文课的五维平均分在 T23 接入。
+// Dashboard 出一门课的提分看板：预估分卡与按周趋势、近 30 天失分归因、各板块掌握度 × 真题分值占比、「以为会了」、最近整卷成绩；
+// 作文课另有各维度平均分。
 func (s *Service) Dashboard(ctx context.Context, userID, subjectID uint64) (Dashboard, error) {
 	sub, err := s.subject(ctx, userID, subjectID)
 	if err != nil {
 		return Dashboard{}, err
 	}
-	out := Dashboard{LossPoints: map[string]float64{}, LossShares: map[string]float64{}, Trend: []WeekPoint{}, RecentPapers: []RecentPaper{}}
+	out := Dashboard{LossPoints: map[string]float64{}, LossShares: map[string]float64{}, Trend: []WeekPoint{}, RecentPapers: []RecentPaper{}, EssayDims: []rules.DimScore{}}
 	if out.Card, err = s.card(ctx, userID, sub); err != nil {
 		return Dashboard{}, err
 	}
@@ -115,6 +117,12 @@ func (s *Service) Dashboard(ctx context.Context, userID, subjectID uint64) (Dash
 		return Dashboard{}, err
 	}
 
+	if sub.IsEssay {
+		if out.EssayDims, err = s.essayDims(ctx, userID, subjectID); err != nil {
+			return Dashboard{}, err
+		}
+	}
+
 	sessions, err := s.q.ListGradedPaperSessions(ctx, dbq.ListGradedPaperSessionsParams{OwnerUserID: userID, SubjectID: subjectID})
 	if err != nil {
 		return Dashboard{}, err
@@ -122,6 +130,41 @@ func (s *Service) Dashboard(ctx context.Context, userID, subjectID uint64) (Dash
 	for _, ss := range sessions[:min(len(sessions), recentPapers)] {
 		out.RecentPapers = append(out.RecentPapers, RecentPaper{SessionID: ss.ID, Title: ss.PaperTitle, Kind: string(ss.PaperKind), Mode: string(ss.Mode),
 			Score: dec(ss.Score.String), FullScore: dec(ss.FullScore), CountsForEstimate: ss.CountsForEstimate, GradedAt: ss.GradedAt.Time})
+	}
+	return out, nil
+}
+
+// essayDims 是作文课各维度的平均得分与平均分值（按出现过该维度的作文篇数平均）。
+func (s *Service) essayDims(ctx context.Context, userID, subjectID uint64) ([]rules.DimScore, error) {
+	rows, err := s.q.ListSubjectEssays(ctx, dbq.ListSubjectEssaysParams{OwnerUserID: userID, SubjectID: subjectID})
+	if err != nil {
+		return nil, err
+	}
+	agg := map[string]*rules.DimScore{}
+	counts := map[string]int{}
+	var order []string
+	for _, r := range rows {
+		if r.Status != dbq.EssaysStatusGraded {
+			continue
+		}
+		var ds []essayDim
+		_ = json.Unmarshal(r.DimensionScores, &ds)
+		for _, d := range ds {
+			a, ok := agg[d.Name]
+			if !ok {
+				a = &rules.DimScore{Name: d.Name}
+				agg[d.Name] = a
+				order = append(order, d.Name)
+			}
+			a.Score += d.Score
+			a.Max += d.Max
+			counts[d.Name]++
+		}
+	}
+	out := []rules.DimScore{}
+	for _, n := range order {
+		a, c := agg[n], float64(counts[n])
+		out = append(out, rules.DimScore{Name: n, Score: round1(a.Score / c), Max: round1(a.Max / c)})
 	}
 	return out, nil
 }

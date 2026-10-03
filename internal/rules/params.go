@@ -83,12 +83,14 @@ type PlanParams struct {
 
 // ScoreEstimateParams 对应 PRD 11.6。
 type ScoreEstimateParams struct {
-	MeasuredWeight       float64            `json:"measured_weight"`
-	ModelWeight          float64            `json:"model_weight"`
-	MeasuredRecentPapers int                `json:"measured_recent_papers"`
-	QTypeRecentQuestions int                `json:"qtype_recent_questions"`
-	QTypeMinQuestions    int                `json:"qtype_min_questions"`
-	Width                map[string]float64 `json:"width"`
+	MeasuredWeight       float64 `json:"measured_weight"`
+	ModelWeight          float64 `json:"model_weight"`
+	MeasuredRecentPapers int     `json:"measured_recent_papers"`
+	QTypeRecentQuestions int     `json:"qtype_recent_questions"`
+	QTypeMinQuestions    int     `json:"qtype_min_questions"`
+	// EssayRecent 是作文课预估分取最近几篇（PRD 11.13）。
+	EssayRecent int                `json:"essay_recent"`
+	Width       map[string]float64 `json:"width"`
 }
 
 // LossDiagnosisParams 对应 PRD 11.7。
@@ -168,7 +170,7 @@ func DefaultParams() Params {
 			KPExamBonus: 0.5,
 		},
 		ScoreEstimate: ScoreEstimateParams{
-			MeasuredWeight: 0.6, ModelWeight: 0.4, MeasuredRecentPapers: 2, QTypeRecentQuestions: 20, QTypeMinQuestions: 5,
+			MeasuredWeight: 0.6, ModelWeight: 0.4, MeasuredRecentPapers: 2, QTypeRecentQuestions: 20, QTypeMinQuestions: 5, EssayRecent: 3,
 			Width: map[string]float64{"1": 0.10, "2": 0.06, "3": 0.04},
 		},
 		LossDiagnosis: LossDiagnosisParams{KnowledgeMaxM: 60, TimeMinRatio: 0.3, TailStartRatio: 0.67},

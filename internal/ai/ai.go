@@ -177,6 +177,8 @@ var funcs = template.FuncMap{
 		b, err := json.MarshalIndent(v, "", "  ")
 		return string(b), err
 	},
+	// inc 把从 0 开始的下标变成从 1 开始的序号（作文按段编号）。
+	"inc": func(i int) int { return i + 1 },
 }
 
 func render(capability, version string, in any) (system, user string, err error) {

@@ -119,3 +119,42 @@ func widthFor(n int, widths map[string]float64) float64 {
 	}
 	return w
 }
+
+// EstimateEssay 计算作文课预估分（PRD 11.13）：最近 3 篇「按用户评分细则批改、且以真题限时完成」的作文得分平均；
+// 区间宽度按篇数同 11.6。scores 新的在前，只包含计入的作文；一篇都没有时不显示预估分。
+func EstimateEssay(scores []float64, fullScore float64, p ScoreEstimateParams) (Estimate, bool) {
+	if len(scores) == 0 {
+		return Estimate{}, false
+	}
+	n := min(len(scores), max(p.EssayRecent, 1))
+	mid := 0.0
+	for _, s := range scores[:n] {
+		mid += s
+	}
+	mid /= float64(n)
+	width := widthFor(n, p.Width)
+	return Estimate{
+		Low: int(clamp(math.Round(mid*(1-width)), 0, fullScore)), High: int(clamp(math.Round(mid*(1+width)), 0, fullScore)),
+		Mid: mid, Measured: mid, BasisPapers: n,
+	}, true
+}
+
+// DimScore 是作文一个评分维度的得分。
+type DimScore struct {
+	Name       string
+	Score, Max float64
+}
+
+// WeakestDimension 是失分主项：得分率最低的维度（PRD 11.13），并列时取靠前的。
+func WeakestDimension(dims []DimScore) (string, bool) {
+	best, rate := "", 2.0
+	for _, d := range dims {
+		if d.Max <= 0 {
+			continue
+		}
+		if r := d.Score / d.Max; r < rate {
+			best, rate = d.Name, r
+		}
+	}
+	return best, best != ""
+}
