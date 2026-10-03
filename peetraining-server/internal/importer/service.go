@@ -34,6 +34,8 @@ type Service struct {
 	now      func() time.Time
 	// AfterConfirm 在确认入库后调用（T16 生成今日计划，返回是否已生成）。
 	AfterConfirm func(ctx context.Context, userID, subjectID uint64) bool
+	// OnConfirmedTx 在确认入库的同一事务里调用（T26：被邀请人第一次导入资料后发邀请奖励）。
+	OnConfirmedTx func(ctx context.Context, q *dbq.Queries, userID uint64) error
 }
 
 // Deps 是创建服务的依赖。

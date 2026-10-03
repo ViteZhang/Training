@@ -10,6 +10,7 @@ import { mineKeys, tierNames, useMe, useOverview, useProfile, useSubjects, ymd }
 import { stageInfo } from '@/features/onboarding/api';
 import { appConfig } from '@/lib/config';
 import { api, unwrap } from '@/lib/api';
+import { useFeatureFlag } from '@/lib/flags';
 
 function Row({ title, desc, onPress }: { title: string; desc?: string; onPress: () => void }) {
   return (
@@ -28,6 +29,7 @@ export default function MeTab() {
   const profile = useProfile();
   const subjects = useSubjects();
   const overview = useOverview();
+  const inviteOn = useFeatureFlag('invite');
   const survey = useQuery({ queryKey: mineKeys.survey, queryFn: () => unwrap(api.GET('/me/survey')) });
   const list = subjects.data?.items ?? [];
   const main = list.find((s) => !s.is_essay) ?? list[0];
@@ -130,6 +132,7 @@ export default function MeTab() {
           />
           <Row title="导出题库" desc="PDF / Word" onPress={() => router.push('/mine/export')} />
           <Row title="备考设置" desc="专业课、目标分、初试日期、阶段" onPress={() => router.push('/settings/prep')} />
+          {inviteOn ? <Row title="邀请研友" desc="双方各得会员天数" onPress={() => router.push('/mine/invite')} /> : null}
           <Row title="兑换码" onPress={() => router.push('/mine/redeem')} />
           <Row title="意见反馈" onPress={() => router.push('/mine/feedback')} />
           {survey.data?.submitted ? <Row title="考后回访" desc="补充复试、录取结果" onPress={() => router.push('/mine/survey')} /> : null}

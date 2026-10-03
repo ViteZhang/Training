@@ -2323,6 +2323,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 邀请研友（6.8）
+         * @description 我的邀请码、奖励规则与邀请记录。好友用邀请码注册（LoginRequest.invite_code）、并导入第一份资料后，双方各得 reward_days 天会员；
+         *     邀请人累计最多 max_days 天。受 invite 开关控制，关闭时返回 404。记录里的好友不显示手机号与昵称。
+         */
+        get: operations["getInvites"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3554,6 +3575,24 @@ export interface components {
             apple_product_id?: string;
             /** @description App Store 内购购买时传给 StoreKit 的 appAccountToken */
             app_account_token?: string;
+        };
+        InviteRecord: {
+            /** Format: date-time */
+            registered_at: string;
+            /** @description 好友已导入第一份资料 */
+            activated: boolean;
+            /** @description 这条邀请给我的天数（达到上限后为 0） */
+            days: number;
+        };
+        InviteOverview: {
+            code: string;
+            reward_days: number;
+            max_days: number;
+            earned_days: number;
+            /** @description 已注册的好友数 */
+            invited: number;
+            /** @description 最近 100 条 */
+            records: components["schemas"]["InviteRecord"][];
         };
         RedeemResult: {
             /** @enum {string} */
@@ -8179,6 +8218,27 @@ export interface operations {
                 };
                 content: {
                     "text/plain": string;
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getInvites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteOverview"];
                 };
             };
             404: components["responses"]["NotFound"];

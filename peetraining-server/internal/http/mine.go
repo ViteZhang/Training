@@ -171,3 +171,22 @@ func (h *Handlers) GetExport(c *gin.Context, exportID int64) {
 	}
 	c.JSON(http.StatusOK, toGenExport(j))
 }
+
+func init() {
+	// 邀请开关关闭时 6.8 接口返回 404（ADR 0009）。
+	flagGuards["GET "+APIPrefix+"/me/invites"] = "invite"
+}
+
+func (h *Handlers) GetInvites(c *gin.Context) {
+	o, err := h.deps.Invite.Overview(c.Request.Context(), currentUser(c))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	out := gen.InviteOverview{Code: o.Code, RewardDays: o.RewardDays, MaxDays: o.MaxDays, EarnedDays: o.EarnedDays, Invited: o.Invited,
+		Records: make([]gen.InviteRecord, len(o.Records))}
+	for i, r := range o.Records {
+		out.Records[i] = gen.InviteRecord{RegisteredAt: r.RegisteredAt, Activated: r.Activated, Days: r.Days}
+	}
+	c.JSON(http.StatusOK, out)
+}

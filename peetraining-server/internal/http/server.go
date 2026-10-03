@@ -20,6 +20,7 @@ import (
 	"peetraining-server/internal/flags"
 	"peetraining-server/internal/gen"
 	"peetraining-server/internal/importer"
+	"peetraining-server/internal/invite"
 	"peetraining-server/internal/material"
 	"peetraining-server/internal/membership"
 	"peetraining-server/internal/payment"
@@ -62,6 +63,8 @@ type Deps struct {
 	Export     *export.Service
 	// T25 会员中心与支付。
 	Payment *payment.Service
+	// T26 邀请研友。
+	Invite *invite.Service
 	// DevMockPay 为 true 时注册本地「模拟支付成功」入口 POST /dev/pay/mock/:orderNo（只在非生产环境、mock 渠道）。
 	DevMockPay bool
 	// DevOSS 不为空时注册本地 mock OSS 的直传入口 PUT /dev/oss/*key（只在非生产环境）。

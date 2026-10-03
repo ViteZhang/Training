@@ -16,7 +16,7 @@ import { deviceId, platform } from '@/lib/device';
 const LEN = 6;
 
 export default function Code() {
-  const params = useLocalSearchParams<{ phone: string; cooldown?: string }>();
+  const params = useLocalSearchParams<{ phone: string; cooldown?: string; invite?: string }>();
   const phone = params.phone ?? '';
   const [code, setCode] = useState('');
   const [left, setLeft] = useState(Number(params.cooldown ?? 60));
@@ -42,6 +42,7 @@ export default function Code() {
             phone,
             code: value,
             device: { device_id: deviceId(), platform, device_name: Device.modelName ?? Device.deviceName ?? undefined },
+            ...(params.invite ? { invite_code: params.invite } : {}),
           },
         }),
       );

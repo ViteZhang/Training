@@ -22,6 +22,7 @@
     "@training/ui-tokens": "workspace:*",
     "expo": "~57.0.26",
     "expo-audio": "~57.0.5",
+    "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.20",
     "expo-crypto": "~57.0.3",
     "expo-dev-client": "~57.0.19",
@@ -45,6 +46,7 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.2",
     "react-native-svg": "15.15.4",
+    "react-native-view-shot": "5.1.0",
     "react-native-web": "~0.21.3",
     "zustand": "^5.0.15"
   },
