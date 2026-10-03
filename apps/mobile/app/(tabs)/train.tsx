@@ -11,6 +11,7 @@ import { stageInfo } from '@/features/onboarding/api';
 import { usePracticeHome, useStartPractice } from '@/features/practice/api';
 import { PendingGradingsCard } from '@/features/practice/grading';
 import { flush, useAIFillPref, usePending } from '@/features/practice/offline';
+import { useStartRecite } from '@/features/recite/api';
 import { api, unwrap } from '@/lib/api';
 
 function Row({ title, desc, onPress }: { title: string; desc: string; onPress: () => void }) {
@@ -34,6 +35,7 @@ export default function TrainTab() {
   const subject = list.find((s) => s.id === picked) ?? list.find((s) => !s.is_essay) ?? list[0];
   const home = usePracticeHome(subject?.id);
   const start = useStartPractice();
+  const recite = useStartRecite();
   const pending = usePending((s) => s.count);
   const [aiFill, setAiFill] = useAIFillPref();
 
@@ -170,7 +172,7 @@ export default function TrainTab() {
 
             <Card style={styles.list}>
               {h.paper_first ? null : paper}
-              <Row title="背诵" desc={`${h.recite_due} 条待背 · 挖空 · 默写`} onPress={() => toast('背诵马上上线')} />
+              <Row title="背诵" desc={h.recite_due > 0 ? `${h.recite_due} 条待背 · 挖空 · 默写` : '今天没有到期要背的'} onPress={() => recite.mutate({ subject_id: sid })} />
               <Row
                 title="答题规范"
                 desc="名词解释、简答、论述怎么写才拿分"
