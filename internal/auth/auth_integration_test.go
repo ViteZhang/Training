@@ -75,7 +75,7 @@ func (f *fixture) login(t *testing.T, p string, d auth.Device) auth.LoginResult 
 		t.Fatal(err)
 	}
 	code, _ := f.sms.LastCode(p)
-	res, err := f.svc.Login(ctx, p, code, d)
+	res, err := f.svc.Login(ctx, p, code, d, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,17 +148,17 @@ func TestWrongCodeAttempts(t *testing.T) {
 		wrong = "111111"
 	}
 	for i := 1; i <= 4; i++ {
-		_, err := f.svc.Login(ctx, phone, wrong, dev)
+		_, err := f.svc.Login(ctx, phone, wrong, dev, "")
 		e, _ := apperr.As(err)
 		if e == nil || e.Detail["remaining_attempts"] != 5-i {
 			t.Fatalf("第 %d 次错误：%v %v", i, err, e)
 		}
 	}
-	_, err := f.svc.Login(ctx, phone, wrong, dev)
+	_, err := f.svc.Login(ctx, phone, wrong, dev, "")
 	if e, _ := apperr.As(err); e == nil || e.Detail["code_expired"] != true {
 		t.Fatalf("错 5 次失效：%v", err)
 	}
-	if _, err := f.svc.Login(ctx, phone, code, dev); kindOf(err) != apperr.BadRequest {
+	if _, err := f.svc.Login(ctx, phone, code, dev, ""); kindOf(err) != apperr.BadRequest {
 		t.Fatal("失效后正确的码也不能用")
 	}
 	// 验证码 5 分钟有效：用新码但把 Redis 里的码删掉模拟过期。
@@ -166,7 +166,7 @@ func TestWrongCodeAttempts(t *testing.T) {
 	_, _ = f.svc.SendLoginCode(ctx, phone, true, "")
 	code, _ = f.sms.LastCode(phone)
 	f.rdb.Del(ctx, "sms:code:login:"+phone)
-	if _, err := f.svc.Login(ctx, phone, code, dev); kindOf(err) != apperr.BadRequest {
+	if _, err := f.svc.Login(ctx, phone, code, dev, ""); kindOf(err) != apperr.BadRequest {
 		t.Fatal("过期的码不能用")
 	}
 }
@@ -400,7 +400,7 @@ func TestBannedUserCannotLogin(t *testing.T) {
 	f.rdb.Del(ctx, "sms:cd:"+phone)
 	_, _ = f.svc.SendLoginCode(ctx, phone, true, "")
 	code, _ := f.sms.LastCode(phone)
-	if _, err := f.svc.Login(ctx, phone, code, dev); kindOf(err) != apperr.Forbidden {
+	if _, err := f.svc.Login(ctx, phone, code, dev, ""); kindOf(err) != apperr.Forbidden {
 		t.Fatalf("封禁用户：%v", err)
 	}
 	if _, err := f.svc.Refresh(ctx, res.Tokens.RefreshToken, dev.ID); kindOf(err) != apperr.Unauthorized {

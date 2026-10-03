@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.12.0
+  version: 0.13.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -20,6 +20,7 @@ info:
     - api-v0.2：考情分析 3.8、知识图谱 3.9、作文知识库 3.10（T14）
     - api-v0.3：今日首页 2.1、阶段提示 2.1e、今日计划与完成统计 2.2（T16）
     - api-v0.12：会员中心 6.5、订单与支付结果 6.6、支付回调（T25）
+    - api-v0.13：邀请研友 6.8（T26）
     - 其余模块随对应任务卡增量加入，10/11 冻结 api-v1.0
 servers:
   - url: /api/v1
@@ -2572,6 +2573,22 @@ paths:
               schema: { type: string }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /me/invites:
+    get:
+      tags: [mine]
+      operationId: getInvites
+      summary: 邀请研友（6.8）
+      description: |
+        我的邀请码、奖励规则与邀请记录。好友用邀请码注册（LoginRequest.invite_code）、并导入第一份资料后，双方各得 reward_days 天会员；
+        邀请人累计最多 max_days 天。受 invite 开关控制，关闭时返回 404。记录里的好友不显示手机号与昵称。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InviteOverview" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -3884,6 +3901,23 @@ components:
           description: 只在下单时返回：调起支付的参数
         apple_product_id: { type: string }
         app_account_token: { type: string, description: App Store 内购购买时传给 StoreKit 的 appAccountToken }
+    InviteRecord:
+      type: object
+      required: [registered_at, activated, days]
+      properties:
+        registered_at: { type: string, format: date-time }
+        activated: { type: boolean, description: 好友已导入第一份资料 }
+        days: { type: integer, description: 这条邀请给我的天数（达到上限后为 0） }
+    InviteOverview:
+      type: object
+      required: [code, reward_days, max_days, earned_days, invited, records]
+      properties:
+        code: { type: string }
+        reward_days: { type: integer }
+        max_days: { type: integer }
+        earned_days: { type: integer }
+        invited: { type: integer, description: 已注册的好友数 }
+        records: { type: array, items: { $ref: "#/components/schemas/InviteRecord" }, description: 最近 100 条 }
     RedeemResult:
       type: object
       required: [tier, days, starts_at, ends_at, membership]

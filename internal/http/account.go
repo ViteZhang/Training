@@ -82,7 +82,11 @@ func (h *Handlers) Login(c *gin.Context) {
 	if req.Device.DeviceName != nil {
 		dev.Name = *req.Device.DeviceName
 	}
-	res, err := h.deps.Auth.Login(c.Request.Context(), req.Phone, req.Code, dev)
+	invite := ""
+	if req.InviteCode != nil {
+		invite = *req.InviteCode
+	}
+	res, err := h.deps.Auth.Login(c.Request.Context(), req.Phone, req.Code, dev, invite)
 	if err != nil {
 		_ = c.Error(err)
 		return

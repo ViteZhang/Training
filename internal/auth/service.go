@@ -21,16 +21,17 @@ import (
 
 // Service 是账号服务。
 type Service struct {
-	db        *sql.DB
-	q         *dbq.Queries
-	rdb       *redis.Client
-	sms       sms.Sender
-	oss       oss.Store
-	params    *params.Store
-	jwtSecret []byte
-	logCodes  bool
-	now       func() time.Time
-	log       *slog.Logger
+	db         *sql.DB
+	q          *dbq.Queries
+	rdb        *redis.Client
+	sms        sms.Sender
+	oss        oss.Store
+	params     *params.Store
+	jwtSecret  []byte
+	logCodes   bool
+	now        func() time.Time
+	log        *slog.Logger
+	onRegister func(ctx context.Context, q *dbq.Queries, userID uint64, inviteCode string, now time.Time) error
 }
 
 // Deps 是创建服务需要的依赖。
@@ -45,6 +46,8 @@ type Deps struct {
 	LogCodes bool
 	Logger   *slog.Logger
 	Now      func() time.Time
+	// OnRegister 在创建账号的事务里调用，带上注册时填的邀请码（T26 绑定邀请关系）；为空时不处理邀请码。
+	OnRegister func(ctx context.Context, q *dbq.Queries, userID uint64, inviteCode string, now time.Time) error
 }
 
 func New(d Deps) *Service {
@@ -54,7 +57,7 @@ func New(d Deps) *Service {
 	}
 	return &Service{
 		db: d.DB, q: dbq.New(d.DB), rdb: d.Redis, sms: d.SMS, oss: d.OSS, params: d.Params,
-		jwtSecret: []byte(d.JWTSecret), logCodes: d.LogCodes, now: now, log: d.Logger,
+		jwtSecret: []byte(d.JWTSecret), logCodes: d.LogCodes, now: now, log: d.Logger, onRegister: d.OnRegister,
 	}
 }
 
@@ -109,7 +112,8 @@ type LoginResult struct {
 
 // Login 用手机号 + 验证码登录；未注册的手机号自动创建账号（PRD 0.2）。
 // 注销冷静期内登录即撤销注销（PRD 6.12）。登录时记录用户同意的当前协议版本（勾选协议才能获取验证码）。
-func (s *Service) Login(ctx context.Context, phone, code string, dev Device) (LoginResult, error) {
+// inviteCode 是新用户注册时填的邀请码（老用户登录时忽略）。
+func (s *Service) Login(ctx context.Context, phone, code string, dev Device, inviteCode string) (LoginResult, error) {
 	if err := s.verifyCode(ctx, phone, PurposeLogin, code); err != nil {
 		return LoginResult{}, err
 	}
@@ -126,6 +130,11 @@ func (s *Service) Login(ctx context.Context, phone, code string, dev Device) (Lo
 			id, err := createUser(ctx, q, phone)
 			if err != nil {
 				return err
+			}
+			if s.onRegister != nil && inviteCode != "" {
+				if err := s.onRegister(ctx, q, id, inviteCode, now); err != nil {
+					return err
+				}
 			}
 			if u, err = q.GetUserByID(ctx, id); err != nil {
 				return err

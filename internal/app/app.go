@@ -31,6 +31,7 @@ import (
 	"peetraining-server/internal/flags"
 	apihttp "peetraining-server/internal/http"
 	"peetraining-server/internal/importer"
+	"peetraining-server/internal/invite"
 	"peetraining-server/internal/jobs"
 	"peetraining-server/internal/logx"
 	"peetraining-server/internal/material"
@@ -84,6 +85,8 @@ type Base struct {
 	Export     *export.Service
 	// T25 会员中心与支付。
 	Payment *payment.Service
+	// T26 邀请研友。
+	Invite *invite.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -123,6 +126,9 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	imp := importer.New(importer.Deps{DB: db, Material: mat, Quota: qs, AI: engine, Queue: queue})
 	// 确认入库后立即重排今日计划（PRD 1.8）。
 	imp.AfterConfirm = func(ctx context.Context, userID, _ uint64) bool { return pl.Regenerate(ctx, userID) }
+	// 被邀请人第一次确认导入资料后，双方各得会员天数（T26）。
+	inv := invite.New(db, ps, fl, nil)
+	imp.OnConfirmedTx = func(ctx context.Context, q *dbq.Queries, userID uint64) error { return inv.Activate(ctx, q, userID) }
 	sc := score.New(score.Deps{DB: db, Params: ps, Profile: prof, Bank: bk, Plan: pl})
 	// 删除资料不删除整卷成绩，但会触发预估分重算（PRD 11.6）；失败只记日志。
 	mat.OnDeleted = func(ctx context.Context, userID, subjectID uint64) {
@@ -142,7 +148,8 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 		Auth: auth.New(auth.Deps{
 			DB: db, Redis: rdb, SMS: clients.SMS, OSS: clients.OSS, Params: ps,
 			JWTSecret: cfg.JWTSecret, Logger: log,
-			LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock,
+			LogCodes:   !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock,
+			OnRegister: inv.Bind,
 		}),
 		Profile:    prof,
 		Quota:      qs,
@@ -157,6 +164,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 		Membership: membership.New(membership.Deps{DB: db, Redis: rdb}),
 		Feedback:   feedback.New(db, nil),
 		Export:     export.New(export.Deps{DB: db, OSS: clients.OSS, Queue: queue, Fonts: export.Fonts{CJK: cfg.ExportFontPath, Latin: cfg.ExportLatinFontPath}}),
+		Invite:     inv,
 		Payment: payment.New(payment.Deps{DB: db, Params: ps, Quota: qs, Flags: fl, Gateway: clients.Pay, NotifyBaseURL: cfg.Pay.NotifyBaseURL,
 			AppleBundleID: cfg.Pay.AppleBundleID, Log: log}),
 	}, nil
@@ -204,6 +212,7 @@ func (b *Base) Handler() (http.Handler, error) {
 		Export:     b.Export,
 		DevOSS:     b.devOSS(),
 		Payment:    b.Payment,
+		Invite:     b.Invite,
 		DevMockPay: b.devMockPay(),
 	})
 }

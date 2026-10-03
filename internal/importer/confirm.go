@@ -311,6 +311,11 @@ func (s *Service) Confirm(ctx context.Context, userID, jobID uint64, itemIDs []u
 		if err != nil {
 			return err
 		}
+		if c.Confirmed > 0 && s.OnConfirmedTx != nil {
+			if err := s.OnConfirmedTx(ctx, q, userID); err != nil {
+				return err
+			}
+		}
 		if c.Confirmed >= c.Questions+c.KnowledgePoints+c.EssayItems && job.Status == dbq.ImportJobsStatusReviewing {
 			return q.UpdateImportJobStatus(ctx, dbq.UpdateImportJobStatusParams{Status: dbq.ImportJobsStatusConfirmed,
 				ConfirmedAt: sql.NullTime{Time: s.now().UTC(), Valid: true}, ID: jobID, OwnerUserID: userID})

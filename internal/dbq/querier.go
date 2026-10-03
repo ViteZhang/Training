@@ -16,6 +16,7 @@ type Querier interface {
 	AbandonPaperSession(ctx context.Context, arg AbandonPaperSessionParams) error
 	AcceptAgreement(ctx context.Context, arg AcceptAgreementParams) error
 	ActivateEssayRubric(ctx context.Context, arg ActivateEssayRubricParams) (int64, error)
+	ActivateInvite(ctx context.Context, arg ActivateInviteParams) (int64, error)
 	// 同一用户同一时间只能有一套进行中（含暂停）。
 	ActivePaperSession(ctx context.Context, ownerUserID uint64) (PaperSession, error)
 	AddImportJobMaterial(ctx context.Context, arg AddImportJobMaterialParams) error
@@ -41,6 +42,7 @@ type Querier interface {
 	CountMasteredSince(ctx context.Context, arg CountMasteredSinceParams) (int64, error)
 	// 删除资料前说明连带影响（3.1d）。调用前已用 GetMaterial 核对资料属于当前用户，下面按资料 ID 统计。
 	CountMaterialImpact(ctx context.Context, arg CountMaterialImpactParams) (CountMaterialImpactRow, error)
+	CountMyInvites(ctx context.Context, inviterID uint64) (int64, error)
 	// 待背诵：有原文表述可背的知识点，从没背过或背诵复习日已到（与 4.14 背诵队列一致）。
 	CountReciteDue(ctx context.Context, arg CountReciteDueParams) (int64, error)
 	CountSessionsSince(ctx context.Context, arg CountSessionsSinceParams) (int64, error)
@@ -152,6 +154,8 @@ type Querier interface {
 	GetPaperSession(ctx context.Context, arg GetPaperSessionParams) (PaperSession, error)
 	GetPaperSessionByKey(ctx context.Context, arg GetPaperSessionByKeyParams) (PaperSession, error)
 	GetPaperSessionForUpdate(ctx context.Context, arg GetPaperSessionForUpdateParams) (PaperSession, error)
+	// 被邀请人第一次导入资料时激活；锁住这一行，并发确认导入只发一次奖励。
+	GetPendingInviteForUpdate(ctx context.Context, inviteeID uint64) (Invite, error)
 	GetPracticeSession(ctx context.Context, arg GetPracticeSessionParams) (PracticeSession, error)
 	GetPracticeSessionForUpdate(ctx context.Context, arg GetPracticeSessionForUpdateParams) (PracticeSession, error)
 	GetPublishedAgreementByID(ctx context.Context, id uint64) (Agreement, error)
@@ -171,6 +175,8 @@ type Querier interface {
 	// 用户、刷新令牌、协议、App 版本、会员状态（T06）。
 	// 规矩：查询用户内容一律带归属条件（CLAUDE.md 必须遵守第 4 条）；这里的表以 user_id / id 为归属。
 	GetUserByID(ctx context.Context, id uint64) (User, error)
+	// 邀请研友（T26，PRD 6.8、13.4）。
+	GetUserByInviteCode(ctx context.Context, inviteCode string) (GetUserByInviteCodeRow, error)
 	GetUserByPhone(ctx context.Context, phone string) (User, error)
 	GetWrongBookForUpdate(ctx context.Context, arg GetWrongBookForUpdateParams) (WrongBook, error)
 	InWrongBook(ctx context.Context, arg InWrongBookParams) (bool, error)
@@ -190,6 +196,7 @@ type Querier interface {
 	// 勾选「允许客服查看相关资料」：72 小时内有效，每次查看都通知用户（PRD 6.13、10.1）。
 	InsertFeedbackGrant(ctx context.Context, arg InsertFeedbackGrantParams) error
 	InsertGrading(ctx context.Context, arg InsertGradingParams) (int64, error)
+	InsertInvite(ctx context.Context, arg InsertInviteParams) error
 	// 合并掌握度：目标没有记录时沿用来源的；都有时保留作答过的、掌握分取较高者。
 	InsertKPMasteryCopy(ctx context.Context, arg InsertKPMasteryCopyParams) error
 	// kp_a_id < kp_b_id，同一对只存一条。
@@ -284,6 +291,7 @@ type Querier interface {
 	ListMaterialPages(ctx context.Context, arg ListMaterialPagesParams) ([]MaterialPage, error)
 	ListMaterialsByBank(ctx context.Context, arg ListMaterialsByBankParams) ([]ListMaterialsByBankRow, error)
 	ListModelEssaysKB(ctx context.Context, arg ListModelEssaysKBParams) ([]ListModelEssaysKBRow, error)
+	ListMyInvites(ctx context.Context, inviterID uint64) ([]ListMyInvitesRow, error)
 	ListPaperQuestions(ctx context.Context, arg ListPaperQuestionsParams) ([]ListPaperQuestionsRow, error)
 	ListPaperSessionItems(ctx context.Context, arg ListPaperSessionItemsParams) ([]ListPaperSessionItemsRow, error)
 	// 整卷列表的状态：每套卷最近的作答。
@@ -335,6 +343,8 @@ type Querier interface {
 	// 到期复习的错题：没排过复习日的、复习日已到的。
 	ListWrongBookDue(ctx context.Context, arg ListWrongBookDueParams) ([]uint64, error)
 	LockQuotaCounter(ctx context.Context, arg LockQuotaCounterParams) (QuotaCounter, error)
+	// 锁住邀请人，两个好友同时激活时累计天数不会超过上限。
+	LockUserRow(ctx context.Context, id uint64) (uint64, error)
 	MarkOrderPaid(ctx context.Context, arg MarkOrderPaidParams) (int64, error)
 	MarkOrderRefunded(ctx context.Context, id uint64) (int64, error)
 	MarkRelationsGenerated(ctx context.Context, arg MarkRelationsGeneratedParams) error
@@ -397,6 +407,7 @@ type Querier interface {
 	SubjectOfQuestion(ctx context.Context, arg SubjectOfQuestionParams) (sql.NullInt64, error)
 	SubmitEssay(ctx context.Context, arg SubmitEssayParams) error
 	SubmitPaperSession(ctx context.Context, arg SubmitPaperSessionParams) error
+	SumInviterDays(ctx context.Context, inviterID uint64) (int64, error)
 	TouchUserActive(ctx context.Context, arg TouchUserActiveParams) error
 	UpdateBankForSubject(ctx context.Context, arg UpdateBankForSubjectParams) error
 	// 用户编辑评分标准：只影响之后的批改，已批改的作文存了标准快照，分数不变。
