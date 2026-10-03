@@ -8,13 +8,16 @@ import { menu, type Role } from './lib/menu';
 import { clearSession, useToken } from './lib/session';
 import { ChangePassword } from './pages/ChangePassword';
 import { Codes } from './pages/Codes';
+import { Config } from './pages/Config';
 import { Disputes } from './pages/Disputes';
 import { Feedback } from './pages/Feedback';
 import { Login } from './pages/Login';
+import { Notice } from './pages/Notice';
 import { Orders } from './pages/Orders';
 import { Overview } from './pages/Overview';
 import { Parse } from './pages/Parse';
 import { Placeholder } from './pages/Placeholder';
+import { Roles } from './pages/Roles';
 import { Users } from './pages/Users';
 
 /** 登录（两步验证）→ 首次登录改密码 → 按角色显示菜单与页面。权限只影响界面，安全由后端按契约的 x-roles 保证。 */
@@ -38,6 +41,9 @@ export function App() {
     '/parse': <Parse />,
     '/disputes': <Disputes />,
     '/feedback': <Feedback />,
+    '/config': <Config />,
+    '/notice': <Notice />,
+    '/roles': <Roles />,
   };
   const visible = menu.flatMap((g) => g.pages).filter((p) => p.roles.some((r) => roles.includes(r)));
   const home = visible[0]?.path ?? '/overview';
