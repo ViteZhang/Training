@@ -2,7 +2,7 @@
 // 作答先进待提交队列，联网后按顺序补交，服务端复核（offline=true，answered_at 为作答时间）。
 import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { create } from 'zustand';
 import { api, unwrap } from '@/lib/api';
@@ -94,4 +94,18 @@ export function useFlushOnForeground() {
     if (read().length > 0) void flush();
     return () => sub.remove();
   }, []);
+}
+
+const AI_FILL = 'practice:daily_ai_fill';
+
+/** 今日训练「题量不够时 AI 补题」的开关，记在本机（默认关闭，打开才会生成变式题、计 AI 出题额度）。 */
+export function useAIFillPref(): [boolean, (v: boolean) => void] {
+  const [v, setV] = useState(() => getJSON<boolean>(AI_FILL) ?? false);
+  return [
+    v,
+    (next: boolean) => {
+      setJSON(AI_FILL, next);
+      setV(next);
+    },
+  ];
 }

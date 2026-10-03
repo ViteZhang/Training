@@ -96,7 +96,7 @@ describe('4.1 训练首页', () => {
     expect(screen.getByText('23 题 · 8 题到了复习日')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('练单选'));
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith({ pathname: '/practice/[id]', params: { id: '50' } }));
-    expect(mockCalls.find((c) => c.path === '/practice-sessions')?.init).toEqual({ body: { subject_id: 7, kind: 'type_drill', qtype: 'single_choice' } });
+    expect(mockCalls.find((c) => c.path === '/practice-sessions')?.init).toEqual({ body: { subject_id: 7, kind: 'type_drill', qtype: 'single_choice', ai_fill: false } });
   });
 });
 
@@ -183,7 +183,7 @@ describe('4.2 自定义练习', () => {
     await fireEvent.press(screen.getByText('开始练习'));
     await waitFor(() =>
       expect(mockCalls.find((c) => c.path === '/practice-sessions')?.init).toEqual({
-        body: { subject_id: 7, kind: 'custom', config: { section_ids: [], qtypes: ['single_choice'], count: 10, only_unmastered: false, ai_fill: true } },
+        body: { subject_id: 7, kind: 'custom', config: { section_ids: [], qtypes: ['single_choice'], count: 10, only_unmastered: false, ai_fill: true }, ai_fill: false },
       }),
     );
   });
@@ -210,6 +210,6 @@ describe('4.12 错题本', () => {
     await fireEvent.press(screen.getByText('按失分原因'));
     expect(screen.getByText('答题不规范 · 1 题')).toBeTruthy();
     await fireEvent.press(screen.getByText('重做全部 2 题'));
-    await waitFor(() => expect(mockCalls.find((c) => c.path === '/practice-sessions')?.init).toEqual({ body: { subject_id: 7, kind: 'wrong_redo' } }));
+    await waitFor(() => expect(mockCalls.find((c) => c.path === '/practice-sessions')?.init).toEqual({ body: { subject_id: 7, kind: 'wrong_redo', ai_fill: false } }));
   });
 });

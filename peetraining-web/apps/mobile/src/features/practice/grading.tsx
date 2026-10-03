@@ -62,12 +62,14 @@ export function SubjectiveInput({
   onChange,
   timed,
   onTimed,
+  onPhoto,
 }: {
   q: PracticeQuestion;
   text: string;
   onChange: (v: string) => void;
   timed: boolean;
   onTimed: (v: boolean) => void;
+  onPhoto: () => void;
 }) {
   const voice = useFeatureFlag('voice_answer');
   const remaining = useGradingRemaining();
@@ -90,7 +92,7 @@ export function SubjectiveInput({
       />
       <View style={styles.row}>
         {voice ? <Button title="语音" kind="text" onPress={() => toast('语音作答马上上线')} /> : null}
-        <Button title="拍手写稿" kind="text" onPress={() => toast('拍手写稿马上上线')} />
+        <Button title="拍手写稿" kind="text" onPress={onPhoto} />
         <Text variant="caption" style={styles.flex}>
           {wordHint(q.qtype, n)}
         </Text>
@@ -135,7 +137,22 @@ const sourceText: Record<Schemas['RubricSource'], string> = {
 const nextAction = { knowledge: '学知识点', norm: '看规范写法', time: '限时再练' } as const;
 
 /** 4.7 批改结果。 */
-export function GradingResultView({ g, kpId, onDispute, onRegrade, regrading }: { g: GradingResult; kpId?: number; onDispute: () => void; onRegrade: () => void; regrading: boolean }) {
+export function GradingResultView({
+  g,
+  kpId,
+  norm,
+  onDispute,
+  onRegrade,
+  regrading,
+}: {
+  g: GradingResult;
+  kpId?: number;
+  /** 「看规范写法」去 4.13 */
+  norm?: { subjectId: number; qtype: string };
+  onDispute: () => void;
+  onRegrade: () => void;
+  regrading: boolean;
+}) {
   const [showRef, setShowRef] = useState(false);
   return (
     <View style={styles.gap}>
@@ -195,7 +212,9 @@ export function GradingResultView({ g, kpId, onDispute, onRegrade, regrading }: 
                 onPress={() =>
                   l.type === 'knowledge' && kpId
                     ? router.push({ pathname: '/bank/kp/[id]', params: { id: String(kpId) } })
-                    : toast(l.type === 'norm' ? '答题规范马上上线' : '在答题页打开「限时作答」再练一次')
+                    : l.type === 'norm' && norm
+                      ? router.push({ pathname: '/practice/norm', params: { subjectId: String(norm.subjectId), qtype: norm.qtype } })
+                      : toast(l.type === 'norm' ? '在训练页的「答题规范」里看' : '在答题页打开「限时作答」再练一次')
                 }
               />
             </View>

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.5.0
+  version: 0.6.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -1537,6 +1537,120 @@ paths:
                   remaining_pending: { type: integer }
                   results: { type: array, items: { $ref: "#/components/schemas/GradingResult" } }
 
+  /handwriting/upload-requests:
+    post:
+      tags: [practice]
+      operationId: requestHandwritingUploads
+      summary: 拍手写稿：申请照片直传地址（4.5，一次最多 6 张，单张 10MB 以内）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  minItems: 1
+                  maxItems: 6
+                  items:
+                    type: object
+                    required: [content_type, size]
+                    properties:
+                      content_type: { type: string, enum: [image/jpeg, image/png, image/heic, image/webp] }
+                      size: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [object_key, upload_url, upload_headers, expires_at]
+                      properties:
+                        object_key: { type: string }
+                        upload_url: { type: string }
+                        upload_headers: { type: object, additionalProperties: { type: string } }
+                        expires_at: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /handwriting/recognize:
+    post:
+      tags: [practice]
+      operationId: recognizeHandwriting
+      summary: 识别手写稿（4.5）：多张按顺序拼接，返回文字与不确定的字词位置
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [object_keys]
+              properties:
+                object_keys: { type: array, minItems: 1, maxItems: 6, items: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HandwritingResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /subjects/{subjectId}/answer-norms/{qtype}:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+      - name: qtype
+        in: path
+        required: true
+        schema: { type: string, enum: [term, short_answer, discussion] }
+    get:
+      tags: [practice]
+      operationId: getAnswerNorm
+      summary: 答题规范（4.13）：题型结构、高分写法（用户资料原文与采分点）、你上次的写法（标出缺了什么）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnswerNorm" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /questions/{questionId}/norm-check:
+    parameters:
+      - $ref: "#/components/parameters/QuestionId"
+    post:
+      tags: [practice]
+      operationId: checkAnswerNorm
+      summary: 按结构写一道（4.13）：AI 按题型结构批改各要素是否具备，扣 1 次批改次数
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answer_text, idempotency_key]
+              properties:
+                answer_text: { type: string, minLength: 1, maxLength: 20000 }
+                idempotency_key: { type: string, minLength: 8, maxLength: 64 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NormCheckResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "402": { $ref: "#/components/responses/QuotaExceeded" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/AIFailed" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1644,6 +1758,78 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    HandwritingResult:
+      type: object
+      required: [text, pages, low_confidence, uncertain_count]
+      properties:
+        text: { type: string, description: 各张按顺序拼接（换行分隔），可在 4.5 修改后提交批改 }
+        pages:
+          type: array
+          items:
+            type: object
+            required: [object_key, text, low_confidence]
+            properties:
+              object_key: { type: string }
+              text: { type: string }
+              low_confidence: { type: array, items: { $ref: "#/components/schemas/TextRange" } }
+        low_confidence: { type: array, items: { $ref: "#/components/schemas/TextRange" }, description: 拼接后全文里不确定的字词位置 }
+        uncertain_count: { type: integer, description: 需要核对的处数 }
+    NormElement:
+      type: object
+      required: [name, desc, share]
+      properties:
+        name: { type: string }
+        desc: { type: string }
+        share: { type: number, description: 约占分值比例 0–1 }
+    AnswerNorm:
+      type: object
+      required: [qtype, elements, tips]
+      properties:
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        elements: { type: array, items: { $ref: "#/components/schemas/NormElement" } }
+        tips: { type: array, items: { type: string } }
+        example:
+          type: object
+          description: 高分写法：用户资料里的原文与采分点
+          required: [question_id, stem, rubric_points]
+          properties:
+            question_id: { type: integer, format: int64 }
+            stem: { type: string }
+            kp_name: { type: string }
+            original_text: { type: string }
+            reference_answer: { type: string }
+            rubric_points: { type: array, items: { type: string } }
+            source_ref: { $ref: "#/components/schemas/SourceRef" }
+        last:
+          type: object
+          description: 你上次的写法：最近一次批改过的同题型作答，标出缺了什么
+          required: [question_id, stem, answer_text, grading_id, missing]
+          properties:
+            question_id: { type: integer, format: int64 }
+            stem: { type: string }
+            answer_text: { type: string }
+            grading_id: { type: integer, format: int64 }
+            score: { type: number }
+            full_score: { type: number }
+            missing: { type: array, items: { type: string } }
+        practice_question_id: { type: integer, format: int64, description: 「按结构写一道」用的题 }
+    NormCheckResult:
+      type: object
+      required: [grading_id, elements, complete, suggestions]
+      properties:
+        grading_id: { type: integer, format: int64 }
+        complete: { type: boolean, description: 结构要素都具备 }
+        elements:
+          type: array
+          items:
+            type: object
+            required: [name, present]
+            properties:
+              name: { type: string }
+              present: { type: boolean }
+              quote: { type: string }
+              suggestion: { type: string }
+        suggestions: { type: array, items: { type: string } }
     SubmitSubjectiveRequest:
       type: object
       required: [question_id, idempotency_key, answer_text, duration_seconds]
@@ -1652,6 +1838,7 @@ components:
         idempotency_key: { type: string, minLength: 8, maxLength: 64 }
         answer_text: { type: string, maxLength: 20000 }
         answer_mode: { type: string, enum: [typed, voice, photo], default: typed }
+        photo_keys: { type: array, maxItems: 6, items: { type: string }, description: 拍手写稿的照片（answer_mode=photo 时），答案原文为识别后用户核对过的文字 }
         duration_seconds: { type: integer, minimum: 0 }
         timed: { type: boolean, default: false, description: 限时作答（失分诊断「时间不够」只在这里判定） }
     RubricSource:
@@ -1764,6 +1951,7 @@ components:
         kind: { $ref: "#/components/schemas/PracticeKind" }
         qtype: { $ref: "#/components/schemas/QuestionType" }
         config: { $ref: "#/components/schemas/PracticeConfig" }
+        ai_fill: { type: boolean, default: false, description: 今日训练：题量不够排满每日时长时 AI 补变式题（计 AI 出题额度） }
         wrong_group:
           type: object
           description: 错题重做只做某一组（不传为全部，按下次复习日升序）

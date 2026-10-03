@@ -157,7 +157,7 @@ export default function PracticeRunner() {
         {q.options?.length ? <Options q={q} selected={result?.revealed ? [] : (result && q.answered?.selected) || selected} result={result} onToggle={toggle} /> : null}
         {q.qtype === 'fill_blank' ? <FillBlank value={text} onChange={setText} disabled={!!result} /> : null}
         {result?.grading ? (
-          <GradingResultView g={result.grading} kpId={q.knowledge_points[0]?.id} onDispute={() => setDisputing(true)} onRegrade={() => regrade.mutate(result.grading!.grading_id)} regrading={regrade.isPending} />
+          <GradingResultView g={result.grading} kpId={q.knowledge_points[0]?.id} norm={{ subjectId: s.subject_id, qtype: q.qtype }} onDispute={() => setDisputing(true)} onRegrade={() => regrade.mutate(result.grading!.grading_id)} regrading={regrade.isPending} />
         ) : result?.queued ? (
           <Text variant="body" color={semantic.info}>
             答案已保存为待批改，明天 0 点后在训练页一键提交
