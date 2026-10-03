@@ -3135,6 +3135,331 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/config/params": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.8 规则参数（额度、价格、规则） */
+        get: operations["listAdminParams"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/config/params/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 修改规则参数
+         * @description 结构必须与原来一致（只能改数值）；version 是读取时的版本，别人刚改过时返回 409。改完立即生效：App 下一次请求即按新值。
+         */
+        put: operations["updateAdminParam"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/config/agreements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.8 协议版本 */
+        get: operations["listAdminAgreements"];
+        put?: never;
+        /** 新建协议版本（草稿） */
+        post: operations["createAdminAgreement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/config/agreements/{agreementId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 协议版本详情（含正文） */
+        get: operations["getAdminAgreement"];
+        /** 修改草稿 */
+        put: operations["updateAdminAgreement"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/config/agreements/{agreementId}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 发布协议版本
+         * @description 发布后老用户下次启动时看到 0.4b；消息中心的「协议更新」由定时任务发出。
+         */
+        post: operations["publishAdminAgreement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/config/exam-dates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.8 各年份初试日期 */
+        get: operations["listExamDates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/config/exam-dates/{year}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 新增或修改初试日期 */
+        put: operations["saveExamDate"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/config/flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.8 功能开关 */
+        get: operations["listAdminFlags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/config/flags/{flagKey}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 设置功能开关：全部打开或指定用户 */
+        put: operations["setAdminFlag"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/config/app-versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.8 App 最新与最低版本 */
+        get: operations["listAppVersions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/config/app-versions/{platform}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 修改 App 版本 */
+        put: operations["saveAppVersion"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.8 AI 成本与任务（近 7 天） */
+        get: operations["getAdminAI"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/ai/rollouts/{capability}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 设置灰度：候选版按比例放量、全量、回滚
+         * @description 扩大比例：改 candidate_percent；全量：把候选版写成稳定版、清空候选；回滚：清空候选。同一用户在同一能力下稳定落在同一边。
+         */
+        put: operations["setAIRollout"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/announcements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.9 公告 */
+        get: operations["listAnnouncements"];
+        put?: never;
+        /**
+         * 新建公告
+         * @description 不填定时则 5 分钟内发出；渠道为消息中心。返回的 count 是公告 ID。
+         */
+        post: operations["createAnnouncement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/announcements/{announcementId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 取消还没发出的公告 */
+        delete: operations["cancelAnnouncement"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.15 后台账号 */
+        get: operations["listAdminAccounts"];
+        put?: never;
+        /**
+         * 添加成员
+         * @description password 是初始密码（线下告知），对方首次登录必须修改。返回的 count 是账号 ID。
+         */
+        post: operations["createAdminAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{accountId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 修改成员角色与状态 */
+        put: operations["updateAdminAccount"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{accountId}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 重置成员密码 */
+        post: operations["resetAdminPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4752,6 +5077,118 @@ export interface components {
             page_texts: string[];
             /** Format: date-time */
             grant_expires_at: string;
+        };
+        AdminParam: {
+            key: string;
+            value: {
+                [key: string]: unknown;
+            };
+            description: string;
+            version: number;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        AdminAgreement: {
+            /** Format: int64 */
+            id: number;
+            kind: components["schemas"]["AgreementKind"];
+            version: string;
+            title: string;
+            body?: string;
+            change_summary?: string;
+            /** Format: date-time */
+            effective_at: string;
+            /** Format: date-time */
+            published_at?: string;
+        };
+        AdminExamDate: {
+            year: number;
+            label: string;
+            /** Format: date */
+            first_exam_start: string;
+            /** Format: date */
+            first_exam_end: string;
+            /** Format: date */
+            subject_exam_date: string;
+        };
+        AdminFlag: {
+            key: string;
+            description: string;
+            enabled_all: boolean;
+            user_ids: number[];
+            /** Format: date-time */
+            updated_at: string;
+        };
+        AdminAppVersion: {
+            /** @enum {string} */
+            platform: "ios" | "android";
+            latest: string;
+            min: string;
+            download_url: string;
+            release_notes?: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        AdminAIVersion: {
+            model: string;
+            prompt: string;
+            calls: number;
+            success_rate: number;
+            avg_cost_yuan: number;
+            avg_latency_ms: number;
+        };
+        AdminAITask: {
+            capability: string;
+            stable_model: string;
+            stable_prompt: string;
+            candidate_model?: string;
+            candidate_prompt?: string;
+            candidate_percent: number;
+            prompts: string[];
+            calls: number;
+            cost_yuan: number;
+            cost_share: number;
+            versions: components["schemas"]["AdminAIVersion"][];
+        };
+        AdminAIOverview: {
+            cost_per_active_user_day: number;
+            budget_per_user_day: number;
+            month_cost_yuan: number;
+            month_revenue_yuan: number;
+            revenue_ratio: number;
+            ratio_max: number;
+            tasks: components["schemas"]["AdminAITask"][];
+        };
+        AdminAnnouncement: {
+            /** Format: int64 */
+            id: number;
+            title: string;
+            body: string;
+            all: boolean;
+            user_ids: number[];
+            with_popup: boolean;
+            /** Format: date-time */
+            scheduled_at?: string;
+            /** Format: date-time */
+            sent_at?: string;
+            sent_count: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        AdminAccount: {
+            /** Format: int64 */
+            id: number;
+            username: string;
+            display_name: string;
+            phone_masked: string;
+            roles: string[];
+            /** @enum {string} */
+            status: "active" | "disabled";
+            must_change_password: boolean;
+            /** Format: date-time */
+            last_login_at?: string;
+            /** Format: date-time */
+            created_at: string;
         };
         RedeemResult: {
             /** @enum {string} */
@@ -10528,6 +10965,599 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    listAdminParams: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminParam"][];
+                    };
+                };
+            };
+        };
+    };
+    updateAdminParam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    value: {
+                        [key: string]: unknown;
+                    };
+                    version: number;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminParam"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listAdminAgreements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminAgreement"][];
+                    };
+                };
+            };
+        };
+    };
+    createAdminAgreement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    kind: components["schemas"]["AgreementKind"];
+                    version: string;
+                    title: string;
+                    body: string;
+                    change_summary?: string;
+                    /** Format: date-time */
+                    effective_at: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAgreement"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getAdminAgreement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agreementId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAgreement"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateAdminAgreement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agreementId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                    body: string;
+                    change_summary?: string;
+                    /** Format: date-time */
+                    effective_at: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAgreement"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    publishAdminAgreement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agreementId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAgreement"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listExamDates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminExamDate"][];
+                    };
+                };
+            };
+        };
+    };
+    saveExamDate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                year: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    label?: string;
+                    /** Format: date */
+                    first_exam_start: string;
+                    /** Format: date */
+                    first_exam_end: string;
+                    /** Format: date */
+                    subject_exam_date: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    listAdminFlags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminFlag"][];
+                    };
+                };
+            };
+        };
+    };
+    setAdminFlag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                flagKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled_all: boolean;
+                    user_ids: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listAppVersions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminAppVersion"][];
+                    };
+                };
+            };
+        };
+    };
+    saveAppVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                platform: "ios" | "android";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    latest: string;
+                    min: string;
+                    download_url: string;
+                    release_notes?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    getAdminAI: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAIOverview"];
+                };
+            };
+        };
+    };
+    setAIRollout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                capability: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    stable_model: string;
+                    stable_prompt: string;
+                    candidate_model?: string;
+                    candidate_prompt?: string;
+                    candidate_percent: number;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listAnnouncements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminAnnouncement"][];
+                    };
+                };
+            };
+        };
+    };
+    createAnnouncement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                    body: string;
+                    all: boolean;
+                    user_ids?: number[];
+                    with_popup?: boolean;
+                    /** Format: date-time */
+                    scheduled_at?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCount"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    cancelAnnouncement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                announcementId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listAdminAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminAccount"][];
+                    };
+                };
+            };
+        };
+    };
+    createAdminAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    username: string;
+                    display_name: string;
+                    phone: string;
+                    roles: string[];
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCount"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateAdminAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    display_name: string;
+                    phone?: string;
+                    roles: string[];
+                    active: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    resetAdminPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

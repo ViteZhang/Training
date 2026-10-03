@@ -177,7 +177,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 			AppleBundleID: cfg.Pay.AppleBundleID, Log: log}),
 	}
 	base.Admin = admin.New(admin.Deps{DB: db, Redis: rdb, SMS: clients.SMS, OSS: clients.OSS, Params: ps, Quota: qs, Notify: base.Notify, Payment: base.Payment,
-		Import: imp, Log: log, LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock})
+		Import: imp, Log: log, Invalidate: []admin.Invalidator{ps, fl}, LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock})
 	return base, nil
 }
 

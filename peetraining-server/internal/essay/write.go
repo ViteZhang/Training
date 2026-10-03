@@ -13,6 +13,7 @@ import (
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/dbtypes"
+	"peetraining-server/internal/notify"
 	"peetraining-server/internal/quota"
 )
 
@@ -389,6 +390,9 @@ func (s *Service) GradeEssay(ctx context.Context, userID, id uint64) error {
 			if err := s.quota.Settle(ctx, q, s.submitTicket(cur, round), 1, quota.Ref{Type: "essay", ID: id}); err != nil {
 				return err
 			}
+		}
+		if !notify.TaskDoneEnabled(ctx, q) {
+			return nil
 		}
 		link, _ := json.Marshal(map[string]any{"page": "essay_result", "params": map[string]any{"essay_id": id}})
 		body := "AI 批改得分 " + fmtShort(total) + " / " + fmtShort(snap.FullScore)

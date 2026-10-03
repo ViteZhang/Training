@@ -367,3 +367,184 @@ func TestIntegrationAdmin(t *testing.T) {
 }
 
 func ptrTo[T any](v T) *T { return &v }
+
+// T29 验收：改免费批改次数后 App 下一次请求即生效；发布新协议版本后老用户启动时看到 0.4b。
+func TestIntegrationAdminConfig(t *testing.T) {
+	cfg := testConfig(t)
+	ctx := context.Background()
+	log := logx.New(io.Discard, slog.LevelDebug)
+	if err := Migrate(ctx, cfg, log, "up"); err != nil {
+		t.Fatal(err)
+	}
+	b, err := Open(ctx, cfg, log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	b.Redis.FlushDB(ctx)
+	handler, err := b.Handler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+	f := &adminFx{t: t, b: b, srv: srv}
+
+	// 老用户登录（同意了当时的协议）。
+	if code, body := f.do("POST", "/api/v1/auth/sms-codes", "", `{"phone":"13900008888","purpose":"login","agree":true}`); code != 200 {
+		t.Fatalf("发码：%d %s", code, body)
+	}
+	sms, _ := b.Cloud.SMS.(interface{ LastCode(string) (string, bool) }).LastCode("13900008888")
+	_, body := f.do("POST", "/api/v1/auth/login", "", `{"phone":"13900008888","code":"`+sms+`","device":{"device_id":"device-8888","platform":"ios"}}`)
+	var login gen.LoginResponse
+	_ = json.Unmarshal([]byte(body), &login)
+	user := login.AccessToken
+	if user == "" {
+		t.Fatalf("登录：%s", body)
+	}
+	if _, err := b.Admin.CreateAdmin(ctx, "root2", "管理员", "13700000009", "Init-pass-2026", []admin.Role{admin.RoleAdmin}, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Admin.CreateAdmin(ctx, "kefu2", "客服", "13700000008", "Init-pass-2026", []admin.Role{admin.RoleSupport}, false); err != nil {
+		t.Fatal(err)
+	}
+	root := f.login("root2", "13700000009", "Init-pass-2026")
+	support := f.login("kefu2", "13700000008", "Init-pass-2026")
+	if code, _ := f.do("GET", "/api/v1/admin/config/params", support, ""); code != 403 {
+		t.Errorf("客服不能改配置：%d", code)
+	}
+
+	gradingLimit := func() int {
+		_, body := f.do("GET", "/api/v1/quota", user, "")
+		var q gen.QuotaSummary
+		_ = json.Unmarshal([]byte(body), &q)
+		for _, it := range q.Items {
+			if it.QuotaType == "grading" {
+				v, _ := it.Limit.Get()
+				return v
+			}
+		}
+		return -1
+	}
+	if n := gradingLimit(); n != 3 {
+		t.Fatalf("初始免费批改每天 3 次：%d", n)
+	}
+	_, body = f.do("GET", "/api/v1/admin/config/params", root, "")
+	var ps struct {
+		Items []gen.AdminParam `json:"items"`
+	}
+	_ = json.Unmarshal([]byte(body), &ps)
+	var quotaParam gen.AdminParam
+	for _, p := range ps.Items {
+		if p.Key == "quota" {
+			quotaParam = p
+		}
+	}
+	free := quotaParam.Value["free"].(map[string]any)
+	free["grading_daily"] = 5
+	val, _ := json.Marshal(map[string]any{"value": quotaParam.Value, "version": quotaParam.Version})
+	if code, body := f.do("PUT", "/api/v1/admin/config/params/quota", root, string(val)); code != 200 {
+		t.Fatalf("改额度：%d %s", code, body)
+	}
+	if n := gradingLimit(); n != 5 {
+		t.Errorf("改免费批改次数后 App 下一次请求即生效：%d", n)
+	}
+	if code, _ := f.do("PUT", "/api/v1/admin/config/params/quota", root, string(val)); code != 409 {
+		t.Errorf("拿旧版本号再改应冲突：%d", code)
+	}
+	free["typo_field"] = 1
+	bad, _ := json.Marshal(map[string]any{"value": quotaParam.Value, "version": quotaParam.Version + 1})
+	if code, _ := f.do("PUT", "/api/v1/admin/config/params/quota", root, string(bad)); code != 400 {
+		t.Errorf("结构不对应拒绝：%d", code)
+	}
+
+	// 发布新协议：老用户启动时看到 0.4b。
+	boot := func() gen.Bootstrap {
+		_, body := f.do("GET", "/api/v1/bootstrap?platform=ios&app_version=1.0.0", user, "")
+		var bs gen.Bootstrap
+		_ = json.Unmarshal([]byte(body), &bs)
+		return bs
+	}
+	if bs := boot(); bs.AgreementsToAccept != nil && len(*bs.AgreementsToAccept) > 0 {
+		t.Fatalf("发布前没有待确认的协议：%+v", bs.AgreementsToAccept)
+	}
+	code, body := f.do("POST", "/api/v1/admin/config/agreements", root,
+		`{"kind":"privacy","version":"9.1","title":"隐私政策","body":"新的正文","change_summary":"新增导出说明","effective_at":"2026-01-01T00:00:00Z"}`)
+	var ag gen.AdminAgreement
+	_ = json.Unmarshal([]byte(body), &ag)
+	if code != 200 || ag.PublishedAt != nil {
+		t.Fatalf("新建协议草稿：%d %s", code, body)
+	}
+	if bs := boot(); bs.AgreementsToAccept != nil && len(*bs.AgreementsToAccept) > 0 {
+		t.Error("草稿不影响用户")
+	}
+	if code, body := f.do("POST", fmt.Sprintf("/api/v1/admin/config/agreements/%d/publish", ag.Id), root, ""); code != 200 {
+		t.Fatalf("发布：%d %s", code, body)
+	}
+	if bs := boot(); bs.AgreementsToAccept == nil || len(*bs.AgreementsToAccept) != 1 || (*bs.AgreementsToAccept)[0].Version != "9.1" {
+		t.Errorf("老用户启动时看到 0.4b：%+v", bs.AgreementsToAccept)
+	}
+	if code, _ := f.do("PUT", fmt.Sprintf("/api/v1/admin/config/agreements/%d", ag.Id), root, `{"title":"x","body":"y","effective_at":"2026-01-01T00:00:00Z"}`); code != 409 {
+		t.Errorf("已发布的版本不能改：%d", code)
+	}
+
+	// 功能开关只对指定用户打开。
+	var uid int64
+	_ = b.DB.QueryRow("SELECT id FROM users WHERE phone = '13900008888'").Scan(&uid)
+	if code, body := f.do("PUT", "/api/v1/admin/config/flags/invite", root, fmt.Sprintf(`{"enabled_all":false,"user_ids":[%d]}`, uid)); code != 204 {
+		t.Fatalf("设置开关：%d %s", code, body)
+	}
+	if bs := boot(); !bs.Flags["invite"] {
+		t.Error("对指定用户打开后立即生效")
+	}
+
+	// 灰度：提示词版本必须存在。
+	if code, _ := f.do("PUT", "/api/v1/admin/ai/rollouts/grade_subjective", root, `{"stable_model":"qwen-max","stable_prompt":"v1","candidate_model":"qwen-max","candidate_prompt":"v9","candidate_percent":10}`); code != 400 {
+		t.Errorf("不存在的提示词版本：%d", code)
+	}
+	if code, _ := f.do("PUT", "/api/v1/admin/ai/rollouts/grade_subjective", root, `{"stable_model":"qwen-max","stable_prompt":"v1","candidate_model":"qwen-plus","candidate_prompt":"v1","candidate_percent":10}`); code != 204 {
+		t.Errorf("设置灰度：%d", code)
+	}
+	code, body = f.do("GET", "/api/v1/admin/ai", root, "")
+	if code != 200 || !strings.Contains(body, `"candidate_percent":10`) {
+		t.Errorf("AI 任务列表：%d %s", code, body)
+	}
+
+	// 7.15：添加成员（首次登录须改密码）、停用后会话失效；不能停用自己。
+	code, body = f.do("POST", "/api/v1/admin/accounts", root, `{"username":"analyst9","display_name":"数据","phone":"13700000007","roles":["analyst"],"password":"Init-pass-2026"}`)
+	var created gen.AdminCount
+	_ = json.Unmarshal([]byte(body), &created)
+	if code != 200 {
+		t.Fatalf("添加成员：%d %s", code, body)
+	}
+	analyst := f.login("analyst9", "13700000007", "Init-pass-2026")
+	if code, _ := f.do("GET", "/api/v1/admin/overview", analyst, ""); code != 403 {
+		t.Errorf("新成员没改密码前不能用：%d", code)
+	}
+	if code, _ := f.do("PUT", fmt.Sprintf("/api/v1/admin/accounts/%d", created.Count), root, `{"display_name":"数据","roles":["analyst"],"active":false}`); code != 204 {
+		t.Errorf("停用成员：%d", code)
+	}
+	if code, _ := f.do("GET", "/api/v1/admin/me", analyst, ""); code != 401 {
+		t.Errorf("停用后会话失效：%d", code)
+	}
+	var rootID int64
+	_ = b.DB.QueryRow("SELECT id FROM admin_users WHERE username = 'root2'").Scan(&rootID)
+	if code, _ := f.do("PUT", fmt.Sprintf("/api/v1/admin/accounts/%d", rootID), root, `{"display_name":"管理员","roles":["support"],"active":true}`); code != 400 {
+		t.Errorf("不能去掉自己的管理员角色：%d", code)
+	}
+
+	// 7.9 公告：定时与取消。
+	code, body = f.do("POST", "/api/v1/admin/announcements", root, `{"title":"国庆活动","body":"内容内容","all":true,"scheduled_at":"2030-01-01T00:00:00Z"}`)
+	var ann gen.AdminCount
+	_ = json.Unmarshal([]byte(body), &ann)
+	if code != 200 {
+		t.Fatalf("新建公告：%d %s", code, body)
+	}
+	if code, _ := f.do("DELETE", fmt.Sprintf("/api/v1/admin/announcements/%d", ann.Count), root, ""); code != 204 {
+		t.Errorf("取消未发公告：%d", code)
+	}
+	code, body = f.do("GET", "/api/v1/admin/audit-logs", root, "")
+	if code != 200 || !strings.Contains(body, "/admin/config/params/:key") {
+		t.Errorf("改配置有操作记录：%d", code)
+	}
+}

@@ -107,6 +107,11 @@ func TestMessageCenter(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// 复习到期在后台设的整点（默认北京时间 7 点）发：10 点不发，7 点发，重复执行不重复发。
+	if n, _ := ns.SendReviewDue(ctx); n != 0 {
+		t.Errorf("不到整点不发：%d", n)
+	}
+	f.clock = time.Date(2026, 10, 1, 23, 10, 0, 0, time.UTC)
 	for range 2 {
 		if _, err := ns.SendReviewDue(ctx); err != nil {
 			t.Fatal(err)

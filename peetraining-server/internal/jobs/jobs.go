@@ -418,8 +418,8 @@ var Schedules = []Schedule{
 	{Cron: "41 3 * * *", Type: TypeMessageCleanup},
 	{Cron: "*/5 * * * *", Type: TypeAnnouncements},
 	{Cron: "37 * * * *", Type: TypeAgreementNotice},
-	// 复习到期提醒每天早上发一次（北京时间 7:05，在大多数学习提醒之前）。
-	{Cron: "5 7 * * *", Type: TypeReviewDue},
+	// 复习到期提醒：每小时检查一次，到后台 7.9 设的整点才发（默认北京时间 7 点）。
+	{Cron: "5 * * * *", Type: TypeReviewDue},
 	// 7.1 概览的聚合表每小时汇总一次。
 	{Cron: "7 * * * *", Type: TypeStatsAggregate},
 }

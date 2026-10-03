@@ -343,3 +343,17 @@ func (e *Engine) record(ctx context.Context, d Def, m Meta, userID uint64, resp 
 		Success: errKind == "", ErrorKind: sql.NullString{String: errKind, Valid: errKind != ""}, Retried: retried,
 	})
 }
+
+// PromptCatalog 列出每个能力已有的提示词版本（prompts/<能力>@<版本>.tmpl），7.8 灰度只能选这里有的版本。
+func PromptCatalog() map[string][]string {
+	out := map[string][]string{}
+	entries, _ := promptFS.ReadDir("prompts")
+	for _, e := range entries {
+		name := strings.TrimSuffix(e.Name(), ".tmpl")
+		capName, ver, ok := strings.Cut(name, "@")
+		if ok {
+			out[capName] = append(out[capName], ver)
+		}
+	}
+	return out
+}

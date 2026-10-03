@@ -191,6 +191,9 @@ func (s *Service) Finalize(ctx context.Context, userID, jobID uint64) error {
 
 // notifyFinished 发「题库整理完成」，有待核对的再发「需核对」（2.3）。dedupe_key 按任务去重，任务重试不重复发。
 func (s *Service) notifyFinished(ctx context.Context, userID, jobID uint64, st dbq.ImportJobsStatus) error {
+	if !notify.TaskDoneEnabled(ctx, s.q) {
+		return nil
+	}
 	id := strconv.FormatUint(jobID, 10)
 	link := notify.Link("import_review", map[string]any{"job_id": jobID})
 	if st == dbq.ImportJobsStatusFailed {

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.15.0
+  version: 0.16.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -23,6 +23,7 @@ info:
     - api-v0.13：邀请研友 6.8（T26）
     - api-v0.14：消息中心 2.3（T27）
     - api-v0.15：管理后台运营与质量 7.1–7.7、后台账号与两步验证（T28）
+    - api-v0.16：管理后台配置与系统 7.8、7.9、7.15（T29）
     - 其余模块随对应任务卡增量加入，10/11 冻结 api-v1.0
 servers:
   - url: /api/v1
@@ -3890,6 +3891,754 @@ paths:
         '409':
           $ref: '#/components/responses/Conflict'
 
+  /admin/config/params:
+    get:
+      tags:
+      - admin
+      operationId: listAdminParams
+      summary: 7.8 规则参数（额度、价格、规则）
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminParam'
+  /admin/config/params/{key}:
+    put:
+      tags:
+      - admin
+      operationId: updateAdminParam
+      summary: 修改规则参数
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      description: 结构必须与原来一致（只能改数值）；version 是读取时的版本，别人刚改过时返回 409。改完立即生效：App 下一次请求即按新值。
+      parameters:
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - value
+              - version
+              properties:
+                value:
+                  type: object
+                  additionalProperties: true
+                version:
+                  type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminParam'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/config/agreements:
+    get:
+      tags:
+      - admin
+      operationId: listAdminAgreements
+      summary: 7.8 协议版本
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminAgreement'
+    post:
+      tags:
+      - admin
+      operationId: createAdminAgreement
+      summary: 新建协议版本（草稿）
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - kind
+              - version
+              - title
+              - body
+              - effective_at
+              properties:
+                kind:
+                  $ref: '#/components/schemas/AgreementKind'
+                version:
+                  type: string
+                  maxLength: 16
+                title:
+                  type: string
+                  maxLength: 64
+                body: &id001
+                  type: string
+                change_summary: *id001
+                effective_at: &id003
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAgreement'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/config/agreements/{agreementId}:
+    get:
+      tags:
+      - admin
+      operationId: getAdminAgreement
+      summary: 协议版本详情（含正文）
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      parameters:
+      - name: agreementId
+        in: path
+        required: true
+        schema: &id002
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAgreement'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+      - admin
+      operationId: updateAdminAgreement
+      summary: 修改草稿
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      parameters:
+      - name: agreementId
+        in: path
+        required: true
+        schema: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - title
+              - body
+              - effective_at
+              properties:
+                title:
+                  type: string
+                  maxLength: 64
+                body: *id001
+                change_summary: *id001
+                effective_at: *id003
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAgreement'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/config/agreements/{agreementId}/publish:
+    post:
+      tags:
+      - admin
+      operationId: publishAdminAgreement
+      summary: 发布协议版本
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      description: 发布后老用户下次启动时看到 0.4b；消息中心的「协议更新」由定时任务发出。
+      parameters:
+      - name: agreementId
+        in: path
+        required: true
+        schema: *id002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAgreement'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/config/exam-dates:
+    get:
+      tags:
+      - admin
+      operationId: listExamDates
+      summary: 7.8 各年份初试日期
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminExamDate'
+  /admin/config/exam-dates/{year}:
+    put:
+      tags:
+      - admin
+      operationId: saveExamDate
+      summary: 新增或修改初试日期
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      parameters:
+      - name: year
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 2000
+          maximum: 2100
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - first_exam_start
+              - first_exam_end
+              - subject_exam_date
+              properties:
+                label:
+                  type: string
+                  maxLength: 32
+                first_exam_start: &id004
+                  type: string
+                  format: date
+                first_exam_end: *id004
+                subject_exam_date: *id004
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /admin/config/flags:
+    get:
+      tags:
+      - admin
+      operationId: listAdminFlags
+      summary: 7.8 功能开关
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminFlag'
+  /admin/config/flags/{flagKey}:
+    put:
+      tags:
+      - admin
+      operationId: setAdminFlag
+      summary: 设置功能开关：全部打开或指定用户
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      parameters:
+      - name: flagKey
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - enabled_all
+              - user_ids
+              properties:
+                enabled_all: &id005
+                  type: boolean
+                user_ids:
+                  type: array
+                  items: *id002
+                  maxItems: 200
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/config/app-versions:
+    get:
+      tags:
+      - admin
+      operationId: listAppVersions
+      summary: 7.8 App 最新与最低版本
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminAppVersion'
+  /admin/config/app-versions/{platform}:
+    put:
+      tags:
+      - admin
+      operationId: saveAppVersion
+      summary: 修改 App 版本
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      parameters:
+      - name: platform
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - ios
+          - android
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - latest
+              - min
+              - download_url
+              properties:
+                latest:
+                  type: string
+                  maxLength: 16
+                min:
+                  type: string
+                  maxLength: 16
+                download_url:
+                  type: string
+                  maxLength: 255
+                release_notes: *id001
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /admin/ai:
+    get:
+      tags:
+      - admin
+      operationId: getAdminAI
+      summary: 7.8 AI 成本与任务（近 7 天）
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAIOverview'
+  /admin/ai/rollouts/{capability}:
+    put:
+      tags:
+      - admin
+      operationId: setAIRollout
+      summary: 设置灰度：候选版按比例放量、全量、回滚
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      description: 扩大比例：改 candidate_percent；全量：把候选版写成稳定版、清空候选；回滚：清空候选。同一用户在同一能力下稳定落在同一边。
+      parameters:
+      - name: capability
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 32
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - stable_model
+              - stable_prompt
+              - candidate_percent
+              properties:
+                stable_model:
+                  type: string
+                  maxLength: 64
+                stable_prompt:
+                  type: string
+                  maxLength: 32
+                candidate_model:
+                  type: string
+                  maxLength: 64
+                candidate_prompt:
+                  type: string
+                  maxLength: 32
+                candidate_percent:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/announcements:
+    get:
+      tags:
+      - admin
+      operationId: listAnnouncements
+      summary: 7.9 公告
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminAnnouncement'
+    post:
+      tags:
+      - admin
+      operationId: createAnnouncement
+      summary: 新建公告
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      description: 不填定时则 5 分钟内发出；渠道为消息中心。返回的 count 是公告 ID。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - title
+              - body
+              - all
+              properties:
+                title:
+                  type: string
+                  maxLength: 128
+                body:
+                  type: string
+                  maxLength: 2000
+                all: *id005
+                user_ids:
+                  type: array
+                  items: *id002
+                  maxItems: 1000
+                with_popup: *id005
+                scheduled_at: *id003
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCount'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /admin/announcements/{announcementId}:
+    delete:
+      tags:
+      - admin
+      operationId: cancelAnnouncement
+      summary: 取消还没发出的公告
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      parameters:
+      - name: announcementId
+        in: path
+        required: true
+        schema: *id002
+      responses:
+        '204':
+          description: 完成
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/accounts:
+    get:
+      tags:
+      - admin
+      operationId: listAdminAccounts
+      summary: 7.15 后台账号
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminAccount'
+    post:
+      tags:
+      - admin
+      operationId: createAdminAccount
+      summary: 添加成员
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      description: password 是初始密码（线下告知），对方首次登录必须修改。返回的 count 是账号 ID。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - username
+              - display_name
+              - phone
+              - roles
+              - password
+              properties:
+                username:
+                  type: string
+                  pattern: ^[a-z0-9_]{3,32}$
+                display_name:
+                  type: string
+                  maxLength: 32
+                phone:
+                  type: string
+                  pattern: ^1[3-9][0-9]{9}$
+                roles:
+                  type: array
+                  items: *id001
+                  minItems: 1
+                password:
+                  type: string
+                  minLength: 10
+                  maxLength: 128
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCount'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/accounts/{accountId}:
+    put:
+      tags:
+      - admin
+      operationId: updateAdminAccount
+      summary: 修改成员角色与状态
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - display_name
+              - roles
+              - active
+              properties:
+                display_name:
+                  type: string
+                  maxLength: 32
+                phone:
+                  type: string
+                  maxLength: 20
+                roles:
+                  type: array
+                  items: *id001
+                  minItems: 1
+                active: *id005
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/accounts/{accountId}/password:
+    post:
+      tags:
+      - admin
+      operationId: resetAdminPassword
+      summary: 重置成员密码
+      x-roles:
+      - admin
+      security:
+      - adminAuth: []
+      parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - password
+              properties:
+                password:
+                  type: string
+                  minLength: 10
+                  maxLength: 128
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -5866,6 +6615,216 @@ components:
           type: array
           items: *id001
         grant_expires_at: *id004
+    AdminParam:
+      type: object
+      required:
+      - key
+      - value
+      - description
+      - version
+      - updated_at
+      properties:
+        key: &id001
+          type: string
+        value:
+          type: object
+          additionalProperties: true
+        description: *id001
+        version: &id003
+          type: integer
+        updated_at: &id002
+          type: string
+          format: date-time
+    AdminAgreement:
+      type: object
+      required:
+      - id
+      - kind
+      - version
+      - title
+      - effective_at
+      properties:
+        id: &id005
+          type: integer
+          format: int64
+        kind:
+          $ref: '#/components/schemas/AgreementKind'
+        version: *id001
+        title: *id001
+        body: *id001
+        change_summary: *id001
+        effective_at: *id002
+        published_at: *id002
+    AdminExamDate:
+      type: object
+      required:
+      - year
+      - label
+      - first_exam_start
+      - first_exam_end
+      - subject_exam_date
+      properties:
+        year: *id003
+        label: *id001
+        first_exam_start: &id004
+          type: string
+          format: date
+        first_exam_end: *id004
+        subject_exam_date: *id004
+    AdminFlag:
+      type: object
+      required:
+      - key
+      - description
+      - enabled_all
+      - user_ids
+      - updated_at
+      properties:
+        key: *id001
+        description: *id001
+        enabled_all: &id007
+          type: boolean
+        user_ids:
+          type: array
+          items: *id005
+        updated_at: *id002
+    AdminAppVersion:
+      type: object
+      required:
+      - platform
+      - latest
+      - min
+      - download_url
+      - updated_at
+      properties:
+        platform:
+          type: string
+          enum:
+          - ios
+          - android
+        latest: *id001
+        min: *id001
+        download_url: *id001
+        release_notes: *id001
+        updated_at: *id002
+    AdminAIVersion:
+      type: object
+      required:
+      - model
+      - prompt
+      - calls
+      - success_rate
+      - avg_cost_yuan
+      - avg_latency_ms
+      properties:
+        model: *id001
+        prompt: *id001
+        calls: *id003
+        success_rate: &id006
+          type: number
+        avg_cost_yuan: *id006
+        avg_latency_ms: *id003
+    AdminAITask:
+      type: object
+      required:
+      - capability
+      - stable_model
+      - stable_prompt
+      - candidate_percent
+      - prompts
+      - calls
+      - cost_yuan
+      - cost_share
+      - versions
+      properties:
+        capability: *id001
+        stable_model: *id001
+        stable_prompt: *id001
+        candidate_model: *id001
+        candidate_prompt: *id001
+        candidate_percent: *id003
+        prompts:
+          type: array
+          items: *id001
+        calls: *id003
+        cost_yuan: *id006
+        cost_share: *id006
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminAIVersion'
+    AdminAIOverview:
+      type: object
+      required:
+      - cost_per_active_user_day
+      - budget_per_user_day
+      - month_cost_yuan
+      - month_revenue_yuan
+      - revenue_ratio
+      - ratio_max
+      - tasks
+      properties:
+        cost_per_active_user_day: *id006
+        budget_per_user_day: *id006
+        month_cost_yuan: *id006
+        month_revenue_yuan: *id006
+        revenue_ratio: *id006
+        ratio_max: *id006
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminAITask'
+    AdminAnnouncement:
+      type: object
+      required:
+      - id
+      - title
+      - body
+      - all
+      - user_ids
+      - with_popup
+      - sent_count
+      - created_at
+      properties:
+        id: *id005
+        title: *id001
+        body: *id001
+        all: *id007
+        user_ids:
+          type: array
+          items: *id005
+        with_popup: *id007
+        scheduled_at: *id002
+        sent_at: *id002
+        sent_count: *id003
+        created_at: *id002
+    AdminAccount:
+      type: object
+      required:
+      - id
+      - username
+      - display_name
+      - phone_masked
+      - roles
+      - status
+      - must_change_password
+      - created_at
+      properties:
+        id: *id005
+        username: *id001
+        display_name: *id001
+        phone_masked: *id001
+        roles:
+          type: array
+          items: *id001
+        status:
+          type: string
+          enum:
+          - active
+          - disabled
+        must_change_password: *id007
+        last_login_at: *id002
+        created_at: *id002
     RedeemResult:
       type: object
       required: [tier, days, starts_at, ends_at, membership]
