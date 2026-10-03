@@ -80,6 +80,20 @@ describe('2.1 今日首页', () => {
     expect(mockPush).toHaveBeenCalledWith('/(tabs)/train');
   });
 
+  it('预估分卡（PRD 11.6）：区间、今天的变化、差距与主要差在、依据；点「提分看板」进 6.2', async () => {
+    const est = { subject_id: 7, name: '语言文学基础', is_essay: false, full_score: 150, target_score: 115, ready: true, low: 98, high: 106, gap: 9,
+      main_gap_qtype: 'discussion', basis_papers: 2, basis_questions: 20, today_change: 2 };
+    mockResponses['GET /home'] = () => ({ status: 200, data: home({ estimates: [est] }) });
+    await wrap(<TodayTab />);
+    expect(await screen.findByLabelText('预估分 98 到 106')).toBeTruthy();
+    expect(screen.getByText('还差约 9 分 · 主要差在论述题')).toBeTruthy();
+    expect(screen.getByText('依据你导入的 2 套真题卷实测和近 20 道主观题估算')).toBeTruthy();
+    expect(screen.getByText('今天 +2')).toBeTruthy();
+    expect(screen.queryByText('做完一套整卷后生成预估分')).toBeNull();
+    await fireEvent.press(screen.getByText('提分看板 ›'));
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/dashboard', params: { subjectId: '7' } });
+  });
+
   it('还没导入资料（2.1c）', async () => {
     mockResponses['GET /home'] = () => ({ status: 200, data: home({ state: 'no_material', plan: undefined, stage_push: undefined, false_mastery_count: 0, banks: [bank({ question_count: 0, kp_count: 0, mastery_distribution: { unlearned: 0, learning: 0, consolidating: 0, mastered: 0 } })] }) });
     await wrap(<TodayTab />);

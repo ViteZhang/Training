@@ -1,4 +1,4 @@
-import type { Schemas } from '@training/api-client';
+import { ApiError, type Schemas } from '@training/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
 import { getJSON, remove, setJSON } from '@/lib/storage';
@@ -50,3 +50,17 @@ export function clock(sec: number) {
   const m = Math.floor((s % 3600) / 60);
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
+
+export type PaperReport = Schemas['PaperReport'];
+
+/** 整卷报告（4.24、4.25）：还在批改时服务端返回 409，每 15 秒再取一次。 */
+export function usePaperReport(sessionId: number) {
+  return useQuery({
+    queryKey: [...paperKeys.session(sessionId), 'report'] as const,
+    queryFn: () => unwrap(api.GET('/paper-sessions/{sessionId}/report', { params: { path: { sessionId } } })),
+    retry: false,
+    refetchInterval: (q) => (q.state.error instanceof ApiError && q.state.error.status === 409 ? 15000 : false),
+  });
+}
+
+export const lossNames: Record<keyof Schemas['LossPoints'], string> = { knowledge: '知识没掌握', norm: '答题不规范', time: '时间不够' };

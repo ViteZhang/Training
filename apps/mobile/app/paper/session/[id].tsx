@@ -82,7 +82,17 @@ function ResultView({ s }: { s: PaperSession }) {
           ))}
         </Card>
       </ScrollView>
-      <Button title="返回整卷列表" kind="secondary" onPress={() => router.replace({ pathname: '/paper/list', params: { subjectId: String(s.subject_id) } })} />
+      <View style={styles.nav}>
+        <Button
+          title="返回整卷列表"
+          kind="secondary"
+          style={styles.flex}
+          onPress={() => router.replace({ pathname: '/paper/list', params: { subjectId: String(s.subject_id) } })}
+        />
+        {!grading ? (
+          <Button title="整卷报告" style={styles.flex} onPress={() => router.push({ pathname: '/paper/report/[id]', params: { id: String(s.id) } })} />
+        ) : null}
+      </View>
     </Screen>
   );
 }
