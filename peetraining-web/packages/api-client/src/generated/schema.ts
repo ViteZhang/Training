@@ -1476,10 +1476,190 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/recite-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 开始一轮背诵（4.14）：到期的和从没背过的知识点，今日计划里的优先；或「再背没记住的」 */
+        post: operations["createReciteSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recite-sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        /** 背诵会话（含原文、挖空位置与关键词） */
+        get: operations["getReciteSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recite-sessions/{sessionId}/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 记一条背诵结果（挖空自评 / 默写比对 / 口述比对），按 PRD 11.1、11.3 更新掌握分与背诵复习日
+         * @description 挖空按自评结果记；默写与口述按关键词覆盖判定（全部写到为记住了，过半为模糊，其余没记住），不调模型。
+         *     口述受功能开关 oral_recite 控制，关闭时返回 404。同一个 idempotency_key 重复提交返回第一次的结果。
+         */
+        post: operations["recordRecite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recite-sessions/{sessionId}/audio-upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 口述录音直传地址（4.16，功能开关 oral_recite，关闭时 404） */
+        post: operations["requestReciteAudioUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recite-sessions/{sessionId}/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 背诵完成（4.17）：本轮记住 / 模糊 / 没记住，与上一轮对比，下次复习安排 */
+        post: operations["finishReciteSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description 挖空 / 默写 / 口述
+         * @enum {string}
+         */
+        ReciteMode: "cloze" | "dictation" | "oral";
+        /**
+         * @description 没记住 / 模糊 / 记住了
+         * @enum {string}
+         */
+        ReciteResultLevel: "forgot" | "vague" | "remembered";
+        ReciteSegment: {
+            text: string;
+            /** @description 采分关键词，挖空显示 */
+            blank: boolean;
+        };
+        ReciteItem: {
+            /** Format: int64 */
+            kp_id: number;
+            name: string;
+            path: string[];
+            original_text: string;
+            segments: components["schemas"]["ReciteSegment"][];
+            keywords: string[];
+            source_ref?: components["schemas"]["SourceRef"];
+            result?: components["schemas"]["ReciteResultLevel"];
+        };
+        ReciteSession: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            subject_id: number;
+            title: string;
+            items: components["schemas"]["ReciteItem"][];
+            done_count: number;
+            /** @description 口述背诵开关 */
+            oral_enabled: boolean;
+        };
+        ReciteRecordRequest: {
+            /** Format: int64 */
+            kp_id: number;
+            mode: components["schemas"]["ReciteMode"];
+            result?: components["schemas"]["ReciteResultLevel"];
+            /** @description 默写的内容 */
+            text?: string;
+            /** @description 口述录音的对象键 */
+            audio_key?: string;
+            idempotency_key: string;
+        };
+        ReciteRecordResult: {
+            result: components["schemas"]["ReciteResultLevel"];
+            /** @description 默写与口述的关键词覆盖 */
+            coverage?: {
+                hit: number;
+                total: number;
+                keywords: {
+                    text: string;
+                    hit: boolean;
+                }[];
+            };
+            /** @description 口述的语音识别文字 */
+            transcript?: string;
+            /** Format: date */
+            next_review_on: string;
+            /** @description 新的掌握分 */
+            m: number;
+        };
+        ReciteSummary: {
+            remembered: number;
+            vague: number;
+            forgot: number;
+            /** @description 可以「再背没记住的」的条数 */
+            forgot_count: number;
+            /** @description 上一轮记住的条数（同一门课） */
+            previous_remembered?: number;
+            schedule: {
+                /** @description 明天（没记住） */
+                tomorrow: number;
+                /** @description 2 天后（模糊） */
+                two_days: number;
+                /** @description 3 天以后（记住了） */
+                later: number;
+            };
+        };
         HandwritingResult: {
             /** @description 各张按顺序拼接（换行分隔），可在 4.5 修改后提交批改 */
             text: string;
@@ -5345,6 +5525,154 @@ export interface operations {
             402: components["responses"]["QuotaExceeded"];
             404: components["responses"]["NotFound"];
             503: components["responses"]["AIFailed"];
+        };
+    };
+    createReciteSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    subject_id: number;
+                    /**
+                     * Format: int64
+                     * @description 再背这一轮里没记住的
+                     */
+                    retry_of?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReciteSession"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getReciteSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReciteSession"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    recordRecite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReciteRecordRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReciteRecordResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    requestReciteAudioUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    content_type: "audio/m4a" | "audio/mp4" | "audio/aac" | "audio/wav" | "audio/mpeg";
+                    size: number;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        object_key: string;
+                        upload_url: string;
+                        upload_headers: {
+                            [key: string]: string;
+                        };
+                        /** Format: date-time */
+                        expires_at: string;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    finishReciteSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReciteSummary"];
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
 }

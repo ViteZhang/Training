@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.6.0
+  version: 0.7.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -1651,6 +1651,117 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "503": { $ref: "#/components/responses/AIFailed" }
 
+  /recite-sessions:
+    post:
+      tags: [practice]
+      operationId: createReciteSession
+      summary: 开始一轮背诵（4.14）：到期的和从没背过的知识点，今日计划里的优先；或「再背没记住的」
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject_id]
+              properties:
+                subject_id: { type: integer, format: int64 }
+                retry_of: { type: integer, format: int64, description: 再背这一轮里没记住的 }
+      responses:
+        "201":
+          description: 已创建
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReciteSession" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /recite-sessions/{sessionId}:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    get:
+      tags: [practice]
+      operationId: getReciteSession
+      summary: 背诵会话（含原文、挖空位置与关键词）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReciteSession" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /recite-sessions/{sessionId}/records:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      tags: [practice]
+      operationId: recordRecite
+      summary: 记一条背诵结果（挖空自评 / 默写比对 / 口述比对），按 PRD 11.1、11.3 更新掌握分与背诵复习日
+      description: |
+        挖空按自评结果记；默写与口述按关键词覆盖判定（全部写到为记住了，过半为模糊，其余没记住），不调模型。
+        口述受功能开关 oral_recite 控制，关闭时返回 404。同一个 idempotency_key 重复提交返回第一次的结果。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReciteRecordRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReciteRecordResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /recite-sessions/{sessionId}/audio-upload:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      tags: [practice]
+      operationId: requestReciteAudioUpload
+      summary: 口述录音直传地址（4.16，功能开关 oral_recite，关闭时 404）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content_type, size]
+              properties:
+                content_type: { type: string, enum: [audio/m4a, audio/mp4, audio/aac, audio/wav, audio/mpeg] }
+                size: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [object_key, upload_url, upload_headers, expires_at]
+                properties:
+                  object_key: { type: string }
+                  upload_url: { type: string }
+                  upload_headers: { type: object, additionalProperties: { type: string } }
+                  expires_at: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /recite-sessions/{sessionId}/finish:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      tags: [practice]
+      operationId: finishReciteSession
+      summary: 背诵完成（4.17）：本轮记住 / 模糊 / 没记住，与上一轮对比，下次复习安排
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReciteSummary" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1758,6 +1869,91 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    ReciteMode:
+      type: string
+      description: 挖空 / 默写 / 口述
+      enum: [cloze, dictation, oral]
+    ReciteResultLevel:
+      type: string
+      description: 没记住 / 模糊 / 记住了
+      enum: [forgot, vague, remembered]
+    ReciteSegment:
+      type: object
+      required: [text, blank]
+      properties:
+        text: { type: string }
+        blank: { type: boolean, description: 采分关键词，挖空显示 }
+    ReciteItem:
+      type: object
+      required: [kp_id, name, path, original_text, segments, keywords]
+      properties:
+        kp_id: { type: integer, format: int64 }
+        name: { type: string }
+        path: { type: array, items: { type: string } }
+        original_text: { type: string }
+        segments: { type: array, items: { $ref: "#/components/schemas/ReciteSegment" } }
+        keywords: { type: array, items: { type: string } }
+        source_ref: { $ref: "#/components/schemas/SourceRef" }
+        result: { $ref: "#/components/schemas/ReciteResultLevel" }
+    ReciteSession:
+      type: object
+      required: [id, subject_id, title, items, done_count, oral_enabled]
+      properties:
+        id: { type: integer, format: int64 }
+        subject_id: { type: integer, format: int64 }
+        title: { type: string }
+        items: { type: array, items: { $ref: "#/components/schemas/ReciteItem" } }
+        done_count: { type: integer }
+        oral_enabled: { type: boolean, description: 口述背诵开关 }
+    ReciteRecordRequest:
+      type: object
+      required: [kp_id, mode, idempotency_key]
+      properties:
+        kp_id: { type: integer, format: int64 }
+        mode: { $ref: "#/components/schemas/ReciteMode" }
+        result: { $ref: "#/components/schemas/ReciteResultLevel" }
+        text: { type: string, maxLength: 5000, description: 默写的内容 }
+        audio_key: { type: string, description: 口述录音的对象键 }
+        idempotency_key: { type: string, minLength: 8, maxLength: 64 }
+    ReciteRecordResult:
+      type: object
+      required: [result, next_review_on, m]
+      properties:
+        result: { $ref: "#/components/schemas/ReciteResultLevel" }
+        coverage:
+          type: object
+          description: 默写与口述的关键词覆盖
+          required: [hit, total, keywords]
+          properties:
+            hit: { type: integer }
+            total: { type: integer }
+            keywords:
+              type: array
+              items:
+                type: object
+                required: [text, hit]
+                properties:
+                  text: { type: string }
+                  hit: { type: boolean }
+        transcript: { type: string, description: 口述的语音识别文字 }
+        next_review_on: { type: string, format: date }
+        m: { type: number, description: 新的掌握分 }
+    ReciteSummary:
+      type: object
+      required: [remembered, vague, forgot, schedule, forgot_count]
+      properties:
+        remembered: { type: integer }
+        vague: { type: integer }
+        forgot: { type: integer }
+        forgot_count: { type: integer, description: 可以「再背没记住的」的条数 }
+        previous_remembered: { type: integer, description: 上一轮记住的条数（同一门课） }
+        schedule:
+          type: object
+          required: [tomorrow, two_days, later]
+          properties:
+            tomorrow: { type: integer, description: 明天（没记住） }
+            two_days: { type: integer, description: 2 天后（模糊） }
+            later: { type: integer, description: 3 天以后（记住了） }
     HandwritingResult:
       type: object
       required: [text, pages, low_confidence, uncertain_count]

@@ -58,6 +58,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     'expo-document-picker',
     ['expo-notifications', { color: '#231F55' }],
+    // 口述背诵（4.16，功能开关 oral_recite）与语音作答（voice_answer）录音
+    ['expo-audio', { microphonePermission: '用于语音作答和口述背诵' }],
   ],
   experiments: { typedRoutes: true },
   extra: {
