@@ -3460,6 +3460,337 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/official-banks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 可添加的官方题库（题库页「添加官方题库」）
+         * @description 受 official_bank 开关控制，关闭时返回 404。suggested_subject_id 是专业课代码相同、建议添加到的专业课。
+         */
+        get: operations["listOfficialBanks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/official-banks/{bankId}/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 添加官方题库到一门专业课
+         * @description 官方知识点与题目复制进这门课的题库（标「官方」），同名知识点只建立对应关系、保留你自己的表述。之后官方更新时没改过的内容跟着更新，改过的不覆盖。
+         */
+        put: operations["subscribeOfficialBank"];
+        post?: never;
+        /**
+         * 移除官方题库
+         * @description 没改过的官方内容连同练习记录一起删除；改过的保留为你自己的内容。
+         */
+        delete: operations["unsubscribeOfficialBank"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/demand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 7.10 需求洞察（按专业课代码统计自建用户）
+         * @description 只有计数，不含任何用户资料内容。
+         */
+        get: operations["listAdminDemand"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/demand/{subjectCode}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 标为未规划 / 取消标记 */
+        put: operations["markAdminDemand"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 7.11 官方题库项目
+         * @description 内容编辑只看到分配给自己的项目。
+         */
+        get: operations["listOfficialProjects"];
+        put?: never;
+        /** 立项 */
+        post: operations["createOfficialProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 项目详情 */
+        get: operations["getOfficialProject"];
+        /**
+         * 分配编辑、授权资料清单、推进阶段
+         * @description 授权资料须注明已获授权或公开真题；「发布上线」只能由版本发布设置。
+         */
+        put: operations["updateOfficialProject"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 官方题库当前的知识点与题目 */
+        get: operations["listOfficialItems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/kp-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 7.12 AI 从资料原文拆知识点，并与现有知识点树对齐
+         * @description alignment：new 新增 / supplement 同名同表述（补充来源）/ differ 同名不同表述（选以哪个为准）。
+         */
+        post: operations["extractOfficialKPs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/rubric-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 7.12 AI 从参考答案提采分点 */
+        post: operations["extractOfficialRubric"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 草稿与提交记录 */
+        get: operations["listOfficialDrafts"];
+        put?: never;
+        /**
+         * 新建草稿
+         * @description payload：知识点 {section, chapter, name, original_text, rubric[]}；题目 {qtype, stem, options, answer, analysis, score, exam_year, kp_names, rubric[]}。暂只支持新增、修订、下线（题目）。
+         */
+        post: operations["createOfficialDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/drafts/{draftId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 修改自己的草稿或被退回的 */
+        put: operations["updateOfficialDraft"];
+        post?: never;
+        /** 删除自己的草稿 */
+        delete: operations["deleteOfficialDraft"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/drafts/{draftId}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 提交审核
+         * @description 新编辑前 3 次全量审核，之后 30% 抽检；未抽中的直接通过（mode = skipped）。
+         */
+        post: operations["submitOfficialDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.13 审核队列 */
+        get: operations["listOfficialReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/reviews/{reviewId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 审核：通过、退回、修改后通过
+         * @description 退回必须填原因；修改后通过要带 edited_payload；不能审核自己提交的。
+         */
+        post: operations["decideOfficialReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/release-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.14 发布预览：变更清单、自动检查、通知预览 */
+        get: operations["previewOfficialRelease"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 版本历史 */
+        get: operations["listOfficialReleases"];
+        put?: never;
+        /**
+         * 发布版本
+         * @description 不填版本号则自动加一（1.0、1.1…）。发布后通知只发给添加了这个官方题库的用户；首次上线另提醒自建了同一专业课的用户。
+         */
+        post: operations["publishOfficialRelease"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/releases/{versionId}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 回滚最新版本
+         * @description 恢复发布前的内容；用户没改过的副本跟着恢复，掌握度与作答记录保留。
+         */
+        post: operations["rollbackOfficialRelease"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5190,6 +5521,174 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
+        OfficialBank: {
+            /** Format: int64 */
+            bank_id: number;
+            title: string;
+            school: string;
+            major: string;
+            subject_code: string;
+            subject_name: string;
+            version: string;
+            kp_count: number;
+            question_count: number;
+            /** Format: int64 */
+            added_subject_id?: number;
+            /** Format: int64 */
+            suggested_subject_id?: number;
+        };
+        AdminDemand: {
+            subject_code: string;
+            users: number;
+            avg_questions: number;
+            week_new: number;
+            with_target: number;
+            paid_rate: number;
+            avg_review: number;
+            /** Format: int64 */
+            project_id?: number;
+            project_stage?: string;
+            unplanned: boolean;
+        };
+        /**
+         * @description 立项 → 授权资料入库 → 知识框架 → 内容生产 → 审核 → 发布上线
+         * @enum {string}
+         */
+        OfficialStage: "initiated" | "materials" | "framework" | "producing" | "reviewing" | "published";
+        OfficialMaterial: {
+            name: string;
+            /** @enum {string} */
+            basis: "authorized" | "public_exam";
+            note?: string;
+        };
+        AdminOfficialProject: {
+            /** Format: int64 */
+            id: number;
+            school: string;
+            major: string;
+            subject_code: string;
+            subject_name: string;
+            /** Format: int64 */
+            bank_id: number;
+            stage: components["schemas"]["OfficialStage"];
+            editor_ids: number[];
+            materials: components["schemas"]["OfficialMaterial"][];
+            kp_count: number;
+            question_count: number;
+            exam_count: number;
+            version: string;
+            subscribers: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        OfficialItem: {
+            entity_type: string;
+            /** Format: int64 */
+            id: number;
+            title: string;
+            status: string;
+            payload: {
+                [key: string]: unknown;
+            };
+        };
+        OfficialPoint: {
+            content: string;
+            score: number;
+            keywords?: string[];
+        };
+        OfficialCandidate: {
+            section: string;
+            chapter: string;
+            name: string;
+            original_text: string;
+            rubric: components["schemas"]["OfficialPoint"][];
+            /** @enum {string} */
+            alignment: "new" | "supplement" | "differ";
+            /** Format: int64 */
+            existing_id?: number;
+            existing_text?: string;
+        };
+        OfficialDraft: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            project_id: number;
+            /** Format: int64 */
+            editor_id: number;
+            entity_type: string;
+            /** Format: int64 */
+            entity_id?: number;
+            change_type: string;
+            payload: {
+                [key: string]: unknown;
+            };
+            /** @enum {string} */
+            status: "draft" | "submitted" | "approved" | "rejected" | "published";
+            reject_reason?: string;
+            /** Format: date-time */
+            submitted_at?: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        OfficialSubmitResult: {
+            /** @enum {string} */
+            mode: "full" | "sampled" | "skipped";
+        };
+        OfficialReview: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            draft_id: number;
+            /** Format: int64 */
+            project_id: number;
+            /** Format: int64 */
+            editor_id: number;
+            mode: string;
+            entity_type: string;
+            /** Format: int64 */
+            entity_id?: number;
+            change_type: string;
+            payload: {
+                [key: string]: unknown;
+            };
+            before?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            created_at: string;
+        };
+        OfficialChange: {
+            /** Format: int64 */
+            draft_id: number;
+            entity_type: string;
+            change_type: string;
+            /** Format: int64 */
+            entity_id: number;
+            title: string;
+            rubric_changed: boolean;
+        };
+        OfficialCheck: {
+            name: string;
+            passed: boolean;
+            detail?: string;
+        };
+        OfficialReleasePreview: {
+            changes: components["schemas"]["OfficialChange"][];
+            checks: components["schemas"]["OfficialCheck"][];
+            next_version: string;
+            notice: string;
+            subscribers: number;
+        };
+        OfficialVersion: {
+            /** Format: int64 */
+            id: number;
+            version: string;
+            changes: components["schemas"]["OfficialChange"][];
+            /** Format: date-time */
+            published_at: string;
+            /** Format: date-time */
+            rolled_back_at?: string;
+        };
         RedeemResult: {
             /** @enum {string} */
             tier: "sprint" | "season" | "monthly" | "gift";
@@ -6044,6 +6543,8 @@ export interface components {
             needs_review?: boolean;
             /** @description 来自官方题库 */
             official?: boolean;
+            /** @description 官方题库新版本新增的知识点，标「新」两周 */
+            is_new?: boolean;
             children: components["schemas"]["KnowledgeNode"][];
         };
         KnowledgeNodeInput: {
@@ -11558,6 +12059,641 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listOfficialBanks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["OfficialBank"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    subscribeOfficialBank: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bankId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    subject_id: number;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    unsubscribeOfficialBank: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bankId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listAdminDemand: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminDemand"][];
+                    };
+                };
+            };
+        };
+    };
+    markAdminDemand: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectCode: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    unplanned: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    listOfficialProjects: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminOfficialProject"][];
+                    };
+                };
+            };
+        };
+    };
+    createOfficialProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    school: string;
+                    major: string;
+                    subject_code: string;
+                    subject_name: string;
+                    editor_ids?: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOfficialProject"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    getOfficialProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOfficialProject"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateOfficialProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    editor_ids: number[];
+                    materials: components["schemas"]["OfficialMaterial"][];
+                    stage: components["schemas"]["OfficialStage"];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOfficialProject"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listOfficialItems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["OfficialItem"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    extractOfficialKPs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["OfficialCandidate"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    extractOfficialRubric: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    qtype: components["schemas"]["QuestionType"];
+                    stem: string;
+                    answer: string;
+                    score?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["OfficialPoint"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    listOfficialDrafts: {
+        parameters: {
+            query?: {
+                status?: "draft" | "submitted" | "approved" | "rejected" | "published";
+                mine?: boolean;
+            };
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["OfficialDraft"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createOfficialDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    entity_type: "knowledge_point" | "question";
+                    /** @enum {string} */
+                    change_type: "add" | "revise" | "offline";
+                    /** Format: int64 */
+                    entity_id?: number;
+                    payload: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialDraft"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateOfficialDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+                draftId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    entity_type: "knowledge_point" | "question";
+                    /** @enum {string} */
+                    change_type: "add" | "revise" | "offline";
+                    /** Format: int64 */
+                    entity_id?: number;
+                    payload: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialDraft"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteOfficialDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+                draftId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    submitOfficialDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+                draftId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialSubmitResult"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listOfficialReviews: {
+        parameters: {
+            query?: {
+                project_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["OfficialReview"][];
+                    };
+                };
+            };
+        };
+    };
+    decideOfficialReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    decision: "approved" | "rejected" | "edited";
+                    reason?: string;
+                    edited_payload?: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    previewOfficialRelease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialReleasePreview"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listOfficialReleases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["OfficialVersion"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    publishOfficialRelease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialVersion"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    rollbackOfficialRelease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+                versionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
 }
