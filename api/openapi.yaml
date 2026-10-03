@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.8.0
+  version: 0.9.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -25,6 +25,8 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: score
+    description: 4.24–4.25 整卷报告与时间分析、2.1 预估分、6.2 提分看板
   - name: paper
     description: 模块 4 · 整卷与模拟考试
   - name: practice
@@ -1960,6 +1962,59 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
 
+  /paper-sessions/{sessionId}/report:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    get:
+      tags: [score]
+      operationId: getPaperReport
+      summary: 整卷报告（4.24）与时间分析（4.25，只有模拟考试有）
+      description: 还在批改时返回 409。分数为 AI 批改得分，仅供参考；只有导入的真题卷计入预估分。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaperReport" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /subjects/{subjectId}/dashboard:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [score]
+      operationId: getDashboard
+      summary: 提分看板（6.2）
+      description: 预估分卡与按周趋势、近 30 天失分归因、各板块掌握度 × 真题分值占比（与 3.8 一致）、「以为会了」、最近整卷成绩。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /subjects/{subjectId}/false-mastery/plan:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    post:
+      tags: [score]
+      operationId: addFalseMasteryToToday
+      summary: 把「以为会了」的知识点加入今日训练（6.2）
+      description: 每个知识点加一道今天计划里还没有的题，记在「薄弱查漏」组；返回加了几道（0 表示没有可加的题）。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [added]
+                properties:
+                  added: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -2741,8 +2796,8 @@ components:
         low_coverage: { type: boolean, description: 冲刺期覆盖率不足，提示先补新知识点（PRD 11.4） }
         estimates:
           type: array
-          description: 预估分卡（T22 接通前为空）
-          items: { type: object, additionalProperties: true }
+          description: 预估分卡（每门专业课一张，PRD 11.6）
+          items: { $ref: "#/components/schemas/EstimateCard" }
         plan: { $ref: "#/components/schemas/TodayPlan" }
         stage_push:
           type: object
@@ -2807,6 +2862,165 @@ components:
             knowledge: { type: number }
             norm: { type: number }
             time: { type: number }
+    EstimateCard:
+      type: object
+      description: 预估分卡（2.1、6.2）。ready=false 时还没做完导入的真题卷，显示「做完一套整卷后生成预估分」
+      required: [subject_id, name, is_essay, full_score, ready]
+      properties:
+        subject_id: { type: integer, format: int64 }
+        name: { type: string }
+        is_essay: { type: boolean }
+        full_score: { type: integer }
+        target_score: { type: integer, description: 没设目标时不返回 }
+        ready: { type: boolean }
+        low: { type: integer }
+        high: { type: integer }
+        gap: { type: integer, description: 目标分 − 预估上限，达到目标为 0；没设目标时不返回 }
+        main_gap_qtype: { $ref: "#/components/schemas/QuestionType" }
+        basis_papers: { type: integer, description: 依据了几套导入真题卷 }
+        basis_questions: { type: integer, description: 依据了近多少道主观题 }
+        today_change: { type: integer, description: 今天的变化（中值）；今天没变时不返回 }
+        computed_at: { type: string, format: date-time }
+    LossPoints:
+      type: object
+      description: 失分归因三类的分值或占比
+      required: [knowledge, norm, time]
+      properties:
+        knowledge: { type: number }
+        norm: { type: number }
+        time: { type: number }
+    PaperReport:
+      type: object
+      required: [session_id, subject_id, title, kind, mode, score, full_score, counts_for_estimate, graded_at, by_qtype, loss, loss_total]
+      properties:
+        session_id: { type: integer, format: int64 }
+        paper_id: { type: integer, format: int64, description: 试卷被删除时不返回 }
+        subject_id: { type: integer, format: int64 }
+        title: { type: string }
+        kind: { $ref: "#/components/schemas/PaperKind" }
+        mode: { $ref: "#/components/schemas/PaperMode" }
+        score: { type: number, description: AI 批改得分（换算到整卷满分），仅供参考 }
+        full_score: { type: number }
+        counts_for_estimate: { type: boolean }
+        graded_at: { type: string, format: date-time }
+        prev_delta: { type: number, description: 较这门课上一套整卷；第一套不返回 }
+        target_score: { type: integer }
+        gap: { type: number, description: 与目标差距，达到目标为 0 }
+        by_qtype:
+          type: array
+          items: { $ref: "#/components/schemas/QTypeScore" }
+        loss: { $ref: "#/components/schemas/LossPoints" }
+        loss_total: { type: number }
+        weakest_qtype: { $ref: "#/components/schemas/QuestionType" }
+        time: { $ref: "#/components/schemas/TimeReport" }
+    TimeReport:
+      type: object
+      description: 时间分析（4.25，PRD 11.9）
+      required: [total_minutes, used_minutes, used_full, unanswered, time_loss, sections, check_suggested_minutes, check_actual_minutes, check_status, conclusion, advice, trend]
+      properties:
+        total_minutes: { type: integer }
+        used_minutes: { type: integer }
+        used_full: { type: boolean }
+        unanswered: { type: integer }
+        time_loss: { type: number, description: 估计时间失分 }
+        sections:
+          type: array
+          items: { $ref: "#/components/schemas/SectionTime" }
+        check_suggested_minutes: { type: integer }
+        check_actual_minutes: { type: integer }
+        check_status: { $ref: "#/components/schemas/TimeStatus" }
+        conclusion: { type: string, description: 一句结论（4.24 时间分析入口） }
+        advice: { type: array, items: { type: string }, description: 下次这样分配 }
+        trend:
+          type: array
+          description: 近几次模拟考试未答题数，旧的在前
+          items: { $ref: "#/components/schemas/UnansweredPoint" }
+    TimeStatus:
+      type: string
+      description: 超过建议 20% 为超时，少于建议 20% 为少用
+      enum: [ok, overtime, under]
+    Dashboard:
+      type: object
+      required: [estimate, trend, loss_points, loss_shares, sections_ready, sections, false_mastery, recent_papers]
+      properties:
+        estimate: { $ref: "#/components/schemas/EstimateCard" }
+        trend:
+          type: array
+          description: 按周的预估分（每周最后一次），旧的在前
+          items: { $ref: "#/components/schemas/EstimateWeek" }
+        loss_points: { $ref: "#/components/schemas/LossPoints" }
+        loss_shares: { $ref: "#/components/schemas/LossPoints" }
+        sections_ready: { type: boolean, description: 真题不足 2 套时板块占比不展示（与 3.8 一致） }
+        sections:
+          type: array
+          items: { $ref: "#/components/schemas/SectionMastery" }
+        false_mastery:
+          type: array
+          items: { $ref: "#/components/schemas/KPRef" }
+        recent_papers:
+          type: array
+          items: { $ref: "#/components/schemas/RecentPaper" }
+    QTypeScore:
+      type: object
+      required: [qtype, got, full]
+      properties:
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        got: { type: number }
+        full: { type: number }
+    SectionTime:
+      type: object
+      required: [qtype, count, answered, suggested_minutes, actual_minutes, status, diff_minutes, unfinished]
+      properties:
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        count: { type: integer }
+        answered: { type: integer }
+        suggested_minutes: { type: integer }
+        actual_minutes: { type: integer }
+        status: { $ref: "#/components/schemas/TimeStatus" }
+        diff_minutes: { type: integer, description: 实际 − 建议 }
+        unfinished: { type: boolean }
+    UnansweredPoint:
+      type: object
+      required: [session_id, date, unanswered]
+      properties:
+        session_id: { type: integer, format: int64 }
+        date: { type: string, format: date-time }
+        unanswered: { type: integer }
+    EstimateWeek:
+      type: object
+      required: [week_start, low, high, mid]
+      properties:
+        week_start: { type: string, format: date }
+        low: { type: integer }
+        high: { type: integer }
+        mid: { type: number }
+    SectionMastery:
+      type: object
+      required: [id, name, share, mastery, kp_count]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        share: { type: number, description: 0–1 }
+        mastery: { type: number, description: 0–100 }
+        kp_count: { type: integer }
+    KPRef:
+      type: object
+      required: [kp_id, name]
+      properties:
+        kp_id: { type: integer, format: int64 }
+        name: { type: string }
+    RecentPaper:
+      type: object
+      required: [session_id, title, kind, mode, score, full_score, counts_for_estimate, graded_at]
+      properties:
+        session_id: { type: integer, format: int64 }
+        title: { type: string }
+        kind: { $ref: "#/components/schemas/PaperKind" }
+        mode: { $ref: "#/components/schemas/PaperMode" }
+        score: { type: number }
+        full_score: { type: number }
+        counts_for_estimate: { type: boolean }
+        graded_at: { type: string, format: date-time }
     ExamProfile:
       type: object
       required: [ready, paper_count, min_papers, years, excluded_count, structure, sections, high_freq, missing_sections, style_tags, basis]

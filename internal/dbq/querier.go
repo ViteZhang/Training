@@ -177,15 +177,18 @@ type Querier interface {
 	InsertReciteRecord(ctx context.Context, arg InsertReciteRecordParams) (int64, error)
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
 	InsertRubricPoint(ctx context.Context, arg InsertRubricPointParams) error
+	InsertScoreEstimate(ctx context.Context, arg InsertScoreEstimateParams) error
 	InsertStudyProfile(ctx context.Context, arg InsertStudyProfileParams) error
 	InsertWritingMethod(ctx context.Context, arg InsertWritingMethodParams) (int64, error)
 	// 每道题最近一次作答的时间（针对卷避开近 30 天做过的题）。
 	LastAttemptDays(ctx context.Context, ownerUserID uint64) ([]LastAttemptDaysRow, error)
+	LastScoreEstimateBefore(ctx context.Context, arg LastScoreEstimateBeforeParams) (LastScoreEstimateBeforeRow, error)
 	LatestDoneGrading(ctx context.Context, arg LatestDoneGradingParams) (Grading, error)
 	// 你上次的写法：最近一次批改完的同题型作答。
 	LatestGradingOfQType(ctx context.Context, arg LatestGradingOfQTypeParams) (LatestGradingOfQTypeRow, error)
 	LatestInProgressSession(ctx context.Context, arg LatestInProgressSessionParams) (PracticeSession, error)
 	LatestRealExamPaper(ctx context.Context, arg LatestRealExamPaperParams) (Paper, error)
+	LatestScoreEstimate(ctx context.Context, arg LatestScoreEstimateParams) (LatestScoreEstimateRow, error)
 	ListAcceptedAgreementIDs(ctx context.Context, userID uint64) ([]uint64, error)
 	ListActiveImportJobs(ctx context.Context, ownerUserID uint64) ([]ListActiveImportJobsRow, error)
 	// 有作答或背诵的北京时间日期（连续打卡）。
@@ -210,6 +213,9 @@ type Querier interface {
 	// 组真题卷：某年份的真题（回忆版不计入，PRD 3.8），按题型、原题号排序。
 	ListExamQuestionsByYear(ctx context.Context, arg ListExamQuestionsByYearParams) ([]ListExamQuestionsByYearRow, error)
 	ListFeatureFlags(ctx context.Context) ([]ListFeatureFlagsRow, error)
+	// 预估分、整卷报告与提分看板（T22，PRD 11.6、4.24、4.25、6.2）。
+	// 一门课批改完成的整卷，新的在前（预估分、较上次、趋势、最近成绩）。
+	ListGradedPaperSessions(ctx context.Context, arg ListGradedPaperSessionsParams) ([]ListGradedPaperSessionsRow, error)
 	ListGradingLossSince(ctx context.Context, arg ListGradingLossSinceParams) ([]dbtypes.NullJSON, error)
 	ListImportAnswers(ctx context.Context, arg ListImportAnswersParams) ([]ImportAnswer, error)
 	ListImportItemsPage(ctx context.Context, arg ListImportItemsPageParams) ([]ImportItem, error)
@@ -252,9 +258,16 @@ type Querier interface {
 	ListRelatedQuestions(ctx context.Context, arg ListRelatedQuestionsParams) ([]ListRelatedQuestionsRow, error)
 	// 规则参数与功能开关（T06 读取，T07 / T29 管理）。
 	ListRuleParams(ctx context.Context) ([]ListRuleParamsRow, error)
+	// 一门课的预估分历史，新的在前（当前值、今天的变化、按周趋势）。
+	ListScoreEstimates(ctx context.Context, arg ListScoreEstimatesParams) ([]ListScoreEstimatesRow, error)
 	ListSessionAttempts(ctx context.Context, arg ListSessionAttemptsParams) ([]ListSessionAttemptsRow, error)
 	ListSessionRecites(ctx context.Context, arg ListSessionRecitesParams) ([]ListSessionRecitesRow, error)
+	// 一门课近 N 天主观题批改的失分归因（提分看板）。
+	ListSubjectGradingLoss(ctx context.Context, arg ListSubjectGradingLossParams) ([]dbtypes.NullJSON, error)
+	// 一门课最近的作答得分（模型分用各题型近 20 题得分率）；自评不算。
+	ListSubjectRecentRates(ctx context.Context, arg ListSubjectRecentRatesParams) ([]ListSubjectRecentRatesRow, error)
 	ListSubjects(ctx context.Context, ownerUserID uint64) ([]ListSubjectsRow, error)
+	ListSubjectsWithPapers(ctx context.Context, ownerUserID uint64) ([]uint64, error)
 	// 还没导入任何资料的专业课（1.8 提示继续导入）。
 	ListSubjectsWithoutContent(ctx context.Context, ownerUserID uint64) ([]uint64, error)
 	// 登录设备列表：同一设备可能有多条有效令牌（并发刷新），由调用方按 device_id 去重。
@@ -316,6 +329,7 @@ type Querier interface {
 	SetSessionCursor(ctx context.Context, arg SetSessionCursorParams) error
 	// 自动判断只在用户没改过时生效（essay_set_by = 'user' 后不再自动改）。
 	SetSubjectEssayAuto(ctx context.Context, arg SetSubjectEssayAutoParams) error
+	SubjectOfQuestion(ctx context.Context, arg SubjectOfQuestionParams) (sql.NullInt64, error)
 	SubmitPaperSession(ctx context.Context, arg SubmitPaperSessionParams) error
 	TouchUserActive(ctx context.Context, arg TouchUserActiveParams) error
 	UpdateBankForSubject(ctx context.Context, arg UpdateBankForSubjectParams) error

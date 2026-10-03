@@ -60,7 +60,7 @@ func mixMap(m rules.PlanMix) map[string]float32 {
 
 func toGenHome(h plan.Home) gen.Home {
 	out := gen.Home{State: gen.HomeState(h.State), DaysToExam: h.DaysToExam, Stage: gen.Stage(h.Stage), FalseMasteryCount: h.FalseMastery,
-		StreakDays: h.Streak, Estimates: []map[string]interface{}{}}
+		StreakDays: h.Streak, Estimates: []gen.EstimateCard{}}
 	tm := float32(h.TomorrowMinutes)
 	out.TomorrowMinutes = &tm
 	if h.LowCoverage {
@@ -119,7 +119,7 @@ func (h *Handlers) GetHome(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, toGenHome(home))
+	h.homeWithEstimates(c, home)
 }
 
 func (h *Handlers) AnswerStagePrompt(c *gin.Context) {
@@ -133,7 +133,7 @@ func (h *Handlers) AnswerStagePrompt(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, toGenHome(home))
+	h.homeWithEstimates(c, home)
 }
 
 func (h *Handlers) GetTodayPlan(c *gin.Context) {
@@ -162,5 +162,21 @@ func (h *Handlers) GetTodaySummary(c *gin.Context) {
 	}
 	out.LossShares.Knowledge, out.LossShares.Norm, out.LossShares.Time = share("knowledge"), share("norm"), share("time")
 	sized(&out.MasteryChanges, 0)
+	c.JSON(http.StatusOK, out)
+}
+
+// homeWithEstimates 补上预估分卡（T22）后返回首页。
+func (h *Handlers) homeWithEstimates(c *gin.Context, home plan.Home) {
+	out := toGenHome(home)
+	if h.deps.Score != nil {
+		cards, err := h.deps.Score.Cards(c.Request.Context(), currentUser(c))
+		if err != nil {
+			_ = c.Error(err)
+			return
+		}
+		for _, card := range cards {
+			out.Estimates = append(out.Estimates, toGenEstimate(card))
+		}
+	}
 	c.JSON(http.StatusOK, out)
 }

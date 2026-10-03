@@ -60,7 +60,14 @@ type Service struct {
 	asr        asr.Transcriber
 	flags      FlagChecker
 	queue      Enqueuer
+	score      Estimator
 	now        func() time.Time
+}
+
+// Estimator 重算预估分（T22，PRD 11.6）：整卷批改完成、改采分点重批后调用。
+type Estimator interface {
+	Recompute(ctx context.Context, userID, subjectID uint64, reason string) error
+	RecomputeForQuestion(ctx context.Context, userID, questionID uint64, reason string) error
 }
 
 // FlagChecker 判断功能开关（口述背诵）。
@@ -83,6 +90,8 @@ type Deps struct {
 	Flags FlagChecker
 	// Queue 排整卷批改与模拟考试自动交卷任务（T21）；为空时交卷后同步批改。
 	Queue Enqueuer
+	// Score 重算预估分（T22）；为空时不重算。
+	Score Estimator
 	Now   func() time.Time
 }
 
@@ -91,7 +100,7 @@ func New(d Deps) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{db: d.DB, q: dbq.New(d.DB), params: d.Params, plan: d.Plan, ai: d.AI, quota: d.Quota, oss: d.OSS, ocr: d.OCR, moderation: d.Moderation, asr: d.ASR, flags: d.Flags, queue: d.Queue, now: now}
+	return &Service{db: d.DB, q: dbq.New(d.DB), params: d.Params, plan: d.Plan, ai: d.AI, quota: d.Quota, oss: d.OSS, ocr: d.OCR, moderation: d.Moderation, asr: d.ASR, flags: d.Flags, queue: d.Queue, score: d.Score, now: now}
 }
 
 func (s *Service) today() rules.Day { return rules.DayOf(s.now()) }

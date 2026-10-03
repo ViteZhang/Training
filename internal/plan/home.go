@@ -184,9 +184,14 @@ func (s *Service) push(ctx context.Context, userID uint64, stage rules.Stage, da
 
 // falseMastery 数「以为会了」的知识点：最近一次自评为掌握，且近 7 天作答 ≥ 2 次、正确率 < 50%（PRD 11.2）。
 func (s *Service) falseMastery(ctx context.Context, userID uint64, p rules.Params) (int, error) {
+	set, err := s.falseMasterySet(ctx, userID, p)
+	return len(set), err
+}
+
+func (s *Service) falseMasterySet(ctx context.Context, userID uint64, p rules.Params) (map[uint64]bool, error) {
 	rows, err := s.q.ListKPMasteryRows(ctx, userID)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	self := map[uint64]bool{}
 	for _, r := range rows {
@@ -194,13 +199,14 @@ func (s *Service) falseMastery(ctx context.Context, userID uint64, p rules.Param
 			self[r.KpID] = true
 		}
 	}
+	out := map[uint64]bool{}
 	if len(self) == 0 {
-		return 0, nil
+		return out, nil
 	}
 	since := dayStart(s.today().AddDays(-(p.MasteryState.FalseMasteryWindowDays - 1)))
 	atts, err := s.q.ListRecentKPAttempts(ctx, dbq.ListRecentKPAttemptsParams{OwnerUserID: userID, AnsweredAt: since})
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	recent := map[uint64][]bool{}
 	for _, a := range atts {
@@ -215,13 +221,110 @@ func (s *Service) falseMastery(ctx context.Context, userID uint64, p rules.Param
 		}
 		recent[a.KpID] = append(recent[a.KpID], rules.IsCorrect(rules.IsObjective(rules.QType(a.Qtype)), a.IsCorrect.Bool, rate, p.MasteryState.SubjectiveCorrectRate))
 	}
-	n := 0
 	for kp, rs := range recent {
-		if rules.FalseMastery(rules.SelfMastered, rs, p.MasteryState) && self[kp] {
-			n++
+		if rules.FalseMastery(rules.SelfMastered, rs, p.MasteryState) {
+			out[kp] = true
 		}
 	}
-	return n, nil
+	return out, nil
+}
+
+// KP 是一个知识点的名字。
+type KP struct {
+	ID   uint64
+	Name string
+}
+
+// FalseMasteryKPs 列出一门课里「以为会了」的知识点（6.2）。
+func (s *Service) FalseMasteryKPs(ctx context.Context, userID, subjectID uint64) ([]KP, error) {
+	sub, err := s.bank.Overview(ctx, userID, subjectID)
+	if err != nil {
+		return nil, err
+	}
+	p, err := s.params.Rules(ctx)
+	if err != nil {
+		return nil, err
+	}
+	set, err := s.falseMasterySet(ctx, userID, p)
+	if err != nil {
+		return nil, err
+	}
+	out := []KP{}
+	if len(set) == 0 {
+		return out, nil
+	}
+	kps, err := s.q.ListBankKPsFull(ctx, dbq.ListBankKPsFullParams{UserID: userID, BankID: sub.BankID, Owner: sql.NullInt64{Int64: int64(userID), Valid: true}})
+	if err != nil {
+		return nil, err
+	}
+	for _, k := range kps {
+		if set[k.ID] {
+			out = append(out, KP{ID: k.ID, Name: k.Name})
+		}
+	}
+	return out, nil
+}
+
+// AddFalseMastery 把一门课「以为会了」的知识点加入今日训练（6.2「一键加入今日训练」）：每个知识点加一道今天计划里还没有的题，
+// 记在「薄弱查漏」组。返回加了几道。
+func (s *Service) AddFalseMastery(ctx context.Context, userID, subjectID uint64) (int, error) {
+	kps, err := s.FalseMasteryKPs(ctx, userID, subjectID)
+	if err != nil || len(kps) == 0 {
+		return 0, err
+	}
+	sub, err := s.bank.Overview(ctx, userID, subjectID)
+	if err != nil {
+		return 0, err
+	}
+	p, err := s.params.Rules(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := s.Today(ctx, userID); err != nil {
+		return 0, err
+	}
+	day := s.today()
+	row, err := s.q.GetDailyPlan(ctx, dbq.GetDailyPlanParams{OwnerUserID: userID, PlanDate: day.Date()})
+	if err != nil {
+		return 0, err
+	}
+	var snap Snapshot
+	if err := json.Unmarshal(row.PlanGroups, &snap); err != nil {
+		return 0, err
+	}
+	inPlan := map[uint64]bool{}
+	for _, it := range snap.Items {
+		inPlan[it.QuestionID] = true
+	}
+	qs, err := s.q.ListBankQuestionsFull(ctx, dbq.ListBankQuestionsFullParams{UserID: userID, BankID: sub.BankID, Owner: sql.NullInt64{Int64: int64(userID), Valid: true}})
+	if err != nil {
+		return 0, err
+	}
+	added := 0
+	for _, k := range kps {
+		for _, q := range qs {
+			if uint64(q.PrimaryKpID) != k.ID || inPlan[q.ID] || q.NeedsReview {
+				continue
+			}
+			qt := rules.QType(q.Qtype)
+			snap.Items = append(snap.Items, Item{SubjectID: subjectID, Group: string(rules.GroupWeak), QuestionID: q.ID, KPID: k.ID, QType: string(qt),
+				Minutes: rules.ItemMinutes(qt, false, p.Plan)})
+			snap.TotalMinutes += rules.ItemMinutes(qt, false, p.Plan)
+			inPlan[q.ID] = true
+			added++
+			break
+		}
+	}
+	if added == 0 {
+		return 0, nil
+	}
+	raw, err := json.Marshal(snap)
+	if err != nil {
+		return 0, err
+	}
+	err = s.q.UpsertDailyPlan(ctx, dbq.UpsertDailyPlanParams{OwnerUserID: userID, PlanDate: day.Date(), Stage: row.Stage, BudgetMinutes: row.BudgetMinutes,
+		PlanGroups: raw, GeneratedAt: row.GeneratedAt})
+	return added, err
 }
 
 // streak 是连续打卡天数：截至今天（今天还没练则截至昨天）连续有作答或背诵的天数。

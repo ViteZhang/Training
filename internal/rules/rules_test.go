@@ -564,6 +564,15 @@ func TestPaperTimeHelpers(t *testing.T) {
 	if !Overtime(31, 25, pt) || Overtime(30, 25, pt) {
 		t.Error("超过建议 20% 记为超时")
 	}
+	// 4.25 设计稿：名词解释建议 25′ 实际 38′ 超时；论述建议 80′ 实际 70′ 正常；检查建议 15′ 实际 0′ 少用。
+	for _, c := range []struct {
+		actual, suggested float64
+		want              TimeStatus
+	}{{38, 25, TimeOvertime}, {70, 80, TimeOK}, {64, 80, TimeOK}, {63, 80, TimeUnder}, {0, 15, TimeUnder}, {5, 0, TimeOK}} {
+		if got := CompareTime(c.actual, c.suggested, pt); got != c.want {
+			t.Errorf("CompareTime(%v, %v) = %s，应为 %s", c.actual, c.suggested, got, c.want)
+		}
+	}
 	loss := TimeLoss([]UnansweredQuestion{{QDiscussion, 25}, {QShortAnswer, 10}, {QTermExplain, 5}},
 		map[QType]float64{QDiscussion: 0.6, QShortAnswer: 1.2})
 	if !near(loss, 25) {

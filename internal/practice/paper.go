@@ -925,15 +925,18 @@ func (s *Service) AutoSubmitPaper(ctx context.Context, userID, sessionID uint64)
 
 // PaperReport 是整卷批改完成时保存的统计（4.24、4.25 在 T22 用它出报告）。
 type PaperReport struct {
-	RawScore    float64            `json:"raw_score"`
-	ActualFull  float64            `json:"actual_full"`
-	PaperFull   float64            `json:"paper_full"`
-	Score       float64            `json:"score"`
-	Unanswered  int                `json:"unanswered"`
-	TimeLoss    float64            `json:"time_loss"`
-	UsedSeconds int                `json:"used_seconds"`
-	Loss        map[string]float64 `json:"loss"`
-	ByQType     []PaperQTypeStat   `json:"by_qtype"`
+	RawScore    float64 `json:"raw_score"`
+	ActualFull  float64 `json:"actual_full"`
+	PaperFull   float64 `json:"paper_full"`
+	Score       float64 `json:"score"`
+	Unanswered  int     `json:"unanswered"`
+	TimeLoss    float64 `json:"time_loss"`
+	UsedSeconds int     `json:"used_seconds"`
+	// ElapsedSeconds 是开考到交卷的时间（扣除暂停）；TotalMinutes 是试卷时长（T22 时间分析用）。
+	ElapsedSeconds int                `json:"elapsed_seconds"`
+	TotalMinutes   int                `json:"total_minutes"`
+	Loss           map[string]float64 `json:"loss"`
+	ByQType        []PaperQTypeStat   `json:"by_qtype"`
 }
 
 // PaperQTypeStat 是一种题型的得分与用时。
@@ -1056,10 +1059,10 @@ func (s *Service) GradePaper(ctx context.Context, userID, sessionID uint64) erro
 			lossAll[l.Type] += l.Points
 		}
 	}
-	return s.finishPaper(ctx, userID, row, suggested, lossAll, p)
+	return s.finishPaper(ctx, userID, row, total, suggested, lossAll, p)
 }
 
-func (s *Service) finishPaper(ctx context.Context, userID uint64, row dbq.PaperSession, suggested map[string]int, lossAll map[string]float64, p rules.Params) error {
+func (s *Service) finishPaper(ctx context.Context, userID uint64, row dbq.PaperSession, total int, suggested map[string]int, lossAll map[string]float64, p rules.Params) error {
 	items, err := s.q.ListPaperSessionItems(ctx, dbq.ListPaperSessionItemsParams{PaperSessionID: row.ID, OwnerUserID: userID})
 	if err != nil {
 		return err
@@ -1074,7 +1077,10 @@ func (s *Service) finishPaper(ctx context.Context, userID uint64, row dbq.PaperS
 			avg[rules.QType(r.Qtype)] = dec(r.Got) / f
 		}
 	}
-	rep := PaperReport{Loss: lossAll, PaperFull: dec(row.FullScore)}
+	rep := PaperReport{Loss: lossAll, PaperFull: dec(row.FullScore), TotalMinutes: total}
+	if row.SubmittedAt.Valid {
+		rep.ElapsedSeconds = max(int(row.SubmittedAt.Time.Sub(row.StartedAt).Seconds())-int(row.PausedSeconds), 0)
+	}
 	stats := map[string]*PaperQTypeStat{}
 	var order []string
 	var unanswered []rules.UnansweredQuestion
@@ -1120,7 +1126,7 @@ func (s *Service) finishPaper(ctx context.Context, userID uint64, row dbq.PaperS
 	}
 	rep.Score = round1(rules.ScalePaperScore(rep.RawScore, rep.ActualFull, rep.PaperFull))
 	raw, _ := json.Marshal(rep)
-	return s.withTx(ctx, func(q *dbq.Queries) error {
+	err = s.withTx(ctx, func(q *dbq.Queries) error {
 		if err := q.FinishPaperGrading(ctx, dbq.FinishPaperGradingParams{GradedAt: sql.NullTime{Time: s.now().UTC(), Valid: true}, Score: fmtScore(rep.Score),
 			Report: dbtypes.NullJSON(raw), ID: row.ID, OwnerUserID: userID}); err != nil {
 			return err
@@ -1130,4 +1136,14 @@ func (s *Service) finishPaper(ctx context.Context, userID uint64, row dbq.PaperS
 			Body: fmt.Sprintf("「%s」批改完成，AI 批改得分 %s / %s（仅供参考），点开看整卷报告", row.PaperTitle, fmtScore(rep.Score).String, fmtScore(rep.PaperFull).String),
 			Link: link, DedupeKey: sql.NullString{String: "paper_graded:" + strconv.FormatUint(row.ID, 10), Valid: true}})
 	})
+	if err != nil {
+		return err
+	}
+	// 交卷批改完成后重算预估分（PRD 11.6）；只有导入真题卷计入，重算失败不影响整卷结果。
+	if row.CountsForEstimate && s.score != nil {
+		if err := s.score.Recompute(ctx, userID, row.SubjectID, "paper_graded"); err != nil {
+			logx.From(ctx).Warn("recompute estimate", "err", err, "session_id", row.ID)
+		}
+	}
+	return nil
 }

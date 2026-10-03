@@ -31,6 +31,7 @@ import (
 	"peetraining-server/internal/profile"
 	"peetraining-server/internal/quota"
 	"peetraining-server/internal/rules"
+	"peetraining-server/internal/score"
 	"peetraining-server/internal/store"
 	"peetraining-server/internal/testenv"
 )
@@ -51,6 +52,7 @@ type fx struct {
 	asr   *asr.Mock
 	flags *flags.Service
 	plan  *plan.Service
+	sc    *score.Service
 	clock time.Time
 }
 
@@ -82,8 +84,12 @@ func setup(t *testing.T) *fx {
 	bk := bank.New(bank.Deps{DB: db, AI: engine, Quota: qs, Params: ps, Now: now})
 	pl := plan.New(plan.Deps{DB: db, Params: ps, Profile: f.prof, Bank: bk, Now: now})
 	f.oss, f.asr, f.flags, f.plan = o, asr.NewMock(), flags.New(q), pl
+	f.sc = score.New(score.Deps{DB: db, Params: ps, Profile: f.prof, Bank: bk, Plan: pl, Now: now})
+	f.mat.OnDeleted = func(ctx context.Context, userID, subjectID uint64) {
+		_ = f.sc.Recompute(ctx, userID, subjectID, "material_deleted")
+	}
 	f.pr = practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: o, OCR: ocr.NewMock(), Moderation: moderation.NewMock(),
-		ASR: f.asr, Flags: f.flags, Queue: queue, Now: now})
+		ASR: f.asr, Flags: f.flags, Queue: queue, Score: f.sc, Now: now})
 	queue.h.Paper = f.pr
 	return f
 }
