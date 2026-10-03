@@ -16,6 +16,7 @@ jest.mock('expo-router', () => ({
 }));
 jest.mock('expo-device', () => ({ modelName: 'iPhone 15', deviceName: null }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'uuid-1234-5678' }));
+jest.mock('../lib/flags', () => ({ useFeatureFlag: () => false }));
 
 const mockPost = jest.fn();
 jest.mock('../lib/api', () => {
@@ -83,7 +84,7 @@ describe('0.2 登录', () => {
     expect(mockPost).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByText('同意并获取验证码'));
     expect(mockPost).toHaveBeenCalledWith('/auth/sms-codes', { body: { phone: '13812345678', purpose: 'login', agree: true } });
-    expect(mockPush).toHaveBeenCalledWith({ pathname: '/(auth)/code', params: { phone: '13812345678' } });
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/(auth)/code', params: { phone: '13812345678', invite: '' } });
   });
 });
 
@@ -101,6 +102,19 @@ describe('0.3 输入验证码', () => {
     expect(mockPost).toHaveBeenCalledWith('/auth/login', expect.objectContaining({ body: expect.objectContaining({ phone: '13812345678', code: '123456' }) }));
     expect(useSession.getState().session?.accessToken).toBe('a');
     expect(mockReplace).toHaveBeenCalledWith('/(onboarding)/subject');
+  });
+
+  it('从邀请链接进入时带上邀请码注册（T26）', async () => {
+    mockParams = { phone: '13812345678', invite: 'K7Q2HN3P' };
+    mockPost.mockReturnValue(
+      ok({
+        access_token: 'a', access_expires_at: '2026-10-01T00:00:00Z', refresh_token: 'r', refresh_expires_at: '2026-12-01T00:00:00Z',
+        is_new_user: true, user: { onboarding_step: '1.1' },
+      }),
+    );
+    await wrap(<Code />);
+    await fireEvent.changeText(screen.getByLabelText('验证码'), '123456');
+    expect(mockPost).toHaveBeenCalledWith('/auth/login', expect.objectContaining({ body: expect.objectContaining({ invite_code: 'K7Q2HN3P' }) }));
   });
 
   it('验证码错误：清空并提示剩余次数（0.3b）', async () => {

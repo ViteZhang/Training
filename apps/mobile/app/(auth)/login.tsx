@@ -1,13 +1,15 @@
 // 0.2 手机号登录 / 0.2a 已输入手机号 / 0.2b 未同意协议。
 // 号码满 11 位且以 13–19 开头才可获取验证码；协议默认不勾选；未注册的手机号验证后自动创建账号。
+// 邀请开关打开时可填邀请码（选填，T26）；从邀请链接进入时（?invite=）自动带上。
 import { semantic, spacing, radius, layout } from '@training/ui-tokens';
 import { ApiError } from '@training/api-client';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { BottomSheet, Button, Icon, Screen, Text } from '@/components';
 import { formatPhone, isValidPhone, normalizePhone } from '@/features/auth/phone';
 import { api, unwrap } from '@/lib/api';
+import { useFeatureFlag } from '@/lib/flags';
 
 export default function Login() {
   const [phone, setPhone] = useState('');
@@ -16,6 +18,9 @@ export default function Login() {
   const [highlight, setHighlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const linkInvite = useLocalSearchParams<{ invite?: string }>().invite ?? '';
+  const [invite, setInvite] = useState(linkInvite.toUpperCase());
+  const showInvite = useFeatureFlag('invite') || !!linkInvite;
 
   const valid = isValidPhone(phone);
   const showFormatError = phone.length === 11 && !valid;
@@ -25,11 +30,11 @@ export default function Login() {
     setError(null);
     try {
       await unwrap(api.POST('/auth/sms-codes', { body: { phone, purpose: 'login', agree: true } }));
-      router.push({ pathname: '/(auth)/code', params: { phone } });
+      router.push({ pathname: '/(auth)/code', params: { phone, invite: invite.trim() } });
     } catch (e) {
       // 60 秒冷却内重复进入：直接去输入验证码页。
       if (e instanceof ApiError && e.detail?.reason === 'cooldown') {
-        router.push({ pathname: '/(auth)/code', params: { phone, cooldown: String(e.detail.retry_after_seconds ?? 60) } });
+        router.push({ pathname: '/(auth)/code', params: { phone, invite: invite.trim(), cooldown: String(e.detail.retry_after_seconds ?? 60) } });
       } else {
         setError(e instanceof ApiError ? e.message : '网络开小差了，请稍后再试');
       }
@@ -72,6 +77,20 @@ export default function Login() {
           maxFontSizeMultiplier={layout.maxFontScale}
         />
       </View>
+      {showInvite ? (
+        <TextInput
+          accessibilityLabel="邀请码"
+          placeholder="邀请码（选填，新用户注册时有效）"
+          placeholderTextColor={semantic.textSecondary}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          maxLength={16}
+          value={invite}
+          onChangeText={(t) => setInvite(t.toUpperCase())}
+          style={[styles.inputRow, styles.inviteInput]}
+          maxFontSizeMultiplier={layout.maxFontScale}
+        />
+      ) : null}
       {showFormatError ? (
         <Text variant="caption" color={semantic.danger} style={styles.tip}>
           请输入正确的手机号
@@ -148,6 +167,7 @@ export default function Login() {
 }
 
 const styles = StyleSheet.create({
+  inviteInput: { marginTop: spacing.sm, fontSize: 16, color: semantic.textPrimary },
   header: { marginTop: 56, marginBottom: spacing.xxxl },
   sub: { marginTop: spacing.sm },
   inputRow: {
