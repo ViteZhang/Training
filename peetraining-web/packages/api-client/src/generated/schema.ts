@@ -1573,10 +1573,339 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/subjects/{subjectId}/papers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        /** 整卷列表（4.18）：真题卷按年份，AI 组卷；每套的进行中 / 已完成 / 未开始 */
+        get: operations["listPapers"];
+        put?: never;
+        /**
+         * AI 组卷（PRD 11.10）：标准卷 / 针对卷，按最近一套真题卷的结构从题库抽题，不够时用 AI 变式题补足并逐题标出
+         * @description 组卷需要本周还有整卷批改次数（做这套卷时扣）；补足的变式题不另计 AI 出题额度。没有导入真题卷时返回 400。
+         */
+        post: operations["composePaper"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/papers/{paperId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paperId: components["parameters"]["PaperId"];
+            };
+            cookie?: never;
+        };
+        /** 选择作答模式（4.19）：题数、满分、时长、各题型建议用时（PRD 11.9）、按阶段推荐的模式 */
+        get: operations["getPaper"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/papers/{paperId}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paperId: components["parameters"]["PaperId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 开始做一套卷（练习模式 / 模拟考试）
+         * @description 同一用户同一时间只能有一套进行中（409，detail.session_id 指向进行中的那套）。
+         *     开始时预占 1 次本周整卷批改次数，交卷时结算，放弃时退回。模拟考试的截止时间以服务端 deadline_at 为准。
+         */
+        post: operations["startPaper"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/paper-sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        /** 整卷作答（4.20 / 4.21 / 4.22）：题目、草稿、标记、每题用时、服务端时间与截止时间；模拟考试过了截止时间会自动交卷 */
+        get: operations["getPaperSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/paper-sessions/{sessionId}/items/{seq}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                seq: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 保存一道题的草稿、标记与停留用时（客户端每 5 秒同步一次）
+         * @description 客观题的 draft_text 是选中的选项字母。交卷后或模拟考试过了截止时间返回 409。
+         */
+        put: operations["updatePaperItem"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/paper-sessions/{sessionId}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 暂停（只有练习模式可以） */
+        post: operations["pausePaper"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/paper-sessions/{sessionId}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 继续作答。练习模式取消暂停；模拟考试因系统原因中断时，10 分钟内可恢复一次并补回中断时长（PRD 11.9） */
+        post: operations["resumePaper"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/paper-sessions/{sessionId}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 交卷（4.23）：客观题即时出分，主观题后台按采分点逐题批改（约 2 分钟），完成后发消息；重复交卷返回同一结果 */
+        post: operations["submitPaper"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/paper-sessions/{sessionId}/abandon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 放弃这套卷（退回预占的整卷批改次数） */
+        post: operations["abandonPaper"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description 真题卷 / AI 标准卷 / AI 针对卷
+         * @enum {string}
+         */
+        PaperKind: "real_exam" | "ai_standard" | "ai_targeted";
+        /**
+         * @description 练习模式（可暂停、无提醒）/ 模拟考试（严格计时、不能暂停、到点提醒、时间到自动交卷）
+         * @enum {string}
+         */
+        PaperMode: "practice" | "mock";
+        /** @enum {string} */
+        PaperSessionStatus: "in_progress" | "paused" | "grading" | "graded" | "abandoned";
+        PaperBrief: {
+            /** Format: int64 */
+            id: number;
+            kind: components["schemas"]["PaperKind"];
+            title: string;
+            exam_year?: number;
+            question_count: number;
+            /** @description 整卷满分 */
+            full_score: number;
+            /** @description 实际收录题目的满分；缺题时小于整卷满分，成绩按比例换算 */
+            actual_score: number;
+            /** @description 缺题说明（资料里缺题时提前说明按多少分计分） */
+            missing_note?: string;
+            duration_minutes: number;
+            /** @description 用 AI 变式题补足的题数 */
+            ai_filled: number;
+            /** @enum {string} */
+            status: "not_started" | "in_progress" | "done";
+            /** @description 进行中的那次 */
+            session?: {
+                /** Format: int64 */
+                id: number;
+                mode: components["schemas"]["PaperMode"];
+                status: components["schemas"]["PaperSessionStatus"];
+                answered: number;
+                total: number;
+            };
+            /** @description 最近一次完成 */
+            last?: {
+                /** Format: int64 */
+                session_id: number;
+                mode: components["schemas"]["PaperMode"];
+                /** Format: date-time */
+                finished_at: string;
+                status?: components["schemas"]["PaperSessionStatus"];
+                score?: number;
+                full_score?: number;
+            };
+        };
+        PaperList: {
+            real_exam: components["schemas"]["PaperBrief"][];
+            ai_papers: components["schemas"]["PaperBrief"][];
+            /** @description 本周还能批改几套整卷，null 为不限 */
+            weekly_remaining: number | null;
+            in_progress?: {
+                /** Format: int64 */
+                session_id: number;
+                /** Format: int64 */
+                paper_id: number;
+                title: string;
+                /** Format: int64 */
+                subject_id: number;
+            };
+        };
+        PaperSection: {
+            qtype: components["schemas"]["QuestionType"];
+            count: number;
+            score_each: number;
+            total: number;
+            suggested_minutes: number;
+        };
+        PaperDetail: components["schemas"]["PaperBrief"] & {
+            sections: components["schemas"]["PaperSection"][];
+            /** @description 留给检查的时间 */
+            check_minutes: number;
+            recommended_mode: components["schemas"]["PaperMode"];
+            /** @description 做完计入预估分（只有导入的真题卷） */
+            counts_for_estimate: boolean;
+        };
+        PaperItem: {
+            seq: number;
+            section: string;
+            qtype: components["schemas"]["QuestionType"];
+            score: number;
+            /** Format: int64 */
+            question_id: number;
+            stem: string;
+            options?: components["schemas"]["ChoiceOption"][];
+            origin_tags?: string[];
+            draft_text?: string;
+            marked: boolean;
+            answered: boolean;
+            time_spent_seconds: number;
+            required_words?: number;
+            /** @description 批改后的得分 */
+            got?: number;
+            /** Format: int64 */
+            grading_id?: number;
+        };
+        PaperReminder: {
+            qtype: components["schemas"]["QuestionType"];
+            /** @description 开考后第几分钟提醒（这一题型的累计建议用时） */
+            at_minutes: number;
+            suggested_minutes: number;
+            text: string;
+        };
+        PaperSession: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            paper_id: number;
+            /** Format: int64 */
+            subject_id: number;
+            title: string;
+            kind: components["schemas"]["PaperKind"];
+            mode: components["schemas"]["PaperMode"];
+            status: components["schemas"]["PaperSessionStatus"];
+            /** Format: date-time */
+            started_at: string;
+            /**
+             * Format: date-time
+             * @description 模拟考试的截止时间，倒计时以它为准
+             */
+            deadline_at?: string;
+            /**
+             * Format: date-time
+             * @description 服务端当前时间，客户端据此校准倒计时
+             */
+            server_now: string;
+            /** @description 已用时间（扣除暂停） */
+            elapsed_seconds: number;
+            total_minutes: number;
+            check_minutes: number;
+            /** @description 剩多少分钟醒目提示 */
+            remind_left_minutes: number;
+            reminders: components["schemas"]["PaperReminder"][];
+            items: components["schemas"]["PaperItem"][];
+            /** @description 模拟考试还能用一次中断恢复 */
+            resume_available: boolean;
+            /** @description 换算到整卷满分后的得分（批改完成后） */
+            score?: number;
+            full_score: number;
+            counts_for_estimate?: boolean;
+        };
         /**
          * @description 挖空 / 默写 / 口述
          * @enum {string}
@@ -3268,6 +3597,7 @@ export interface components {
         };
     };
     parameters: {
+        PaperId: number;
         GradingId: number;
         SessionId: number;
         /** @description 客户端为每次写操作生成的唯一键（UUID），重试时保持不变 */
@@ -5673,6 +6003,276 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    listPapers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperList"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    composePaper: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    kind: "ai_standard" | "ai_targeted";
+                };
+            };
+        };
+        responses: {
+            /** @description 已组卷 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            402: components["responses"]["QuotaExceeded"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getPaper: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paperId: components["parameters"]["PaperId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperDetail"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    startPaper: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paperId: components["parameters"]["PaperId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    mode: components["schemas"]["PaperMode"];
+                    idempotency_key: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 已开始 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperSession"];
+                };
+            };
+            402: components["responses"]["QuotaExceeded"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getPaperSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperSession"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updatePaperItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                seq: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    draft_text?: string;
+                    marked?: boolean;
+                    /** @description 距上次同步在这道题上停留的秒数 */
+                    time_spent_delta?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperItem"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    pausePaper: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperSession"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    resumePaper: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: date-time
+                     * @description 模拟考试：本机记录的中断开始时间
+                     */
+                    interrupted_at?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperSession"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    submitPaper: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperSession"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    abandonPaper: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已放弃 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
 }

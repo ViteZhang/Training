@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.7.0
+  version: 0.8.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -25,6 +25,8 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: paper
+    description: 模块 4 · 整卷与模拟考试
   - name: practice
     description: 模块 4 · 练习、客观题与错题本
   - name: today
@@ -1762,6 +1764,202 @@ paths:
               schema: { $ref: "#/components/schemas/ReciteSummary" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /subjects/{subjectId}/papers:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [paper]
+      operationId: listPapers
+      summary: 整卷列表（4.18）：真题卷按年份，AI 组卷；每套的进行中 / 已完成 / 未开始
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaperList" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [paper]
+      operationId: composePaper
+      summary: AI 组卷（PRD 11.10）：标准卷 / 针对卷，按最近一套真题卷的结构从题库抽题，不够时用 AI 变式题补足并逐题标出
+      description: 组卷需要本周还有整卷批改次数（做这套卷时扣）；补足的变式题不另计 AI 出题额度。没有导入真题卷时返回 400。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind: { type: string, enum: [ai_standard, ai_targeted] }
+      responses:
+        "201":
+          description: 已组卷
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaperDetail" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "402": { $ref: "#/components/responses/QuotaExceeded" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /papers/{paperId}:
+    parameters:
+      - $ref: "#/components/parameters/PaperId"
+    get:
+      tags: [paper]
+      operationId: getPaper
+      summary: 选择作答模式（4.19）：题数、满分、时长、各题型建议用时（PRD 11.9）、按阶段推荐的模式
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaperDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /papers/{paperId}/sessions:
+    parameters:
+      - $ref: "#/components/parameters/PaperId"
+    post:
+      tags: [paper]
+      operationId: startPaper
+      summary: 开始做一套卷（练习模式 / 模拟考试）
+      description: |
+        同一用户同一时间只能有一套进行中（409，detail.session_id 指向进行中的那套）。
+        开始时预占 1 次本周整卷批改次数，交卷时结算，放弃时退回。模拟考试的截止时间以服务端 deadline_at 为准。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode, idempotency_key]
+              properties:
+                mode: { $ref: "#/components/schemas/PaperMode" }
+                idempotency_key: { type: string, minLength: 8, maxLength: 64 }
+      responses:
+        "201":
+          description: 已开始
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaperSession" }
+        "402": { $ref: "#/components/responses/QuotaExceeded" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /paper-sessions/{sessionId}:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    get:
+      tags: [paper]
+      operationId: getPaperSession
+      summary: 整卷作答（4.20 / 4.21 / 4.22）：题目、草稿、标记、每题用时、服务端时间与截止时间；模拟考试过了截止时间会自动交卷
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaperSession" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /paper-sessions/{sessionId}/items/{seq}:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+      - name: seq
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    put:
+      tags: [paper]
+      operationId: updatePaperItem
+      summary: 保存一道题的草稿、标记与停留用时（客户端每 5 秒同步一次）
+      description: 客观题的 draft_text 是选中的选项字母。交卷后或模拟考试过了截止时间返回 409。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                draft_text: { type: string, maxLength: 20000 }
+                marked: { type: boolean }
+                time_spent_delta: { type: integer, minimum: 0, maximum: 600, description: 距上次同步在这道题上停留的秒数 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaperItem" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /paper-sessions/{sessionId}/pause:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      tags: [paper]
+      operationId: pausePaper
+      summary: 暂停（只有练习模式可以）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaperSession" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /paper-sessions/{sessionId}/resume:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      tags: [paper]
+      operationId: resumePaper
+      summary: 继续作答。练习模式取消暂停；模拟考试因系统原因中断时，10 分钟内可恢复一次并补回中断时长（PRD 11.9）
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                interrupted_at: { type: string, format: date-time, description: 模拟考试：本机记录的中断开始时间 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaperSession" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /paper-sessions/{sessionId}/submit:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      tags: [paper]
+      operationId: submitPaper
+      summary: 交卷（4.23）：客观题即时出分，主观题后台按采分点逐题批改（约 2 分钟），完成后发消息；重复交卷返回同一结果
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaperSession" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /paper-sessions/{sessionId}/abandon:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      tags: [paper]
+      operationId: abandonPaper
+      summary: 放弃这套卷（退回预占的整卷批改次数）
+      responses:
+        "204": { description: 已放弃 }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1770,6 +1968,11 @@ components:
       bearerFormat: JWT
 
   parameters:
+    PaperId:
+      name: paperId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
     GradingId:
       name: gradingId
       in: path
@@ -1869,6 +2072,138 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    PaperKind:
+      type: string
+      description: 真题卷 / AI 标准卷 / AI 针对卷
+      enum: [real_exam, ai_standard, ai_targeted]
+    PaperMode:
+      type: string
+      description: 练习模式（可暂停、无提醒）/ 模拟考试（严格计时、不能暂停、到点提醒、时间到自动交卷）
+      enum: [practice, mock]
+    PaperSessionStatus:
+      type: string
+      enum: [in_progress, paused, grading, graded, abandoned]
+    PaperBrief:
+      type: object
+      required: [id, kind, title, question_count, full_score, actual_score, duration_minutes, ai_filled, status]
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { $ref: "#/components/schemas/PaperKind" }
+        title: { type: string }
+        exam_year: { type: integer }
+        question_count: { type: integer }
+        full_score: { type: number, description: 整卷满分 }
+        actual_score: { type: number, description: 实际收录题目的满分；缺题时小于整卷满分，成绩按比例换算 }
+        missing_note: { type: string, description: 缺题说明（资料里缺题时提前说明按多少分计分） }
+        duration_minutes: { type: integer }
+        ai_filled: { type: integer, description: 用 AI 变式题补足的题数 }
+        status: { type: string, enum: [not_started, in_progress, done] }
+        session:
+          type: object
+          description: 进行中的那次
+          required: [id, mode, status, answered, total]
+          properties:
+            id: { type: integer, format: int64 }
+            mode: { $ref: "#/components/schemas/PaperMode" }
+            status: { $ref: "#/components/schemas/PaperSessionStatus" }
+            answered: { type: integer }
+            total: { type: integer }
+        last:
+          type: object
+          description: 最近一次完成
+          required: [session_id, mode, finished_at]
+          properties:
+            session_id: { type: integer, format: int64 }
+            mode: { $ref: "#/components/schemas/PaperMode" }
+            finished_at: { type: string, format: date-time }
+            status: { $ref: "#/components/schemas/PaperSessionStatus" }
+            score: { type: number }
+            full_score: { type: number }
+    PaperList:
+      type: object
+      required: [real_exam, ai_papers, weekly_remaining]
+      properties:
+        real_exam: { type: array, items: { $ref: "#/components/schemas/PaperBrief" } }
+        ai_papers: { type: array, items: { $ref: "#/components/schemas/PaperBrief" } }
+        weekly_remaining: { type: integer, nullable: true, description: 本周还能批改几套整卷，null 为不限 }
+        in_progress:
+          type: object
+          required: [session_id, paper_id, title, subject_id]
+          properties:
+            session_id: { type: integer, format: int64 }
+            paper_id: { type: integer, format: int64 }
+            title: { type: string }
+            subject_id: { type: integer, format: int64 }
+    PaperSection:
+      type: object
+      required: [qtype, count, score_each, total, suggested_minutes]
+      properties:
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        count: { type: integer }
+        score_each: { type: number }
+        total: { type: number }
+        suggested_minutes: { type: integer }
+    PaperDetail:
+      allOf:
+        - $ref: "#/components/schemas/PaperBrief"
+        - type: object
+          required: [sections, check_minutes, recommended_mode, counts_for_estimate]
+          properties:
+            sections: { type: array, items: { $ref: "#/components/schemas/PaperSection" } }
+            check_minutes: { type: integer, description: 留给检查的时间 }
+            recommended_mode: { $ref: "#/components/schemas/PaperMode" }
+            counts_for_estimate: { type: boolean, description: 做完计入预估分（只有导入的真题卷） }
+    PaperItem:
+      type: object
+      required: [seq, section, qtype, score, question_id, stem, marked, answered, time_spent_seconds]
+      properties:
+        seq: { type: integer }
+        section: { type: string }
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        score: { type: number }
+        question_id: { type: integer, format: int64 }
+        stem: { type: string }
+        options: { type: array, items: { $ref: "#/components/schemas/ChoiceOption" } }
+        origin_tags: { type: array, items: { type: string } }
+        draft_text: { type: string }
+        marked: { type: boolean }
+        answered: { type: boolean }
+        time_spent_seconds: { type: integer }
+        required_words: { type: integer }
+        got: { type: number, description: 批改后的得分 }
+        grading_id: { type: integer, format: int64 }
+    PaperReminder:
+      type: object
+      required: [qtype, at_minutes, suggested_minutes, text]
+      properties:
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        at_minutes: { type: integer, description: 开考后第几分钟提醒（这一题型的累计建议用时） }
+        suggested_minutes: { type: integer }
+        text: { type: string }
+    PaperSession:
+      type: object
+      required: [id, paper_id, subject_id, title, kind, mode, status, started_at, server_now, elapsed_seconds, total_minutes, check_minutes, remind_left_minutes, reminders, items, resume_available, full_score]
+      properties:
+        id: { type: integer, format: int64 }
+        paper_id: { type: integer, format: int64 }
+        subject_id: { type: integer, format: int64 }
+        title: { type: string }
+        kind: { $ref: "#/components/schemas/PaperKind" }
+        mode: { $ref: "#/components/schemas/PaperMode" }
+        status: { $ref: "#/components/schemas/PaperSessionStatus" }
+        started_at: { type: string, format: date-time }
+        deadline_at: { type: string, format: date-time, description: 模拟考试的截止时间，倒计时以它为准 }
+        server_now: { type: string, format: date-time, description: 服务端当前时间，客户端据此校准倒计时 }
+        elapsed_seconds: { type: integer, description: 已用时间（扣除暂停） }
+        total_minutes: { type: integer }
+        check_minutes: { type: integer }
+        remind_left_minutes: { type: integer, description: 剩多少分钟醒目提示 }
+        reminders: { type: array, items: { $ref: "#/components/schemas/PaperReminder" } }
+        items: { type: array, items: { $ref: "#/components/schemas/PaperItem" } }
+        resume_available: { type: boolean, description: 模拟考试还能用一次中断恢复 }
+        score: { type: number, description: 换算到整卷满分后的得分（批改完成后） }
+        full_score: { type: number }
+        counts_for_estimate: { type: boolean }
     ReciteMode:
       type: string
       description: 挖空 / 默写 / 口述
