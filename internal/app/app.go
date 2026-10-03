@@ -129,7 +129,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 		Importer: imp,
 		Bank:     bk,
 		Plan:     pl,
-		Practice: practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: clients.OSS, OCR: clients.OCR, Moderation: clients.Moderation, ASR: clients.ASR, Flags: fl}),
+		Practice: practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: clients.OSS, OCR: clients.OCR, Moderation: clients.Moderation, ASR: clients.ASR, Flags: fl, Queue: queue}),
 	}, nil
 }
 
@@ -232,7 +232,7 @@ func NewWorker(b *Base) (*Worker, error) {
 	if err := jobs.RegisterSchedules(scheduler); err != nil {
 		return nil, fmt.Errorf("注册定时任务：%w", err)
 	}
-	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan}
+	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice}
 	return &Worker{server: server, scheduler: scheduler, mux: h.Mux()}, nil
 }
 

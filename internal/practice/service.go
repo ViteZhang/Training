@@ -59,6 +59,7 @@ type Service struct {
 	moderation moderation.Checker
 	asr        asr.Transcriber
 	flags      FlagChecker
+	queue      Enqueuer
 	now        func() time.Time
 }
 
@@ -80,6 +81,8 @@ type Deps struct {
 	// 口述背诵（T20，功能开关 oral_recite）：语音识别。
 	ASR   asr.Transcriber
 	Flags FlagChecker
+	// Queue 排整卷批改与模拟考试自动交卷任务（T21）；为空时交卷后同步批改。
+	Queue Enqueuer
 	Now   func() time.Time
 }
 
@@ -88,7 +91,7 @@ func New(d Deps) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{db: d.DB, q: dbq.New(d.DB), params: d.Params, plan: d.Plan, ai: d.AI, quota: d.Quota, oss: d.OSS, ocr: d.OCR, moderation: d.Moderation, asr: d.ASR, flags: d.Flags, now: now}
+	return &Service{db: d.DB, q: dbq.New(d.DB), params: d.Params, plan: d.Plan, ai: d.AI, quota: d.Quota, oss: d.OSS, ocr: d.OCR, moderation: d.Moderation, asr: d.ASR, flags: d.Flags, queue: d.Queue, now: now}
 }
 
 func (s *Service) today() rules.Day { return rules.DayOf(s.now()) }
@@ -314,7 +317,7 @@ func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (Se
 		// 题量不够排满每日时长时，打开 AI 补题才按缺的分钟数补变式题（4.2 / 今日训练的 AI 补题开关，关闭时不生成）。
 		if in.AIFill && pl.Shortfall > 0 {
 			n := int(math.Ceil(pl.Shortfall / rules.ItemMinutes(rules.QTermExplain, false, p.Plan)))
-			gen, err := s.fill(ctx, userID, b, Config{OnlyUnmastered: true}, min(n, maxAIFill), kps, r)
+			gen, err := s.fill(ctx, userID, b, Config{OnlyUnmastered: true}, min(n, maxAIFill), kps, r, true)
 			if err != nil {
 				return Session{}, err
 			}
@@ -346,7 +349,7 @@ func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (Se
 		}
 		if short := c.Count - len(ids); short > 0 {
 			if c.AIFill {
-				gen, err := s.fill(ctx, userID, b, c, min(short, maxAIFill), kps, r)
+				gen, err := s.fill(ctx, userID, b, c, min(short, maxAIFill), kps, r, true)
 				if err != nil {
 					return Session{}, err
 				}
