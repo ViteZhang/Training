@@ -39,6 +39,7 @@ import (
 	"peetraining-server/internal/material"
 	"peetraining-server/internal/membership"
 	"peetraining-server/internal/notify"
+	"peetraining-server/internal/official"
 	"peetraining-server/internal/params"
 	"peetraining-server/internal/payment"
 	"peetraining-server/internal/plan"
@@ -93,7 +94,8 @@ type Base struct {
 	// T27 消息中心。
 	Notify *notify.Service
 	// T28 管理后台。
-	Admin *admin.Service
+	Admin    *admin.Service
+	Official *official.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -178,6 +180,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	}
 	base.Admin = admin.New(admin.Deps{DB: db, Redis: rdb, SMS: clients.SMS, OSS: clients.OSS, Params: ps, Quota: qs, Notify: base.Notify, Payment: base.Payment,
 		Import: imp, Log: log, Invalidate: []admin.Invalidator{ps, fl}, LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock})
+	base.Official = official.New(official.Deps{DB: db, AI: engine, Log: log})
 	return base, nil
 }
 
@@ -245,6 +248,7 @@ func (b *Base) Handler() (http.Handler, error) {
 		Invite:     b.Invite,
 		Notify:     b.Notify,
 		Admin:      b.Admin,
+		Official:   b.Official,
 		DevMockPay: b.devMockPay(),
 	})
 }

@@ -13,6 +13,8 @@ function PointRow({ n, subjectId }: { n: KnowledgeNode; subjectId: number }) {
       <Text variant="body" style={styles.flex} numberOfLines={1}>
         {n.name}
       </Text>
+      {n.is_new ? <Tag label="新" tone="progress" /> : null}
+      {n.official ? <Tag label="官方" tone="brand" /> : null}
       {n.needs_review ? <Tag label="待核对" tone="danger" /> : null}
       {n.exam_count ? <Text variant="caption">真题 {n.exam_count} 次</Text> : null}
       {n.state ? <Tag label={stateNames[n.state]} tone={stateTone[n.state]} /> : null}

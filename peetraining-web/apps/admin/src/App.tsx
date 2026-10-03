@@ -9,14 +9,19 @@ import { clearSession, useToken } from './lib/session';
 import { ChangePassword } from './pages/ChangePassword';
 import { Codes } from './pages/Codes';
 import { Config } from './pages/Config';
+import { Demand } from './pages/Demand';
 import { Disputes } from './pages/Disputes';
 import { Feedback } from './pages/Feedback';
 import { Login } from './pages/Login';
 import { Notice } from './pages/Notice';
+import { Official } from './pages/Official';
 import { Orders } from './pages/Orders';
 import { Overview } from './pages/Overview';
 import { Parse } from './pages/Parse';
 import { Placeholder } from './pages/Placeholder';
+import { Produce } from './pages/Produce';
+import { Release } from './pages/Release';
+import { ReviewQueue } from './pages/Review';
 import { Roles } from './pages/Roles';
 import { Users } from './pages/Users';
 
@@ -44,6 +49,11 @@ export function App() {
     '/config': <Config />,
     '/notice': <Notice />,
     '/roles': <Roles />,
+    '/demand': <Demand roles={roles} />,
+    '/official': <Official />,
+    '/produce': <Produce />,
+    '/review': <ReviewQueue />,
+    '/release': <Release />,
   };
   const visible = menu.flatMap((g) => g.pages).filter((p) => p.roles.some((r) => roles.includes(r)));
   const home = visible[0]?.path ?? '/overview';

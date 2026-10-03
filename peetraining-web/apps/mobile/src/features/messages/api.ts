@@ -51,6 +51,10 @@ export function messageHref(m: Schemas['Message']): Href | undefined {
       return '/library';
     case 'member':
       return '/member';
+    case 'official_banks':
+      return '/bank/official';
+    case 'bank':
+      return '/(tabs)/bank';
     default:
       return undefined;
   }

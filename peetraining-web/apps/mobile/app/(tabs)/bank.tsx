@@ -1,4 +1,4 @@
-// 3.1 题库：大标题 + 考情分析 / 图谱 / 导入 + 专业课切换 + 知识点 / 题目 / 资料三个分栏。作文课的作文知识库（3.10）在 T14。
+// 3.1 题库：大标题 + 考情分析 / 图谱 / 导入 +「添加官方题库」（official_bank 开关，T30）+ 专业课切换 + 知识点 / 题目 / 资料三个分栏。作文课的作文知识库（3.10）在 T14。
 import { radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
@@ -13,6 +13,7 @@ import { ParseQuotaBar } from '@/features/bank/QuotaBar';
 import { KnowledgeTree } from '@/features/bank/Tree';
 import { Segments } from '@/features/import/ui';
 import { api, unwrap } from '@/lib/api';
+import { useFeatureFlag } from '@/lib/flags';
 
 type Tab = 'kp' | 'question' | 'material';
 type TreeFilter = 'all' | 'unmastered' | 'exam' | 'needs_review';
@@ -80,6 +81,7 @@ export default function BankTab() {
   const list = subjects.data?.items ?? [];
   const subject = list.find((s) => s.id === picked) ?? list[0];
   const overview = useOverview(subject?.id);
+  const official = useFeatureFlag('official_bank');
 
   if (subjects.isLoading) return <Screen><Loading rows={6} /></Screen>;
   if (subjects.isError) return <Screen><ErrorState error={subjects.error} onRetry={() => void subjects.refetch()} /></Screen>;
@@ -99,6 +101,14 @@ export default function BankTab() {
           <Button title="图谱" kind="text" onPress={() => router.push({ pathname: '/bank/graph', params: { subjectId: String(subject.id) } })} />
           <Button title="导入" kind="text" onPress={() => router.push({ pathname: '/import', params: { subjectId: String(subject.id) } })} />
         </View>
+        {official && !subject.is_essay ? (
+          <Pressable accessibilityRole="button" onPress={() => router.push('/bank/official')} style={styles.official}>
+            <Text variant="bodyStrong" style={styles.flex}>
+              添加官方题库
+            </Text>
+            <Text variant="caption">和自建的一起练</Text>
+          </Pressable>
+        ) : null}
         {list.length > 1 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subjects}>
             {list.map((s) => (
@@ -157,5 +167,6 @@ const styles = StyleSheet.create({
   subject: { paddingHorizontal: spacing.md, minHeight: 40, justifyContent: 'center', borderRadius: radius.lg, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
   subjectOn: { backgroundColor: semantic.primary, borderColor: semantic.primary },
   search: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.lg, backgroundColor: semantic.surface, borderWidth: 1, borderColor: semantic.border },
+  official: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.lg, backgroundColor: semantic.primarySoft },
   banner: { padding: spacing.sm, borderRadius: radius.md, backgroundColor: semantic.dangerSoft },
 });
