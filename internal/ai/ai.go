@@ -63,6 +63,21 @@ type Cap[In, Out any] struct {
 // Models 是各档位的默认模型（Q02 未定前的开发默认值，后台 7.8 可按能力覆盖）。
 type Models struct {
 	Strong, Cheap string
+	// PreferStrong 为 true 时便宜档能力也用 Strong（优先高阶模型）。
+	PreferStrong bool
+}
+
+func (m Models) pick(tier string) string {
+	if tier == "cheap" && !m.PreferStrong {
+		return m.Cheap
+	}
+	return m.Strong
+}
+
+// Fallback 是主用平台出错时改用的平台与它的模型。
+type Fallback struct {
+	Client cloudai.Client
+	Models Models
 }
 
 // Price 是每千 token 的价格，单位百万分之一元。
@@ -70,19 +85,22 @@ type Price struct{ InputPer1K, OutputPer1K int64 }
 
 // Engine 执行能力调用。
 type Engine struct {
-	client  cloudai.Client
-	q       dbq.Querier
-	useMock bool
-	models  Models
-	prices  map[string]Price
-	salt    string
-	now     func() time.Time
+	client   cloudai.Client
+	fallback *Fallback
+	q        dbq.Querier
+	useMock  bool
+	models   Models
+	prices   map[string]Price
+	salt     string
+	now      func() time.Time
 }
 
 // Config 是 Engine 的配置。
 type Config struct {
-	Client  cloudai.Client
-	Queries dbq.Querier
+	Client cloudai.Client
+	// Fallback 不为空时，主用平台调用出错（网络、5xx、超时）改用它重试一次。
+	Fallback *Fallback
+	Queries  dbq.Querier
 	// UseMock 为 true 时不调用模型，用各能力的 Mock 函数。
 	UseMock bool
 	Models  Models
@@ -98,7 +116,10 @@ func NewEngine(c Config) *Engine {
 	if c.Models.Cheap == "" {
 		c.Models.Cheap = "qwen-turbo"
 	}
-	return &Engine{client: c.Client, q: c.Queries, useMock: c.UseMock, models: c.Models, prices: c.Prices, salt: c.Salt, now: time.Now}
+	if c.Fallback != nil && c.Fallback.Client == nil {
+		c.Fallback = nil
+	}
+	return &Engine{client: c.Client, fallback: c.Fallback, q: c.Queries, useMock: c.UseMock, models: c.Models, prices: c.Prices, salt: c.Salt, now: time.Now}
 }
 
 // ErrInvalidOutput 表示模型输出不合格（Schema 或能力校验没过）。
@@ -111,11 +132,7 @@ type Meta struct {
 
 // route 决定这次调用用稳定版还是候选版。
 func (e *Engine) route(ctx context.Context, d Def, userID uint64) (Meta, error) {
-	model := e.models.Strong
-	if d.Tier == "cheap" {
-		model = e.models.Cheap
-	}
-	m := Meta{Model: model, Version: d.Version}
+	m := Meta{Model: e.models.pick(d.Tier), Version: d.Version}
 	if e.q == nil {
 		return m, nil // 评测命令不连数据库
 	}
@@ -245,6 +262,7 @@ func (c *Cap[In, Out]) Run(ctx context.Context, e *Engine, userID uint64, in In)
 		return zero, Meta{}, err
 	}
 	var lastErr error
+	primary := meta.Model
 	for attempt := 0; attempt < 2; attempt++ {
 		start := e.now()
 		var content string
@@ -268,10 +286,20 @@ func (c *Cap[In, Out]) Run(ctx context.Context, e *Engine, userID uint64, in In)
 			if err != nil {
 				return zero, meta, err
 			}
-			resp, err = e.client.Complete(ctx, cloudai.Request{
+			meta.Model = primary
+			req := cloudai.Request{
 				Capability: c.Name, Model: meta.Model, JSONMode: true, Temperature: c.Temperature,
 				Messages: []cloudai.Message{{Role: "system", Content: system}, {Role: "user", Content: user}},
-			})
+			}
+			resp, err = e.client.Complete(ctx, req)
+			if err != nil && e.fallback != nil && ctx.Err() == nil {
+				// 主用平台不可用：记一笔失败，改用备用平台（优先高阶模型）。
+				e.record(ctx, c.Def, meta, userID, resp, start, "provider_error", attempt > 0)
+				meta.Model = e.fallback.Models.pick(c.Tier)
+				req.Model = meta.Model
+				start = e.now()
+				resp, err = e.fallback.Client.Complete(ctx, req)
+			}
 			if err != nil {
 				e.record(ctx, c.Def, meta, userID, resp, start, "provider_error", attempt > 0)
 				// 平台错误交给调用方（Asynq 任务）稍后重试，不在这里连打。

@@ -76,9 +76,16 @@ type AIConfig struct {
 	BailianAPIKey  string
 	AltBaseURL     string
 	AltAPIKey      string
-	// ModelStrong / ModelCheap 是两档模型的默认名（Q02 定之前的开发值；后台 7.8 可按能力覆盖）。
+	// ModelStrong / ModelCheap 是百炼两档模型的默认名（Q02 定之前的开发值；后台 7.8 可按能力覆盖）。
 	ModelStrong string
 	ModelCheap  string
+	// PreferStrong 为 true 时所有能力都用高阶模型（便宜档也用 ModelStrong / RelayModelStrong）。
+	PreferStrong bool
+	// AI_PROVIDER=relay 时的主用平台（OpenAI 兼容的中转接口）；百炼配置齐全时作为它失败时的备用。
+	RelayBaseURL     string
+	RelayAPIKey      string
+	RelayModelStrong string
+	RelayModelCheap  string
 }
 
 // Load 从环境变量读取配置并校验。
@@ -123,8 +130,14 @@ func load(getenv func(string) string) (*Config, error) {
 			BailianAPIKey:  get("BAILIAN_API_KEY", ""),
 			AltBaseURL:     get("AI_ALT_BASE_URL", ""),
 			AltAPIKey:      get("AI_ALT_API_KEY", ""),
-			ModelStrong:    get("AI_MODEL_STRONG", "qwen-plus"),
-			ModelCheap:     get("AI_MODEL_CHEAP", "qwen-turbo"),
+			ModelStrong:    get("AI_MODEL_STRONG", "qwen-max"),
+			ModelCheap:     get("AI_MODEL_CHEAP", "qwen-plus"),
+			// 优先用高阶模型（默认开启），省钱时设 AI_PREFER_STRONG=false 让便宜档能力用便宜模型。
+			PreferStrong:     get("AI_PREFER_STRONG", "true") != "false",
+			RelayBaseURL:     get("AI_RELAY_BASE_URL", ""),
+			RelayAPIKey:      get("AI_RELAY_API_KEY", ""),
+			RelayModelStrong: get("AI_RELAY_MODEL_STRONG", "gpt-5.5"),
+			RelayModelCheap:  get("AI_RELAY_MODEL_CHEAP", "gpt-5.5"),
 		},
 		OCR:        ProviderConfig{Provider: get("OCR_PROVIDER", ProviderMock)},
 		ASR:        ProviderConfig{Provider: get("ASR_PROVIDER", ProviderMock)},

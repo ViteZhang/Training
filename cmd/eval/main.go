@@ -80,8 +80,8 @@ func run(ctx context.Context, capability, dir string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	engine := ai.NewEngine(ai.Config{Client: clients.AI, UseMock: cfg.AI.Provider == config.ProviderMock,
-		Models: ai.Models{Strong: cfg.AI.ModelStrong, Cheap: cfg.AI.ModelCheap}})
+	models, fallback := ai.Routing(cfg.AI, clients.AIFallback)
+	engine := ai.NewEngine(ai.Config{Client: clients.AI, Fallback: fallback, UseMock: cfg.AI.Provider == config.ProviderMock, Models: models})
 	file := filepath.Join(dir, "private", capability+".jsonl")
 	base := filepath.Join(dir, "private")
 	if _, err := os.Stat(file); errors.Is(err, os.ErrNotExist) {
@@ -92,7 +92,11 @@ func run(ctx context.Context, capability, dir string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	fmt.Printf("能力 %s · 样本 %d 份 · 模型 %s / %s · AI_PROVIDER=%s\n", capability, len(samples), cfg.AI.ModelStrong, cfg.AI.ModelCheap, cfg.AI.Provider)
+	fb := "无"
+	if fallback != nil {
+		fb = fallback.Models.Strong
+	}
+	fmt.Printf("能力 %s · 样本 %d 份 · 模型 %s / %s · 备用 %s · AI_PROVIDER=%s\n", capability, len(samples), models.Strong, models.Cheap, fb, cfg.AI.Provider)
 	start := time.Now()
 	var pass bool
 	switch capability {

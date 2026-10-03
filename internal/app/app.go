@@ -96,9 +96,10 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 		OCR: clients.OCR, PDF: clients.PDF, Flags: fl,
 	})
 	salt := sha256.Sum256([]byte("ai-calls:" + cfg.JWTSecret))
+	models, fallback := ai.Routing(cfg.AI, clients.AIFallback)
 	engine := ai.NewEngine(ai.Config{
-		Client: clients.AI, Queries: q, UseMock: cfg.AI.Provider == config.ProviderMock,
-		Models: ai.Models{Strong: cfg.AI.ModelStrong, Cheap: cfg.AI.ModelCheap}, Salt: hex.EncodeToString(salt[:]),
+		Client: clients.AI, Fallback: fallback, Queries: q, UseMock: cfg.AI.Provider == config.ProviderMock,
+		Models: models, Salt: hex.EncodeToString(salt[:]),
 	})
 	queue := asynq.NewClientFromRedisClient(rdb)
 	prof := profile.New(db, ps, clients.OSS, nil)

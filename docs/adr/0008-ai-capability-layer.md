@@ -17,8 +17,10 @@
 - 每次调用：先按 Schema 校验，再跑能力校验（题干必须来自原文块、采分关键词必须在参考答案里、知识点原文必须在所在页逐字找到、采分点合计等于分值等）；不合格自动重试一次，再失败返回 AIFailed（「生成失败，未扣除次数」）；平台限流或网络错误不在这里重试，交给 Asynq 任务退避重试
 - 每次调用写 ai_calls：能力、模型、版本、用户哈希（加盐）、token、费用、耗时、成败与错误类别；不存输入输出原文
 - AI_PROVIDER=mock 时不发请求，能力的 Mock 按规则产出（开发、测试、CI 都不需要模型）
-- 两档默认模型由 AI_MODEL_STRONG / AI_MODEL_CHEAP 配置（开发值 qwen-plus / qwen-turbo），后台 7.8 可按能力在 ai_rollouts 覆盖
-- 评测：`make eval cap=import|kp` 读 evals/private/*.jsonl，输出指标与是否达标；换模型或改提示词必须重跑
+- 两档默认模型由 AI_MODEL_STRONG / AI_MODEL_CHEAP 配置（默认 qwen-max / qwen-plus），后台 7.8 可按能力在 ai_rollouts 覆盖
+- 优先用高阶模型（2026-10-03 补充）：AI_PREFER_STRONG 默认开启，便宜档能力也用 STRONG；要省钱时关掉
+- 中转为主、百炼备用（2026-10-03 补充）：AI_PROVIDER=relay 时主用 AI_RELAY_BASE_URL 的 OpenAI 兼容接口（默认 gpt-5.5）；同时配了百炼时，中转调用出错（网络、5xx、超时）当场改用百炼的高阶模型重发一次，两次都记 ai_calls。中转平台不是国内备案模型，只用于开发期试用与评测，不处理真实用户数据（见 open-questions）
+- 评测：`make eval cap=import|kp|grading` 读 evals/private/*.jsonl，输出指标与是否达标；换模型或改提示词必须重跑
 
 ## 放弃的方案与原因
 
