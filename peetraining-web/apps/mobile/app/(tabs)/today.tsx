@@ -76,7 +76,7 @@ export default function TodayTab() {
       <Screen>
         <ScrollView contentContainerStyle={styles.scroll} refreshControl={refresh}>
           {top}
-          <EstimateCard subjects={list} onEditTarget={() => setEditTarget(true)} />
+          <EstimateCard subjects={list} estimates={h.estimates} organizing onEditTarget={() => setEditTarget(true)} />
           <Card style={styles.card}>
             <Text variant="h3">{!j || isRunning(j) ? '正在整理你的题库' : '题库整理好了，等你核对'}</Text>
             {j ? <ProgressBar value={j.materials.length ? done / j.materials.length : 0} /> : null}
@@ -118,7 +118,7 @@ export default function TodayTab() {
             </Text>
           </Card>
         ) : null}
-        <EstimateCard subjects={list} onEditTarget={() => setEditTarget(true)} />
+        <EstimateCard subjects={list} estimates={h.estimates} onEditTarget={() => setEditTarget(true)} />
         {h.state === 'done' ? <DoneCard home={h} summary={summary.data} /> : h.plan ? <PlanCard plan={h.plan} /> : null}
         {h.state !== 'done' && h.stage_push ? <PushCard push={h.stage_push} /> : null}
         <BanksCard banks={h.banks} />

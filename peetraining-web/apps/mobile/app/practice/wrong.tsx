@@ -32,11 +32,12 @@ function sourceLine(it: Item) {
 }
 
 export default function WrongBookPage() {
-  const { subjectId } = useLocalSearchParams<{ subjectId: string }>();
+  // group=loss 从提分看板的失分归因进来（6.2「点击看相关错题」）。
+  const { subjectId, group } = useLocalSearchParams<{ subjectId: string; group?: By }>();
   const sid = Number(subjectId);
   const wb = useWrongBook(sid);
   const start = useStartPractice();
-  const [by, setBy] = useState<By>('kp');
+  const [by, setBy] = useState<By>(group === 'loss' || group === 'qtype' ? group : 'kp');
 
   if (wb.isLoading) return <Screen><Loading rows={6} /></Screen>;
   if (wb.isError || !wb.data) return <Screen><ErrorState error={wb.error} onRetry={() => void wb.refetch()} /></Screen>;

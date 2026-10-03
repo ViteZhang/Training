@@ -1756,6 +1756,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/paper-sessions/{sessionId}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * 整卷报告（4.24）与时间分析（4.25，只有模拟考试有）
+         * @description 还在批改时返回 409。分数为 AI 批改得分，仅供参考；只有导入的真题卷计入预估分。
+         */
+        get: operations["getPaperReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * 提分看板（6.2）
+         * @description 预估分卡与按周趋势、近 30 天失分归因、各板块掌握度 × 真题分值占比（与 3.8 一致）、「以为会了」、最近整卷成绩。
+         */
+        get: operations["getDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/false-mastery/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 把「以为会了」的知识点加入今日训练（6.2）
+         * @description 每个知识点加一道今天计划里还没有的题，记在「薄弱查漏」组；返回加了几道（0 表示没有可加的题）。
+         */
+        post: operations["addFalseMasteryToToday"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2463,10 +2529,8 @@ export interface components {
             stage_prompt?: components["schemas"]["StagePrompt"];
             /** @description 冲刺期覆盖率不足，提示先补新知识点（PRD 11.4） */
             low_coverage?: boolean;
-            /** @description 预估分卡（T22 接通前为空） */
-            estimates: {
-                [key: string]: unknown;
-            }[];
+            /** @description 预估分卡（每门专业课一张，PRD 11.6） */
+            estimates: components["schemas"]["EstimateCard"][];
             plan?: components["schemas"]["TodayPlan"];
             /** @description 阶段主推：基础期新知识点进度、强化期本周题型专项、冲刺期本周整卷、考前期模拟考试 */
             stage_push?: {
@@ -2528,6 +2592,159 @@ export interface components {
                 norm?: number;
                 time?: number;
             };
+        };
+        /** @description 预估分卡（2.1、6.2）。ready=false 时还没做完导入的真题卷，显示「做完一套整卷后生成预估分」 */
+        EstimateCard: {
+            /** Format: int64 */
+            subject_id: number;
+            name: string;
+            is_essay: boolean;
+            full_score: number;
+            /** @description 没设目标时不返回 */
+            target_score?: number;
+            ready: boolean;
+            low?: number;
+            high?: number;
+            /** @description 目标分 − 预估上限，达到目标为 0；没设目标时不返回 */
+            gap?: number;
+            main_gap_qtype?: components["schemas"]["QuestionType"];
+            /** @description 依据了几套导入真题卷 */
+            basis_papers?: number;
+            /** @description 依据了近多少道主观题 */
+            basis_questions?: number;
+            /** @description 今天的变化（中值）；今天没变时不返回 */
+            today_change?: number;
+            /** Format: date-time */
+            computed_at?: string;
+        };
+        /** @description 失分归因三类的分值或占比 */
+        LossPoints: {
+            knowledge: number;
+            norm: number;
+            time: number;
+        };
+        PaperReport: {
+            /** Format: int64 */
+            session_id: number;
+            /**
+             * Format: int64
+             * @description 试卷被删除时不返回
+             */
+            paper_id?: number;
+            /** Format: int64 */
+            subject_id: number;
+            title: string;
+            kind: components["schemas"]["PaperKind"];
+            mode: components["schemas"]["PaperMode"];
+            /** @description AI 批改得分（换算到整卷满分），仅供参考 */
+            score: number;
+            full_score: number;
+            counts_for_estimate: boolean;
+            /** Format: date-time */
+            graded_at: string;
+            /** @description 较这门课上一套整卷；第一套不返回 */
+            prev_delta?: number;
+            target_score?: number;
+            /** @description 与目标差距，达到目标为 0 */
+            gap?: number;
+            by_qtype: components["schemas"]["QTypeScore"][];
+            loss: components["schemas"]["LossPoints"];
+            loss_total: number;
+            weakest_qtype?: components["schemas"]["QuestionType"];
+            time?: components["schemas"]["TimeReport"];
+        };
+        /** @description 时间分析（4.25，PRD 11.9） */
+        TimeReport: {
+            total_minutes: number;
+            used_minutes: number;
+            used_full: boolean;
+            unanswered: number;
+            /** @description 估计时间失分 */
+            time_loss: number;
+            sections: components["schemas"]["SectionTime"][];
+            check_suggested_minutes: number;
+            check_actual_minutes: number;
+            check_status: components["schemas"]["TimeStatus"];
+            /** @description 一句结论（4.24 时间分析入口） */
+            conclusion: string;
+            /** @description 下次这样分配 */
+            advice: string[];
+            /** @description 近几次模拟考试未答题数，旧的在前 */
+            trend: components["schemas"]["UnansweredPoint"][];
+        };
+        /**
+         * @description 超过建议 20% 为超时，少于建议 20% 为少用
+         * @enum {string}
+         */
+        TimeStatus: "ok" | "overtime" | "under";
+        Dashboard: {
+            estimate: components["schemas"]["EstimateCard"];
+            /** @description 按周的预估分（每周最后一次），旧的在前 */
+            trend: components["schemas"]["EstimateWeek"][];
+            loss_points: components["schemas"]["LossPoints"];
+            loss_shares: components["schemas"]["LossPoints"];
+            /** @description 真题不足 2 套时板块占比不展示（与 3.8 一致） */
+            sections_ready: boolean;
+            sections: components["schemas"]["SectionMastery"][];
+            false_mastery: components["schemas"]["KPRef"][];
+            recent_papers: components["schemas"]["RecentPaper"][];
+        };
+        QTypeScore: {
+            qtype: components["schemas"]["QuestionType"];
+            got: number;
+            full: number;
+        };
+        SectionTime: {
+            qtype: components["schemas"]["QuestionType"];
+            count: number;
+            answered: number;
+            suggested_minutes: number;
+            actual_minutes: number;
+            status: components["schemas"]["TimeStatus"];
+            /** @description 实际 − 建议 */
+            diff_minutes: number;
+            unfinished: boolean;
+        };
+        UnansweredPoint: {
+            /** Format: int64 */
+            session_id: number;
+            /** Format: date-time */
+            date: string;
+            unanswered: number;
+        };
+        EstimateWeek: {
+            /** Format: date */
+            week_start: string;
+            low: number;
+            high: number;
+            mid: number;
+        };
+        SectionMastery: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** @description 0–1 */
+            share: number;
+            /** @description 0–100 */
+            mastery: number;
+            kp_count: number;
+        };
+        KPRef: {
+            /** Format: int64 */
+            kp_id: number;
+            name: string;
+        };
+        RecentPaper: {
+            /** Format: int64 */
+            session_id: number;
+            title: string;
+            kind: components["schemas"]["PaperKind"];
+            mode: components["schemas"]["PaperMode"];
+            score: number;
+            full_score: number;
+            counts_for_estimate: boolean;
+            /** Format: date-time */
+            graded_at: string;
         };
         ExamProfile: {
             /** @description 至少 2 套真题卷才显示统计 */
@@ -6273,6 +6490,78 @@ export interface operations {
             };
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    getPaperReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperReport"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getDashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dashboard"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addFalseMasteryToToday: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        added: number;
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
 }

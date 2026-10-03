@@ -1,4 +1,4 @@
-// 2.1 今日首页的卡片：预估分（T22 前为占位）、今日训练、阶段主推、我的题库、以为会了、2.1d 今日已完成。
+// 2.1 今日首页的卡片：预估分（T22）、今日训练、阶段主推、我的题库、以为会了、2.1d 今日已完成。
 import type { Schemas } from '@training/api-client';
 import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { router } from 'expo-router';
@@ -7,40 +7,102 @@ import { Button, Card, ProgressBar, Text } from '@/components';
 import { qtypeNames } from '@/features/import/api';
 import { groupNames, minutes, type Home, type TodayPlan } from './api';
 
-/** 专业课预估分（模块 2 调整 1、2）：做完至少一套整卷后显示；没有的写明「做完一套整卷后生成预估分」，目标分点了能改（2.1f）。 */
-export function EstimateCard({ subjects, onEditTarget }: { subjects: Schemas['Subject'][]; onEditTarget: () => void }) {
+/** 专业课预估分（PRD 11.6，模块 2 调整 1、2）：做完至少一套导入的真题卷后显示区间、差距与依据；没有的写明「做完一套整卷后生成预估分」；
+ * 目标分点了能改（2.1f）；「提分看板」→ 6.2。2.1b 题库整理中时写明整理好后做完一套真题卷就能估分；2.1d 显示今天的变化。 */
+export function EstimateCard({
+  subjects,
+  estimates,
+  organizing,
+  onEditTarget,
+}: {
+  subjects: Schemas['Subject'][];
+  estimates: Schemas['EstimateCard'][];
+  organizing?: boolean;
+  onEditTarget: () => void;
+}) {
+  const bySubject = new Map(estimates.map((e) => [e.subject_id, e]));
+  const first = subjects[0];
   return (
     <Card style={[styles.card, styles.brand]}>
       <View style={styles.row}>
         <Text variant="bodyStrong" color={semantic.textOnBrand} style={styles.flex}>
           专业课预估分
         </Text>
-      </View>
-      {subjects.map((s) => (
-        <View key={s.id} style={styles.estimate}>
-          <View style={styles.row}>
+        {first ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push({ pathname: '/dashboard', params: { subjectId: String(first.id) } })}
+            style={styles.target}
+          >
             <Text variant="caption" color={colors.amber}>
-              {s.code ? `${s.code} ` : ''}
+              提分看板 ›
             </Text>
-            <Text variant="body" color={semantic.textOnBrand} style={styles.flex}>
-              {s.name}
-            </Text>
-            {s.target_score !== undefined ? (
-              <Pressable onPress={onEditTarget} accessibilityRole="button" accessibilityLabel={`修改${s.name}目标分`} style={styles.target}>
-                <Text variant="caption" color={semantic.textOnBrand}>
-                  目标 <Text variant="number" color={semantic.textOnBrand}>{s.target_score}</Text> / {s.full_score}
-                </Text>
-              </Pressable>
-            ) : (
-              <Button title="设目标分" kind="text" onPress={onEditTarget} />
+          </Pressable>
+        ) : null}
+      </View>
+      {subjects.map((s) => {
+        const e = bySubject.get(s.id);
+        return (
+          <View key={s.id} style={styles.estimate}>
+            <View style={styles.row}>
+              <Text variant="caption" color={colors.amber}>
+                {s.code ? `${s.code} ` : ''}
+              </Text>
+              <Text variant="body" color={semantic.textOnBrand} style={styles.flex}>
+                {s.name}
+              </Text>
+              {s.target_score !== undefined ? (
+                <Pressable onPress={onEditTarget} accessibilityRole="button" accessibilityLabel={`修改${s.name}目标分`} style={styles.target}>
+                  <Text variant="caption" color={semantic.textOnBrand}>
+                    目标 <Text variant="number" color={semantic.textOnBrand}>{s.target_score}</Text>
+                  </Text>
+                </Pressable>
+              ) : (
+                <Button title="设目标分" kind="text" onPress={onEditTarget} />
+              )}
+            </View>
+            {e?.ready ? <EstimateLine e={e} /> : (
+              <Text variant="caption" color={semantic.textOnBrand}>
+                {organizing ? '题库整理好后，做完一套导入的真题卷就能估分' : '做完一套整卷后生成预估分'}
+              </Text>
             )}
           </View>
-          <Text variant="caption" color={semantic.textOnBrand}>
-            做完一套整卷后生成预估分
-          </Text>
-        </View>
-      ))}
+        );
+      })}
     </Card>
+  );
+}
+
+/** 预估分区间、今天的变化、差距与主要差在、依据说明。 */
+export function EstimateLine({ e, onBrand = true }: { e: Schemas['EstimateCard']; onBrand?: boolean }) {
+  const fg = onBrand ? semantic.textOnBrand : undefined;
+  const gap =
+    e.gap === undefined ? null : e.gap > 0 ? `还差约 ${e.gap} 分` : '预估上限已到目标';
+  const main = e.main_gap_qtype ? `主要差在${qtypeNames[e.main_gap_qtype]}题` : '';
+  return (
+    <View style={styles.estimateBody}>
+      <View style={styles.rowBase}>
+        <Text variant="score" color={colors.amber} accessibilityLabel={`预估分 ${e.low} 到 ${e.high}`}>
+          {e.low}–{e.high}
+        </Text>
+        <Text variant="caption" color={fg}>
+          {' '}/ {e.full_score}
+        </Text>
+        {e.today_change ? (
+          <Text variant="caption" color={colors.amber} style={styles.change}>
+            今天 {e.today_change > 0 ? `+${e.today_change}` : e.today_change}
+          </Text>
+        ) : null}
+      </View>
+      {gap || main ? (
+        <Text variant="caption" color={fg}>
+          {[gap, main].filter(Boolean).join(' · ')}
+        </Text>
+      ) : null}
+      <Text variant="small" color={fg}>
+        依据你导入的 {e.basis_papers} 套真题卷实测{e.basis_questions ? `和近 ${e.basis_questions} 道主观题` : ''}估算
+      </Text>
+    </View>
   );
 }
 
@@ -211,6 +273,9 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   flex: { flex: 1 },
   estimate: { gap: spacing.xs, paddingVertical: spacing.xs },
+  estimateBody: { gap: 2 },
+  rowBase: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap' },
+  change: { marginLeft: spacing.sm },
   target: { minHeight: 44, justifyContent: 'center' },
   groups: { flexDirection: 'row', gap: spacing.sm },
   group: { flex: 1, alignItems: 'center', paddingVertical: spacing.sm, backgroundColor: semantic.background, borderRadius: radius.md },
