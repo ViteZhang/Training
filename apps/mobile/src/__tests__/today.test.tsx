@@ -59,6 +59,7 @@ beforeEach(() => {
   mockResponses = {
     'GET /subjects': () => ({ status: 200, data: subjects }),
     'GET /import-jobs': () => ({ status: 200, data: { items: [] } }),
+    'GET /messages/unread-count': () => ({ status: 200, data: { count: 3 } }),
     'GET /plans/today/summary': () => ({ status: 200, data: { streak_days: 5, question_count: 38, correct_rate: 0.78, minutes: 46.2, new_mastered: 3, loss_shares: { knowledge: 0.62, norm: 0.38 }, mastery_changes: [] } }),
   };
 });
@@ -78,6 +79,9 @@ describe('2.1 今日首页', () => {
     expect(screen.getByText('做完一套整卷后生成预估分')).toBeTruthy();
     await fireEvent.press(screen.getByText('开始训练'));
     expect(mockPush).toHaveBeenCalledWith('/(tabs)/train');
+    // 铃铛：有未读时显示红点，点进 2.3。
+    await fireEvent.press(await screen.findByLabelText('消息，3 条未读'));
+    expect(mockPush).toHaveBeenCalledWith('/messages');
   });
 
   it('预估分卡（PRD 11.6）：区间、今天的变化、差距与主要差在、依据；点「提分看板」进 6.2', async () => {

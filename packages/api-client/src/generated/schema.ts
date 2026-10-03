@@ -2344,6 +2344,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 消息中心（2.3）
+         * @description 近 30 天的消息，新的在前，每页 30 条。点击按 page 跳转并标已读。page 取值：import_review（params.job_id）、import、today、
+         *     paper_report（session_id）、essay_result（essay_id）、export（job_id）、agreement（kind）、feedback（feedback_id）、member；为空时只展示不跳转。
+         */
+        get: operations["listMessages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/messages/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 未读消息数（首页铃铛红点） */
+        get: operations["getUnreadCount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/messages/{messageId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 标为已读 */
+        post: operations["readMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/messages/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 全部已读 */
+        post: operations["readAllMessages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3593,6 +3665,33 @@ export interface components {
             invited: number;
             /** @description 最近 100 条 */
             records: components["schemas"]["InviteRecord"][];
+        };
+        /**
+         * @description 题库整理完成 import_done / 需核对 review_needed / 复习到期 review_due / 批改完成 grading_done / 整卷批改完成 paper_graded /
+         *     作文批改完成 essay_graded / 导出完成 export_ready / 协议更新 agreement_update / 公告 announcement / 客服回复 support_reply /
+         *     客服查看了授权内容 content_accessed / 会员 membership / 阶段变化 stage_change / 官方题库 official_bank
+         * @enum {string}
+         */
+        MessageType: "import_done" | "review_needed" | "review_due" | "grading_done" | "paper_graded" | "essay_graded" | "export_ready" | "agreement_update" | "announcement" | "support_reply" | "content_accessed" | "membership" | "stage_change" | "official_bank";
+        Message: {
+            /** Format: int64 */
+            id: number;
+            type: components["schemas"]["MessageType"];
+            title: string;
+            body: string;
+            /** @description 跳转目标页面，为空时不跳转 */
+            page?: string;
+            params?: {
+                [key: string]: unknown;
+            };
+            read: boolean;
+            /** Format: date-time */
+            created_at: string;
+        };
+        MessagePage: {
+            items: components["schemas"]["Message"][];
+            next_cursor?: string;
+            unread: number;
         };
         RedeemResult: {
             /** @enum {string} */
@@ -8242,6 +8341,90 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    listMessages: {
+        parameters: {
+            query?: {
+                /** @description 上一页响应里的 next_cursor */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagePage"];
+                };
+            };
+        };
+    };
+    getUnreadCount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        count: number;
+                    };
+                };
+            };
+        };
+    };
+    readMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                messageId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已读 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    readAllMessages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已读 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
 }
