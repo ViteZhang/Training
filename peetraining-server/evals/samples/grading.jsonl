@@ -1,0 +1,2 @@
+// 公开示例：只验证评测能跑。真实样本（20 道题 × 三档答案，人工评分）放 evals/private/grading.jsonl，不提交。
+{"name":"名词解释·意境","subject":"中国语言文学基础","qtype":"term","stem":"意境","reference":"意境是情景交融、虚实相生、韵味无穷的艺术境界。","points":[{"seq":1,"content":"情景交融","score":4},{"seq":2,"content":"虚实相生","score":3},{"seq":3,"content":"韵味无穷","score":3}],"answers":[{"text":"意境是情景交融、虚实相生、韵味无穷的艺术境界。","human":10},{"text":"意境是情景交融的境界。","human":4},{"text":"意境是一种修辞。","human":0}]}

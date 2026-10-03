@@ -60,7 +60,7 @@
 6. 业务规则只写在 internal/rules，参数从 rule_params 读取；注释写 PRD v3 节号（如 // PRD v3 11.6）；单元测试覆盖 PRD 里的例子与边界
 7. 掌握度、预估分、额度、会员、兑换码只由服务端写；扣额度与写结果放在同一个事务里；批改失败、复核、改采分点重批不扣次数
 8. AI 输出一律按 JSON Schema 校验；批改再校验分值上限、总分、引用必须是考生原话；知识点原文必须能在资料文本里逐字找到；改 internal/ai 或提示词后必须跑 make eval，低于门槛不得合并
-9. 功能开关：在线支付、官方题库、口述背诵、扫描版 PDF、邀请默认关闭；开关支持「全部 / 指定用户」；关闭时相关接口返回 404 而不是报错
+9. 功能开关：在线支付、官方题库、口述背诵、语音作答、扫描版 PDF、邀请默认关闭；开关支持「全部 / 指定用户」；关闭时相关接口返回 404 而不是报错
 10. 密钥只从环境变量读取，不写入仓库、文档、日志和提交信息；不在开发会话里使用生产密钥或生产数据
 11. 日志不记录手机号明文、作答原文、资料原文；对外文案不承诺分数
 12. 写接口支持 idempotency_key；模拟考试以服务端 deadline_at 为准；Asynq 任务必须可重复执行，入队在事务提交之后，任务状态同时记在 MySQL
@@ -81,8 +81,10 @@ APP_ENV、HTTP_ADDR、MYSQL_DSN、REDIS_ADDR、REDIS_PASSWORD、JWT_SECRET、
 OSS_ENDPOINT、OSS_BUCKET、OSS_ACCESS_KEY_ID、OSS_ACCESS_KEY_SECRET、
 SMS_PROVIDER、SMS_SIGN_NAME、SMS_TEMPLATE_CODE、
 AI_PROVIDER、BAILIAN_BASE_URL、BAILIAN_API_KEY、AI_ALT_BASE_URL、AI_ALT_API_KEY、
+AI_MODEL_STRONG、AI_MODEL_CHEAP、AI_PREFER_STRONG、AI_RELAY_BASE_URL、AI_RELAY_API_KEY、AI_RELAY_MODEL_STRONG、AI_RELAY_MODEL_CHEAP、
+EXPORT_FONT_PATH、EXPORT_LATIN_FONT_PATH、
 OCR_PROVIDER、ASR_PROVIDER、MODERATION_PROVIDER、ALIYUN_ACCESS_KEY_ID、ALIYUN_ACCESS_KEY_SECRET、
-PAY_PROVIDER、WECHAT_PAY_*、ALIPAY_*、APPLE_IAP_*
+PAY_PROVIDER、PAY_NOTIFY_BASE_URL、WECHAT_PAY_*、ALIPAY_*、APPLE_IAP_*
 
 ## 部署
 
@@ -97,3 +99,7 @@ PAY_PROVIDER、WECHAT_PAY_*、ALIPAY_*、APPLE_IAP_*
 - [ ] 逐条对照卡片「验收」写出结果
 - [ ] 涉及的文档已更新（runbook、adr、open-questions、docs/tasks/README.md 的卡片状态）
 - [ ] 列出需要在真机或生产环境手动验证的步骤
+
+## 踩过的坑
+
+- 处理器里调用业务服务一律传 `c.Request.Context()`，不要把 `*gin.Context` 当 context 传下去：gin 会复用 Context 对象，database/sql 在后台 goroutine 里还持有它，会产生数据竞争（T06 用 -race 测出来的）
