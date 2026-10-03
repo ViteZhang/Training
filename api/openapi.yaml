@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.13.0
+  version: 0.14.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -21,6 +21,7 @@ info:
     - api-v0.3：今日首页 2.1、阶段提示 2.1e、今日计划与完成统计 2.2（T16）
     - api-v0.12：会员中心 6.5、订单与支付结果 6.6、支付回调（T25）
     - api-v0.13：邀请研友 6.8（T26）
+    - api-v0.14：消息中心 2.3（T27）
     - 其余模块随对应任务卡增量加入，10/11 冻结 api-v1.0
 servers:
   - url: /api/v1
@@ -2589,6 +2590,58 @@ paths:
               schema: { $ref: "#/components/schemas/InviteOverview" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /messages:
+    get:
+      tags: [today]
+      operationId: listMessages
+      summary: 消息中心（2.3）
+      description: |
+        近 30 天的消息，新的在前，每页 30 条。点击按 page 跳转并标已读。page 取值：import_review（params.job_id）、import、today、
+        paper_report（session_id）、essay_result（essay_id）、export（job_id）、agreement（kind）、feedback（feedback_id）、member；为空时只展示不跳转。
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessagePage" }
+
+  /messages/unread-count:
+    get:
+      tags: [today]
+      operationId: getUnreadCount
+      summary: 未读消息数（首页铃铛红点）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count: { type: integer }
+
+  /messages/{messageId}/read:
+    post:
+      tags: [today]
+      operationId: readMessage
+      summary: 标为已读
+      parameters:
+        - { name: messageId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "204": { description: 已读 }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /messages/read-all:
+    post:
+      tags: [today]
+      operationId: readAllMessages
+      summary: 全部已读
+      responses:
+        "204": { description: 已读 }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -3918,6 +3971,32 @@ components:
         earned_days: { type: integer }
         invited: { type: integer, description: 已注册的好友数 }
         records: { type: array, items: { $ref: "#/components/schemas/InviteRecord" }, description: 最近 100 条 }
+    MessageType:
+      type: string
+      description: |
+        题库整理完成 import_done / 需核对 review_needed / 复习到期 review_due / 批改完成 grading_done / 整卷批改完成 paper_graded /
+        作文批改完成 essay_graded / 导出完成 export_ready / 协议更新 agreement_update / 公告 announcement / 客服回复 support_reply /
+        客服查看了授权内容 content_accessed / 会员 membership / 阶段变化 stage_change / 官方题库 official_bank
+      enum: [import_done, review_needed, review_due, grading_done, paper_graded, essay_graded, export_ready, agreement_update, announcement, support_reply, content_accessed, membership, stage_change, official_bank]
+    Message:
+      type: object
+      required: [id, type, title, body, read, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        type: { $ref: "#/components/schemas/MessageType" }
+        title: { type: string }
+        body: { type: string }
+        page: { type: string, description: 跳转目标页面，为空时不跳转 }
+        params: { type: object, additionalProperties: true }
+        read: { type: boolean }
+        created_at: { type: string, format: date-time }
+    MessagePage:
+      type: object
+      required: [items, unread]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Message" } }
+        next_cursor: { type: string }
+        unread: { type: integer }
     RedeemResult:
       type: object
       required: [tier, days, starts_at, ends_at, membership]

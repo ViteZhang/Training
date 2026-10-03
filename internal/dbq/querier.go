@@ -49,6 +49,7 @@ type Querier interface {
 	// 作文课判断（PRD 11.12）：这门课已解析的资料里作文类占多少。
 	CountSubjectMaterialCategories(ctx context.Context, arg CountSubjectMaterialCategoriesParams) (CountSubjectMaterialCategoriesRow, error)
 	CountSubjects(ctx context.Context, ownerUserID uint64) (int64, error)
+	CountUnreadMessages(ctx context.Context, arg CountUnreadMessagesParams) (int64, error)
 	// 导入流水线（T10）。每条查询都带 owner_user_id 归属条件。
 	CreateImportJob(ctx context.Context, arg CreateImportJobParams) (int64, error)
 	CreateMaterial(ctx context.Context, arg CreateMaterialParams) (int64, error)
@@ -68,6 +69,8 @@ type Querier interface {
 	DeleteMaterial(ctx context.Context, arg DeleteMaterialParams) (int64, error)
 	// 重跑取文本时删掉多出来的旧页（这次页数变少）。
 	DeleteMaterialPagesAfter(ctx context.Context, arg DeleteMaterialPagesAfterParams) error
+	// 系统清理任务：保留 30 天。
+	DeleteOldMessages(ctx context.Context, createdAt time.Time) (int64, error)
 	DeletePaperQuestions(ctx context.Context, arg DeletePaperQuestionsParams) error
 	// 重跑结构化前删掉这份资料用户还没动过的条目；改过、确认过的保留。
 	DeletePendingItemsOfMaterial(ctx context.Context, arg DeletePendingItemsOfMaterialParams) error
@@ -109,6 +112,8 @@ type Querier interface {
 	GetAIRollout(ctx context.Context, capability string) (AiRollout, error)
 	// 当前评分标准：用户资料里识别出的优先，没有时用通用五维度（PRD 11.13）。
 	GetActiveEssayRubric(ctx context.Context, arg GetActiveEssayRubricParams) (GetActiveEssayRubricRow, error)
+	// 后台授权查看（PRD 10.1）：只有有效期内、未撤销的授权能读。
+	GetActiveGrant(ctx context.Context, arg GetActiveGrantParams) (ContentAccessGrant, error)
 	GetAppVersion(ctx context.Context, platform AppVersionsPlatform) (AppVersion, error)
 	GetAttemptByKey(ctx context.Context, arg GetAttemptByKeyParams) (Attempt, error)
 	// 资料（T08）。每条查询都带 owner_user_id 归属条件。
@@ -126,6 +131,7 @@ type Querier interface {
 	GetEssayTopicQuestion(ctx context.Context, arg GetEssayTopicQuestionParams) (GetEssayTopicQuestionRow, error)
 	GetExamDate(ctx context.Context, examYear uint16) (ExamDate, error)
 	GetExportJob(ctx context.Context, arg GetExportJobParams) (ExportJob, error)
+	GetFeedbackOwner(ctx context.Context, id uint64) (uint64, error)
 	GetGenericEssayRubric(ctx context.Context) (EssayRubric, error)
 	GetGrading(ctx context.Context, arg GetGradingParams) (GetGradingRow, error)
 	// 主观题批改、待批改、异议（T18）。每条查询都带归属条件。
@@ -144,6 +150,7 @@ type Querier interface {
 	GetMaterial(ctx context.Context, arg GetMaterialParams) (GetMaterialRow, error)
 	GetMaterialBySha(ctx context.Context, arg GetMaterialByShaParams) (Material, error)
 	GetMaterialPage(ctx context.Context, arg GetMaterialPageParams) (GetMaterialPageRow, error)
+	GetMessageOwned(ctx context.Context, arg GetMessageOwnedParams) (uint64, error)
 	GetModelEssay(ctx context.Context, arg GetModelEssayParams) (GetModelEssayRow, error)
 	GetMyOrder(ctx context.Context, arg GetMyOrderParams) (Order, error)
 	GetOrderByIdem(ctx context.Context, arg GetOrderByIdemParams) (Order, error)
@@ -185,6 +192,7 @@ type Querier interface {
 	InsertAttempt(ctx context.Context, arg InsertAttemptParams) (int64, error)
 	InsertComposedPaper(ctx context.Context, arg InsertComposedPaperParams) (int64, error)
 	InsertContentAccessGrant(ctx context.Context, arg InsertContentAccessGrantParams) error
+	InsertContentAccessLog(ctx context.Context, arg InsertContentAccessLogParams) error
 	InsertDispute(ctx context.Context, arg InsertDisputeParams) (int64, error)
 	// 作文（T23，PRD 模块 5、11.13）。每条都带 owner_user_id。
 	InsertEssay(ctx context.Context, arg InsertEssayParams) (int64, error)
@@ -255,6 +263,7 @@ type Querier interface {
 	ListBankQuestionsForDedupe(ctx context.Context, arg ListBankQuestionsForDedupeParams) ([]ListBankQuestionsForDedupeRow, error)
 	// 题目列表（3.1b）：一次取出题库全部题目及作答概况，在服务端筛选、排序与分页（单个题库通常几百到几千题）。
 	ListBankQuestionsFull(ctx context.Context, arg ListBankQuestionsFullParams) ([]ListBankQuestionsFullRow, error)
+	ListDueAnnouncements(ctx context.Context, scheduledAt sql.NullTime) ([]ListDueAnnouncementsRow, error)
 	ListEssayAITopics(ctx context.Context, arg ListEssayAITopicsParams) ([]EssayAiTopic, error)
 	ListEssayMaterialsKB(ctx context.Context, arg ListEssayMaterialsKBParams) ([]ListEssayMaterialsKBRow, error)
 	ListEssayTopicsKB(ctx context.Context, arg ListEssayTopicsKBParams) ([]ListEssayTopicsKBRow, error)
@@ -290,6 +299,9 @@ type Querier interface {
 	ListLatestAgreements(ctx context.Context, publishedAt sql.NullTime) ([]Agreement, error)
 	ListMaterialPages(ctx context.Context, arg ListMaterialPagesParams) ([]MaterialPage, error)
 	ListMaterialsByBank(ctx context.Context, arg ListMaterialsByBankParams) ([]ListMaterialsByBankRow, error)
+	// 消息中心（T27，PRD 2.3）：保留 30 天；用户查询都带归属条件。批量发送（公告、协议更新、复习到期）用 INSERT ... SELECT，
+	// dedupe_key 保证同一事件对同一用户只发一条，任务重复执行也不会重复发。
+	ListMessages(ctx context.Context, arg ListMessagesParams) ([]ListMessagesRow, error)
 	ListModelEssaysKB(ctx context.Context, arg ListModelEssaysKBParams) ([]ListModelEssaysKBRow, error)
 	ListMyInvites(ctx context.Context, inviterID uint64) ([]ListMyInvitesRow, error)
 	ListPaperQuestions(ctx context.Context, arg ListPaperQuestionsParams) ([]ListPaperQuestionsRow, error)
@@ -307,6 +319,8 @@ type Querier interface {
 	ListQuestionKPs(ctx context.Context, arg ListQuestionKPsParams) ([]ListQuestionKPsRow, error)
 	ListQuestionRubric(ctx context.Context, arg ListQuestionRubricParams) ([]RubricPoint, error)
 	ListQueuedGradings(ctx context.Context, ownerUserID uint64) ([]ListQueuedGradingsRow, error)
+	// 30 天内发布的协议新版本：给还没同意的用户发「协议更新」（新注册的用户登录时已同意当前版本）。
+	ListRecentAgreements(ctx context.Context, arg ListRecentAgreementsParams) ([]ListRecentAgreementsRow, error)
 	// 「以为会了」（PRD 11.2）：自评掌握的知识点近期作答情况。
 	ListRecentKPAttempts(ctx context.Context, arg ListRecentKPAttemptsParams) ([]ListRecentKPAttemptsRow, error)
 	// 背诵（T20）。每条查询都带归属条件。
@@ -345,6 +359,9 @@ type Querier interface {
 	LockQuotaCounter(ctx context.Context, arg LockQuotaCounterParams) (QuotaCounter, error)
 	// 锁住邀请人，两个好友同时激活时累计天数不会超过上限。
 	LockUserRow(ctx context.Context, id uint64) (uint64, error)
+	MarkAllMessagesRead(ctx context.Context, arg MarkAllMessagesReadParams) (int64, error)
+	MarkAnnouncementSent(ctx context.Context, arg MarkAnnouncementSentParams) error
+	MarkMessageRead(ctx context.Context, arg MarkMessageReadParams) (int64, error)
 	MarkOrderPaid(ctx context.Context, arg MarkOrderPaidParams) (int64, error)
 	MarkOrderRefunded(ctx context.Context, id uint64) (int64, error)
 	MarkRelationsGenerated(ctx context.Context, arg MarkRelationsGeneratedParams) error
@@ -370,6 +387,8 @@ type Querier interface {
 	// 模拟考试中断恢复：补回中断时长，只能用一次（PRD 11.9）。
 	RecoverPaperSession(ctx context.Context, arg RecoverPaperSessionParams) error
 	RemoveWrongBook(ctx context.Context, arg RemoveWrongBookParams) (int64, error)
+	// 客服回复（7.7）：回复写回反馈并发到消息中心。
+	ReplyFeedback(ctx context.Context, arg ReplyFeedbackParams) (int64, error)
 	// 保留下来的知识点（其他资料也有）把「出处」改指到另一份资料，避免指向已删除的资料。
 	// 三个参数依次是：要删除的资料 ID、题库 ID、要删除的资料 ID。
 	RepointKPSources(ctx context.Context, arg RepointKPSourcesParams) error
@@ -384,6 +403,11 @@ type Querier interface {
 	SearchKPs(ctx context.Context, arg SearchKPsParams) ([]SearchKPsRow, error)
 	SearchMaterialPages(ctx context.Context, arg SearchMaterialPagesParams) ([]SearchMaterialPagesRow, error)
 	SearchQuestions(ctx context.Context, arg SearchQuestionsParams) ([]SearchQuestionsRow, error)
+	SendAgreementUpdate(ctx context.Context, arg SendAgreementUpdateParams) (int64, error)
+	SendAnnouncementToAll(ctx context.Context, arg SendAnnouncementToAllParams) (int64, error)
+	SendAnnouncementToUsers(ctx context.Context, arg SendAnnouncementToUsersParams) (int64, error)
+	// 复习到期（北京时间当天）：打开了「复习到期提醒」、有到期知识点或错题的用户，每天一条。
+	SendReviewDue(ctx context.Context, arg SendReviewDueParams) (int64, error)
 	// 拍手写稿与答题规范（T19）。每条查询都带归属条件。
 	SetAttemptPhotos(ctx context.Context, arg SetAttemptPhotosParams) error
 	SetAttemptScore(ctx context.Context, arg SetAttemptScoreParams) error
