@@ -2075,6 +2075,148 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 「我的」页各入口的数字（6.1） */
+        get: operations["getMeOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/redeem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 兑换码（6.7）
+         * @description 不区分大小写，空格与连字符会被忽略；一码一次，时长叠加到当前会员之后。
+         *     失败返回 400，detail.reason：invalid 无效 / used 已被使用 / void 已作废 / disabled 已停用 / expired 已过期；
+         *     一小时内失败 10 次后返回 429。
+         */
+        post: operations["redeemCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/survey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 考后回访（6.14）
+         * @description 初试开始后开放；每门课显示考前预估（没有时不返回 low/high，显示「考前没有预估分」）。
+         */
+        get: operations["getSurvey"];
+        put?: never;
+        /**
+         * 提交考后回访
+         * @description 第一次提交送 30 天会员（每人一次）；之后再提交只更新复试与录取结果（可稍后补）。初试开始前返回 409。
+         */
+        post: operations["submitSurvey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/feedbacks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 我的反馈记录（6.13 历史） */
+        get: operations["listFeedbacks"];
+        put?: never;
+        /**
+         * 提交意见反馈（6.13）
+         * @description 截图用 /handwriting/upload-requests 上传后的对象键，最多 3 张；勾选 allow_access 时客服 72 小时内可查看相关资料，每次查看都会通知你。
+         */
+        post: operations["submitFeedback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/export-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        /** 导出题库的可选内容与预计页数（6.4） */
+        get: operations["getExportPreview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 导出题库（6.4）
+         * @description 后台生成 PDF 或 Word，只包含本人的内容；生成后用 GET /exports/{exportId} 取 1 小时有效的下载链接，文件 24 小时后删除。
+         */
+        post: operations["createExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exports/{exportId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exportId: number;
+            };
+            cookie?: never;
+        };
+        /** 导出进度与下载链接 */
+        get: operations["getExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3223,6 +3365,124 @@ export interface components {
              */
             method_id?: number;
             method_title?: string;
+        };
+        MeOverview: {
+            materials: number;
+            questions: number;
+            /** @description 错题本待重做 */
+            wrong: number;
+            /** @description 批改完成的作文篇数 */
+            essays: number;
+        };
+        RedeemResult: {
+            /** @enum {string} */
+            tier: "sprint" | "season" | "monthly" | "gift";
+            days: number;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            membership: components["schemas"]["MembershipStatus"];
+        };
+        /**
+         * @description 进复试 / 没进 / 还不知道
+         * @enum {string}
+         */
+        RetestResult: "in" | "out" | "unknown";
+        /**
+         * @description 已录取 / 调剂 / 未录取 / 待定
+         * @enum {string}
+         */
+        Admission: "admitted" | "adjusted" | "rejected" | "pending";
+        Survey: {
+            /** @description 初试开始后开放 */
+            open: boolean;
+            exam_year: number;
+            submitted: boolean;
+            reward_days: number;
+            subjects: components["schemas"]["SurveySubject"][];
+            retest_result?: components["schemas"]["RetestResult"];
+            admission?: components["schemas"]["Admission"];
+            share_consent: boolean;
+        };
+        SurveySubject: {
+            /** Format: int64 */
+            subject_id: number;
+            name: string;
+            full_score: number;
+            /** @description 考前预估下限；没有预估分时不返回 */
+            low?: number;
+            high?: number;
+            /** @description 已填的实际成绩 */
+            actual?: number;
+        };
+        /**
+         * @description 功能建议 / 识别不准 / 批改不准 / 出现问题 / 侵权投诉
+         * @enum {string}
+         */
+        FeedbackType: "suggestion" | "recognition" | "grading" | "bug" | "infringement";
+        Feedback: {
+            /** Format: int64 */
+            id: number;
+            ftype: components["schemas"]["FeedbackType"];
+            content: string;
+            screenshot_keys: string[];
+            allow_access: boolean;
+            /** @enum {string} */
+            status: "open" | "replied" | "closed";
+            reply?: string;
+            /** Format: date-time */
+            replied_at?: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        ExportOptions: {
+            /** @description 题目和参考答案 */
+            questions: boolean;
+            /** @description 知识点卡片 */
+            kps: boolean;
+            /** @description 错题和我的作答（附失分原因） */
+            wrong: boolean;
+            /** @description AI 出的变式题（默认不勾，会标「AI 出题」） */
+            ai_variants: boolean;
+        };
+        ExportItem: {
+            count: number;
+            /** @description 预计页数 */
+            pages: number;
+        };
+        ExportPreview: {
+            /** Format: int64 */
+            subject_id: number;
+            questions: components["schemas"]["ExportItem"];
+            kps: components["schemas"]["ExportItem"];
+            wrong: components["schemas"]["ExportItem"];
+            ai_variants: components["schemas"]["ExportItem"];
+        };
+        ExportJob: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            subject_id: number;
+            /** @enum {string} */
+            format: "pdf" | "docx";
+            options: components["schemas"]["ExportOptions"];
+            /**
+             * @description expired = 已超过 24 小时，文件已删除
+             * @enum {string}
+             */
+            status: "queued" | "running" | "done" | "failed" | "expired";
+            pages: number;
+            file_name: string;
+            /** @description 1 小时有效的下载链接（status=done 时） */
+            download_url?: string;
+            /**
+             * Format: date-time
+             * @description 文件删除时间
+             */
+            expires_at?: string;
+            /** Format: date-time */
+            created_at: string;
         };
         ExamProfile: {
             /** @description 至少 2 套真题卷才显示统计 */
@@ -7372,6 +7632,244 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelEssayDetail"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getMeOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOverview"];
+                };
+            };
+        };
+    };
+    redeemCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedeemResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getSurvey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Survey"];
+                };
+            };
+        };
+    };
+    submitSurvey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    scores: {
+                        /** Format: int64 */
+                        subject_id: number;
+                        score: number;
+                    }[];
+                    retest_result: components["schemas"]["RetestResult"];
+                    admission?: components["schemas"]["Admission"];
+                    share_consent?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Survey"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listFeedbacks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Feedback"][];
+                    };
+                };
+            };
+        };
+    };
+    submitFeedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ftype: components["schemas"]["FeedbackType"];
+                    content: string;
+                    screenshot_keys?: string[];
+                    allow_access?: boolean;
+                    /** Format: int64 */
+                    related_material_id?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description 已提交 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Feedback"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getExportPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportPreview"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    subject_id: number;
+                    options: components["schemas"]["ExportOptions"];
+                    /** @enum {string} */
+                    format: "pdf" | "docx";
+                };
+            };
+        };
+        responses: {
+            /** @description 已开始生成 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportJob"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exportId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportJob"];
                 };
             };
             404: components["responses"]["NotFound"];
