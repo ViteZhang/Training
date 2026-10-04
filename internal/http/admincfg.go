@@ -229,6 +229,10 @@ func (h *Handlers) GetAdminAI(c *gin.Context) {
 			CostShare: fl(t.CostShare), Versions: make([]gen.AdminAIVersion, len(t.Versions))}
 		for j, v := range t.Versions {
 			g.Versions[j] = gen.AdminAIVersion{Model: v.Model, Prompt: v.Prompt, Calls: v.Calls, SuccessRate: fl(v.SuccessRate), AvgCostYuan: fl(v.AvgCostYuan), AvgLatencyMs: v.AvgLatency}
+			if v.DisputeRate != nil {
+				r := fl(*v.DisputeRate)
+				g.Versions[j].DisputeRate = &r
+			}
 		}
 		out.Tasks[i] = g
 	}

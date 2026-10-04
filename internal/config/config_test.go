@@ -81,3 +81,15 @@ func TestLoadInvalidValues(t *testing.T) {
 		}
 	}
 }
+
+func TestParsePrices(t *testing.T) {
+	p, err := parsePrices(" qwen-max=2.4:9.6, qwen-plus=0.8:2 ,")
+	if err != nil || p["qwen-max"] != [2]float64{2.4, 9.6} || p["qwen-plus"] != [2]float64{0.8, 2} || len(p) != 2 {
+		t.Fatalf("%v %v", p, err)
+	}
+	for _, bad := range []string{"qwen-max", "qwen-max=2.4", "=1:2", "m=a:1", "m=-1:2"} {
+		if _, err := parsePrices(bad); err == nil {
+			t.Errorf("%q 应报错", bad)
+		}
+	}
+}

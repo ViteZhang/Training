@@ -6,7 +6,7 @@ TOOL := go tool -modfile=tools/go.mod
 DEV_COMPOSE := docker compose -f docker-compose.dev.yml
 DEV_ENV := APP_ENV=local MYSQL_DSN='training:training@tcp(127.0.0.1:3306)/training' REDIS_ADDR=127.0.0.1:6379
 
-.PHONY: dev dev-deps dev-down gen gen-check test test-unit lint migrate-new migrate-up migrate-status eval build docker api-tag
+.PHONY: dev dev-deps dev-down gen gen-check test test-unit lint migrate-new migrate-up migrate-status eval eval-all build docker api-tag
 
 ## dev：起本地 MySQL 与 Redis，执行迁移，再同时启动 API（:8080）与 Worker；Ctrl+C 一起停止
 dev: dev-deps
@@ -56,9 +56,13 @@ migrate-up:
 migrate-status:
 	$(DEV_ENV) go run ./cmd/api migrate status
 
-## eval cap=import|kp|grading|essay|ocr：跑 AI 评测（各项在对应卡里实现）
+## eval cap=import|kp|rubric|grading|essay|ocr [args="-model qwen-max -prompt v2 -record -note 改了什么"]：跑 AI 评测（ADR 0012）
 eval:
-	go run ./cmd/eval -cap=$(cap)
+	go run ./cmd/eval -cap=$(cap) $(args)
+
+## eval-all：依次跑全部评测（有一项不达标时退出码非 0，但会跑完）
+eval-all:
+	@fail=0; for c in import kp rubric grading essay ocr; do echo "== $$c"; go run ./cmd/eval -cap=$$c $(args) || fail=1; done; exit $$fail
 
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/api ./cmd/api

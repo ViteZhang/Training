@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.17.0
+  version: 0.18.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -25,6 +25,7 @@ info:
     - api-v0.15：管理后台运营与质量 7.1–7.7、后台账号与两步验证（T28）
     - api-v0.16：管理后台配置与系统 7.8、7.9、7.15（T29）
     - api-v0.17：官方题库 7.10–7.14 与 App 添加官方题库（T30）
+    - api-v0.18：7.8 AI 版本对比加异议率（T31）
     - 其余模块随对应任务卡增量加入，10/11 冻结 api-v1.0
 servers:
   - url: /api/v1
@@ -7461,6 +7462,9 @@ components:
           type: number
         avg_cost_yuan: *id006
         avg_latency_ms: *id003
+        dispute_rate:
+          type: number
+          description: 近 7 天这个版本批改的题被提异议的比例（只有主观题批改有），灰度对比用
     AdminAITask:
       type: object
       required:

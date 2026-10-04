@@ -153,6 +153,15 @@ unset ADMIN_INITIAL_PASSWORD
 
 登录时短信验证码发到这个手机号（两步验证强制开启）。其他账号之后在 7.15 管理（T29）。
 
+### 8. AI 模型与价格（T31）
+
+1. 按 ADR 0012 用真实样本评测选定模型后，在应用机 .env 填 AI_PROVIDER=bailian、BAILIAN_BASE_URL、BAILIAN_API_KEY、AI_MODEL_STRONG、AI_MODEL_CHEAP、AI_PREFER_STRONG，
+   对照平台填 AI_ALT_BASE_URL、AI_ALT_API_KEY。生产不用 AI_PROVIDER=relay（中转接口不是备案模型，D20）。
+2. AI_PRICES 按平台当时的公开价填写（元 / 百万 token，「模型=输入价:输出价」逗号分隔），覆盖上面用到的每个模型；不填时 7.8 成本看板与预算告警都是 0。
+   平台调价后同步改这里。
+
+验证：用测试账号批改一道主观题，后台 7.8 AI 任务里 grade_subjective 的单次成本不为 0。
+
 ## 二、日常发布与回滚
 
 - 发布：合并到 main 自动触发流水线。发布脚本先备份数据库，迁移失败时不会切换版本；健康检查 60 秒内不通过会自动回滚。

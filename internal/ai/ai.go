@@ -93,6 +93,17 @@ type Engine struct {
 	prices   map[string]Price
 	salt     string
 	now      func() time.Time
+	override map[string]Meta
+	onCall   func(Call)
+}
+
+// Call 是一次模型调用的记录（评测命令用它统计每千次成本与时延）。
+type Call struct {
+	Capability, Model, Version string
+	InputTokens, OutputTokens  int
+	CostMicroYuan              int64
+	Latency                    time.Duration
+	ErrorKind                  string
 }
 
 // Config 是 Engine 的配置。
@@ -107,6 +118,10 @@ type Config struct {
 	Prices  map[string]Price
 	// Salt 用于计算 ai_calls.user_hash，让账本里的用户无法被直接对应。
 	Salt string
+	// Override 按能力指定模型与提示词版本（评测命令对比候选版用）；空字段沿用默认。线上走 7.8 的灰度设置，不用它。
+	Override map[string]Meta
+	// OnCall 在每次调用模型后执行（评测命令统计成本与时延）。
+	OnCall func(Call)
 }
 
 func NewEngine(c Config) *Engine {
@@ -119,7 +134,8 @@ func NewEngine(c Config) *Engine {
 	if c.Fallback != nil && c.Fallback.Client == nil {
 		c.Fallback = nil
 	}
-	return &Engine{client: c.Client, fallback: c.Fallback, q: c.Queries, useMock: c.UseMock, models: c.Models, prices: c.Prices, salt: c.Salt, now: time.Now}
+	return &Engine{client: c.Client, fallback: c.Fallback, q: c.Queries, useMock: c.UseMock, models: c.Models, prices: c.Prices, salt: c.Salt, now: time.Now,
+		override: c.Override, onCall: c.OnCall}
 }
 
 // ErrInvalidOutput 表示模型输出不合格（Schema 或能力校验没过）。
@@ -133,6 +149,18 @@ type Meta struct {
 // route 决定这次调用用稳定版还是候选版。
 func (e *Engine) route(ctx context.Context, d Def, userID uint64) (Meta, error) {
 	m := Meta{Model: e.models.pick(d.Tier), Version: d.Version}
+	if o, ok := e.override[d.Name]; ok {
+		if o.Model != "" {
+			m.Model = o.Model
+		}
+		if o.Version != "" {
+			if !hasPrompt(d.Name, o.Version) {
+				return Meta{}, fmt.Errorf("ai: 能力 %s 没有提示词版本 %s", d.Name, o.Version)
+			}
+			m.Version = o.Version
+		}
+		return m, nil
+	}
 	if e.q == nil {
 		return m, nil // 评测命令不连数据库
 	}
@@ -329,11 +357,15 @@ func errorKind(err error) string {
 
 // record 写 ai_calls。账本写失败不影响业务调用。
 func (e *Engine) record(ctx context.Context, d Def, m Meta, userID uint64, resp cloudai.Response, start time.Time, errKind string, retried bool) {
+	p := e.prices[m.Model]
+	cost := (int64(resp.InputTokens)*p.InputPer1K + int64(resp.OutputTokens)*p.OutputPer1K) / 1000
+	if e.onCall != nil {
+		e.onCall(Call{Capability: d.Name, Model: m.Model, Version: m.Version, InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens,
+			CostMicroYuan: cost, Latency: e.now().Sub(start), ErrorKind: errKind})
+	}
 	if e.q == nil {
 		return
 	}
-	p := e.prices[m.Model]
-	cost := (int64(resp.InputTokens)*p.InputPer1K + int64(resp.OutputTokens)*p.OutputPer1K) / 1000
 	h := sha256.Sum256([]byte(fmt.Sprintf("%s:%d", e.salt, userID)))
 	_ = e.q.InsertAICall(context.WithoutCancel(ctx), dbq.InsertAICallParams{
 		Capability: d.Name, Model: m.Model, PromptVersion: m.Version,

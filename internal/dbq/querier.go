@@ -164,6 +164,8 @@ type Querier interface {
 	// 用它做过的整卷成绩保留：试卷本身删除，paper_sessions.paper_id 置空（外键 SET NULL）。
 	DetachPapersFromMaterial(ctx context.Context, arg DetachPapersFromMaterialParams) error
 	DisputeEssay(ctx context.Context, arg DisputeEssayParams) error
+	// 7.8 灰度对比：主观题批改按「模型 + 提示词版本」统计批改次数与被提异议的次数（只有计数）。
+	DisputeRateByVersion(ctx context.Context, createdAt time.Time) ([]DisputeRateByVersionRow, error)
 	// 已复核过的批改（含被复核重批出来的新批改），每次批改只能复核一次。
 	DisputedGradings(ctx context.Context, arg DisputedGradingsParams) ([]DisputedGradingsRow, error)
 	// 已在整卷中做过的题（AI 组卷不再出现做过的真题）。

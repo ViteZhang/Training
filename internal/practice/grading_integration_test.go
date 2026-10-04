@@ -6,7 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"peetraining-server/internal/admin"
 	"peetraining-server/internal/apperr"
+	"peetraining-server/internal/dbq"
+	"peetraining-server/internal/params"
 	"peetraining-server/internal/practice"
 )
 
@@ -181,6 +184,24 @@ func TestLossDiagnosisDisputeAndRubricRegrade(t *testing.T) {
 	still, _ := f.pr.Grading(ctx, uid, g.ID)
 	if *still.Score != *g.Score || len(still.Points) != len(g.Points) {
 		t.Error("历史批改不应改变")
+	}
+
+	// 7.8 灰度对比：主观题批改按「模型 + 提示词版本」给出异议率（只有计数）。
+	adm := admin.New(admin.Deps{DB: f.db, Params: params.New(dbq.New(f.db)), Now: func() time.Time { return f.clock }})
+	ov, err := adm.AIOverview(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, task := range ov.Tasks {
+		for _, v := range task.Versions {
+			if task.Capability == "grade_subjective" && v.Model == "mock" && v.DisputeRate != nil {
+				found = *v.DisputeRate > 0 && *v.DisputeRate <= 1
+			}
+		}
+	}
+	if !found {
+		t.Errorf("主观题批改版本应有异议率：%+v", ov.Tasks)
 	}
 }
 
