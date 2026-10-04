@@ -126,7 +126,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	models, fallback := ai.Routing(cfg.AI, clients.AIFallback)
 	engine := ai.NewEngine(ai.Config{
 		Client: clients.AI, Fallback: fallback, Queries: q, UseMock: cfg.AI.Provider == config.ProviderMock,
-		Models: models, Salt: hex.EncodeToString(salt[:]),
+		Models: models, Salt: hex.EncodeToString(salt[:]), Prices: ai.PricesFrom(cfg.AI),
 	})
 	queue := asynq.NewClientFromRedisClient(rdb)
 	prof := profile.New(db, ps, clients.OSS, nil)

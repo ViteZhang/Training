@@ -5467,6 +5467,8 @@ export interface components {
             success_rate: number;
             avg_cost_yuan: number;
             avg_latency_ms: number;
+            /** @description 近 7 天这个版本批改的题被提异议的比例（只有主观题批改有），灰度对比用 */
+            dispute_rate?: number;
         };
         AdminAITask: {
             capability: string;

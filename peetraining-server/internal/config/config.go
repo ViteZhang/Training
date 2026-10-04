@@ -114,6 +114,9 @@ type AIConfig struct {
 	RelayAPIKey      string
 	RelayModelStrong string
 	RelayModelCheap  string
+	// Prices 是各模型的价格：元 / 百万 token（输入、输出），来自 AI_PRICES，例如 "qwen-max=2.4:9.6,qwen-plus=0.8:2"。
+	// 用于 ai_calls 记成本（7.8 成本看板）和评测的每千次成本；价格以平台当时的公开价为准，不写死在代码里。
+	Prices map[string][2]float64
 }
 
 // Load 从环境变量读取配置并校验。
@@ -197,6 +200,11 @@ func load(getenv func(string) string) (*Config, error) {
 	}
 
 	var errs []error
+	prices, err := parsePrices(get("AI_PRICES", ""))
+	if err != nil {
+		errs = append(errs, err)
+	}
+	cfg.AI.Prices = prices
 
 	redisDB, err := strconv.Atoi(get("REDIS_DB", "0"))
 	if err != nil {
@@ -242,3 +250,23 @@ func load(getenv func(string) string) (*Config, error) {
 
 // IsProduction 报告是否运行在生产环境。
 func (c *Config) IsProduction() bool { return c.AppEnv == EnvProduction }
+
+// parsePrices 解析 AI_PRICES："模型=输入:输出,…"，单位元 / 百万 token。
+func parsePrices(v string) (map[string][2]float64, error) {
+	out := map[string][2]float64{}
+	for _, item := range strings.Split(v, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		model, rest, ok := strings.Cut(item, "=")
+		in, outp, ok2 := strings.Cut(rest, ":")
+		a, err1 := strconv.ParseFloat(strings.TrimSpace(in), 64)
+		b, err2 := strconv.ParseFloat(strings.TrimSpace(outp), 64)
+		if !ok || !ok2 || err1 != nil || err2 != nil || a < 0 || b < 0 || strings.TrimSpace(model) == "" {
+			return nil, fmt.Errorf("AI_PRICES 格式应为「模型=输入价:输出价」（元 / 百万 token），用逗号分隔：%q", item)
+		}
+		out[strings.TrimSpace(model)] = [2]float64{a, b}
+	}
+	return out, nil
+}

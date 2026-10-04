@@ -101,6 +101,49 @@ func (q *Queries) DeleteUnsentAnnouncement(ctx context.Context, id uint64) (int6
 	return result.RowsAffected()
 }
 
+const disputeRateByVersion = `-- name: DisputeRateByVersion :many
+SELECT g.model, g.prompt_version, COUNT(*) AS gradings, COUNT(d.id) AS disputes
+FROM gradings g LEFT JOIN disputes d ON d.grading_id = g.id
+WHERE g.created_at >= ? AND g.kind = 'subjective' AND g.status = 'done'
+GROUP BY g.model, g.prompt_version
+`
+
+type DisputeRateByVersionRow struct {
+	Model         sql.NullString
+	PromptVersion sql.NullString
+	Gradings      int64
+	Disputes      int64
+}
+
+// 7.8 灰度对比：主观题批改按「模型 + 提示词版本」统计批改次数与被提异议的次数（只有计数）。
+func (q *Queries) DisputeRateByVersion(ctx context.Context, createdAt time.Time) ([]DisputeRateByVersionRow, error) {
+	rows, err := q.db.QueryContext(ctx, disputeRateByVersion, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DisputeRateByVersionRow{}
+	for rows.Next() {
+		var i DisputeRateByVersionRow
+		if err := rows.Scan(
+			&i.Model,
+			&i.PromptVersion,
+			&i.Gradings,
+			&i.Disputes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAgreement = `-- name: GetAgreement :one
 SELECT id, kind, version, title, body, change_summary, effective_at, published_at, created_at FROM agreements WHERE id = ?
 `

@@ -433,6 +433,8 @@ type VersionStat struct {
 	SuccessRate float64
 	AvgCostYuan float64
 	AvgLatency  int
+	// DisputeRate 是近 7 天这个版本批改的题被提异议的比例（只有主观题批改有）。
+	DisputeRate *float64
 }
 
 // AITask 是 7.8 AI 任务列表的一行。
@@ -494,6 +496,18 @@ func (s *Service) AIOverview(ctx context.Context) (AIOverview, error) {
 		t.Prompts = append([]string{}, vs...)
 		sort.Strings(t.Prompts)
 	}
+	// 主观题批改的异议率按「模型 + 提示词版本」对上（批改记录里的版本带能力前缀，如 grade_subjective@v1）。
+	disputes, err := s.q.DisputeRateByVersion(ctx, week)
+	if err != nil {
+		return AIOverview{}, err
+	}
+	disputeRate := map[string]float64{}
+	for _, d := range disputes {
+		if d.Gradings > 0 {
+			_, ver, _ := strings.Cut(d.PromptVersion.String, "@")
+			disputeRate[d.Model.String+"|"+ver] = float64(d.Disputes) / float64(d.Gradings)
+		}
+	}
 	var weekCost float64
 	for _, r := range stats {
 		t := task(r.Capability)
@@ -505,6 +519,9 @@ func (s *Service) AIOverview(ctx context.Context) (AIOverview, error) {
 		if r.Calls > 0 {
 			vs.SuccessRate = float64(r.Ok) / float64(r.Calls)
 			vs.AvgCostYuan = cost / float64(r.Calls)
+		}
+		if rate, ok := disputeRate[r.Model+"|"+r.PromptVersion]; ok && r.Capability == ai.Grade.Name {
+			vs.DisputeRate = &rate
 		}
 		t.Versions = append(t.Versions, vs)
 	}

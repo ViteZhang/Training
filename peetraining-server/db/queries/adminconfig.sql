@@ -94,3 +94,10 @@ UPDATE admin_users SET password_hash = ?, must_change_password = 1 WHERE id = ?;
 
 -- name: DeleteAdminSessionsFor :exec
 DELETE FROM admin_sessions WHERE admin_id = ?;
+
+-- name: DisputeRateByVersion :many
+-- 7.8 灰度对比：主观题批改按「模型 + 提示词版本」统计批改次数与被提异议的次数（只有计数）。
+SELECT g.model, g.prompt_version, COUNT(*) AS gradings, COUNT(d.id) AS disputes
+FROM gradings g LEFT JOIN disputes d ON d.grading_id = g.id
+WHERE g.created_at >= ? AND g.kind = 'subjective' AND g.status = 'done'
+GROUP BY g.model, g.prompt_version;

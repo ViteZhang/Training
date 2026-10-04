@@ -23,3 +23,12 @@ func Routing(cfg config.AIConfig, fallback cloudai.Client) (Models, *Fallback) {
 	}
 	return primary, &Fallback{Client: fallback, Models: bailian}
 }
+
+// PricesFrom 把配置里的价格（元 / 百万 token）换成引擎用的单位（百万分之一元 / 千 token）。
+func PricesFrom(cfg config.AIConfig) map[string]Price {
+	out := make(map[string]Price, len(cfg.Prices))
+	for m, p := range cfg.Prices {
+		out[m] = Price{InputPer1K: int64(p[0]*1000 + 0.5), OutputPer1K: int64(p[1]*1000 + 0.5)}
+	}
+	return out
+}
