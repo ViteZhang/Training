@@ -3,3 +3,8 @@ node_modules/
 *.local
 .expo/
 dist/
+# Expo 持续原生生成（CNG）：ios/ 与 android/ 由 expo prebuild 生成，不提交
+apps/mobile/ios/
+apps/mobile/android/
+*.tsbuildinfo
+coverage/
