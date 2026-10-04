@@ -1,0 +1,2 @@
+// 公开示例：mock 识别把文件内容当识别结果，只验证评测能跑。真实样本（手写作答照片 + 人工逐字转写）放 evals/private/ocr.jsonl 与 evals/private/ocr/，不提交。
+{"name":"手写·名词解释","file":"ocr/handwriting-1.txt","handwriting":true,"text":"意境是情景交融、虚实相生的艺术境界。典型是共性与个性的统一。"}

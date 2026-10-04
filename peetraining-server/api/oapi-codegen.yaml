@@ -1,0 +1,12 @@
+package: gen
+output: internal/gen/api.gen.go
+generate:
+  gin-server: true
+  models: true
+  embedded-spec: true
+compatibility:
+  # 枚举常量统一带类型前缀（HealthStatusOk），避免以后不同枚举的同名值冲突
+  always-prefix-enum-values: true
+output-options:
+  # 契约里 nullable 的字段生成 nullable.Nullable[T]，能区分「没传」和「传了 null」（如清除目标分）。
+  nullable-type: true
