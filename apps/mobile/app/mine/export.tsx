@@ -12,6 +12,7 @@ import { AIGenerating, Button, Card, EmptyState, ErrorState, Loading, Screen, Te
 import { Checkbox, PageHeader } from '@/features/import/ui';
 import { mineKeys, useSubjects } from '@/features/mine/api';
 import { api, unwrap } from '@/lib/api';
+import { track } from '@/lib/analytics';
 
 type Options = Schemas['ExportOptions'];
 type Format = 'pdf' | 'docx';
@@ -60,7 +61,10 @@ export default function ExportPage() {
   });
   const create = useMutation({
     mutationFn: () => unwrap(api.POST('/exports', { body: { subject_id: sid, options: opts, format } })),
-    onSuccess: (j) => setJobId(j.id),
+    onSuccess: (j) => {
+      track('export', { format });
+      setJobId(j.id);
+    },
     onError: (e) => toast(e instanceof Error ? e.message : '生成失败，请重试'),
   });
   const share = useMutation({ mutationFn: saveOrShare, onError: () => toast('保存失败，请重试') });

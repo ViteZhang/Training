@@ -13,6 +13,7 @@ import { qtypeNames } from '@/features/import/api';
 import { PageHeader } from '@/features/import/ui';
 import { paperKeys, usePaper } from '@/features/paper/api';
 import { api, unwrap } from '@/lib/api';
+import { track } from '@/lib/analytics';
 
 type Mode = Schemas['PaperMode'];
 
@@ -30,6 +31,7 @@ export default function PaperModePage() {
   const start = useMutation({
     mutationFn: (m: Mode) => unwrap(api.POST('/papers/{paperId}/sessions', { params: { path: { paperId: Number(id) } }, body: { mode: m, idempotency_key: Crypto.randomUUID() } })),
     onSuccess: (s) => {
+      track('paper_start', { mode: s.mode });
       void qc.invalidateQueries({ queryKey: ['papers'] });
       qc.setQueryData(paperKeys.session(s.id), s);
       router.replace({ pathname: '/paper/session/[id]', params: { id: String(s.id) } });

@@ -7,6 +7,7 @@ import { AppState } from 'react-native';
 import { create } from 'zustand';
 import { api, unwrap } from '@/lib/api';
 import { getJSON, setJSON } from '@/lib/storage';
+import { track } from '@/lib/analytics';
 
 type Body = Schemas['SubmitAttemptRequest'];
 export interface Pending {
@@ -38,6 +39,7 @@ export function cachedSession(id: number) {
 }
 
 function post(sessionId: number, body: Body) {
+  track('answer_submit', { kind: body.selected ? 'choice' : body.self_assess ? 'self_assess' : 'typed', revealed: body.revealed, duration_sec: body.duration_seconds, offline: body.offline });
   return unwrap(api.POST('/practice-sessions/{sessionId}/attempts', { params: { path: { sessionId } }, body }));
 }
 

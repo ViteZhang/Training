@@ -9,6 +9,7 @@ import { Button, Card, Screen, Text } from '@/components';
 import { PageHeader } from '@/features/import/ui';
 import { mineKeys, tierNames, ymd } from '@/features/mine/api';
 import { api, unwrap } from '@/lib/api';
+import { track } from '@/lib/analytics';
 
 export default function RedeemPage() {
   const qc = useQueryClient();
@@ -17,6 +18,7 @@ export default function RedeemPage() {
   const redeem = useMutation({
     mutationFn: () => unwrap(api.POST('/me/redeem', { body: { code } })),
     onSuccess: () => {
+      track('redeem');
       setError(undefined);
       void qc.invalidateQueries({ queryKey: mineKeys.me });
       void qc.invalidateQueries({ queryKey: ['quota'] });

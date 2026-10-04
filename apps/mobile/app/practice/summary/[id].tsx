@@ -2,12 +2,14 @@
 import { semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, ErrorState, Loading, Screen, Text } from '@/components';
 import { qtypeNames } from '@/features/import/api';
 import { practiceKeys, useSession } from '@/features/practice/api';
 import { Stat } from '@/features/today/Cards';
 import { api, unwrap } from '@/lib/api';
+import { track } from '@/lib/analytics';
 
 export default function PracticeSummaryPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -18,6 +20,9 @@ export default function PracticeSummaryPage() {
     queryFn: () => unwrap(api.POST('/practice-sessions/{sessionId}/finish', { params: { path: { sessionId } } })),
     staleTime: Infinity,
   });
+  useEffect(() => {
+    if (q.data) track('session_finish');
+  }, [q.data]);
   if (q.isLoading) return <Screen><Loading rows={5} /></Screen>;
   if (q.isError || !q.data) return <Screen><ErrorState error={q.error} onRetry={() => void q.refetch()} /></Screen>;
   const s = q.data;

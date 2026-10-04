@@ -5,7 +5,7 @@ import type { Schemas } from '@training/api-client';
 import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, EmptyState, ErrorState, Loading, ProgressBar, Screen, Text } from '@/components';
 import { useAddFalseMastery, useDashboard } from '@/features/dashboard/api';
@@ -13,6 +13,7 @@ import { PageHeader } from '@/features/import/ui';
 import { lossNames, modeNames } from '@/features/paper/api';
 import { EstimateLine } from '@/features/today/Cards';
 import { api, unwrap } from '@/lib/api';
+import { track } from '@/lib/analytics';
 
 type Week = Schemas['EstimateWeek'];
 
@@ -54,6 +55,9 @@ export default function DashboardPage() {
   const [picked, setPicked] = useState<number>();
   const sid = picked ?? (Number(params.subjectId) || list[0]?.id || 0);
   const dash = useDashboard(sid);
+  useEffect(() => {
+    if (sid) track('dashboard_view');
+  }, [sid]);
   const add = useAddFalseMastery(sid);
 
   if (subjects.isLoading || (sid > 0 && dash.isLoading)) return <Screen><Loading rows={6} /></Screen>;

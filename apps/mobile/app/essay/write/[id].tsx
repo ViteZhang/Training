@@ -12,6 +12,7 @@ import { clearEssayDraft, countWords, essayKeys, loadEssayDraft, saveEssayDraft,
 import { clock } from '@/features/paper/api';
 import { HandwritingFlow } from '@/features/practice/handwriting';
 import { api, unwrap } from '@/lib/api';
+import { track } from '@/lib/analytics';
 
 const SYNC_MS = 5000;
 
@@ -109,6 +110,7 @@ function Writer({ e }: { e: Essay }) {
       return unwrap(api.POST('/essays/{essayId}/submit', { params: { path: { essayId: e.id } } }));
     },
     onSuccess: (v) => {
+      track('essay_submit', { words: v.word_count ?? undefined });
       clearEssayDraft(e.id);
       qc.setQueryData(essayKeys.essay(e.id), v);
       void qc.invalidateQueries({ queryKey: essayKeys.home(e.subject_id) });

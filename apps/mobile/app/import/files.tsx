@@ -17,6 +17,7 @@ import { setStep } from '@/features/onboarding/api';
 import { Footer } from '@/features/onboarding/ui';
 import { usePermissionPrompt } from '@/features/permissions/PermissionPrompt';
 import { api, unwrap } from '@/lib/api';
+import { track } from '@/lib/analytics';
 
 let seq = 0;
 const nextKey = () => `f${Date.now()}-${seq++}`;
@@ -97,6 +98,7 @@ export default function FilesScreen() {
     try {
       const ids = await uploadAll(subjectId, mode, files, update);
       const job = await unwrap(api.POST('/import-jobs', { body: { subject_id: subjectId, mode, material_ids: ids } }));
+      track('import_start', { mode, files: ids.length });
       await qc.invalidateQueries({ queryKey: importKeys.jobs(true) });
       if (onboarding) void setStep('1.6');
       router.replace({ pathname: '/import/job/[id]', params: { id: String(job.id) } });

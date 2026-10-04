@@ -10,6 +10,7 @@ import { BottomSheet, Button, Card, ConfirmDialog, ErrorState, Loading, Screen, 
 import { qtypeNames } from '@/features/import/api';
 import { clearDrafts, clock, lastActive, loadDrafts, markActive, paperKeys, saveDrafts, type PaperItem, type PaperSession } from '@/features/paper/api';
 import { api, unwrap } from '@/lib/api';
+import { track } from '@/lib/analytics';
 
 const SYNC_MS = 5000;
 const objective = (it: PaperItem) => (it.options?.length ?? 0) > 0;
@@ -214,6 +215,7 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
       return unwrap(api.POST('/paper-sessions/{sessionId}/submit', { params: { path: { sessionId: s.id } } }));
     },
     onSuccess: (v) => {
+      track('paper_submit', { mode: v.mode });
       clearDrafts(s.id);
       setSession(v);
       void qc.invalidateQueries({ queryKey: ['papers'] });

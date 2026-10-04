@@ -9,6 +9,7 @@ import { BottomSheet, Button, Card, ConfirmDialog, EmptyState, ErrorState, Loadi
 import { PageHeader } from '@/features/import/ui';
 import { api, unwrap } from '@/lib/api';
 import type { Schemas } from '@training/api-client';
+import { track } from '@/lib/analytics';
 
 type Bank = Schemas['OfficialBank'];
 
@@ -27,6 +28,7 @@ export default function OfficialBanksPage() {
     mutationFn: (v: { bank: Bank; subjectId: number }) =>
       unwrap(api.PUT('/official-banks/{bankId}/subscription', { params: { path: { bankId: v.bank.bank_id } }, body: { subject_id: v.subjectId } })),
     onSuccess: () => {
+      track('official_bank_add');
       toast('已添加，官方内容标了「官方」');
       setAdding(undefined);
       refresh();
