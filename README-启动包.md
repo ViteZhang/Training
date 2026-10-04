@@ -30,7 +30,7 @@ peetraining-web/               前端仓库（Expo App + React 管理后台）
 ## 你还要手动补的两个文件
 
 1. 项目文件「考研Training-VI规范-v1.0.html」→ 放到 peetraining-web/docs/design/vi/
-2. Logo 的 SVG 源文件 → 放到 peetraining-web/docs/design/vi/logo.svg（还没有的话先跳过，T02 会先用 VI 里的 SVG 代码）
+2. Logo 的 SVG 源文件 → 已放到 peetraining-web/docs/design/vi/logo.svg（10 月 4 日，D41）
 
 ## 仓库与同步（10 月 1 日已定）
 
