@@ -93,6 +93,7 @@ function AIPanel() {
                     { title: '成功率', render: (_, v) => pct(v.success_rate) },
                     { title: '单次成本', render: (_, v) => `¥${v.avg_cost_yuan.toFixed(4)}` },
                     { title: '平均耗时', render: (_, v) => `${v.avg_latency_ms} ms` },
+                    { title: '异议率', render: (_, v) => (v.dispute_rate === undefined ? '—' : pct(v.dispute_rate)) },
                   ]}
                 />
               ),
