@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"peetraining-server/internal/logx"
+	"peetraining-server/internal/monitor"
 )
 
 // HeaderRequestID 是请求 ID 的请求头与响应头。
@@ -61,6 +62,14 @@ func AccessLog() gin.HandlerFunc {
 			"status", status,
 			"duration_ms", time.Since(start).Milliseconds(),
 		)
+	}
+}
+
+// Metrics 按分钟数请求与 5xx，供 Worker 的错误率告警（T32）。放在 Recovery 外层，panic 转成的 500 也算上。
+func Metrics(m *monitor.HTTPCounter) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+		m.Observe(c.Writer.Status())
 	}
 }
 

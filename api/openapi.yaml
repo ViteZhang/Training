@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.18.0
+  version: 0.19.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -26,6 +26,7 @@ info:
     - api-v0.16：管理后台配置与系统 7.8、7.9、7.15（T29）
     - api-v0.17：官方题库 7.10–7.14 与 App 添加官方题库（T30）
     - api-v0.18：7.8 AI 版本对比加异议率（T31）
+    - api-v0.19：埋点上报（T32）
     - 其余模块随对应任务卡增量加入，10/11 冻结 api-v1.0
 servers:
   - url: /api/v1
@@ -4017,10 +4018,10 @@ paths:
                 title:
                   type: string
                   maxLength: 64
-                body: &id001
+                body: &id001_2
                   type: string
-                change_summary: *id001
-                effective_at: &id003
+                change_summary: *id001_2
+                effective_at: &id003_2
                   type: string
                   format: date-time
       responses:
@@ -4048,7 +4049,7 @@ paths:
       - name: agreementId
         in: path
         required: true
-        schema: &id002
+        schema: &id002_2
           type: integer
           format: int64
       responses:
@@ -4073,7 +4074,7 @@ paths:
       - name: agreementId
         in: path
         required: true
-        schema: *id002
+        schema: *id002_2
       requestBody:
         required: true
         content:
@@ -4088,9 +4089,9 @@ paths:
                 title:
                   type: string
                   maxLength: 64
-                body: *id001
-                change_summary: *id001
-                effective_at: *id003
+                body: *id001_2
+                change_summary: *id001_2
+                effective_at: *id003_2
       responses:
         '200':
           description: OK
@@ -4119,7 +4120,7 @@ paths:
       - name: agreementId
         in: path
         required: true
-        schema: *id002
+        schema: *id002_2
       responses:
         '200':
           description: OK
@@ -4252,7 +4253,7 @@ paths:
                   type: boolean
                 user_ids:
                   type: array
-                  items: *id002
+                  items: *id002_2
                   maxItems: 200
       responses:
         '204':
@@ -4324,7 +4325,7 @@ paths:
                 download_url:
                   type: string
                   maxLength: 255
-                release_notes: *id001
+                release_notes: *id001_2
       responses:
         '204':
           description: 完成
@@ -4453,10 +4454,10 @@ paths:
                 all: *id005
                 user_ids:
                   type: array
-                  items: *id002
+                  items: *id002_2
                   maxItems: 1000
                 with_popup: *id005
-                scheduled_at: *id003
+                scheduled_at: *id003_2
       responses:
         '200':
           description: OK
@@ -4480,7 +4481,7 @@ paths:
       - name: announcementId
         in: path
         required: true
-        schema: *id002
+        schema: *id002_2
       responses:
         '204':
           description: 完成
@@ -4544,7 +4545,7 @@ paths:
                   pattern: ^1[3-9][0-9]{9}$
                 roles:
                   type: array
-                  items: *id001
+                  items: *id001_2
                   minItems: 1
                 password:
                   type: string
@@ -4575,7 +4576,7 @@ paths:
       - name: accountId
         in: path
         required: true
-        schema: *id002
+        schema: *id002_2
       requestBody:
         required: true
         content:
@@ -4595,7 +4596,7 @@ paths:
                   maxLength: 20
                 roles:
                   type: array
-                  items: *id001
+                  items: *id001_2
                   minItems: 1
                 active: *id005
       responses:
@@ -4619,7 +4620,7 @@ paths:
       - name: accountId
         in: path
         required: true
-        schema: *id002
+        schema: *id002_2
       requestBody:
         required: true
         content:
@@ -4675,7 +4676,7 @@ paths:
       - name: bankId
         in: path
         required: true
-        schema: &id001
+        schema: &id001_3
           type: integer
           format: int64
       requestBody:
@@ -4687,7 +4688,7 @@ paths:
               required:
               - subject_id
               properties:
-                subject_id: *id001
+                subject_id: *id001_3
       responses:
         '204':
           description: 完成
@@ -4707,7 +4708,7 @@ paths:
       - name: bankId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_3
       responses:
         '204':
           description: 完成
@@ -4745,7 +4746,7 @@ paths:
       - admin
       operationId: markAdminDemand
       summary: 标为未规划 / 取消标记
-      x-roles: &id002
+      x-roles: &id002_3
       - content_lead
       security:
       - adminAuth: []
@@ -4765,7 +4766,7 @@ paths:
               required:
               - unplanned
               properties:
-                unplanned: &id005
+                unplanned: &id005_2
                   type: boolean
       responses:
         '204':
@@ -4804,7 +4805,7 @@ paths:
       - admin
       operationId: createOfficialProject
       summary: 立项
-      x-roles: *id002
+      x-roles: *id002_3
       security:
       - adminAuth: []
       requestBody:
@@ -4833,7 +4834,7 @@ paths:
                   maxLength: 64
                 editor_ids:
                   type: array
-                  items: *id001
+                  items: *id001_3
                   maxItems: 50
       responses:
         '200':
@@ -4857,11 +4858,11 @@ paths:
       security:
       - adminAuth: []
       parameters:
-      - &id003
+      - &id003_3
         name: projectId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_3
       responses:
         '200':
           description: OK
@@ -4876,12 +4877,12 @@ paths:
       - admin
       operationId: updateOfficialProject
       summary: 分配编辑、授权资料清单、推进阶段
-      x-roles: *id002
+      x-roles: *id002_3
       security:
       - adminAuth: []
       description: 授权资料须注明已获授权或公开真题；「发布上线」只能由版本发布设置。
       parameters:
-      - *id003
+      - *id003_3
       requestBody:
         required: true
         content:
@@ -4895,7 +4896,7 @@ paths:
               properties:
                 editor_ids:
                   type: array
-                  items: *id001
+                  items: *id001_3
                   maxItems: 50
                 materials:
                   type: array
@@ -4921,13 +4922,13 @@ paths:
       - admin
       operationId: listOfficialItems
       summary: 官方题库当前的知识点与题目
-      x-roles: &id004
+      x-roles: &id004_2
       - content_lead
       - content_editor
       security:
       - adminAuth: []
       parameters:
-      - *id003
+      - *id003_3
       responses:
         '200':
           description: OK
@@ -4950,12 +4951,12 @@ paths:
       - admin
       operationId: extractOfficialKPs
       summary: 7.12 AI 从资料原文拆知识点，并与现有知识点树对齐
-      x-roles: *id004
+      x-roles: *id004_2
       security:
       - adminAuth: []
       description: alignment：new 新增 / supplement 同名同表述（补充来源）/ differ 同名不同表述（选以哪个为准）。
       parameters:
-      - *id003
+      - *id003_3
       requestBody:
         required: true
         content:
@@ -4993,7 +4994,7 @@ paths:
       - admin
       operationId: extractOfficialRubric
       summary: 7.12 AI 从参考答案提采分点
-      x-roles: *id004
+      x-roles: *id004_2
       security:
       - adminAuth: []
       requestBody:
@@ -5039,11 +5040,11 @@ paths:
       - admin
       operationId: listOfficialDrafts
       summary: 草稿与提交记录
-      x-roles: *id004
+      x-roles: *id004_2
       security:
       - adminAuth: []
       parameters:
-      - *id003
+      - *id003_3
       - name: status
         in: query
         required: false
@@ -5058,7 +5059,7 @@ paths:
       - name: mine
         in: query
         required: false
-        schema: *id005
+        schema: *id005_2
       responses:
         '200':
           description: OK
@@ -5080,12 +5081,12 @@ paths:
       - admin
       operationId: createOfficialDraft
       summary: 新建草稿
-      x-roles: *id004
+      x-roles: *id004_2
       security:
       - adminAuth: []
       description: payload：知识点 {section, chapter, name, original_text, rubric[]}；题目 {qtype, stem, options, answer, analysis, score, exam_year, kp_names, rubric[]}。暂只支持新增、修订、下线（题目）。
       parameters:
-      - *id003
+      - *id003_3
       requestBody: &id006
         required: true
         content:
@@ -5108,7 +5109,7 @@ paths:
                   - add
                   - revise
                   - offline
-                entity_id: *id001
+                entity_id: *id001_3
                 payload: &id008
                   type: object
                   additionalProperties: true
@@ -5129,16 +5130,16 @@ paths:
       - admin
       operationId: updateOfficialDraft
       summary: 修改自己的草稿或被退回的
-      x-roles: *id004
+      x-roles: *id004_2
       security:
       - adminAuth: []
       parameters:
-      - *id003
+      - *id003_3
       - &id007
         name: draftId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_3
       requestBody: *id006
       responses:
         '200':
@@ -5158,11 +5159,11 @@ paths:
       - admin
       operationId: deleteOfficialDraft
       summary: 删除自己的草稿
-      x-roles: *id004
+      x-roles: *id004_2
       security:
       - adminAuth: []
       parameters:
-      - *id003
+      - *id003_3
       - *id007
       responses:
         '204':
@@ -5177,12 +5178,12 @@ paths:
       - admin
       operationId: submitOfficialDraft
       summary: 提交审核
-      x-roles: *id004
+      x-roles: *id004_2
       security:
       - adminAuth: []
       description: 新编辑前 3 次全量审核，之后 30% 抽检；未抽中的直接通过（mode = skipped）。
       parameters:
-      - *id003
+      - *id003_3
       - *id007
       responses:
         '200':
@@ -5201,14 +5202,14 @@ paths:
       - admin
       operationId: listOfficialReviews
       summary: 7.13 审核队列
-      x-roles: *id002
+      x-roles: *id002_3
       security:
       - adminAuth: []
       parameters:
       - name: project_id
         in: query
         required: false
-        schema: *id001
+        schema: *id001_3
       responses:
         '200':
           description: OK
@@ -5229,7 +5230,7 @@ paths:
       - admin
       operationId: decideOfficialReview
       summary: 审核：通过、退回、修改后通过
-      x-roles: *id002
+      x-roles: *id002_3
       security:
       - adminAuth: []
       description: 退回必须填原因；修改后通过要带 edited_payload；不能审核自己提交的。
@@ -5237,7 +5238,7 @@ paths:
       - name: reviewId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_3
       requestBody:
         required: true
         content:
@@ -5274,11 +5275,11 @@ paths:
       - admin
       operationId: previewOfficialRelease
       summary: 7.14 发布预览：变更清单、自动检查、通知预览
-      x-roles: *id002
+      x-roles: *id002_3
       security:
       - adminAuth: []
       parameters:
-      - *id003
+      - *id003_3
       responses:
         '200':
           description: OK
@@ -5301,7 +5302,7 @@ paths:
       security:
       - adminAuth: []
       parameters:
-      - *id003
+      - *id003_3
       responses:
         '200':
           description: OK
@@ -5323,12 +5324,12 @@ paths:
       - admin
       operationId: publishOfficialRelease
       summary: 发布版本
-      x-roles: *id002
+      x-roles: *id002_3
       security:
       - adminAuth: []
       description: 不填版本号则自动加一（1.0、1.1…）。发布后通知只发给添加了这个官方题库的用户；首次上线另提醒自建了同一专业课的用户。
       parameters:
-      - *id003
+      - *id003_3
       requestBody:
         required: true
         content:
@@ -5359,16 +5360,16 @@ paths:
       - admin
       operationId: rollbackOfficialRelease
       summary: 回滚最新版本
-      x-roles: *id002
+      x-roles: *id002_3
       security:
       - adminAuth: []
       description: 恢复发布前的内容；用户没改过的副本跟着恢复，掌握度与作答记录保留。
       parameters:
-      - *id003
+      - *id003_3
       - name: versionId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_3
       responses:
         '204':
           description: 完成
@@ -5376,6 +5377,34 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+
+  /events:
+    post:
+      tags:
+      - mine
+      operationId: postEvents
+      summary: 埋点批量上报（PRD 15 节）
+      description: App 攒一批再报（最多 100 条）。事件名只收 PRD 15 节列出的，不认识的跳过；属性只收布尔、数字和不超过 64 个字的字符串，键名像正文（text、answer、content、stem、note、phone…）的丢掉。事件里不能带作答原文和资料内容。用户 ID 由服务端从登录态取。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventBatch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - accepted
+                properties:
+                  accepted:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
 components:
   securitySchemes:
@@ -6742,9 +6771,9 @@ components:
       - challenge_id
       - phone_masked
       properties:
-        challenge_id: &id001
+        challenge_id: &id001_4
           type: string
-        phone_masked: *id001
+        phone_masked: *id001_4
     AdminMe:
       type: object
       required:
@@ -6755,11 +6784,11 @@ components:
       - must_change_password
       - expires_at
       properties:
-        id: &id003
+        id: &id003_4
           type: integer
           format: int64
-        username: *id001
-        display_name: *id001
+        username: *id001_4
+        display_name: *id001_4
         roles:
           type: array
           items:
@@ -6770,9 +6799,9 @@ components:
             - content_lead
             - content_editor
             - analyst
-        must_change_password: &id007
+        must_change_password: &id007_2
           type: boolean
-        expires_at: &id004
+        expires_at: &id004_3
           type: string
           format: date-time
     AdminSession:
@@ -6781,7 +6810,7 @@ components:
       - token
       - admin
       properties:
-        token: *id001
+        token: *id001_4
         admin:
           $ref: '#/components/schemas/AdminMe'
     AdminCount:
@@ -6789,7 +6818,7 @@ components:
       required:
       - count
       properties:
-        count: &id002
+        count: &id002_4
           type: integer
     AdminNamed:
       type: object
@@ -6797,8 +6826,8 @@ components:
       - name
       - value
       properties:
-        name: *id001
-        value: *id002
+        name: *id001_4
+        value: *id002_4
     AdminDayPoint:
       type: object
       required:
@@ -6809,12 +6838,12 @@ components:
       - parse_pages
       - revenue_cents
       properties:
-        day: *id001
-        new_users: *id002
-        active_users: *id002
-        answers: *id002
-        parse_pages: *id002
-        revenue_cents: *id003
+        day: *id001_4
+        new_users: *id002_4
+        active_users: *id002_4
+        answers: *id002_4
+        parse_pages: *id002_4
+        revenue_cents: *id003_4
     AdminOverview:
       type: object
       required:
@@ -6834,31 +6863,31 @@ components:
       - days
       - alerts
       properties:
-        updated_at: *id004
-        users_total: *id002
-        week_new_users: *id002
-        week_active_users: *id002
-        week_parse_pages: *id002
-        week_parse_rate: &id005
+        updated_at: *id004_3
+        users_total: *id002_4
+        week_new_users: *id002_4
+        week_active_users: *id002_4
+        week_parse_pages: *id002_4
+        week_parse_rate: &id005_3
           type: number
-        paid_users: *id002
-        members: *id002
-        conversion: *id005
-        month_revenue_cents: *id003
-        week_dispute_rate: *id005
-        funnel: &id006
+        paid_users: *id002_4
+        members: *id002_4
+        conversion: *id005_3
+        month_revenue_cents: *id003_4
+        week_dispute_rate: *id005_3
+        funnel: &id006_2
           type: array
           items:
             $ref: '#/components/schemas/AdminNamed'
-        import_modes: *id006
-        hot_subjects: *id006
+        import_modes: *id006_2
+        hot_subjects: *id006_2
         days:
           type: array
           items:
             $ref: '#/components/schemas/AdminDayPoint'
         alerts:
           type: array
-          items: *id001
+          items: *id001_4
     AdminUser:
       type: object
       required:
@@ -6872,33 +6901,33 @@ components:
       - is_member
       - created_at
       properties:
-        id: *id003
-        phone_masked: *id001
-        invite_code: *id001
+        id: *id003_4
+        phone_masked: *id001_4
+        invite_code: *id001_4
         status:
           type: string
           enum:
           - active
           - banned
           - deleting
-        subjects: *id001
-        materials: *id002
-        questions: *id002
-        is_member: *id007
-        created_at: *id004
-        last_active_at: *id004
+        subjects: *id001_4
+        materials: *id002_4
+        questions: *id002_4
+        is_member: *id007_2
+        created_at: *id004_3
+        last_active_at: *id004_3
     AdminSubjectStat:
       type: object
       required:
       - name
       - full_score
       properties:
-        name: *id001
-        code: *id001
-        full_score: *id002
-        target_score: *id002
-        est_low: *id002
-        est_high: *id002
+        name: *id001_4
+        code: *id001_4
+        full_score: *id002_4
+        target_score: *id002_4
+        est_low: *id002_4
+        est_high: *id002_4
     AdminUserDetail:
       allOf:
       - $ref: '#/components/schemas/AdminUser'
@@ -6915,16 +6944,16 @@ components:
         - subject_stats
         - quota
         properties:
-          nickname: *id001
-          failed_materials: *id002
-          pages: *id002
-          knowledge_points: *id002
-          papers: *id002
-          week_gradings: *id002
-          invited: *id002
-          invite_days: *id002
-          member_tier: *id001
-          member_until: *id004
+          nickname: *id001_4
+          failed_materials: *id002_4
+          pages: *id002_4
+          knowledge_points: *id002_4
+          papers: *id002_4
+          week_gradings: *id002_4
+          invited: *id002_4
+          invite_days: *id002_4
+          member_tier: *id001_4
+          member_until: *id004_3
           subject_stats:
             type: array
             items:
@@ -6941,15 +6970,15 @@ components:
       - action
       - created_at
       properties:
-        id: *id003
-        admin_name: *id001
-        action: *id001
-        target_type: *id001
-        target_id: *id001
+        id: *id003_4
+        admin_name: *id001_4
+        action: *id001_4
+        target_type: *id001_4
+        target_id: *id001_4
         detail:
           type: object
           additionalProperties: true
-        created_at: *id004
+        created_at: *id004_3
     AdminAccessLog:
       type: object
       required:
@@ -6961,13 +6990,13 @@ components:
       - target_id
       - created_at
       properties:
-        id: *id003
-        grant_id: *id003
-        admin_name: *id001
-        user_id: *id003
-        target_type: *id001
-        target_id: *id003
-        created_at: *id004
+        id: *id003_4
+        grant_id: *id003_4
+        admin_name: *id001_4
+        user_id: *id003_4
+        target_type: *id001_4
+        target_id: *id003_4
+        created_at: *id004_3
     AdminOrder:
       type: object
       required:
@@ -6979,18 +7008,18 @@ components:
       - status
       - created_at
       properties:
-        order_no: *id001
-        user_id: *id003
+        order_no: *id001_4
+        user_id: *id003_4
         tier:
           $ref: '#/components/schemas/PlanTier'
         channel:
           $ref: '#/components/schemas/PayChannel'
-        amount_cents: *id003
+        amount_cents: *id003_4
         status:
           $ref: '#/components/schemas/OrderStatus'
-        refund_status: *id001
-        paid_at: *id004
-        created_at: *id004
+        refund_status: *id001_4
+        paid_at: *id004_3
+        created_at: *id004_3
     AdminTierSales:
       type: object
       required:
@@ -7000,8 +7029,8 @@ components:
       properties:
         tier:
           $ref: '#/components/schemas/PlanTier'
-        orders: *id002
-        revenue_cents: *id003
+        orders: *id002_4
+        revenue_cents: *id003_4
     AdminOrderSummary:
       type: object
       required:
@@ -7012,11 +7041,11 @@ components:
       - pending_refunds
       - tiers
       properties:
-        month_revenue_cents: *id003
-        paid_users: *id002
-        imported_users: *id002
-        conversion: *id005
-        pending_refunds: *id002
+        month_revenue_cents: *id003_4
+        paid_users: *id002_4
+        imported_users: *id002_4
+        conversion: *id005_3
+        pending_refunds: *id002_4
         tiers:
           type: array
           items:
@@ -7030,11 +7059,11 @@ components:
       - failed_materials
       - days_since_paid
       properties:
-        pages: *id002
-        gradings: *id002
-        answers: *id002
-        failed_materials: *id002
-        days_since_paid: *id002
+        pages: *id002_4
+        gradings: *id002_4
+        answers: *id002_4
+        failed_materials: *id002_4
+        days_since_paid: *id002_4
     AdminRedeemSummary:
       type: object
       required:
@@ -7043,10 +7072,10 @@ components:
       - available
       - inactive
       properties:
-        generated: *id002
-        used: *id002
-        available: *id002
-        inactive: *id002
+        generated: *id002_4
+        used: *id002_4
+        available: *id002_4
+        inactive: *id002_4
     AdminBatch:
       type: object
       required:
@@ -7061,8 +7090,8 @@ components:
       - status
       - created_at
       properties:
-        id: *id003
-        name: *id001
+        id: *id003_4
+        name: *id001_4
         tier:
           type: string
           enum:
@@ -7070,17 +7099,17 @@ components:
           - season
           - monthly
           - gift
-        days: *id002
-        quantity: *id002
-        used: *id002
-        expires_at: *id004
-        channel: *id001
+        days: *id002_4
+        quantity: *id002_4
+        used: *id002_4
+        expires_at: *id004_3
+        channel: *id001_4
         status:
           type: string
           enum:
           - active
           - disabled
-        created_at: *id004
+        created_at: *id004_3
     AdminBatchCreated:
       type: object
       required:
@@ -7091,7 +7120,7 @@ components:
           $ref: '#/components/schemas/AdminBatch'
         codes:
           type: array
-          items: *id001
+          items: *id001_4
     AdminCode:
       type: object
       required:
@@ -7103,21 +7132,21 @@ components:
       - tier
       - expires_at
       properties:
-        id: *id003
-        tail: *id001
+        id: *id003_4
+        tail: *id001_4
         status:
           type: string
           enum:
           - unused
           - used
           - void
-        used_by: *id003
-        used_at: *id004
-        batch_id: *id003
-        batch_name: *id001
-        tier: *id001
-        days: *id002
-        expires_at: *id004
+        used_by: *id003_4
+        used_at: *id004_3
+        batch_id: *id003_4
+        batch_name: *id001_4
+        tier: *id001_4
+        days: *id002_4
+        expires_at: *id004_3
     AdminFormatStat:
       type: object
       required:
@@ -7129,13 +7158,13 @@ components:
       - failed
       - rate
       properties:
-        format: *id001
-        files: *id002
-        pages: *id002
-        ok: *id002
-        partial: *id002
-        failed: *id002
-        rate: *id005
+        format: *id001_4
+        files: *id002_4
+        pages: *id002_4
+        ok: *id002_4
+        partial: *id002_4
+        failed: *id002_4
+        rate: *id005_3
     AdminParseStats:
       type: object
       required:
@@ -7146,11 +7175,11 @@ components:
       - p95_seconds
       - formats
       properties:
-        success_rate: *id005
-        pages: *id002
-        files: *id002
-        avg_seconds: *id002
-        p95_seconds: *id002
+        success_rate: *id005_3
+        pages: *id002_4
+        files: *id002_4
+        avg_seconds: *id002_4
+        p95_seconds: *id002_4
         formats:
           type: array
           items:
@@ -7168,16 +7197,16 @@ components:
       - billed_pages
       - created_at
       properties:
-        id: *id003
-        user_id: *id003
-        mode: *id001
-        status: *id001
-        files: *id002
-        failed_files: *id002
-        partial_files: *id002
-        billed_pages: *id002
-        created_at: *id004
-        finished_at: *id004
+        id: *id003_4
+        user_id: *id003_4
+        mode: *id001_4
+        status: *id001_4
+        files: *id002_4
+        failed_files: *id002_4
+        partial_files: *id002_4
+        billed_pages: *id002_4
+        created_at: *id004_3
+        finished_at: *id004_3
     AdminImportFile:
       type: object
       required:
@@ -7189,17 +7218,17 @@ components:
       - attempts
       - updated_at
       properties:
-        material_id: *id003
-        format: *id001
-        pages: *id002
-        step: *id001
-        status: *id001
-        attempts: *id002
-        fail_reason: *id001
+        material_id: *id003_4
+        format: *id001_4
+        pages: *id002_4
+        step: *id001_4
+        status: *id001_4
+        attempts: *id002_4
+        fail_reason: *id001_4
         failed_pages:
           type: array
-          items: *id002
-        updated_at: *id004
+          items: *id002_4
+        updated_at: *id004_3
     AdminImportJobDetail:
       allOf:
       - $ref: '#/components/schemas/AdminImportJob'
@@ -7208,7 +7237,7 @@ components:
         - reserved_pages
         - file_logs
         properties:
-          reserved_pages: *id002
+          reserved_pages: *id002_4
           prompt_versions:
             type: object
             additionalProperties:
@@ -7227,11 +7256,11 @@ components:
       - avg_seconds
       - reasons
       properties:
-        disputes: *id002
-        gradings: *id002
-        rate: *id005
-        changed_ratio: *id005
-        avg_seconds: *id002
+        disputes: *id002_4
+        gradings: *id002_4
+        rate: *id005_3
+        changed_ratio: *id005_3
+        avg_seconds: *id002_4
         reasons:
           type: object
           additionalProperties:
@@ -7246,16 +7275,16 @@ components:
       - granted
       - created_at
       properties:
-        id: *id003
-        user_id: *id003
-        reason: *id001
-        status: *id001
-        score_before: *id005
-        score_after: *id005
-        attribution: *id001
-        granted: *id007
-        created_at: *id004
-        resolved_at: *id004
+        id: *id003_4
+        user_id: *id003_4
+        reason: *id001_4
+        status: *id001_4
+        score_before: *id005_3
+        score_after: *id005_3
+        attribution: *id001_4
+        granted: *id007_2
+        created_at: *id004_3
+        resolved_at: *id004_3
     AdminGrantedGrading:
       type: object
       required:
@@ -7264,21 +7293,21 @@ components:
       - answer
       - grant_expires_at
       properties:
-        stem: *id001
-        qtype: *id001
-        answer: *id001
+        stem: *id001_4
+        qtype: *id001_4
+        answer: *id001_4
         rubric: {}
         point_results: {}
-        score: *id005
-        full_score: *id005
+        score: *id005_3
+        full_score: *id005_3
         regrade:
           type: object
           required: []
           properties:
             rubric: {}
             point_results: {}
-            score: *id005
-        grant_expires_at: *id004
+            score: *id005_3
+        grant_expires_at: *id004_3
     AdminFeedbackStats:
       type: object
       required:
@@ -7288,10 +7317,10 @@ components:
       - satisfaction
       - types
       properties:
-        open: *id002
-        avg_reply_seconds: *id002
-        top_type: *id001
-        satisfaction: *id005
+        open: *id002_4
+        avg_reply_seconds: *id002_4
+        top_type: *id001_4
+        satisfaction: *id005_3
         types:
           type: object
           additionalProperties:
@@ -7307,20 +7336,20 @@ components:
       - status
       - created_at
       properties:
-        id: *id003
-        user_id: *id003
+        id: *id003_4
+        user_id: *id003_4
         type:
           $ref: '#/components/schemas/FeedbackType'
-        content: *id001
-        allow_access: *id007
+        content: *id001_4
+        allow_access: *id007_2
         status:
           type: string
           enum:
           - open
           - replied
           - closed
-        created_at: *id004
-        replied_at: *id004
+        created_at: *id004_3
+        replied_at: *id004_3
     AdminFeedbackDetail:
       allOf:
       - $ref: '#/components/schemas/AdminFeedback'
@@ -7328,13 +7357,13 @@ components:
         required:
         - screenshots
         properties:
-          reply: *id001
+          reply: *id001_4
           screenshots:
             type: array
-            items: *id001
-          grant_expires_at: *id004
-          material_id: *id003
-          related_import_id: *id003
+            items: *id001_4
+          grant_expires_at: *id004_3
+          material_id: *id003_4
+          related_import_id: *id003_4
     AdminGrantedMaterial:
       type: object
       required:
@@ -7345,14 +7374,14 @@ components:
       - page_texts
       - grant_expires_at
       properties:
-        id: *id003
-        format: *id001
-        pages: *id002
-        status: *id001
+        id: *id003_4
+        format: *id001_4
+        pages: *id002_4
+        status: *id001_4
         page_texts:
           type: array
-          items: *id001
-        grant_expires_at: *id004
+          items: *id001_4
+        grant_expires_at: *id004_3
     AdminParam:
       type: object
       required:
@@ -7362,15 +7391,15 @@ components:
       - version
       - updated_at
       properties:
-        key: &id001
+        key: &id001_5
           type: string
         value:
           type: object
           additionalProperties: true
-        description: *id001
-        version: &id003
+        description: *id001_5
+        version: &id003_5
           type: integer
-        updated_at: &id002
+        updated_at: &id002_5
           type: string
           format: date-time
     AdminAgreement:
@@ -7382,17 +7411,17 @@ components:
       - title
       - effective_at
       properties:
-        id: &id005
+        id: &id005_4
           type: integer
           format: int64
         kind:
           $ref: '#/components/schemas/AgreementKind'
-        version: *id001
-        title: *id001
-        body: *id001
-        change_summary: *id001
-        effective_at: *id002
-        published_at: *id002
+        version: *id001_5
+        title: *id001_5
+        body: *id001_5
+        change_summary: *id001_5
+        effective_at: *id002_5
+        published_at: *id002_5
     AdminExamDate:
       type: object
       required:
@@ -7402,13 +7431,13 @@ components:
       - first_exam_end
       - subject_exam_date
       properties:
-        year: *id003
-        label: *id001
-        first_exam_start: &id004
+        year: *id003_5
+        label: *id001_5
+        first_exam_start: &id004_4
           type: string
           format: date
-        first_exam_end: *id004
-        subject_exam_date: *id004
+        first_exam_end: *id004_4
+        subject_exam_date: *id004_4
     AdminFlag:
       type: object
       required:
@@ -7418,14 +7447,14 @@ components:
       - user_ids
       - updated_at
       properties:
-        key: *id001
-        description: *id001
-        enabled_all: &id007
+        key: *id001_5
+        description: *id001_5
+        enabled_all: &id007_3
           type: boolean
         user_ids:
           type: array
-          items: *id005
-        updated_at: *id002
+          items: *id005_4
+        updated_at: *id002_5
     AdminAppVersion:
       type: object
       required:
@@ -7440,11 +7469,11 @@ components:
           enum:
           - ios
           - android
-        latest: *id001
-        min: *id001
-        download_url: *id001
-        release_notes: *id001
-        updated_at: *id002
+        latest: *id001_5
+        min: *id001_5
+        download_url: *id001_5
+        release_notes: *id001_5
+        updated_at: *id002_5
     AdminAIVersion:
       type: object
       required:
@@ -7455,13 +7484,13 @@ components:
       - avg_cost_yuan
       - avg_latency_ms
       properties:
-        model: *id001
-        prompt: *id001
-        calls: *id003
-        success_rate: &id006
+        model: *id001_5
+        prompt: *id001_5
+        calls: *id003_5
+        success_rate: &id006_3
           type: number
-        avg_cost_yuan: *id006
-        avg_latency_ms: *id003
+        avg_cost_yuan: *id006_3
+        avg_latency_ms: *id003_5
         dispute_rate:
           type: number
           description: 近 7 天这个版本批改的题被提异议的比例（只有主观题批改有），灰度对比用
@@ -7478,18 +7507,18 @@ components:
       - cost_share
       - versions
       properties:
-        capability: *id001
-        stable_model: *id001
-        stable_prompt: *id001
-        candidate_model: *id001
-        candidate_prompt: *id001
-        candidate_percent: *id003
+        capability: *id001_5
+        stable_model: *id001_5
+        stable_prompt: *id001_5
+        candidate_model: *id001_5
+        candidate_prompt: *id001_5
+        candidate_percent: *id003_5
         prompts:
           type: array
-          items: *id001
-        calls: *id003
-        cost_yuan: *id006
-        cost_share: *id006
+          items: *id001_5
+        calls: *id003_5
+        cost_yuan: *id006_3
+        cost_share: *id006_3
         versions:
           type: array
           items:
@@ -7505,12 +7534,12 @@ components:
       - ratio_max
       - tasks
       properties:
-        cost_per_active_user_day: *id006
-        budget_per_user_day: *id006
-        month_cost_yuan: *id006
-        month_revenue_yuan: *id006
-        revenue_ratio: *id006
-        ratio_max: *id006
+        cost_per_active_user_day: *id006_3
+        budget_per_user_day: *id006_3
+        month_cost_yuan: *id006_3
+        month_revenue_yuan: *id006_3
+        revenue_ratio: *id006_3
+        ratio_max: *id006_3
         tasks:
           type: array
           items:
@@ -7527,18 +7556,18 @@ components:
       - sent_count
       - created_at
       properties:
-        id: *id005
-        title: *id001
-        body: *id001
-        all: *id007
+        id: *id005_4
+        title: *id001_5
+        body: *id001_5
+        all: *id007_3
         user_ids:
           type: array
-          items: *id005
-        with_popup: *id007
-        scheduled_at: *id002
-        sent_at: *id002
-        sent_count: *id003
-        created_at: *id002
+          items: *id005_4
+        with_popup: *id007_3
+        scheduled_at: *id002_5
+        sent_at: *id002_5
+        sent_count: *id003_5
+        created_at: *id002_5
     AdminAccount:
       type: object
       required:
@@ -7551,21 +7580,21 @@ components:
       - must_change_password
       - created_at
       properties:
-        id: *id005
-        username: *id001
-        display_name: *id001
-        phone_masked: *id001
+        id: *id005_4
+        username: *id001_5
+        display_name: *id001_5
+        phone_masked: *id001_5
         roles:
           type: array
-          items: *id001
+          items: *id001_5
         status:
           type: string
           enum:
           - active
           - disabled
-        must_change_password: *id007
-        last_login_at: *id002
-        created_at: *id002
+        must_change_password: *id007_3
+        last_login_at: *id002_5
+        created_at: *id002_5
     OfficialBank:
       type: object
       required:
@@ -7579,21 +7608,21 @@ components:
       - kp_count
       - question_count
       properties:
-        bank_id: &id003
+        bank_id: &id003_6
           type: integer
           format: int64
-        title: &id001
+        title: &id001_6
           type: string
-        school: *id001
-        major: *id001
-        subject_code: *id001
-        subject_name: *id001
-        version: *id001
-        kp_count: &id002
+        school: *id001_6
+        major: *id001_6
+        subject_code: *id001_6
+        subject_name: *id001_6
+        version: *id001_6
+        kp_count: &id002_6
           type: integer
-        question_count: *id002
-        added_subject_id: *id003
-        suggested_subject_id: *id003
+        question_count: *id002_6
+        added_subject_id: *id003_6
+        suggested_subject_id: *id003_6
     AdminDemand:
       type: object
       required:
@@ -7606,17 +7635,17 @@ components:
       - avg_review
       - unplanned
       properties:
-        subject_code: *id001
-        users: *id002
-        avg_questions: *id002
-        week_new: *id002
-        with_target: *id002
-        paid_rate: &id004
+        subject_code: *id001_6
+        users: *id002_6
+        avg_questions: *id002_6
+        week_new: *id002_6
+        with_target: *id002_6
+        paid_rate: &id004_5
           type: number
-        avg_review: *id002
-        project_id: *id003
-        project_stage: *id001
-        unplanned: &id007
+        avg_review: *id002_6
+        project_id: *id003_6
+        project_stage: *id001_6
+        unplanned: &id007_4
           type: boolean
     OfficialStage:
       type: string
@@ -7664,27 +7693,27 @@ components:
       - subscribers
       - created_at
       properties:
-        id: *id003
-        school: *id001
-        major: *id001
-        subject_code: *id001
-        subject_name: *id001
-        bank_id: *id003
+        id: *id003_6
+        school: *id001_6
+        major: *id001_6
+        subject_code: *id001_6
+        subject_name: *id001_6
+        bank_id: *id003_6
         stage:
           $ref: '#/components/schemas/OfficialStage'
         editor_ids:
           type: array
-          items: *id003
+          items: *id003_6
         materials:
           type: array
           items:
             $ref: '#/components/schemas/OfficialMaterial'
-        kp_count: *id002
-        question_count: *id002
-        exam_count: *id002
-        version: *id001
-        subscribers: *id002
-        created_at: &id006
+        kp_count: *id002_6
+        question_count: *id002_6
+        exam_count: *id002_6
+        version: *id001_6
+        subscribers: *id002_6
+        created_at: &id006_4
           type: string
           format: date-time
     OfficialItem:
@@ -7696,11 +7725,11 @@ components:
       - status
       - payload
       properties:
-        entity_type: *id001
-        id: *id003
-        title: *id001
-        status: *id001
-        payload: &id005
+        entity_type: *id001_6
+        id: *id003_6
+        title: *id001_6
+        status: *id001_6
+        payload: &id005_5
           type: object
           additionalProperties: true
     OfficialPoint:
@@ -7709,11 +7738,11 @@ components:
       - content
       - score
       properties:
-        content: *id001
-        score: *id004
+        content: *id001_6
+        score: *id004_5
         keywords:
           type: array
-          items: *id001
+          items: *id001_6
     OfficialCandidate:
       type: object
       required:
@@ -7724,10 +7753,10 @@ components:
       - rubric
       - alignment
       properties:
-        section: *id001
-        chapter: *id001
-        name: *id001
-        original_text: *id001
+        section: *id001_6
+        chapter: *id001_6
+        name: *id001_6
+        original_text: *id001_6
         rubric:
           type: array
           items:
@@ -7738,8 +7767,8 @@ components:
           - new
           - supplement
           - differ
-        existing_id: *id003
-        existing_text: *id001
+        existing_id: *id003_6
+        existing_text: *id001_6
     OfficialDraft:
       type: object
       required:
@@ -7752,13 +7781,13 @@ components:
       - status
       - created_at
       properties:
-        id: *id003
-        project_id: *id003
-        editor_id: *id003
-        entity_type: *id001
-        entity_id: *id003
-        change_type: *id001
-        payload: *id005
+        id: *id003_6
+        project_id: *id003_6
+        editor_id: *id003_6
+        entity_type: *id001_6
+        entity_id: *id003_6
+        change_type: *id001_6
+        payload: *id005_5
         status:
           type: string
           enum:
@@ -7767,9 +7796,9 @@ components:
           - approved
           - rejected
           - published
-        reject_reason: *id001
-        submitted_at: *id006
-        created_at: *id006
+        reject_reason: *id001_6
+        submitted_at: *id006_4
+        created_at: *id006_4
     OfficialSubmitResult:
       type: object
       required:
@@ -7794,17 +7823,17 @@ components:
       - payload
       - created_at
       properties:
-        id: *id003
-        draft_id: *id003
-        project_id: *id003
-        editor_id: *id003
-        mode: *id001
-        entity_type: *id001
-        entity_id: *id003
-        change_type: *id001
-        payload: *id005
-        before: *id005
-        created_at: *id006
+        id: *id003_6
+        draft_id: *id003_6
+        project_id: *id003_6
+        editor_id: *id003_6
+        mode: *id001_6
+        entity_type: *id001_6
+        entity_id: *id003_6
+        change_type: *id001_6
+        payload: *id005_5
+        before: *id005_5
+        created_at: *id006_4
     OfficialChange:
       type: object
       required:
@@ -7815,21 +7844,21 @@ components:
       - title
       - rubric_changed
       properties:
-        draft_id: *id003
-        entity_type: *id001
-        change_type: *id001
-        entity_id: *id003
-        title: *id001
-        rubric_changed: *id007
+        draft_id: *id003_6
+        entity_type: *id001_6
+        change_type: *id001_6
+        entity_id: *id003_6
+        title: *id001_6
+        rubric_changed: *id007_4
     OfficialCheck:
       type: object
       required:
       - name
       - passed
       properties:
-        name: *id001
-        passed: *id007
-        detail: *id001
+        name: *id001_6
+        passed: *id007_4
+        detail: *id001_6
     OfficialReleasePreview:
       type: object
       required:
@@ -7847,9 +7876,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OfficialCheck'
-        next_version: *id001
-        notice: *id001
-        subscribers: *id002
+        next_version: *id001_6
+        notice: *id001_6
+        subscribers: *id002_6
     OfficialVersion:
       type: object
       required:
@@ -7858,14 +7887,55 @@ components:
       - changes
       - published_at
       properties:
-        id: *id003
-        version: *id001
+        id: *id003_6
+        version: *id001_6
         changes:
           type: array
           items:
             $ref: '#/components/schemas/OfficialChange'
-        published_at: *id006
-        rolled_back_at: *id006
+        published_at: *id006_4
+        rolled_back_at: *id006_4
+    EventBatch:
+      type: object
+      required:
+      - app_version
+      - platform
+      - events
+      properties:
+        app_version:
+          type: string
+          maxLength: 32
+        platform:
+          type: string
+          enum:
+          - ios
+          - android
+        subject_code:
+          type: string
+          maxLength: 32
+        stage:
+          type: string
+          maxLength: 32
+        events:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/AppEvent'
+    AppEvent:
+      type: object
+      required:
+      - name
+      - at
+      properties:
+        name:
+          type: string
+          maxLength: 32
+        at:
+          type: string
+          format: date-time
+        props:
+          type: object
+          additionalProperties: true
     RedeemResult:
       type: object
       required: [tier, days, starts_at, ends_at, membership]
