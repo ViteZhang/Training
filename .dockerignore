@@ -1,0 +1,6 @@
+.git
+bin
+evals/private
+.env
+*.local
+docs
