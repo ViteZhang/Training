@@ -162,6 +162,29 @@ unset ADMIN_INITIAL_PASSWORD
 
 验证：用测试账号批改一道主观题，后台 7.8 AI 任务里 grade_subjective 的单次成本不为 0。
 
+### 9. 监控告警与埋点（T32）
+
+1. SLS 采集应用机 `/var/lib/docker/containers/*/*-json.log`（api、worker 两个容器），开启 JSON 解析，对字段 `log_type`、`level`、`event`、`alert`、`route`、`status` 建索引。
+2. 告警：Worker 每 5 分钟检查一次，超过阈值写一条 `log_type=alert` 的 ERROR 日志；配了 `ALERT_WEBHOOK_URL`（钉钉或企业微信群机器人，含令牌，只放 .env）时同时推送。同一项 30 分钟内只发一次。
+   | 告警 | 阈值 | 先做什么 |
+   | --- | --- | --- |
+   | http_errors | 近 15 分钟 5xx 占比 > 2%（至少 50 个请求） | 按 route 聚合 status ≥ 500 的日志，看是哪个接口；必要时回滚 |
+   | queue_backlog:<队列> | 等待 > 200 个，或最老任务等了 > 10 分钟 | worker 是否在跑（`docker compose ps`）；asynqmon 看失败最多的任务 |
+   | ai_failures | 近 15 分钟 AI 调用失败率 > 10%（至少 20 次） | 后台 7.8 看哪个能力在失败；模型平台故障时会自动切备用，提示词问题回滚灰度 |
+   | ai_cost_user / ai_cost_revenue | 每活跃用户每天成本超预算；本月成本占收入超上限（7.8 可改） | 下调免费额度或暂时关闭高成本功能 |
+   另在 SLS 上配一条兜底告警：5 分钟内没有任何 `log_type=alert` 以外的 worker 日志（worker 挂了时它自己发不出告警）。
+3. 埋点：App 调 POST /events，服务端写 `log_type=event` 的日志（只有事件名、公共字段与短的标量属性，没有作答和资料内容）。在 SLS 里按 event 做漏斗和留存（PRD 15 节的内测指标）；后台 7.1 概览的漏斗来自数据库统计，两边可以互相核对。
+
+验证：临时把 worker 停 15 分钟，群里收到 queue_backlog 告警；App 里做一次练习，SLS 搜 `log_type: event and event: answer_submit` 有记录。
+
+### 10. 内测准备（T32）
+
+1. 协议：docs/legal/ 里的草稿经法务审核定稿后，在后台 7.8「协议」新建 user、privacy、membership 1.0 并发布；用新账号登录看 0.4 正文。
+2. 种子用户兑换码：后台 7.4 新建批次（名称写「内测种子」、天数、数量 ≤ 50、有效期），导出 CSV 线下发给种子用户；7.4 可看每个码的使用情况。
+3. 功能开关：内测期打开哪些功能（在线支付、官方题库、口述背诵、语音作答、扫描版 PDF、邀请）按当时决定在 7.8 设置。
+4. 越权访问：`make test` 里的 TestIntegrationIDOR 会用另一个用户的 ID 调全部 App 接口，必须全部 404；新增接口自动纳入。
+5. 发版前跑一遍 `make eval-all`（真实样本），都达标才发。
+
 ## 二、日常发布与回滚
 
 - 发布：合并到 main 自动触发流水线。发布脚本先备份数据库，迁移失败时不会切换版本；健康检查 60 秒内不通过会自动回滚。

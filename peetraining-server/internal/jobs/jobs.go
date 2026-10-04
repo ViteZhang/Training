@@ -47,6 +47,7 @@ const (
 	TypeReviewDue       = "message:review_due"
 	// 后台统计（T28）。
 	TypeStatsAggregate = "stats:aggregate"
+	TypeMonitor        = "monitor:check"
 )
 
 // PingPayload 用于检查「API 入队 → Worker 执行」整条链路。
@@ -124,6 +125,12 @@ type Handlers struct {
 	Export    Exporter
 	Notify    Notifier
 	Stats     StatsAggregator
+	Monitor   Monitor
+}
+
+// Monitor 每 5 分钟检查接口错误率、队列积压、AI 失败率与成本（monitor.Checker 实现）。
+type Monitor interface {
+	Run(ctx context.Context) error
 }
 
 // StatsAggregator 每小时把后台统计汇总到 stats_hourly（admin.Service 实现）。
@@ -259,6 +266,12 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 			return nil
 		}
 		return h.Stats.Aggregate(ctx)
+	})
+	mux.HandleFunc(TypeMonitor, func(ctx context.Context, _ *asynq.Task) error {
+		if h.Monitor == nil {
+			return nil
+		}
+		return h.Monitor.Run(ctx)
 	})
 	mux.HandleFunc(TypeReviewDue, h.notifyTask("review due sent", func(ctx context.Context) (int, error) { return h.Notify.SendReviewDue(ctx) }))
 	return mux
@@ -422,6 +435,8 @@ var Schedules = []Schedule{
 	{Cron: "5 * * * *", Type: TypeReviewDue},
 	// 7.1 概览的聚合表每小时汇总一次。
 	{Cron: "7 * * * *", Type: TypeStatsAggregate},
+	// 监控告警（T32）。
+	{Cron: "*/5 * * * *", Type: TypeMonitor},
 }
 
 // RegisterSchedules 注册定时任务。调度器全局只启一个，跑在 Worker 里。

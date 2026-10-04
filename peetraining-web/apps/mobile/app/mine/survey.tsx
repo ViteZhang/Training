@@ -10,6 +10,7 @@ import { Button, Card, EmptyState, ErrorState, Loading, Screen, Text, toast } fr
 import { Checkbox, PageHeader } from '@/features/import/ui';
 import { mineKeys } from '@/features/mine/api';
 import { api, unwrap } from '@/lib/api';
+import { track } from '@/lib/analytics';
 
 const retests: { key: Schemas['RetestResult']; label: string }[] = [
   { key: 'in', label: '进复试' },
@@ -56,6 +57,7 @@ function Form({ sv }: { sv: Schemas['Survey'] }) {
         }),
       ),
     onSuccess: (v) => {
+      track('survey_submit');
       qc.setQueryData(mineKeys.survey, v);
       void qc.invalidateQueries({ queryKey: mineKeys.me });
       toast(sv.submitted ? '已更新' : `感谢填写，${sv.reward_days} 天会员已到账`);

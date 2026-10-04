@@ -28,6 +28,7 @@ import (
 	"peetraining-server/internal/config"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/essay"
+	"peetraining-server/internal/events"
 	"peetraining-server/internal/export"
 	"peetraining-server/internal/feedback"
 	"peetraining-server/internal/flags"
@@ -38,6 +39,7 @@ import (
 	"peetraining-server/internal/logx"
 	"peetraining-server/internal/material"
 	"peetraining-server/internal/membership"
+	"peetraining-server/internal/monitor"
 	"peetraining-server/internal/notify"
 	"peetraining-server/internal/official"
 	"peetraining-server/internal/params"
@@ -126,7 +128,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	models, fallback := ai.Routing(cfg.AI, clients.AIFallback)
 	engine := ai.NewEngine(ai.Config{
 		Client: clients.AI, Fallback: fallback, Queries: q, UseMock: cfg.AI.Provider == config.ProviderMock,
-		Models: models, Salt: hex.EncodeToString(salt[:]), Prices: ai.PricesFrom(cfg.AI),
+		Models: models, Salt: hex.EncodeToString(salt[:]), Prices: ai.PricesFrom(cfg.AI), Moderation: clients.Moderation,
 	})
 	queue := asynq.NewClientFromRedisClient(rdb)
 	prof := profile.New(db, ps, clients.OSS, nil)
@@ -249,6 +251,8 @@ func (b *Base) Handler() (http.Handler, error) {
 		Notify:     b.Notify,
 		Admin:      b.Admin,
 		Official:   b.Official,
+		Events:     events.New(b.Logger, nil),
+		Metrics:    monitor.NewHTTPCounter(b.Redis),
 		DevMockPay: b.devMockPay(),
 	})
 }
@@ -313,7 +317,9 @@ func NewWorker(b *Base) (*Worker, error) {
 	if err := jobs.RegisterSchedules(scheduler); err != nil {
 		return nil, fmt.Errorf("注册定时任务：%w", err)
 	}
-	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice, Essay: b.Essay, Export: b.Export, Notify: b.Notify, Stats: b.Admin}
+	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice, Essay: b.Essay, Export: b.Export, Notify: b.Notify, Stats: b.Admin,
+		Monitor: monitor.New(monitor.Deps{DB: b.DB, Redis: b.Redis, Queues: asynq.NewInspector(opt), Names: []string{jobs.QueueCritical, jobs.QueueDefault, jobs.QueueLow},
+			Cost: b.Admin, Log: b.Logger, Webhook: b.Config.AlertWebhookURL})}
 	return &Worker{server: server, scheduler: scheduler, mux: h.Mux()}, nil
 }
 

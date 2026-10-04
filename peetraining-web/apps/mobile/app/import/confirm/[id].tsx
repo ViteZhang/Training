@@ -11,6 +11,7 @@ import { essayTypeNames, importKeys, itemNote, itemStatus, qtypeNames, useImport
 import { PageHeader, Segments } from '@/features/import/ui';
 import { Footer } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
+import { track } from '@/lib/analytics';
 
 type Filter = 'all' | 'needs_review' | 'subjective' | 'objective';
 
@@ -79,6 +80,7 @@ export default function ConfirmScreen() {
     setBusy(true);
     try {
       const r = await unwrap(api.POST('/import-jobs/{jobId}/confirm', { params: { path: { jobId } } }));
+      track('confirm_submit');
       await Promise.all([qc.invalidateQueries({ queryKey: ['subjects'] }), qc.invalidateQueries({ queryKey: ['import-jobs'] }), qc.invalidateQueries({ queryKey: ['quota'] })]);
       router.replace({
         pathname: '/import/done/[id]',

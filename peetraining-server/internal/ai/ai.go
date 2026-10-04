@@ -28,6 +28,7 @@ import (
 
 	"peetraining-server/internal/apperr"
 	cloudai "peetraining-server/internal/cloud/ai"
+	"peetraining-server/internal/cloud/moderation"
 	"peetraining-server/internal/dbq"
 )
 
@@ -95,7 +96,23 @@ type Engine struct {
 	now      func() time.Time
 	override map[string]Meta
 	onCall   func(Call)
+	moderate TextChecker
 }
+
+// TextChecker 是内容安全的文本审核（cloud/moderation.Checker 满足它）。
+type TextChecker interface {
+	CheckText(ctx context.Context, text string) (moderation.Verdict, error)
+}
+
+// moderated 是要过内容安全的能力：生成新文字给用户看的（答案、讲解、变式题、命题、批改评语、考情分析）。
+// 结构化、拆知识点、提采分点这类主要搬运用户自己资料原文的能力，资料上传时已经审过，不重复审（dev-spec 第九节）。
+var moderated = map[string]bool{
+	"answer_generate": true, "kp_explain": true, "question_variant": true, "essay_topic": true,
+	"essay_grade": true, "grade_subjective": true, "grade_norm": true, "exam_style": true,
+}
+
+// ErrModeration 表示模型输出没过内容安全，按不合格输出处理（重试一次，再不过返回 AIFailed，不扣次数）。
+var ErrModeration = errors.New("ai: 输出未通过内容安全")
 
 // Call 是一次模型调用的记录（评测命令用它统计每千次成本与时延）。
 type Call struct {
@@ -122,6 +139,8 @@ type Config struct {
 	Override map[string]Meta
 	// OnCall 在每次调用模型后执行（评测命令统计成本与时延）。
 	OnCall func(Call)
+	// Moderation 不为空时，生成类能力的输出过内容安全后才返回（dev-spec 第九节：AI 输出过审后才入库展示）。
+	Moderation TextChecker
 }
 
 func NewEngine(c Config) *Engine {
@@ -135,7 +154,7 @@ func NewEngine(c Config) *Engine {
 		c.Fallback = nil
 	}
 	return &Engine{client: c.Client, fallback: c.Fallback, q: c.Queries, useMock: c.UseMock, models: c.Models, prices: c.Prices, salt: c.Salt, now: time.Now,
-		override: c.Override, onCall: c.OnCall}
+		override: c.Override, onCall: c.OnCall, moderate: c.Moderation}
 }
 
 // ErrInvalidOutput 表示模型输出不合格（Schema 或能力校验没过）。
@@ -338,6 +357,17 @@ func (c *Cap[In, Out]) Run(ctx context.Context, e *Engine, userID uint64, in In)
 			content = resp.Content
 		}
 		out, err := c.validate(in, content)
+		if err == nil && e.moderate != nil && moderated[c.Name] {
+			v, merr := e.moderate.CheckText(ctx, content)
+			if merr != nil {
+				// 审核服务不可用时不放行，交给调用方稍后重试。
+				e.record(ctx, c.Def, meta, userID, resp, start, "moderation_unavailable", attempt > 0)
+				return zero, meta, merr
+			}
+			if !v.Pass {
+				err = ErrModeration
+			}
+		}
 		if err == nil {
 			e.record(ctx, c.Def, meta, userID, resp, start, "", attempt > 0)
 			return out, meta, nil
@@ -349,6 +379,9 @@ func (c *Cap[In, Out]) Run(ctx context.Context, e *Engine, userID uint64, in In)
 }
 
 func errorKind(err error) string {
+	if errors.Is(err, ErrModeration) {
+		return "moderation"
+	}
 	if errors.Is(err, ErrInvalidOutput) {
 		return "invalid_output"
 	}

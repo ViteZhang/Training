@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { toast } from '@/components';
 import { api, unwrap } from '@/lib/api';
 import { cachedSession, cacheSession } from './offline';
+import { track } from '@/lib/analytics';
 
 export type PracticeSession = Schemas['PracticeSession'];
 export type PracticeQuestion = Schemas['PracticeQuestion'];
@@ -62,6 +63,7 @@ export function useStartPractice() {
   return useMutation({
     mutationFn: (body: StartBody) => unwrap(api.POST('/practice-sessions', { body: { ...body, ai_fill: body.ai_fill ?? false } })),
     onSuccess: (s) => {
+      track('session_start', { kind: s.kind, questions: s.questions.length });
       cacheSession(s);
       qc.setQueryData(practiceKeys.session(s.id), s);
       void qc.invalidateQueries({ queryKey: ['practice', 'home'] });

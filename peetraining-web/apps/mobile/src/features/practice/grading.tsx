@@ -12,6 +12,7 @@ import { useFeatureFlag } from '@/lib/flags';
 import { api, unwrap } from '@/lib/api';
 import { getJSON, remove, setJSON } from '@/lib/storage';
 import { lossNames, type PracticeQuestion } from './api';
+import { track } from '@/lib/analytics';
 
 export type GradingResult = Schemas['GradingResult'];
 
@@ -265,6 +266,7 @@ export function DisputeSheet({ g, visible, onClose, onDone }: { g: GradingResult
   const submit = useMutation({
     mutationFn: () => unwrap(api.POST('/gradings/{gradingId}/disputes', { params: { path: { gradingId: g.grading_id } }, body: { reason: reason!, note: note || undefined, allow_access: allow } })),
     onSuccess: (r) => {
+      track('grade_dispute', { reason: reason ?? '' });
       onDone(r);
       onClose();
     },

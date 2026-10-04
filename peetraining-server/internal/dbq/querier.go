@@ -13,6 +13,8 @@ import (
 )
 
 type Querier interface {
+	// 告警：一段时间内的模型调用次数与失败次数（ai_calls 只有计数，不存输入输出）。
+	AICallHealth(ctx context.Context, createdAt time.Time) (AICallHealthRow, error)
 	AICostSince(ctx context.Context, createdAt time.Time) (int64, error)
 	// 7.8 AI 任务：按能力与「模型 + 提示词版本」统计调用次数、成功率、单次成本、耗时（ai_calls 不存输入输出原文）。
 	AIStatsByVersion(ctx context.Context, createdAt time.Time) ([]AIStatsByVersionRow, error)

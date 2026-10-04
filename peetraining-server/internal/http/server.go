@@ -16,6 +16,7 @@ import (
 	"peetraining-server/internal/bank"
 	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/essay"
+	"peetraining-server/internal/events"
 	"peetraining-server/internal/export"
 	"peetraining-server/internal/feedback"
 	"peetraining-server/internal/flags"
@@ -24,6 +25,7 @@ import (
 	"peetraining-server/internal/invite"
 	"peetraining-server/internal/material"
 	"peetraining-server/internal/membership"
+	"peetraining-server/internal/monitor"
 	"peetraining-server/internal/notify"
 	"peetraining-server/internal/official"
 	"peetraining-server/internal/payment"
@@ -74,6 +76,9 @@ type Deps struct {
 	Admin *admin.Service
 	// T30 官方题库。
 	Official *official.Service
+	// T32 埋点与接口错误率计数。
+	Events  *events.Recorder
+	Metrics *monitor.HTTPCounter
 	// DevMockPay 为 true 时注册本地「模拟支付成功」入口 POST /dev/pay/mock/:orderNo（只在非生产环境、mock 渠道）。
 	DevMockPay bool
 	// DevOSS 不为空时注册本地 mock OSS 的直传入口 PUT /dev/oss/*key（只在非生产环境）。
@@ -98,7 +103,7 @@ func NewRouter(deps Deps) (*gin.Engine, error) {
 	r.TrustedPlatform = "X-Real-IP"
 	_ = r.SetTrustedProxies(nil)
 
-	r.Use(RequestID(deps.Logger), AccessLog(), Recovery(), Errors())
+	r.Use(RequestID(deps.Logger), AccessLog(), Metrics(deps.Metrics), Recovery(), Errors())
 
 	r.NoRoute(func(c *gin.Context) { _ = c.Error(ErrNotFound()) })
 	r.NoMethod(func(c *gin.Context) { _ = c.Error(ErrNotFound()) })

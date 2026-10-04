@@ -3791,6 +3791,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 埋点批量上报（PRD 15 节）
+         * @description App 攒一批再报（最多 100 条）。事件名只收 PRD 15 节列出的，不认识的跳过；属性只收布尔、数字和不超过 64 个字的字符串，键名像正文（text、answer、content、stem、note、phone…）的丢掉。事件里不能带作答原文和资料内容。用户 ID 由服务端从登录态取。
+         */
+        post: operations["postEvents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5690,6 +5710,22 @@ export interface components {
             published_at: string;
             /** Format: date-time */
             rolled_back_at?: string;
+        };
+        EventBatch: {
+            app_version: string;
+            /** @enum {string} */
+            platform: "ios" | "android";
+            subject_code?: string;
+            stage?: string;
+            events: components["schemas"]["AppEvent"][];
+        };
+        AppEvent: {
+            name: string;
+            /** Format: date-time */
+            at: string;
+            props?: {
+                [key: string]: unknown;
+            };
         };
         RedeemResult: {
             /** @enum {string} */
@@ -12696,6 +12732,33 @@ export interface operations {
             };
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    postEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventBatch"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        accepted: number;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
         };
     };
 }

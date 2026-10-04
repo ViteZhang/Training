@@ -6,7 +6,7 @@ import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, ErrorState, Loading, Screen, Tag, Text } from '@/components';
 import { PageHeader } from '@/features/import/ui';
@@ -14,11 +14,13 @@ import { channelNames, ruleText, useMemberCenter, yuan } from '@/features/member
 import { launchPay } from '@/features/membership/pay';
 import { tierNames, ymd } from '@/features/mine/api';
 import { api, unwrap } from '@/lib/api';
+import { track } from '@/lib/analytics';
 
 const positioning: Record<Schemas['PlanTier'], string> = { sprint: '冲刺期考生', season: '默认推荐', monthly: '灵活试用' };
 
 export default function MemberCenter() {
   const center = useMemberCenter();
+  useEffect(() => track('member_page_view'), []);
   const c = center.data;
   const plans = useMemo(() => c?.plans ?? [], [c]);
   // iOS 只能用 App 内购买；安卓用微信支付、支付宝（PRD 13.3）。

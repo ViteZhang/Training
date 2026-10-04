@@ -5,6 +5,7 @@ import { Icon, type IconName } from '@/components/Icon';
 import { useFlushOnForeground } from '@/features/practice/offline';
 import { useReminderSync } from '@/lib/reminders';
 import { useSession } from '@/lib/session';
+import { useAnalytics } from '@/lib/useAnalytics';
 
 const tabs: { name: string; title: string; icon: IconName }[] = [
   { name: 'today', title: '今日', icon: 'today' },
@@ -18,6 +19,7 @@ export default function TabsLayout() {
   const session = useSession((s) => s.session);
   useFlushOnForeground();
   useReminderSync(!!session);
+  useAnalytics(!!session);
   if (!session) return <Redirect href="/(auth)/login" />;
   return (
     <Tabs

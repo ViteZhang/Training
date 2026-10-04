@@ -50,6 +50,8 @@ type Config struct {
 	ExportLatinFontPath string
 
 	// AliyunAccessKeyID / Secret 供 OCR、语音、内容安全等阿里云服务共用。
+	// AlertWebhookURL 是告警推送的钉钉或企业微信群机器人地址（含令牌，只放环境变量）；不配时告警只写日志。
+	AlertWebhookURL       string
 	AliyunAccessKeyID     string
 	AliyunAccessKeySecret string
 }
@@ -195,6 +197,7 @@ func load(getenv func(string) string) (*Config, error) {
 			AppleBundleID:           get("APPLE_IAP_BUNDLE_ID", "cn.dreamelab.training"),
 		},
 
+		AlertWebhookURL:       get("ALERT_WEBHOOK_URL", ""),
 		AliyunAccessKeyID:     get("ALIYUN_ACCESS_KEY_ID", ""),
 		AliyunAccessKeySecret: get("ALIYUN_ACCESS_KEY_SECRET", ""),
 	}

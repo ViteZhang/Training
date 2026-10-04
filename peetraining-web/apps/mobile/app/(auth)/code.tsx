@@ -12,6 +12,7 @@ import { formatPhone } from '@/features/auth/phone';
 import { routeFor } from '@/features/auth/routing';
 import { api, unwrap } from '@/lib/api';
 import { deviceId, platform } from '@/lib/device';
+import { track } from '@/lib/analytics';
 
 const LEN = 6;
 
@@ -47,6 +48,7 @@ export default function Code() {
         }),
       );
       saveTokens(res);
+      track('login_success', { is_new_user: res.is_new_user });
       router.replace(routeFor({ loggedIn: true, onboardingStep: res.is_new_user ? '1.1' : res.user.onboarding_step }));
     } catch (e) {
       setCode('');

@@ -11,6 +11,7 @@ import { setStep } from '@/features/onboarding/api';
 import { loadDraft, saveDraft } from '@/features/onboarding/draft';
 import { Footer, OptionCard, StepHeader } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
+import { track } from '@/lib/analytics';
 
 export default function SubjectStep() {
   const qc = useQueryClient();
@@ -38,6 +39,7 @@ export default function SubjectStep() {
     setBusy(true);
     try {
       await unwrap(api.POST('/subjects', { body: { name: name.trim(), code: code.trim() || null, full_score: 150 } }));
+      track('subject_add', { from: 'onboarding', has_code: !!code.trim() });
       setName('');
       setCode('');
       await qc.invalidateQueries({ queryKey: ['subjects'] });
