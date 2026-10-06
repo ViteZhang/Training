@@ -92,7 +92,7 @@ describe('4.1 训练首页', () => {
     mockResponses['POST /practice-sessions'] = () => ({ status: 201, data: session() });
     await wrap(<TrainTab />);
     expect(await screen.findByText('0 / 12 · 约 44 分钟')).toBeTruthy();
-    expect(screen.getByText('本周题型专项 · 名词解释')).toBeTruthy();
+    expect(screen.getByText('本周题型专项 · 名词解释 2 / 3')).toBeTruthy();
     expect(screen.getByText('23 题 · 8 题到了复习日')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('练单选'));
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith({ pathname: '/practice/[id]', params: { id: '50' } }));
@@ -204,11 +204,12 @@ describe('4.12 错题本', () => {
     });
     mockResponses['POST /practice-sessions'] = () => ({ status: 201, data: session({ kind: 'wrong_redo' }) });
     await wrap(<WrongBookPage />);
-    expect(await screen.findByText('意境 · 2 题')).toBeTruthy();
+    expect(await screen.findByText('意境')).toBeTruthy();
+    expect(screen.getByText('2 题')).toBeTruthy();
     expect(screen.getByText('5')).toBeTruthy();
     expect(screen.getByText('习题 · 最近得分率 60%')).toBeTruthy();
     await fireEvent.press(screen.getByText('按失分原因'));
-    expect(screen.getByText('答题不规范 · 1 题')).toBeTruthy();
+    expect(screen.getByText('答题不规范')).toBeTruthy();
     await fireEvent.press(screen.getByText('重做全部 2 题'));
     await waitFor(() => expect(mockCalls.find((c) => c.path === '/practice-sessions')?.init).toEqual({ body: { subject_id: 7, kind: 'wrong_redo', ai_fill: false } }));
   });

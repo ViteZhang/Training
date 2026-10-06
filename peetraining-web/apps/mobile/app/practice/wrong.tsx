@@ -1,7 +1,7 @@
 // 4.12 错题本：统计（总数、待重做、本周新增、已消灭）；按知识点 / 题型 / 失分原因分组；每题显示错误次数或最近得分、来源；
 // 「重做」一组、「重做全部」按下次复习日升序。收录与移出规则见 PRD 11.8。
 import type { Schemas } from '@training/api-client';
-import { semantic, spacing } from '@training/ui-tokens';
+import { colors, fontFamily, semantic, spacing } from '@training/ui-tokens';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -9,7 +9,6 @@ import { Button, Card, EmptyState, ErrorState, Loading, Screen, Text } from '@/c
 import { qtypeNames } from '@/features/import/api';
 import { PageHeader, Segments } from '@/features/import/ui';
 import { addedReasonNames, lossNames, useStartPractice, useWrongBook } from '@/features/practice/api';
-import { Stat } from '@/features/today/Cards';
 
 type By = Schemas['WrongGroupBy'];
 type Item = Schemas['WrongItem'];
@@ -55,10 +54,21 @@ export default function WrongBookPage() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <PageHeader title="错题本" onBack={() => router.back()} />
         <View style={styles.stats}>
-          <Stat value={d.total} unit="总数" />
-          <Stat value={d.to_redo} unit="待重做" />
-          <Stat value={d.week_new} unit="本周新增" />
-          <Stat value={d.eliminated} unit="已消灭" />
+          <View style={styles.stat}>
+            <Text style={styles.statNum}>{d.to_redo}</Text>
+            <View style={styles.dotRow}>
+              <View style={styles.dot} />
+              <Text variant="small">待重做</Text>
+            </View>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statNum}>{d.week_new}</Text>
+            <Text variant="small">本周新增</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statNum}>{d.eliminated}</Text>
+            <Text variant="small">已消灭</Text>
+          </View>
         </View>
         {d.items.length === 0 ? (
           <EmptyState title="没有待重做的错题" desc="答错、没拿满分或看了答案的题会收进来；在两个不同日期连续答对后自动移出" />
@@ -76,11 +86,14 @@ export default function WrongBookPage() {
             {groups.map((g) => (
               <Card key={`${g.key}:${g.name}`} style={styles.card}>
                 <View style={styles.row}>
-                  <Text variant="bodyStrong" style={styles.flex}>
-                    {g.name} · {g.items.length} 题
-                  </Text>
+                  <View style={[styles.flex, styles.gap2]}>
+                    <Text variant="body" style={styles.bold}>
+                      {g.name}
+                    </Text>
+                    <Text variant="small">{g.items.length} 题</Text>
+                  </View>
                   {g.key ? (
-                    <Button title="重做" kind="text" onPress={() => start.mutate({ subject_id: sid, kind: 'wrong_redo', wrong_group: { by, key: g.key } })} />
+                    <Button title="重做这组" kind="soft" size="sm" onPress={() => start.mutate({ subject_id: sid, kind: 'wrong_redo', wrong_group: { by, key: g.key } })} />
                   ) : null}
                 </View>
                 {g.items.map((it) => (
@@ -93,7 +106,7 @@ export default function WrongBookPage() {
                     <Text variant="body" numberOfLines={2}>
                       {qtypeNames[it.qtype]}：{it.stem}
                     </Text>
-                    <Text variant="caption">{sourceLine(it)}</Text>
+                    <Text variant="small">{sourceLine(it)}</Text>
                   </Pressable>
                 ))}
               </Card>
@@ -102,17 +115,26 @@ export default function WrongBookPage() {
         )}
       </ScrollView>
       {d.items.length > 0 ? (
-        <Button title={`重做全部 ${d.total} 题`} loading={start.isPending} onPress={() => start.mutate({ subject_id: sid, kind: 'wrong_redo' })} />
+        <View style={styles.footer}>
+          <Button title={`重做全部 ${d.total} 题`} loading={start.isPending} onPress={() => start.mutate({ subject_id: sid, kind: 'wrong_redo' })} />
+        </View>
       ) : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { gap: spacing.md, paddingBottom: spacing.xl },
-  stats: { flexDirection: 'row', gap: spacing.sm },
-  card: { gap: spacing.xs },
-  row: { flexDirection: 'row', alignItems: 'center' },
+  scroll: { gap: 12, paddingBottom: spacing.xl },
+  stats: { flexDirection: 'row', marginTop: spacing.sm, marginBottom: 4 },
+  stat: { flex: 1, gap: 2 },
+  statNum: { fontFamily: fontFamily.numberSemiBold, fontSize: 26, lineHeight: 32, color: colors.ink },
+  dotRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.amber },
+  card: { gap: 4, paddingVertical: 14 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 4 },
   flex: { flex: 1 },
-  item: { minHeight: 48, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: semantic.border, gap: 2 },
+  gap2: { gap: 2 },
+  bold: { fontWeight: '700' },
+  item: { minHeight: 52, paddingVertical: 10, borderTopWidth: 1, borderTopColor: semantic.border, gap: 2 },
+  footer: { paddingVertical: spacing.md },
 });
