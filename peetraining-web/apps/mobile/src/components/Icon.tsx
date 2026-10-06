@@ -20,7 +20,19 @@ const paths = {
   lock: <Path d="M6 10h12v10H6zM8 10V7a4 4 0 0 1 8 0v3" />,
   close: <Path d="M6 6l12 12M18 6L6 18" />,
   check: <Path d="M5 12l5 5L20 7" />,
-  bell: <Path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0" />,
+  bell: <Path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0" />,
+  chevron: <Path d="M9 5l7 7-7 7" />,
+  back: <Path d="M15 5l-7 7 7 7" />,
+  edit: <Path d="M4 20h4L18 10l-4-4L4 16zM14 6l4 4" />,
+  pen: <Path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" />,
+  wrong: (
+    <>
+      <Circle cx={12} cy={12} r={8.5} />
+      <Path d="M9 9l6 6M15 9l-6 6" />
+    </>
+  ),
+  paper: <Path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6" />,
+  book: <Path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5zM5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3" />,
 } as const;
 
 export type IconName = keyof typeof paths;

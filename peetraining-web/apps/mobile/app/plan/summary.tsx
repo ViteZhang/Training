@@ -1,65 +1,157 @@
-// 2.2 今日训练完成：连续打卡、题数、正确率、用时、新增已掌握、主观题失分归因。预估分变化在 T22 接通。
-import { semantic, spacing } from '@training/ui-tokens';
+// 2.2 今日训练完成：连续打卡、题数、正确率、用时、预估分变化、掌握度变化、主观题失分归因。
+import type { Schemas } from '@training/api-client';
+import { colors, fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
 import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, ErrorState, Loading, ProgressBar, Screen, Text } from '@/components';
-import { lossNames, minutes, useTodaySummary } from '@/features/today/api';
-import { Stat } from '@/features/today/Cards';
+import { BackButton, Button, Card, ErrorState, Loading, Screen, Text } from '@/components';
+import { stateNames } from '@/features/bank/api';
+import { lossNames, minutes, useHome, useTodaySummary } from '@/features/today/api';
+
+const stateTone: Record<Schemas['MasteryState'], { bg: string; fg: string; border?: string }> = {
+  unlearned: { bg: 'transparent', fg: colors.gray, border: semantic.border },
+  learning: { bg: semantic.fill, fg: colors.gray },
+  consolidating: { bg: semantic.amberSoft, fg: '#8A4B12' },
+  mastered: { bg: colors.indigo, fg: colors.white },
+};
+
+function State({ s }: { s: Schemas['MasteryState'] }) {
+  const t = stateTone[s];
+  return (
+    <View style={[styles.state, { backgroundColor: t.bg }, t.border ? { borderWidth: 1, borderColor: t.border } : null]}>
+      <Text variant="small" color={t.fg}>
+        {stateNames[s]}
+      </Text>
+    </View>
+  );
+}
+
+function Tile({ value, unit, label }: { value: number | string; unit?: string; label: string }) {
+  return (
+    <View style={styles.tile}>
+      <Text style={styles.tileNum}>
+        {value}
+        {unit ? <Text variant="caption" color={colors.ink}>{unit}</Text> : null}
+      </Text>
+      <Text variant="small">{label}</Text>
+    </View>
+  );
+}
+
+const lossColors = [colors.amber, colors.blue, '#8C80E0'];
 
 export default function TodaySummaryPage() {
   const q = useTodaySummary();
+  const home = useHome();
   if (q.isLoading) return <Screen><Loading rows={5} /></Screen>;
   if (q.isError || !q.data) return <Screen><ErrorState error={q.error} onRetry={() => void q.refetch()} /></Screen>;
   const s = q.data;
-  const losses = (Object.keys(lossNames) as (keyof typeof lossNames)[]).filter((k) => s.loss_shares[k] !== undefined);
+  const losses = (Object.keys(lossNames) as (keyof typeof lossNames)[]).filter((k) => (s.loss_shares[k] ?? 0) > 0);
+  const changed = (home.data?.estimates ?? []).filter((e) => e.ready && e.today_change);
   return (
     <Screen>
+      <View style={styles.close}>
+        <BackButton icon="close" label="关闭" onPress={() => router.replace('/(tabs)/today')} />
+      </View>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text variant="h1">今日训练完成</Text>
-        <Text variant="body">
-          已连续打卡 <Text variant="number">{s.streak_days}</Text> 天
-        </Text>
-        <View style={styles.stats}>
-          <Stat value={s.question_count} unit="道题" />
-          <Stat value={`${Math.round(s.correct_rate * 100)}%`} unit="正确率" />
-          <Stat value={minutes(s.minutes)} unit="分钟" />
+        <View style={styles.gap4}>
+          <Text variant="h1">今日训练完成</Text>
+          <Text variant="caption">
+            已连续打卡 <Text variant="caption" color={colors.ink} style={styles.bold}>{s.streak_days}</Text> 天
+          </Text>
         </View>
-        {s.new_mastered > 0 ? (
-          <Card style={styles.card}>
-            <Text variant="bodyStrong">掌握度变化</Text>
-            <Text variant="body" color={semantic.mastered}>
-              新增 {s.new_mastered} 个已掌握
+        <View style={styles.tiles}>
+          <Tile value={s.question_count} label="道题" />
+          <Tile value={Math.round(s.correct_rate * 100)} unit="%" label="正确率" />
+          <Tile value={minutes(s.minutes)} label="分钟" />
+        </View>
+
+        {changed.map((e) => (
+          <Card key={e.subject_id} style={styles.estimate}>
+            <View style={styles.flex}>
+              <Text variant="small">{e.name} 预估分</Text>
+              <Text style={styles.range}>
+                {e.low}–{e.high}
+              </Text>
+              {e.main_gap_dimension ? <Text variant="small">{e.main_gap_dimension}</Text> : null}
+            </View>
+            <Text style={[styles.change, { color: (e.today_change ?? 0) > 0 ? colors.green : colors.red }]}>
+              {(e.today_change ?? 0) > 0 ? `+${e.today_change}` : e.today_change}
             </Text>
           </Card>
-        ) : null}
-        {losses.length > 0 ? (
-          <Card style={styles.card}>
-            <Text variant="bodyStrong">主观题失分</Text>
-            {losses.map((k) => (
-              <View key={k} style={styles.loss}>
-                <View style={styles.row}>
-                  <Text variant="body" style={styles.flex}>
-                    {lossNames[k]}
+        ))}
+
+        {s.mastery_changes.length > 0 ? (
+          <View style={styles.section}>
+            <View style={styles.row}>
+              <Text variant="h3" style={styles.flex}>
+                掌握度变化
+              </Text>
+              <Text variant="caption">共 {s.mastery_changes.length} 个</Text>
+            </View>
+            <Card style={styles.list}>
+              {s.mastery_changes.slice(0, 5).map((c, i) => (
+                <View key={c.kp_id} style={[styles.change_row, i > 0 && styles.divider]}>
+                  <Text variant="body" style={styles.flex} numberOfLines={1}>
+                    {c.name}
                   </Text>
-                  <Text variant="bodyStrong">{Math.round((s.loss_shares[k] ?? 0) * 100)}%</Text>
+                  <State s={c.from} />
+                  <Text variant="small">→</Text>
+                  <State s={c.to} />
                 </View>
-                <ProgressBar value={s.loss_shares[k] ?? 0} />
-              </View>
-            ))}
-          </Card>
+              ))}
+            </Card>
+          </View>
         ) : null}
-        <Button title="再练一组" onPress={() => router.replace('/(tabs)/train')} />
-        <Button title="回到今日" kind="text" onPress={() => router.replace('/(tabs)/today')} />
+
+        {losses.length > 0 ? (
+          <View style={styles.section}>
+            <Text variant="h3">主观题失分</Text>
+            <Card tone="fill" style={styles.gap8}>
+              <View style={styles.lossBar}>
+                {losses.map((k, i) => (
+                  <View key={k} style={{ flex: s.loss_shares[k] ?? 0, backgroundColor: lossColors[i] }} />
+                ))}
+              </View>
+              <View style={styles.lossLegend}>
+                {losses.map((k) => (
+                  <Text key={k} variant="small">
+                    {lossNames[k]} <Text variant="small" color={colors.ink}>{Math.round((s.loss_shares[k] ?? 0) * 100)}%</Text>
+                  </Text>
+                ))}
+              </View>
+            </Card>
+          </View>
+        ) : null}
       </ScrollView>
+      <View style={styles.footer}>
+        <Button title="再练一组" kind="secondary" style={styles.flex} onPress={() => router.replace('/(tabs)/train')} />
+        <Button title="回到今日" style={styles.flex2} onPress={() => router.replace('/(tabs)/today')} />
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { gap: spacing.md, paddingTop: spacing.xl, paddingBottom: spacing.xl },
-  stats: { flexDirection: 'row', gap: spacing.sm },
-  card: { gap: spacing.sm },
-  loss: { gap: spacing.xs },
+  close: { alignItems: 'flex-end', marginRight: -12 },
+  scroll: { gap: spacing.xl, paddingTop: spacing.sm, paddingBottom: spacing.xl },
+  gap4: { gap: 4 },
+  gap8: { gap: 8 },
+  bold: { fontWeight: '700' },
+  tiles: { flexDirection: 'row', gap: 8 },
+  tile: { flex: 1, gap: 2, paddingVertical: 14, paddingHorizontal: 14, borderRadius: radius.xl, backgroundColor: semantic.fill },
+  tileNum: { fontFamily: fontFamily.numberSemiBold, fontSize: 28, lineHeight: 34, color: colors.ink },
+  estimate: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  range: { fontFamily: fontFamily.numberSemiBold, fontSize: 22, lineHeight: 28, color: colors.indigo },
+  change: { fontFamily: fontFamily.numberSemiBold, fontSize: 20 },
+  section: { gap: 10 },
   row: { flexDirection: 'row', alignItems: 'center' },
   flex: { flex: 1 },
+  flex2: { flex: 1.6 },
+  list: { paddingVertical: 0 },
+  change_row: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 52 },
+  divider: { borderTopWidth: 1, borderTopColor: semantic.border },
+  state: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill },
+  lossBar: { flexDirection: 'row', gap: 2, height: 8, borderRadius: 4, overflow: 'hidden' },
+  lossLegend: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+  footer: { flexDirection: 'row', gap: 10, paddingVertical: spacing.md },
 });

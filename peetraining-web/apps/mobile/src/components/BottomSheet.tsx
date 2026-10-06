@@ -22,7 +22,7 @@ export function BottomSheet({ visible, onClose, title, children, dismissible = t
       <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]}>
         <View style={styles.handle} />
         {title ? (
-          <Text variant="h3" style={styles.title}>
+          <Text variant="h2" style={styles.title}>
             {title}
           </Text>
         ) : null}
@@ -36,11 +36,11 @@ const styles = StyleSheet.create({
   mask: { flex: 1, backgroundColor: 'rgba(27,26,23,0.45)' },
   sheet: {
     backgroundColor: semantic.surface,
-    borderTopLeftRadius: radius.xl + 4,
-    borderTopRightRadius: radius.xl + 4,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.sm,
+    borderTopLeftRadius: radius.card,
+    borderTopRightRadius: radius.card,
+    paddingHorizontal: 22,
+    paddingTop: 10,
   },
-  handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: semantic.border, marginBottom: spacing.md },
-  title: { marginBottom: spacing.md },
+  handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: semantic.border, marginBottom: 14 },
+  title: { marginBottom: 6 },
 });

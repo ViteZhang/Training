@@ -17,11 +17,11 @@ describe('ui-tokens', () => {
     }
   });
 
-  it('字号层级与 VI 第 05 板一致', () => {
-    expect([typography.h1.fontSize, typography.h1.lineHeight]).toEqual([32, 40]);
-    expect([typography.h2.fontSize, typography.h2.lineHeight]).toEqual([22, 30]);
-    expect([typography.body.fontSize, typography.body.lineHeight]).toEqual([16, 24]);
-    expect([typography.caption.fontSize, typography.caption.lineHeight]).toEqual([13, 18]);
-    expect([typography.score.fontSize, typography.score.lineHeight]).toEqual([48, 52]);
+  it('字号层级与设计稿一致，品牌标题沿用 VI H1', () => {
+    expect([typography.display.fontSize, typography.display.lineHeight]).toEqual([32, 40]);
+    expect(typography.h1.fontSize).toBe(26);
+    expect(typography.h3.fontSize).toBe(17);
+    expect(typography.body.fontSize).toBe(15);
+    expect(typography.caption.fontSize).toBe(13);
   });
 });

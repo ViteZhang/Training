@@ -1,22 +1,23 @@
 import { layout, radius, semantic, spacing } from '@training/ui-tokens';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Button, Icon, ProgressBar, Tag, Text } from '@/components';
+import { Button, Icon, NavBar, ProgressBar, Tag, Text } from '@/components';
 import type { Picked } from './files';
 
-/** 导入流程里非引导页面的顶部：返回 + 标题 + 说明。 */
-export function PageHeader({ title, desc, onBack, right }: { title: string; desc?: string; onBack?: () => void; right?: ReactNode }) {
+/**
+ * 二级页顶部。默认是设计稿的顶部栏：返回 + 居中标题 + 右侧操作；
+ * large（有 desc 时默认）用于导入等流程页：返回一行，下面 26 号大标题和说明。
+ */
+export function PageHeader({ title, desc, onBack, right, large }: { title: string; desc?: string; onBack?: () => void; right?: ReactNode; large?: boolean }) {
+  if (!(large ?? !!desc)) return <NavBar title={title} onBack={onBack} back={!!onBack} right={right} />;
   return (
     <View style={styles.header}>
-      <View style={styles.headerRow}>
-        {onBack ? <Button title="返回" kind="text" onPress={onBack} /> : <View />}
-        {right}
-      </View>
+      <NavBar onBack={onBack} back={!!onBack} right={right} />
       <Text variant="h1" style={styles.title}>
         {title}
       </Text>
       {desc ? (
-        <Text variant="body" color={semantic.textSecondary}>
+        <Text variant="caption" style={styles.desc}>
           {desc}
         </Text>
       ) : null}
@@ -97,9 +98,9 @@ export function Segments<T extends string>({ options, value, onChange }: { optio
 }
 
 const styles = StyleSheet.create({
-  header: { paddingTop: spacing.sm, paddingBottom: spacing.lg, gap: spacing.xs },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 44 },
-  title: { marginTop: spacing.sm },
+  header: { paddingBottom: spacing.lg, gap: 6 },
+  title: { marginTop: spacing.lg },
+  desc: { fontSize: 14, lineHeight: 21 },
   check: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44 },
   box: { width: 22, height: 22, borderRadius: radius.sm, borderWidth: 1.5, borderColor: semantic.border, alignItems: 'center', justifyContent: 'center' },
   boxOn: { backgroundColor: semantic.primary, borderColor: semantic.primary },
@@ -107,7 +108,7 @@ const styles = StyleSheet.create({
   file: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: semantic.border },
   badge: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: semantic.primarySoft, alignItems: 'center', justifyContent: 'center' },
   progress: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  segments: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
-  segment: { paddingHorizontal: spacing.md, minHeight: 36, justifyContent: 'center', borderRadius: radius.lg, backgroundColor: semantic.surface, borderWidth: 1, borderColor: semantic.border },
+  segments: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  segment: { paddingHorizontal: 14, minHeight: 34, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: semantic.fill },
   segmentOn: { backgroundColor: semantic.primary, borderColor: semantic.primary },
 });
