@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { Button, EmptyState, ErrorState, Loading, Screen, Text } from '@/components';
+import { Button, EmptyState, ErrorState, Icon, Loading, Screen, Text } from '@/components';
 import { qtypeNames } from '@/features/import/api';
 import { api, unwrap } from '@/lib/api';
 import { storage } from '@/lib/storage';
@@ -48,7 +48,9 @@ export default function SearchScreen() {
   return (
     <Screen>
       <View style={styles.bar}>
-        <TextInput
+        <View style={styles.box}>
+          <Icon name="search" size={18} color={semantic.textSecondary} />
+          <TextInput
           accessibilityLabel="搜索"
           autoFocus
           placeholder="搜索知识点、题目或原文"
@@ -58,8 +60,9 @@ export default function SearchScreen() {
           returnKeyType="search"
           style={styles.input}
           maxFontSizeMultiplier={layout.maxFontScale}
-        />
-        <Button title="取消" kind="text" onPress={() => router.back()} />
+          />
+        </View>
+        <Button title="取消" kind="text" color={semantic.textPrimary} style={styles.cancel} onPress={() => router.back()} />
       </View>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {!q ? (
@@ -67,7 +70,7 @@ export default function SearchScreen() {
             {recent.length > 0 ? <Text variant="caption">最近搜索</Text> : null}
             <View style={styles.row}>
               {recent.map((t) => (
-                <Button key={t} title={t} kind="secondary" onPress={() => submit(t)} />
+                <Button key={t} title={t} kind="soft" size="sm" onPress={() => submit(t)} />
               ))}
             </View>
           </View>
@@ -116,9 +119,11 @@ export default function SearchScreen() {
 
 const styles = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
-  input: { flex: 1, minHeight: 44, borderRadius: radius.lg, paddingHorizontal: spacing.md, fontSize: 16, color: semantic.textPrimary, backgroundColor: semantic.surface, borderWidth: 1, borderColor: semantic.border },
+  box: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 46, paddingHorizontal: 16, borderRadius: radius.pill, backgroundColor: semantic.fill },
+  input: { flex: 1, minWidth: 0, minHeight: 44, fontSize: 15, color: semantic.textPrimary },
+  cancel: { paddingHorizontal: 0 },
   scroll: { paddingBottom: spacing.xl, gap: spacing.sm },
   gap: { gap: spacing.sm },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
-  item: { paddingVertical: spacing.sm, gap: 2, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: semantic.border },
+  item: { paddingVertical: 12, gap: 2, borderBottomWidth: 1, borderBottomColor: semantic.border },
 });

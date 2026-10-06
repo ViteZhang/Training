@@ -1,7 +1,7 @@
 // 3.1b 题目：按题型筛选（显示各题型题数）、按来源筛选、按章节或最近排序；每题显示得分或状态、所属板块章节、做过几次；
 // AI 出题注明由哪个知识点生成。
 import type { Schemas } from '@training/api-client';
-import { semantic, spacing } from '@training/ui-tokens';
+import { radius, semantic } from '@training/ui-tokens';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -19,20 +19,27 @@ function QuestionRow({ q }: { q: Schemas['QuestionSummary'] }) {
   const meta = [q.path.join(' · ')];
   if (q.attempt_count > 0) meta.push(`做过 ${q.attempt_count} 次`);
   if (q.generated_from_kp) meta.push(`由「${q.generated_from_kp}」生成`);
-  const tone = q.status_tag === 'wrong' || q.status_tag === 'needs_review' ? 'danger' : q.status_tag === 'mastered' ? 'mastered' : 'neutral';
+  const bad = q.status_tag === 'wrong' || q.status_tag === 'needs_review';
+  const state = q.last_score !== undefined && q.score !== undefined && q.status_tag !== 'needs_review' ? `${q.last_score} / ${q.score}` : statusTagNames[q.status_tag];
   return (
     <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/bank/question/[id]', params: { id: String(q.id) } })} style={styles.row}>
       <View style={styles.head}>
-        <Text variant="caption" style={styles.flex}>
-          {qtypeNames[q.qtype]}
-          {q.score !== undefined ? ` · ${q.score} 分` : ''} · {sourceLabel(q.source, q.exam_year)}
+        <View style={styles.pill}>
+          <Text variant="small" color={semantic.textPrimary} style={styles.medium}>
+            {qtypeNames[q.qtype]}
+            {q.score !== undefined ? ` · ${q.score} 分` : ''}
+          </Text>
+        </View>
+        {q.source === 'ai_generated' ? <Tag label="AI 出题" tone="ai" /> : <Text variant="small">{sourceLabel(q.source, q.exam_year)}</Text>}
+        <View style={styles.flex} />
+        <Text variant="small" color={bad ? '#9A5B00' : q.status_tag === 'mastered' ? semantic.mastered : semantic.textPrimary} style={styles.medium}>
+          {state}
         </Text>
-        <Tag label={q.last_score !== undefined && q.score !== undefined && q.status_tag !== 'needs_review' ? `${q.last_score} / ${q.score}` : statusTagNames[q.status_tag]} tone={tone} />
       </View>
       <Text variant="body" numberOfLines={2}>
         {q.stem}
       </Text>
-      {meta.filter(Boolean).length ? <Text variant="caption">{meta.filter(Boolean).join(' · ')}</Text> : null}
+      {meta.filter(Boolean).length ? <Text variant="small">{meta.filter(Boolean).join(' · ')}</Text> : null}
     </Pressable>
   );
 }
@@ -83,9 +90,11 @@ export function QuestionList({ subjectId, kpId, status }: { subjectId: number; k
         <Button
           title={`按来源：${source === 'all' ? '全部' : sourceNames[source]}`}
           kind="text"
+          size="sm"
+          style={styles.tool}
           onPress={() => setSource(sources[(sources.indexOf(source) + 1) % sources.length]!)}
         />
-        <Button title={sort === 'chapter' ? '按章节排序' : '最近做过'} kind="text" onPress={() => setSort(sort === 'chapter' ? 'recent' : 'chapter')} />
+        <Button title={sort === 'chapter' ? '按章节排序 ▾' : '最近做过 ▾'} kind="text" size="sm" color={semantic.textPrimary} style={styles.tool} onPress={() => setSort(sort === 'chapter' ? 'recent' : 'chapter')} />
       </View>
       {items.length === 0 ? <EmptyState title="没有符合条件的题" /> : items.map((q) => <QuestionRow key={q.id} q={q} />)}
       {list.hasNextPage ? <Button title="加载更多" kind="secondary" loading={list.isFetchingNextPage} onPress={() => void list.fetchNextPage()} /> : null}
@@ -94,9 +103,12 @@ export function QuestionList({ subjectId, kpId, status }: { subjectId: number; k
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: spacing.sm },
+  wrap: { gap: 10 },
   tools: { flexDirection: 'row', justifyContent: 'space-between' },
-  row: { paddingVertical: spacing.md, gap: spacing.xs, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: semantic.border },
-  head: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  tool: { paddingHorizontal: 0 },
+  row: { gap: 8, paddingVertical: 14, paddingHorizontal: 16, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: semantic.fill },
+  medium: { fontWeight: '500' },
   flex: { flex: 1 },
 });

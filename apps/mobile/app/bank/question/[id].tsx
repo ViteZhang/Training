@@ -5,8 +5,8 @@ import { layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { Button, Card, ConfirmDialog, ErrorState, Loading, Screen, Tag, Text, toast } from '@/components';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Button, Card, ConfirmDialog, ErrorState, InfoCard, Loading, RubricLine, Screen, Tag, Text, toast } from '@/components';
 import { bankKeys, shortDate, sourceLabel, useQuestion, type QuestionDetail } from '@/features/bank/api';
 import { isSubjective, qtypeNames, rubricTotal } from '@/features/import/api';
 import { RubricEditor } from '@/features/import/RubricEditor';
@@ -90,94 +90,117 @@ export default function QuestionScreen() {
   return (
     <Screen>
       <PageHeader
-        title={editing ? '编辑题目' : `${qtypeNames[q.qtype]}${q.score !== undefined ? ` · ${q.score} 分` : ''}`}
-        desc={editing ? undefined : sourceLabel(q.source, q.exam_year)}
+        title={editing ? '编辑题目' : '题目详情'}
         onBack={() => router.back()}
-        right={editing ? undefined : <Button title="编辑" kind="text" onPress={() => setEditing(true)} />}
+        right={editing ? undefined : <Button title="编辑" kind="text" color={semantic.textPrimary} style={styles.edit} onPress={() => setEditing(true)} />}
       />
       {editing ? (
         <Editor q={q} onDone={() => setEditing(false)} />
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <View style={styles.row}>
-            {q.origin_tags.includes('ai_generated') ? <Tag label="AI 出题" tone="ai" /> : null}
-            {q.needs_review ? <Tag label="待核对" tone="danger" /> : null}
-            {q.in_wrong_book ? <Tag label="错题本" tone="danger" /> : null}
-          </View>
-          {primary ? (
-            <Button title={`知识点 · ${primary.name} ›`} kind="text" style={styles.left} onPress={() => router.push({ pathname: '/bank/kp/[id]', params: { id: String(primary.id) } })} />
-          ) : null}
-          <Text variant="h3">{q.stem}</Text>
-          {q.options?.map((o) => (
-            <Text key={o.key} variant="body">
-              {o.key}. {o.text}
-            </Text>
-          ))}
-          <Card style={styles.gap}>
+        <>
+          <ScrollView contentContainerStyle={styles.scroll}>
             <View style={styles.row}>
-              <Text variant="bodyStrong" style={styles.flex}>
-                参考答案
-              </Text>
-              {q.answer_origin ? <Tag label={originNames[q.answer_origin] ?? ''} tone={q.answer_origin === 'ai_generated' ? 'ai' : 'neutral'} /> : null}
-            </View>
-            <Text variant="body">{q.answer ?? '还没有参考答案，点右上角「编辑」可以补上'}</Text>
-            {q.source_ref ? (
-              <View style={styles.row}>
-                <Text variant="caption" style={styles.flex}>
-                  出自：{q.source_ref.file_name}
-                  {q.source_ref.page ? ` · 第 ${q.source_ref.page} 页` : ''}
-                </Text>
-                {q.source_ref.page ? (
-                  <Button title="查看原文" kind="text" onPress={() => router.push({ pathname: '/bank/page', params: { materialId: String(q.source_ref!.material_id), page: String(q.source_ref!.page), highlight: q.stem.slice(0, 30) } })} />
-                ) : null}
-              </View>
-            ) : null}
-          </Card>
-          {q.rubric_points.length > 0 ? (
-            <Card style={styles.gap}>
-              <View style={styles.row}>
-                <Text variant="bodyStrong" style={styles.flex}>
-                  采分点 · 批改依据
-                </Text>
-                <Text variant="caption">
-                  {q.rubric_points.every((r) => r.origin === 'user_confirmed') ? '已确认' : '待确认'} · 合计 {rubricTotal(q.rubric_points)} 分
+              <View style={styles.pill}>
+                <Text variant="small" color={semantic.textPrimary} style={styles.medium}>
+                  {qtypeNames[q.qtype]}
+                  {q.score !== undefined ? ` · ${q.score} 分` : ''}
                 </Text>
               </View>
-              {q.rubric_points.map((r, i) => (
-                <View key={r.id} style={styles.row}>
-                  <Text variant="number" color={semantic.textSecondary}>
-                    {String(i + 1).padStart(2, '0')}
+              {q.origin_tags.includes('ai_generated') || q.source === 'ai_generated' ? (
+                <Tag label="AI 出题" tone="ai" />
+              ) : (
+                <View style={[styles.pill, q.source === 'exam' && styles.pillGreen]}>
+                  <Text variant="small" color={q.source === 'exam' ? '#1F5C3E' : semantic.textPrimary}>
+                    {sourceLabel(q.source, q.exam_year)}
                   </Text>
-                  <Text variant="body" style={styles.flex}>
-                    {r.content}
-                  </Text>
-                  {r.score !== undefined ? <Text variant="caption">{r.score} 分</Text> : null}
                 </View>
-              ))}
-            </Card>
-          ) : null}
-          <Card style={styles.gap}>
-            <Text variant="bodyStrong">我的作答 · {q.attempts.length} 次</Text>
-            {q.attempts.length === 0 ? <Text variant="caption">还没做过这道题</Text> : null}
-            {q.attempts.map((a) => (
-              <View key={a.attempt_id} style={styles.attempt}>
-                <Text variant="body">
-                  {shortDate(a.answered_at)}
-                  {a.score !== undefined ? ` · ${a.score}${a.full_score !== undefined ? ` / ${a.full_score}` : ''} 分` : a.is_correct !== undefined ? (a.is_correct ? ' · 答对' : ' · 答错') : ''}
-                </Text>
-                {a.missed_points?.length || a.loss_types?.length ? (
-                  <Text variant="caption">
-                    {[a.missed_points?.length ? `遗漏${a.missed_points.map((m) => `「${m}」`).join('')}` : '', ...(a.loss_types ?? []).map((t) => lossNames[t])].filter(Boolean).join(' · ')}
+              )}
+              {primary ? (
+                <Pressable accessibilityRole="link" onPress={() => router.push({ pathname: '/bank/kp/[id]', params: { id: String(primary.id) } })} style={[styles.pill, styles.pillLine]}>
+                  <Text variant="small" color={semantic.textPrimary}>
+                    知识点 · {primary.name} ›
                   </Text>
-                ) : null}
-              </View>
+                </Pressable>
+              ) : null}
+              {q.needs_review ? <Tag label="待核对" tone="danger" /> : null}
+            </View>
+            <Text variant="h1" style={styles.stem}>
+              {q.stem}
+            </Text>
+            {q.options?.map((o) => (
+              <Text key={o.key} variant="body">
+                {o.key}. {o.text}
+              </Text>
             ))}
-          </Card>
-          <View style={styles.actions}>
-            <Button title="删除这道题" kind="secondary" onPress={() => setRemoving(true)} style={styles.flex} />
-            <Button title="再练这道题" onPress={() => toast('练习在训练模块上线后开放')} style={styles.flex} />
+            <InfoCard label="参考答案" right={q.answer_origin === 'ai_generated' ? <Tag label="AI 生成" tone="ai" /> : q.answer_origin ? originNames[q.answer_origin] : undefined}>
+              <Text variant="body" style={styles.lh}>
+                {q.answer ?? '还没有参考答案，点右上角「编辑」可以补上'}
+              </Text>
+              {q.source_ref ? (
+                <View style={styles.sourceRow}>
+                  <Text variant="small" style={styles.flex}>
+                    出自：{q.source_ref.file_name}
+                    {q.source_ref.page ? ` · 第 ${q.source_ref.page} 页` : ''}
+                  </Text>
+                  {q.source_ref.page ? (
+                    <Button
+                      title="查看原文 ›"
+                      kind="text"
+                      size="sm"
+                      color={semantic.textPrimary}
+                      style={styles.link}
+                      onPress={() => router.push({ pathname: '/bank/page', params: { materialId: String(q.source_ref!.material_id), page: String(q.source_ref!.page), highlight: q.stem.slice(0, 30) } })}
+                    />
+                  ) : null}
+                </View>
+              ) : null}
+            </InfoCard>
+            {q.rubric_points.length > 0 ? (
+              <InfoCard
+                label="采分点 · 批改依据"
+                right={
+                  <Text variant="small" color={q.rubric_points.every((r) => r.origin === 'user_confirmed') ? semantic.mastered : '#9A5B00'}>
+                    {q.rubric_points.every((r) => r.origin === 'user_confirmed') ? '已确认' : '待确认'} · 合计 {rubricTotal(q.rubric_points)} 分
+                  </Text>
+                }
+              >
+                {q.rubric_points.map((r, i) => (
+                  <RubricLine key={r.id} index={i} content={r.content} score={r.score} />
+                ))}
+              </InfoCard>
+            ) : null}
+            <Text variant="caption" color={semantic.textPrimary} style={styles.medium}>
+              我的作答 · {q.attempts.length} 次
+            </Text>
+            {q.attempts.length === 0 ? (
+              <Text variant="small">还没做过这道题</Text>
+            ) : (
+              <Card style={styles.list}>
+                {q.attempts.map((a, i) => (
+                  <View key={a.attempt_id} style={[styles.attempt, i > 0 && styles.divider]}>
+                    <View style={[styles.flex, styles.gap2]}>
+                      <Text variant="caption" color={semantic.textPrimary}>
+                        {shortDate(a.answered_at)}
+                        <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+                          {a.score !== undefined ? ` · ${a.score}${a.full_score !== undefined ? ` / ${a.full_score}` : ''} 分` : a.is_correct !== undefined ? (a.is_correct ? ' · 答对' : ' · 答错') : ''}
+                        </Text>
+                      </Text>
+                      {a.missed_points?.length || a.loss_types?.length ? (
+                        <Text variant="small" color="#9A4A1C">
+                          {[a.missed_points?.length ? `遗漏${a.missed_points.map((m) => `「${m}」`).join('')}` : '', ...(a.loss_types ?? []).map((t) => lossNames[t])].filter(Boolean).join(' · ')}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+                ))}
+              </Card>
+            )}
+            <Button title="删除这道题" kind="text" color={semantic.danger} style={styles.left} onPress={() => setRemoving(true)} />
+          </ScrollView>
+          <View style={styles.footer}>
+            <Button title="再练这道题" onPress={() => toast('练习在训练模块上线后开放')} />
           </View>
-        </ScrollView>
+        </>
       )}
       <ConfirmDialog
         visible={removing}
@@ -196,13 +219,27 @@ export default function QuestionScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { paddingBottom: spacing.xl, gap: spacing.md },
+  scroll: { paddingBottom: spacing.xl, gap: 12 },
   gap: { gap: spacing.sm },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
+  gap2: { gap: 2 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: spacing.sm },
+  pill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: semantic.fill },
+  pillGreen: { backgroundColor: semantic.masteredSoft },
+  pillLine: { backgroundColor: 'transparent', borderWidth: 1, borderColor: semantic.border },
+  medium: { fontWeight: '500' },
+  bold: { fontWeight: '700' },
+  stem: { marginBottom: 4 },
+  lh: { lineHeight: 26 },
+  sourceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  link: { paddingHorizontal: 0, minHeight: 32 },
+  edit: { paddingHorizontal: 0 },
   flex: { flex: 1 },
-  left: { alignSelf: 'flex-start' },
-  attempt: { gap: 2, paddingVertical: spacing.xs, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: semantic.border },
+  left: { alignSelf: 'flex-start', paddingHorizontal: 0 },
+  list: { paddingVertical: 0 },
+  attempt: { flexDirection: 'row', alignItems: 'center', minHeight: 58, paddingVertical: 10 },
+  divider: { borderTopWidth: 1, borderTopColor: semantic.border },
+  footer: { paddingVertical: spacing.md },
   actions: { flexDirection: 'row', gap: spacing.sm },
-  input: { minHeight: 44, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, fontSize: 16, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  input: { minHeight: 44, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, fontSize: 15, color: semantic.textPrimary, backgroundColor: semantic.surface },
   multi: { minHeight: 96, textAlignVertical: 'top' },
 });

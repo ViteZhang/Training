@@ -165,7 +165,7 @@ describe('1.7b 采分点', () => {
     const onChange = jest.fn();
     await render(<RubricEditor points={[{ content: '情景交融', score: 2 }]} score={5} onChange={onChange} />);
     expect(screen.getByText('采分点分值合计要等于题目分值 5 分')).toBeTruthy();
-    await fireEvent.press(screen.getByText('添加采分点'));
+    await fireEvent.press(screen.getByText('＋ 添加采分点'));
     expect(onChange).toHaveBeenCalledWith([{ content: '情景交融', score: 2 }, { content: '', score: 0 }]);
     await fireEvent.changeText(screen.getByLabelText('第 1 个采分点的分值'), '5');
     expect(onChange).toHaveBeenLastCalledWith([{ content: '情景交融', score: 5 }]);

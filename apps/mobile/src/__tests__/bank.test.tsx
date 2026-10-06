@@ -99,11 +99,11 @@ describe('3.4 知识点卡片', () => {
     expect(screen.getByText('出自：讲义.docx · 第 3 页')).toBeTruthy();
     expect(screen.getByText('AI 生成')).toBeTruthy();
     expect(screen.getByText('名词解释：意境')).toBeTruthy();
-    await fireEvent.press(screen.getByText('查看原文'));
+    await fireEvent.press(screen.getByText('查看原文 ›'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/bank/page', params: { materialId: '9', page: '3', highlight: kp.original_text } });
     await fireEvent.press(screen.getByText('模糊'));
     await waitFor(() => expect(mockCalls.some((c) => c.path === '/knowledge-points/{kpId}/self-assessment')).toBe(true));
-    expect(await screen.findByText('学习中')).toBeTruthy();
+    expect(await screen.findByText(/^学习中/)).toBeTruthy();
   });
 
   it('更多操作：拆分', async () => {
@@ -111,7 +111,7 @@ describe('3.4 知识点卡片', () => {
     mockResponses['GET /knowledge-points/{kpId}'] = () => ({ status: 200, data: kp });
     mockResponses['POST /knowledge-points/{kpId}/split'] = () => ({ status: 200, data: { items: [] } });
     await wrap(<KPCard />);
-    await fireEvent.press(await screen.findByText('更多'));
+    await fireEvent.press(await screen.findByLabelText('更多操作'));
     await fireEvent.press(screen.getByText('拆分为多个知识点'));
     await fireEvent.changeText(screen.getByLabelText('第 1 个知识点'), '意');
     await fireEvent.changeText(screen.getByLabelText('第 2 个知识点'), '境');
@@ -197,7 +197,7 @@ describe('3.1c 资料与 3.1d 删除', () => {
     });
     mockResponses['DELETE /materials/{materialId}'] = () => ({ status: 204 });
     await wrap(<MaterialList items={[m({})]} subjectId={7} />);
-    await fireEvent.press(screen.getByText('删除'));
+    await fireEvent.press(screen.getByLabelText('删除 真题.pdf'));
     expect(await screen.findByText('· 从它识别出的 128 道题会一起删除，包括作答记录和错题')).toBeTruthy();
     expect(await screen.findByText('· 只来自这份资料的知识点会删除（3 个），其他资料里也有的会保留')).toBeTruthy();
     const buttons = screen.getAllByText('删除');

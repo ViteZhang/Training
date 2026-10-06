@@ -1,29 +1,10 @@
 // 2.2 今日训练完成：连续打卡、题数、正确率、用时、预估分变化、掌握度变化、主观题失分归因。
-import type { Schemas } from '@training/api-client';
 import { colors, fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
 import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { BackButton, Button, Card, ErrorState, Loading, Screen, Text } from '@/components';
-import { stateNames } from '@/features/bank/api';
+import { MasteryPill } from '@/features/bank/MasteryPill';
 import { lossNames, minutes, useHome, useTodaySummary } from '@/features/today/api';
-
-const stateTone: Record<Schemas['MasteryState'], { bg: string; fg: string; border?: string }> = {
-  unlearned: { bg: 'transparent', fg: colors.gray, border: semantic.border },
-  learning: { bg: semantic.fill, fg: colors.gray },
-  consolidating: { bg: semantic.amberSoft, fg: '#8A4B12' },
-  mastered: { bg: colors.indigo, fg: colors.white },
-};
-
-function State({ s }: { s: Schemas['MasteryState'] }) {
-  const t = stateTone[s];
-  return (
-    <View style={[styles.state, { backgroundColor: t.bg }, t.border ? { borderWidth: 1, borderColor: t.border } : null]}>
-      <Text variant="small" color={t.fg}>
-        {stateNames[s]}
-      </Text>
-    </View>
-  );
-}
 
 function Tile({ value, unit, label }: { value: number | string; unit?: string; label: string }) {
   return (
@@ -80,6 +61,11 @@ export default function TodaySummaryPage() {
           </Card>
         ))}
 
+        {s.mastery_changes.length === 0 && s.new_mastered > 0 ? (
+          <Text variant="caption" color={colors.green}>
+            新增 {s.new_mastered} 个已掌握
+          </Text>
+        ) : null}
         {s.mastery_changes.length > 0 ? (
           <View style={styles.section}>
             <View style={styles.row}>
@@ -94,9 +80,9 @@ export default function TodaySummaryPage() {
                   <Text variant="body" style={styles.flex} numberOfLines={1}>
                     {c.name}
                   </Text>
-                  <State s={c.from} />
+                  <MasteryPill state={c.from} />
                   <Text variant="small">→</Text>
-                  <State s={c.to} />
+                  <MasteryPill state={c.to} />
                 </View>
               ))}
             </Card>
@@ -150,7 +136,6 @@ const styles = StyleSheet.create({
   list: { paddingVertical: 0 },
   change_row: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 52 },
   divider: { borderTopWidth: 1, borderTopColor: semantic.border },
-  state: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill },
   lossBar: { flexDirection: 'row', gap: 2, height: 8, borderRadius: 4, overflow: 'hidden' },
   lossLegend: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
   footer: { flexDirection: 'row', gap: 10, paddingVertical: spacing.md },
