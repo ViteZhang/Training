@@ -133,7 +133,7 @@ describe('3.10 作文知识库', () => {
     expect(await screen.findByText('审题与立意')).toBeTruthy();
     expect(screen.getByText('立意 · 出自写作笔记 第 2 页')).toBeTruthy();
     expect(screen.getByText('1 条 · 真题考过 2 次')).toBeTruthy();
-    await fireEvent.press(screen.getByText('查看'));
+    await fireEvent.press(screen.getByText('创新'));
     await fireEvent.press(screen.getByText('收藏'));
     await waitFor(() => expect(mockCalls.find((c) => c.method === 'PUT')?.init?.body).toEqual({ favorite: true }));
     await fireEvent.press(screen.getByText('看结构拆解'));

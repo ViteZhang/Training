@@ -36,6 +36,19 @@ const paths = {
   mic: <Path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3" />,
   file: <Path d="M7 3h7l5 5v13H7zM14 3v5h5" />,
   clipboard: <Path d="M8 4h8v3H8zM8 5.5H6v15.5h12V5.5h-2M9 12h6M9 16h4" />,
+  search: (
+    <>
+      <Circle cx={11} cy={11} r={6.5} />
+      <Path d="M16 16l4.5 4.5" />
+    </>
+  ),
+  down: <Path d="M6 9l6 6 6-6" />,
+  link: <Path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />,
+  merge: <Path d="M7 4v5a4 4 0 0 0 4 4h6M14 10l3 3-3 3M7 20v-4" />,
+  split: <Path d="M12 20v-7M12 13L6 6M12 13l6-7M6 6v4M6 6h4M18 6v4M18 6h-4" />,
+  refresh: <Path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" />,
+  trash: <Path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13M10 11v6M14 11v6" />,
+  folder: <Path d="M3 6h7l2 2h9v11H3z" />,
   chevron: <Path d="M9 5l7 7-7 7" />,
   back: <Path d="M15 5l-7 7 7 7" />,
   edit: <Path d="M4 20h4L18 10l-4-4L4 16zM14 6l4 4" />,

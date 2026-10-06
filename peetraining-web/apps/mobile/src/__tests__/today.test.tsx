@@ -90,11 +90,11 @@ describe('2.1 今日首页', () => {
     mockResponses['GET /home'] = () => ({ status: 200, data: home({ estimates: [est] }) });
     await wrap(<TodayTab />);
     expect(await screen.findByLabelText('预估分 98 到 106')).toBeTruthy();
-    expect(screen.getByText('还差约 9 分 · 主要差在论述题')).toBeTruthy();
+    expect(screen.getByText(/还差约 9 分 · 主要差在论述题/)).toBeTruthy();
     expect(screen.getByText('依据你导入的 2 套真题卷实测和近 20 道主观题估算')).toBeTruthy();
-    expect(screen.getByText('今天 +2')).toBeTruthy();
+    expect(screen.getByText(/今天 \+2 分/)).toBeTruthy();
     expect(screen.queryByText('做完一套整卷后生成预估分')).toBeNull();
-    await fireEvent.press(screen.getByText('提分看板 ›'));
+    await fireEvent.press(screen.getByText('提分看板'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/dashboard', params: { subjectId: '7' } });
   });
 
@@ -111,7 +111,8 @@ describe('2.1 今日首页', () => {
     await wrap(<TodayTab />);
     expect(await screen.findByText('今天的训练完成了')).toBeTruthy();
     expect(await screen.findByText('38')).toBeTruthy();
-    expect(screen.getByText('明天预计约 50 分钟')).toBeTruthy();
+    expect(screen.getByText('明天预计')).toBeTruthy();
+    expect(screen.getByText('约 50 分钟')).toBeTruthy();
     await fireEvent.press(screen.getByText('今日总结'));
     expect(mockPush).toHaveBeenCalledWith('/plan/summary');
   });
@@ -152,10 +153,9 @@ describe('2.1 今日首页', () => {
 describe('2.2 今日训练完成', () => {
   it('题数、正确率、用时与失分归因', async () => {
     await wrap(<TodaySummaryPage />);
-    expect(await screen.findByText('78%')).toBeTruthy();
+    expect(await screen.findByText(/^78%$/)).toBeTruthy();
     expect(screen.getByText('46')).toBeTruthy();
     expect(screen.getByText('新增 3 个已掌握')).toBeTruthy();
-    expect(screen.getByText('知识没掌握')).toBeTruthy();
-    expect(screen.getByText('62%')).toBeTruthy();
+    expect(screen.getByText(/知识没掌握 62%/)).toBeTruthy();
   });
 });

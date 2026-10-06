@@ -4,6 +4,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Button, EmptyState, ErrorState, Loading, ProgressBar, Tag, Text, toast, ToastHost } from '../components';
 import { getJSON, setJSON } from '../lib/storage';
 
+// 顶部栏的返回按钮默认用 expo-router 返回上一页
+jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() } }));
+
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
 const wrap = (ui: React.ReactElement) => render(<SafeAreaProvider initialMetrics={metrics}>{ui}</SafeAreaProvider>);
 

@@ -1,13 +1,13 @@
 // 3.6 编辑知识点：名称、原文表述、采分点、归属；只影响自己的题库。改了采分点后相关题目之后按新采分点批改，AI 解读重新生成。
 import { ApiError, type Schemas } from '@training/api-client';
-import { layout, radius, semantic, spacing } from '@training/ui-tokens';
+import { layout, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { Button, ErrorState, Loading, Screen, Text, toast } from '@/components';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Button, ErrorState, Icon, Loading, NavBar, Screen, Text, toast } from '@/components';
 import { bankKeys, useKP, type KPDetail, type KnowledgeNode } from '@/features/bank/api';
-import { PageHeader, Segments } from '@/features/import/ui';
+import { Segments } from '@/features/import/ui';
 import { api, unwrap } from '@/lib/api';
 
 type Point = Schemas['RubricPointInput'];
@@ -61,37 +61,53 @@ function Form({ kp, subjectId }: { kp: KPDetail; subjectId?: number }) {
 
   return (
     <>
-      <PageHeader title="编辑知识点" onBack={() => router.back()} right={<Button title="保存" kind="text" loading={busy} disabled={!name.trim()} onPress={() => void save()} />} />
+      <NavBar
+        title="编辑知识点"
+        left={<Button title="取消" kind="text" color={semantic.textPrimary} style={styles.navBtn} onPress={() => router.back()} />}
+        right={<Button title="保存" kind="text" color={semantic.textPrimary} style={styles.navBtn} loading={busy} disabled={!name.trim()} onPress={() => void save()} />}
+      />
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text variant="bodyStrong">名称</Text>
+        <Text variant="caption" color={semantic.textPrimary} style={styles.label}>
+              名称
+            </Text>
         <TextInput accessibilityLabel="名称" value={name} onChangeText={setName} maxLength={128} style={styles.input} maxFontSizeMultiplier={layout.maxFontScale} />
         {kp.level === 'point' ? (
           <>
-            <Text variant="bodyStrong">原文表述</Text>
+            <Text variant="caption" color={semantic.textPrimary} style={styles.label}>
+              原文表述
+            </Text>
             <TextInput accessibilityLabel="原文表述" value={orig} onChangeText={setOrig} multiline style={[styles.input, styles.multi]} maxFontSizeMultiplier={layout.maxFontScale} />
-            <Text variant="bodyStrong">采分点</Text>
+            <Text variant="caption" color={semantic.textPrimary} style={styles.label}>
+              采分点
+            </Text>
             {points.map((p, i) => (
-              <View key={i} style={styles.row}>
+              <View key={i} style={styles.point}>
                 <TextInput
                   accessibilityLabel={`第 ${i + 1} 个采分点`}
                   value={p.content}
                   onChangeText={(v) => setPoints(points.map((x, j) => (j === i ? { ...x, content: v } : x)))}
-                  style={[styles.input, styles.flex]}
+                  style={styles.pointInput}
                   maxFontSizeMultiplier={layout.maxFontScale}
                 />
-                <Button title="删" kind="text" onPress={() => setPoints(points.filter((_, j) => j !== i))} />
+                <Pressable accessibilityRole="button" accessibilityLabel={`删除第 ${i + 1} 个采分点`} onPress={() => setPoints(points.filter((_, j) => j !== i))} style={styles.remove}>
+                  <Icon name="close" size={16} color={semantic.textSecondary} />
+                </Pressable>
               </View>
             ))}
-            <Button title="+ 添加采分点" kind="text" onPress={() => setPoints([...points, { content: '' }])} />
+            <Pressable accessibilityRole="button" onPress={() => setPoints([...points, { content: '' }])} style={styles.add}>
+              <Text variant="caption">＋ 添加采分点</Text>
+            </Pressable>
             {options.length > 0 ? (
               <>
-                <Text variant="bodyStrong">归属</Text>
+                <Text variant="caption" color={semantic.textPrimary} style={styles.label}>
+              归属
+            </Text>
                 <Segments value={String(parent ?? '')} onChange={(v) => setParent(Number(v))} options={options.map((o) => ({ key: String(o.id), label: o.label.trim() }))} />
               </>
             ) : null}
           </>
         ) : null}
-        <Text variant="caption" color={semantic.textSecondary}>
+        <Text variant="small" style={styles.note}>
           只影响你自己的题库。改了采分点后，相关题目之后的批改按新采分点进行，AI 解读会重新生成。
         </Text>
       </ScrollView>
@@ -112,9 +128,16 @@ export default function EditKP() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { paddingBottom: spacing.xl, gap: spacing.sm },
-  input: { minHeight: 44, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, fontSize: 16, color: semantic.textPrimary, backgroundColor: semantic.surface },
-  multi: { minHeight: 96, textAlignVertical: 'top' },
+  scroll: { paddingBottom: spacing.xl, gap: 8 },
+  navBtn: { paddingHorizontal: 0 },
+  label: { fontWeight: '500', marginTop: 10 },
+  input: { minHeight: 48, borderWidth: 1, borderColor: semantic.border, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, lineHeight: 24, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  multi: { minHeight: 120, textAlignVertical: 'top' },
+  point: { flexDirection: 'row', alignItems: 'center', minHeight: 48, paddingLeft: 14, borderWidth: 1, borderColor: semantic.border, borderRadius: 14, backgroundColor: semantic.surface },
+  pointInput: { flex: 1, minHeight: 44, fontSize: 14, color: semantic.textPrimary },
+  remove: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  add: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', borderColor: '#D6D2C8' },
+  note: { marginTop: 14, lineHeight: 19 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   flex: { flex: 1 },
 });

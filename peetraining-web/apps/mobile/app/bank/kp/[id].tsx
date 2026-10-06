@@ -6,10 +6,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { BottomSheet, Button, Card, ConfirmDialog, ErrorState, Loading, Screen, Tag, Text, toast } from '@/components';
-import { bankKeys, relationNames, sourceLabel, stateNames, stateTone, useKP, type KPDetail } from '@/features/bank/api';
+import { ActionList, BottomSheet, Button, Card, ConfirmDialog, ErrorState, InfoCard, Loading, NavBar, RubricLine, Screen, Tag, Text, toast } from '@/components';
+import { MasteryPill } from '@/features/bank/MasteryPill';
+import { bankKeys, relationNames, sourceLabel, useKP, type KPDetail } from '@/features/bank/api';
 import { qtypeNames } from '@/features/import/api';
-import { PageHeader, Segments } from '@/features/import/ui';
+import { Segments } from '@/features/import/ui';
 import { api, unwrap } from '@/lib/api';
 
 const assess: { key: Schemas['SelfAssessLevel']; label: string }[] = [
@@ -78,23 +79,26 @@ function MoreActions({ kp, sheet, setSheet }: { kp: KPDetail; sheet: Sheet; setS
   const path = { params: { path: { kpId: kp.id } } };
   return (
     <>
-      <BottomSheet visible={sheet === 'more'} onClose={() => setSheet(null)} title={kp.name}>
-        <View style={styles.menu}>
-          <Button title="编辑内容" kind="text" onPress={() => { setSheet(null); router.push({ pathname: '/bank/kp/edit', params: { id: String(kp.id), subjectId: subjectId ?? '' } }); }} />
-          <Button title="调整归属" kind="text" onPress={() => { setSheet(null); router.push({ pathname: '/bank/kp/edit', params: { id: String(kp.id), subjectId: subjectId ?? '' } }); }} />
-          <Button title="添加关联" kind="text" onPress={() => setSheet('relate')} />
-          <Button title="合并到其他知识点" kind="text" onPress={() => setSheet('merge')} />
-          <Button title="拆分为多个知识点" kind="text" onPress={() => setSheet('split')} />
-          <Button
-            title="AI 解读不准，重新生成"
-            kind="text"
-            onPress={() => {
-              setSheet(null);
-              void run(async () => qc.setQueryData(bankKeys.kp(kp.id), await unwrap(api.POST('/knowledge-points/{kpId}/explanation', path))), '已重新生成');
-            }}
-          />
-          <Button title="删除这个知识点" kind="danger" onPress={() => setSheet('delete')} />
-        </View>
+      <BottomSheet visible={sheet === 'more'} onClose={() => setSheet(null)}>
+        <ActionList
+          items={[
+            { label: '编辑内容', icon: 'edit', onPress: () => { setSheet(null); router.push({ pathname: '/bank/kp/edit', params: { id: String(kp.id), subjectId: subjectId ?? '' } }); } },
+            { label: '调整归属', icon: 'folder', onPress: () => { setSheet(null); router.push({ pathname: '/bank/kp/edit', params: { id: String(kp.id), subjectId: subjectId ?? '' } }); } },
+            { label: '添加关联', icon: 'link', onPress: () => setSheet('relate') },
+            { label: '合并到其他知识点', icon: 'merge', onPress: () => setSheet('merge') },
+            { label: '拆分为多个知识点', icon: 'split', onPress: () => setSheet('split') },
+            {
+              label: 'AI 解读不准，重新生成',
+              icon: 'refresh',
+              onPress: () => {
+                setSheet(null);
+                void run(async () => qc.setQueryData(bankKeys.kp(kp.id), await unwrap(api.POST('/knowledge-points/{kpId}/explanation', path))), '已重新生成');
+              },
+            },
+            { label: '删除这个知识点', icon: 'trash', danger: true, onPress: () => setSheet('delete') },
+          ]}
+        />
+        <Button title="取消" kind="soft" style={styles.cancel} onPress={() => setSheet(null)} />
       </BottomSheet>
       <BottomSheet visible={sheet === 'merge'} onClose={() => setSheet(null)} title="合并到哪个知识点">
         <Text variant="caption">在题库里搜索目标知识点的名称；题目、掌握度和作答记录会一起迁过去</Text>
@@ -202,95 +206,111 @@ export default function KPCard() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <PageHeader title={k.name} desc={k.path.join(' · ')} onBack={() => router.back()} right={<Button title="更多" kind="text" onPress={() => setSheet('more')} />} />
+        <NavBar
+          title={k.path.slice(0, 2).join(' · ')}
+          right={
+            <Pressable accessibilityRole="button" accessibilityLabel="更多操作" onPress={() => setSheet('more')} style={styles.more}>
+              <View style={styles.d} />
+              <View style={styles.d} />
+              <View style={styles.d} />
+            </Pressable>
+          }
+        />
+        <Text variant="h1" style={styles.name}>
+          {k.name}
+        </Text>
         <View style={styles.row}>
-          <Tag label={stateNames[k.mastery.state]} tone={stateTone[k.mastery.state]} />
-          <Text variant="number">{Math.round(k.mastery.m)}</Text>
-          {k.exam_count > 0 ? <Text variant="caption">真题出现 {k.exam_count} 次</Text> : null}
+          <MasteryPill state={k.mastery.state} suffix={` · ${Math.round(k.mastery.m)}`} />
+          {k.exam_count > 0 ? (
+            <View style={styles.line}>
+              <Text variant="small" color={semantic.textPrimary}>
+                真题出现 {k.exam_count} 次
+              </Text>
+            </View>
+          ) : null}
           {k.needs_review ? <Tag label="待核对" tone="danger" /> : null}
         </View>
 
         {k.original_text ? (
-          <Card style={styles.gap}>
-            <Text variant="bodyStrong">原文表述</Text>
+          <InfoCard label="原文表述">
             <Underlined text={k.original_text} keywords={keywords} />
             {k.source ? (
-              <View style={styles.row}>
-                <Text variant="caption" style={styles.flex}>
+              <View style={styles.sourceRow}>
+                <Text variant="small" style={styles.flex}>
                   出自：{k.source.file_name}
                   {k.source.page ? ` · 第 ${k.source.page} 页` : ''}
                 </Text>
                 {k.source.page ? (
                   <Button
-                    title="查看原文"
+                    title="查看原文 ›"
                     kind="text"
+                    size="sm"
+                    color={semantic.textPrimary}
+                    style={styles.link}
                     onPress={() => router.push({ pathname: '/bank/page', params: { materialId: String(k.source!.material_id), page: String(k.source!.page), highlight: k.original_text ?? '' } })}
                   />
                 ) : null}
               </View>
             ) : null}
-          </Card>
+          </InfoCard>
         ) : null}
 
         {k.rubric_points.length > 0 ? (
-          <Card style={styles.gap}>
-            <Text variant="bodyStrong">采分点</Text>
+          <InfoCard label="采分点">
             {k.rubric_points.map((r, i) => (
-              <View key={r.id} style={styles.row}>
-                <Text variant="number" color={semantic.textSecondary}>
-                  {String(i + 1).padStart(2, '0')}
-                </Text>
-                <Text variant="body" style={styles.flex}>
-                  {r.content}
-                </Text>
-              </View>
+              <RubricLine key={r.id} index={i} content={r.content} />
             ))}
-          </Card>
+          </InfoCard>
         ) : null}
 
-        <Card style={styles.gap}>
-          <View style={styles.row}>
-            <Text variant="bodyStrong" style={styles.flex}>
-              AI 帮你理解
-            </Text>
-            <Tag label="AI 生成" tone="ai" />
-          </View>
-          <Text variant="body">{k.ai_explanation ?? 'AI 解读暂时没生成出来，可以在「更多」里重新生成'}</Text>
-        </Card>
+        <InfoCard label="AI 帮你理解" tone="fill" right={<Tag label="AI 生成" tone="ai" />}>
+          <Text variant="caption" color={semantic.textPrimary} style={styles.lh}>
+            {k.ai_explanation ?? 'AI 解读暂时没生成出来，可以在「更多」里重新生成'}
+          </Text>
+        </InfoCard>
 
         {k.related_questions.length > 0 ? (
-          <Card style={styles.gap}>
-            <Text variant="bodyStrong">相关题目 · {k.related_questions.length}</Text>
-            {k.related_questions.map((q) => (
-              <Pressable key={q.id} accessibilityRole="button" onPress={() => router.push({ pathname: '/bank/question/[id]', params: { id: String(q.id) } })} style={styles.related}>
-                <Text variant="body" numberOfLines={1} style={styles.flex}>
-                  {qtypeNames[q.qtype]}：{q.stem}
-                </Text>
-                <Tag label={sourceLabel(q.source, q.exam_year)} tone={q.source === 'ai_generated' ? 'ai' : 'neutral'} />
-              </Pressable>
-            ))}
-          </Card>
+          <>
+            <View style={styles.sectionHead}>
+              <Text variant="caption" color={semantic.textPrimary} style={[styles.flex, styles.medium]}>
+                相关题目 · {k.related_questions.length}
+              </Text>
+              <Text variant="small">来自你的题库</Text>
+            </View>
+            <Card style={styles.list}>
+              {k.related_questions.map((q, i) => (
+                <Pressable key={q.id} accessibilityRole="button" onPress={() => router.push({ pathname: '/bank/question/[id]', params: { id: String(q.id) } })} style={[styles.related, i > 0 && styles.divider]}>
+                  <View style={[styles.flex, styles.gap2]}>
+                    <Text variant="body" numberOfLines={1}>
+                      {qtypeNames[q.qtype]}：{q.stem}
+                    </Text>
+                    <Text variant="small">{sourceLabel(q.source, q.exam_year)}</Text>
+                  </View>
+                  {q.source === 'ai_generated' ? <Tag label="AI 出题" tone="ai" /> : q.source === 'exam' ? <Tag label="真题" tone="mastered" /> : null}
+                </Pressable>
+              ))}
+            </Card>
+          </>
         ) : null}
 
-        <Card style={styles.gap}>
-          <Text variant="bodyStrong">自评</Text>
-          <View style={styles.row}>
-            {assess.map((a) => (
-              <Pressable
-                key={a.key}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: k.mastery.last_self_assess === a.key }}
-                onPress={() => void selfAssess(a.key)}
-                style={[styles.assess, k.mastery.last_self_assess === a.key && styles.assessOn]}
-              >
-                <Text variant="bodyStrong" color={k.mastery.last_self_assess === a.key ? semantic.textOnBrand : semantic.textPrimary}>
+        <View style={styles.assessRow}>
+          <Text variant="small">自评</Text>
+          {assess.map((a) => {
+            const on = k.mastery.last_self_assess === a.key;
+            return (
+              <Pressable key={a.key} accessibilityRole="radio" accessibilityState={{ selected: on }} onPress={() => void selfAssess(a.key)} style={[styles.assess, on && styles.assessOn]}>
+                <Text variant="caption" color={on ? semantic.textOnBrand : semantic.textPrimary}>
                   {a.label}
                 </Text>
               </Pressable>
-            ))}
-          </View>
-          <Text variant="caption">自评只作参考：在两个不同日期答对相关题目后，才会标记为「已掌握」</Text>
-        </Card>
+            );
+          })}
+        </View>
+        <View style={styles.note}>
+          <Text variant="small" color={semantic.info}>
+            自评只作参考：在两个不同日期答对相关题目后，才会标记为「已掌握」
+          </Text>
+        </View>
         <Button title="来一题检验" onPress={() => toast('检验练习在训练模块上线后开放')} />
       </ScrollView>
       <MoreActions kp={k} sheet={sheet} setSheet={setSheet} />
@@ -299,14 +319,29 @@ export default function KPCard() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { paddingBottom: spacing.xl, gap: spacing.md },
+  scroll: { paddingBottom: spacing.xl, gap: 12 },
   gap: { gap: spacing.sm },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
+  gap2: { gap: 2 },
+  name: { marginTop: spacing.sm },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  line: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, borderWidth: 1, borderColor: semantic.border },
+  more: { width: 44, height: 44, flexDirection: 'row', gap: 3, alignItems: 'center', justifyContent: 'center', marginRight: -10 },
+  d: { width: 4, height: 4, borderRadius: 2, backgroundColor: semantic.textPrimary },
+  sourceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  link: { paddingHorizontal: 0, minHeight: 32 },
+  lh: { lineHeight: 23 },
+  medium: { fontWeight: '500' },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  list: { paddingVertical: 0 },
+  divider: { borderTopWidth: 1, borderTopColor: semantic.border },
   flex: { flex: 1 },
-  kw: { textDecorationLine: 'underline', textDecorationColor: semantic.progress },
-  related: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44 },
-  assess: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: semantic.border },
-  assessOn: { backgroundColor: semantic.primary, borderColor: semantic.primary },
+  kw: { textDecorationLine: 'underline', textDecorationColor: semantic.progress, fontWeight: '700' },
+  related: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 64, paddingVertical: 10 },
+  assessRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  assess: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, backgroundColor: semantic.fill },
+  assessOn: { backgroundColor: semantic.primary },
+  note: { padding: 10, borderRadius: radius.md, backgroundColor: semantic.infoSoft },
   menu: { gap: spacing.xs },
+  cancel: { marginTop: spacing.md },
   input: { minHeight: 44, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 16, color: semantic.textPrimary, backgroundColor: semantic.surface },
 });

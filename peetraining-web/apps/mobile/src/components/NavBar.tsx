@@ -17,10 +17,10 @@ export function BackButton({ onPress, label = '返回', icon = 'back' }: { onPre
 }
 
 /** 顶部栏：返回 + 居中标题（15 号）+ 右侧操作（设计稿二级页通用）。 */
-export function NavBar({ title, onBack, right, back = true }: { title?: string; onBack?: () => void; right?: ReactNode; back?: boolean }) {
+export function NavBar({ title, onBack, right, back = true, left }: { title?: string; onBack?: () => void; right?: ReactNode; back?: boolean; left?: ReactNode }) {
   return (
     <View style={styles.bar}>
-      <View style={styles.side}>{back ? <BackButton onPress={onBack} /> : null}</View>
+      <View style={styles.side}>{left ?? (back ? <BackButton onPress={onBack} /> : null)}</View>
       {title ? (
         <Text variant="bodyStrong" numberOfLines={1} style={styles.title} accessibilityRole="header">
           {title}

@@ -57,7 +57,7 @@ export function EstimateCard({
                 ) : null}
               </View>
               {s.target_score !== undefined && s.target_score !== null ? (
-                <Pressable onPress={onEditTarget} accessibilityRole="button" accessibilityLabel={`修改目标分，当前 ${s.target_score}`} style={styles.target}>
+                <Pressable onPress={onEditTarget} accessibilityRole="button" accessibilityLabel={`修改${s.name}目标分`} style={styles.target}>
                   <Text variant="small">
                     目标 <Text variant="small" style={styles.targetNum}>{s.target_score}</Text>
                   </Text>
