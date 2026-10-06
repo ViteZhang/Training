@@ -1,13 +1,13 @@
 // 1.6 AI 解析中：每个文件一行进度（识别文字 · 拆分题目 · 配答案和采分点）、预计剩余时间；可先核对已识别的题或先进入 App；
 // 等待时设置学习提醒，开启时请求通知权限。1.6b 部分文件识别失败：只影响失败的文件，说明原因，可重试、保留已识别的或移除。
 import { ApiError, type Schemas } from '@training/api-client';
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, ErrorState, Icon, Loading, ProgressBar, Screen, Tag, Text, toast } from '@/components';
+import { Button, Card, ErrorState, Icon, Loading, ProgressBar, Screen, Text, toast } from '@/components';
 import { importKeys, isRunning, stepGroups, stepIndex, useImportJob, type ImportJob } from '@/features/import/api';
 import { useImportFlow } from '@/features/import/store';
 import { PageHeader } from '@/features/import/ui';
@@ -22,35 +22,39 @@ function eta(seconds?: number) {
   return seconds < 90 ? '不到 2 分钟' : `${Math.ceil(seconds / 60)} 分钟`;
 }
 
-function MaterialProgress({ m }: { m: JobMaterial }) {
+function MaterialProgress({ m, first }: { m: JobMaterial; first?: boolean }) {
   const current = stepIndex(m.step);
-  if (m.status === 'done' || m.status === 'partial') {
-    return (
-      <View style={styles.row}>
-        <Text variant="bodyStrong" style={styles.flex} numberOfLines={1}>
-          {m.file_name}
-        </Text>
-        <Text variant="caption">已识别 </Text>
-        <Text variant="number">{m.recognized_count ?? 0}</Text>
-        <Text variant="caption"> 条</Text>
-      </View>
-    );
-  }
+  const pct = Math.round(((current + 0.5) / stepGroups.length) * 100);
   return (
-    <View style={styles.material}>
+    <View style={[styles.material, !first && styles.divider]}>
       <View style={styles.row}>
-        <Text variant="bodyStrong" style={styles.flex} numberOfLines={1}>
-          {m.file_name}
-        </Text>
-        {m.status === 'pending' ? <Tag label="排队中" /> : null}
+        <View style={[styles.flex, styles.gap2]}>
+          <Text variant="body" numberOfLines={1}>
+            {m.file_name}
+          </Text>
+          {m.status === 'done' ? (
+            <Text variant="small" color={semantic.mastered}>
+              已识别 {m.recognized_count ?? 0} 条
+            </Text>
+          ) : m.status === 'pending' ? (
+            <Text variant="small">排队中</Text>
+          ) : null}
+        </View>
+        {m.status === 'done' ? (
+          <View style={styles.ok}>
+            <Icon name="check" size={14} color={semantic.mastered} />
+          </View>
+        ) : m.status === 'running' ? (
+          <Text variant="small">{pct}%</Text>
+        ) : null}
       </View>
       {m.status === 'running' ? (
         <>
-          <ProgressBar value={(current + 0.5) / stepGroups.length} />
+          <ProgressBar value={pct / 100} height={4} color={colors.ink} />
           <View style={styles.steps}>
             {stepGroups.map((g, i) => (
-              <Text key={g.label} variant="caption" color={i <= current ? semantic.textPrimary : semantic.textSecondary}>
-                {i < current ? '✓ ' : '· '}
+              <Text key={g.label} variant="small" color={i <= current ? semantic.textPrimary : semantic.textSecondary}>
+                {i < current ? '✓ ' : i === current ? '· ' : ''}
                 {g.label}
               </Text>
             ))}
@@ -59,6 +63,16 @@ function MaterialProgress({ m }: { m: JobMaterial }) {
       ) : null}
     </View>
   );
+}
+
+/** 文件类型小方块上的字：PDF / DOC / IMG。 */
+function fileBadge(name: string) {
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  if (ext === 'pdf') return 'PDF';
+  if (ext === 'doc' || ext === 'docx') return 'DOC';
+  if (ext === 'xls' || ext === 'xlsx') return 'XLS';
+  if (ext === 'txt') return 'TXT';
+  return 'IMG';
 }
 
 /** 1.6b 失败的文件：原因 + 重试 / 移除；只识别出部分内容的可以「保留」。 */
@@ -79,19 +93,28 @@ function FailedMaterial({ job, m }: { job: ImportJob; m: JobMaterial }) {
   };
   const partial = m.status === 'partial';
   return (
-    <Card style={styles.failed}>
-      <Text variant="bodyStrong" numberOfLines={1}>
-        {m.file_name}
-      </Text>
-      <Text variant="caption" color={semantic.danger}>
-        {m.fail_reason ?? '没能识别'}
-      </Text>
-      <View style={styles.actions}>
-        <Button title="重新识别" kind="secondary" loading={busy === 'retry'} onPress={() => void act('retry')} />
-        {partial ? <Button title={`保留这 ${m.recognized_count ?? 0} 条`} kind="secondary" onPress={() => toast('已保留，可以继续核对')} /> : null}
-        <Button title="移除" kind="text" loading={busy === 'remove'} onPress={() => void act('remove')} />
+    <View style={styles.failed}>
+      <View style={styles.failedHead}>
+        <View style={styles.badge}>
+          <Text variant="small" color={semantic.danger} style={styles.badgeText}>
+            {fileBadge(m.file_name)}
+          </Text>
+        </View>
+        <View style={[styles.flex, styles.gap2]}>
+          <Text variant="bodyStrong" style={styles.bold} numberOfLines={1}>
+            {m.file_name}
+          </Text>
+          <Text variant="caption" color={semantic.danger}>
+            {m.fail_reason ?? '没能识别'}
+          </Text>
+        </View>
       </View>
-    </Card>
+      <View style={styles.actions}>
+        <Button title="重新识别" size="sm" loading={busy === 'retry'} onPress={() => void act('retry')} />
+        {partial ? <Button title={`保留这 ${m.recognized_count ?? 0} 条`} kind="secondary" size="sm" onPress={() => toast('已保留，可以继续核对')} /> : null}
+        <Button title="移除" kind="secondary" size="sm" color={semantic.danger} loading={busy === 'remove'} onPress={() => void act('remove')} />
+      </View>
+    </View>
   );
 }
 
@@ -127,15 +150,19 @@ function ReminderPicker() {
 
   if (!profile.data) return null;
   return (
-    <Card style={styles.reminder}>
-      <Text variant="bodyStrong">趁这会儿，设置学习提醒</Text>
-      <Text variant="caption">每天到点提醒你完成今日计划</Text>
+    <Card tone="fill" style={styles.reminder}>
+      <View style={styles.gap2}>
+        <Text variant="bodyStrong" style={styles.bold}>
+          趁这会儿，设置学习提醒
+        </Text>
+        <Text variant="small">每天到点提醒你完成今日计划</Text>
+      </View>
       <View style={styles.actions}>
         {reminderOptions.map((t) => {
           const on = times.includes(t);
           return (
             <Pressable key={t} accessibilityRole="switch" accessibilityState={{ checked: on }} accessibilityLabel={`${t} 提醒`} onPress={() => void toggle(t)} style={[styles.chip, on && styles.chipOn]}>
-              <Text variant="number" color={on ? semantic.textOnBrand : semantic.textPrimary}>
+              <Text variant="caption" color={on ? semantic.textOnBrand : semantic.textPrimary}>
                 {t}
               </Text>
             </Pressable>
@@ -183,25 +210,41 @@ export default function JobScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <PageHeader title={title} desc={desc} onBack={running ? undefined : () => router.back()} />
+        {running ? (
+          <View style={styles.runHead}>
+            <View style={styles.dots} accessibilityElementsHidden>
+              <View style={[styles.dot, { backgroundColor: colors.ink }]} />
+              <View style={[styles.dot, { backgroundColor: '#8C877D' }]} />
+              <View style={[styles.dot, { backgroundColor: '#CFCAC0' }]} />
+            </View>
+            <Text variant="h1">{title}</Text>
+            <Text variant="caption" style={styles.desc}>
+              {desc}
+            </Text>
+          </View>
+        ) : (
+          <PageHeader title={title} desc={desc} onBack={() => router.back()} />
+        )}
         {failed.length > 0 ? (
           <View style={styles.gap}>
             {failed.map((m) => (
               <FailedMaterial key={m.material_id} job={j} m={m} />
             ))}
-            <Card style={styles.tips}>
-              <Text variant="bodyStrong">拍得更清楚的办法</Text>
+            <View style={styles.tips}>
+              <Text variant="caption" color={semantic.textPrimary} style={styles.medium}>
+                拍得更清楚的办法
+              </Text>
               <Text variant="caption">· 光线充足，避免阴影和反光</Text>
               <Text variant="caption">· 一张照片只拍一页，页面放平、拍全</Text>
               <Text variant="caption">· 手写答案请写工整，字不要太小</Text>
-            </Card>
+            </View>
           </View>
         ) : null}
-        <Card style={styles.gap}>
+        <Card style={styles.list}>
           {j.materials
             .filter((m) => m.status !== 'failed' && m.status !== 'partial')
-            .map((m) => (
-              <MaterialProgress key={m.material_id} m={m} />
+            .map((m, i) => (
+              <MaterialProgress key={m.material_id} m={m} first={i === 0} />
             ))}
           {j.materials.length === 0 ? <Text variant="caption">没有文件了</Text> : null}
         </Card>
@@ -232,15 +275,28 @@ export default function JobScreen() {
 const styles = StyleSheet.create({
   scroll: { paddingBottom: spacing.xl, gap: spacing.md },
   gap: { gap: spacing.md },
+  gap2: { gap: 2 },
   flex: { flex: 1 },
-  row: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
-  material: { gap: spacing.xs },
+  bold: { fontWeight: '700' },
+  medium: { fontWeight: '500' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  list: { paddingVertical: 0 },
+  material: { gap: 8, paddingVertical: 16 },
+  divider: { borderTopWidth: 1, borderTopColor: semantic.border },
+  ok: { width: 24, height: 24, borderRadius: 12, backgroundColor: semantic.masteredSoft, alignItems: 'center', justifyContent: 'center' },
   steps: { flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap' },
-  failed: { gap: spacing.xs, borderColor: semantic.danger, borderWidth: 1 },
+  failed: { gap: 14, padding: 16, borderRadius: radius.xl, borderWidth: 1, borderColor: '#F0C6C2', backgroundColor: semantic.dangerSoft },
+  failedHead: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  badge: { width: 34, height: 34, borderRadius: 8, backgroundColor: semantic.surface, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { fontSize: 10, fontWeight: '700' },
   actions: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap', alignItems: 'center' },
-  tips: { gap: spacing.xs, backgroundColor: semantic.amberSoft },
-  reminder: { gap: spacing.sm },
-  chip: { minHeight: 44, paddingHorizontal: spacing.lg, justifyContent: 'center', borderRadius: radius.lg, borderWidth: 1, borderColor: semantic.border },
-  chipOn: { backgroundColor: semantic.primary, borderColor: semantic.primary },
+  tips: { gap: 4, paddingHorizontal: 2 },
+  reminder: { gap: 12 },
+  chip: { minHeight: 36, paddingHorizontal: 14, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: semantic.surface },
+  chipOn: { backgroundColor: semantic.primary },
   essay: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center', backgroundColor: semantic.primarySoft },
+  runHead: { gap: 8, marginTop: 40, marginBottom: 8 },
+  desc: { fontSize: 14, lineHeight: 21 },
+  dots: { flexDirection: 'row', gap: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
 });

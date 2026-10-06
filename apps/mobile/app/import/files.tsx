@@ -14,7 +14,7 @@ import { checkLimits, formatOf, limits, uploadAll, UnsupportedFile, type Picked 
 import { useImportFlow } from '@/features/import/store';
 import { Checkbox, FileRow, PageHeader } from '@/features/import/ui';
 import { setStep } from '@/features/onboarding/api';
-import { Footer } from '@/features/onboarding/ui';
+import { Footer, StepHeader } from '@/features/onboarding/ui';
 import { usePermissionPrompt } from '@/features/permissions/PermissionPrompt';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
@@ -114,19 +114,19 @@ export default function FilesScreen() {
   };
 
   const sources = [
-    { key: 'file', title: '文件', desc: 'Word · PDF · Excel', icon: 'import' as const, onPress: () => void pickDocs() },
+    { key: 'file', title: '文件', desc: 'Word · PDF · Excel', icon: 'file' as const, onPress: () => void pickDocs() },
     {
       key: 'album',
       title: '相册',
       desc: '截图、照片',
-      icon: 'empty' as const,
+      icon: 'image' as const,
       onPress: () =>
         void album.ensure().then(async (ok) => {
           if (ok) await pickAlbum();
         }),
     },
-    { key: 'camera', title: '拍照', desc: '纸质习题册', icon: 'sparkle' as const, onPress: () => void takePhoto() },
-    { key: 'paste', title: '粘贴文字', desc: '从网页、文档复制', icon: 'bank' as const, onPress: () => router.push('/import/paste') },
+    { key: 'camera', title: '拍照', desc: '纸质习题册', icon: 'camera' as const, onPress: () => void takePhoto() },
+    { key: 'paste', title: '粘贴文字', desc: '从网页、文档复制', icon: 'clipboard' as const, onPress: () => router.push('/import/paste') },
   ];
 
   if (!subjectId) {
@@ -140,36 +140,62 @@ export default function FilesScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <PageHeader
-          title={mode === 'reference' ? '选择资料文件' : '选择题目文件'}
-          desc={`导入到 ${subject ? `${subject.code ? `${subject.code} ` : ''}${subject.name}` : '专业课'} · 可以多选，之后还能追加`}
-          onBack={() => router.back()}
-        />
+        {onboarding ? (
+          <StepHeader
+            step={4}
+            title={mode === 'reference' ? '选择资料文件' : '选择题目文件'}
+            desc={`导入到 ${subject ? `${subject.code ? `${subject.code} ` : ''}${subject.name}` : '专业课'} · 可以多选，之后还能追加`}
+            onBack={() => router.back()}
+          />
+        ) : (
+          <PageHeader
+            title={mode === 'reference' ? '选择资料文件' : '选择题目文件'}
+            desc={`导入到 ${subject ? `${subject.code ? `${subject.code} ` : ''}${subject.name}` : '专业课'} · 可以多选，之后还能追加`}
+            onBack={() => router.back()}
+          />
+        )}
         <View style={styles.grid}>
           {sources.map((s) => (
             <Pressable key={s.key} accessibilityRole="button" accessibilityLabel={s.title} onPress={s.onPress} style={styles.source} disabled={busy}>
-              <Icon name={s.icon} color={semantic.primary} />
-              <Text variant="bodyStrong">{s.title}</Text>
-              <Text variant="caption">{s.desc}</Text>
+              <View style={styles.sourceIcon}>
+                <Icon name={s.icon} size={18} />
+              </View>
+              <View style={styles.flex}>
+                <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+                  {s.title}
+                </Text>
+                <Text variant="small" numberOfLines={2} style={styles.small}>
+                  {s.desc}
+                </Text>
+              </View>
             </Pressable>
           ))}
         </View>
 
+        <View style={styles.listHead}>
+          <Text variant="caption" color={semantic.textPrimary} style={styles.medium}>
+            {files.length > 0 ? `已选 ${files.length} 项` : '还没选文件'}
+          </Text>
+          <Text variant="small" style={styles.limit}>
+            每次最多 {limits.maxFiles} 个文件，每个不超过 200 页、{limits.maxMB} MB；图片最多 {limits.maxImages} 张
+          </Text>
+        </View>
         {files.length > 0 ? (
           <Card style={styles.list}>
-            <Text variant="bodyStrong">已选 {files.length} 项</Text>
             {files.map((f) => (
               <FileRow key={f.key} file={f} onRemove={busy ? undefined : () => remove(f.key)} />
             ))}
           </Card>
         ) : null}
-        <Text variant="caption" style={styles.hint}>
-          每次最多 {limits.maxFiles} 个文件，每个不超过 200 页、{limits.maxMB} MB；图片每次最多 {limits.maxImages} 张
-        </Text>
-        <Card style={styles.tip}>
-          <Text variant="bodyStrong">答案在单独的文件里？</Text>
-          <Text variant="caption">一起选上就行，AI 会按题号把答案配到题目上</Text>
-        </Card>
+        <View style={styles.tip}>
+          <View style={styles.dot} />
+          <View style={[styles.flex, styles.gap2]}>
+            <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+              答案在单独的文件里？
+            </Text>
+            <Text variant="small">一起选上就行，AI 会按题号把答案配到题目上</Text>
+          </View>
+        </View>
       </ScrollView>
       <Footer>
         <Checkbox checked={agreed} onChange={setAgreed} label="我确认对这些资料有合法的使用权，仅用于本人学习" />
@@ -198,10 +224,18 @@ export default function FilesScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { paddingBottom: spacing.xl },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  source: { width: '48%', flexGrow: 1, minHeight: 96, padding: spacing.md, gap: spacing.xs, borderRadius: radius.lg, backgroundColor: semantic.surface, borderWidth: 1, borderColor: semantic.border },
-  list: { marginTop: spacing.lg, gap: spacing.xs },
-  hint: { marginTop: spacing.sm },
-  tip: { marginTop: spacing.lg, gap: spacing.xs, backgroundColor: semantic.infoSoft },
+  scroll: { paddingBottom: spacing.xl, gap: 14 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  source: { flexBasis: '47%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 60, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.xl, backgroundColor: semantic.surface, borderWidth: 1, borderColor: semantic.border },
+  sourceIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: semantic.fill, alignItems: 'center', justifyContent: 'center' },
+  flex: { flex: 1 },
+  gap2: { gap: 2 },
+  bold: { fontWeight: '700' },
+  medium: { fontWeight: '500' },
+  small: { fontSize: 11, lineHeight: 15 },
+  listHead: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.md, marginTop: spacing.sm },
+  limit: { flex: 1, textAlign: 'right', fontSize: 11 },
+  list: { paddingVertical: 4, paddingHorizontal: 16 },
+  tip: { flexDirection: 'row', gap: 10, padding: 16, borderRadius: radius.xl, backgroundColor: semantic.fill },
+  dot: { width: 8, height: 8, borderRadius: 4, marginTop: 5, backgroundColor: semantic.info },
 });

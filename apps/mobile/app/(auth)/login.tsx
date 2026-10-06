@@ -6,7 +6,7 @@ import { ApiError } from '@training/api-client';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { BottomSheet, Button, Icon, Screen, Text } from '@/components';
+import { BottomSheet, Button, Icon, Logo, Screen, Text } from '@/components';
 import { formatPhone, isValidPhone, normalizePhone } from '@/features/auth/phone';
 import { api, unwrap } from '@/lib/api';
 import { useFeatureFlag } from '@/lib/flags';
@@ -54,13 +54,16 @@ export default function Login() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text variant="h1">登录考研Training</Text>
-        <Text variant="body" color={semantic.textSecondary} style={styles.sub}>
+        <Logo size={56} />
+        <Text variant="h1" style={styles.title}>
+          登录考研Training
+        </Text>
+        <Text variant="caption" style={styles.sub}>
           题库和学习进度都保存在账号里，换手机也不会丢
         </Text>
       </View>
 
-      <View style={[styles.inputRow, showFormatError && styles.inputError]}>
+      <View style={[styles.inputRow, phone.length > 0 && styles.inputFilled, showFormatError && styles.inputError]}>
         <Text variant="bodyStrong">+86</Text>
         <View style={styles.divider} />
         <TextInput
@@ -76,6 +79,13 @@ export default function Login() {
           style={styles.input}
           maxFontSizeMultiplier={layout.maxFontScale}
         />
+        {phone.length > 0 ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="清空手机号" onPress={() => setPhone('')} style={styles.clear}>
+            <View style={styles.clearDot}>
+              <Icon name="close" size={12} color={semantic.textSecondary} />
+            </View>
+          </Pressable>
+        ) : null}
       </View>
       {showInvite ? (
         <TextInput
@@ -116,11 +126,11 @@ export default function Login() {
         <View style={[styles.checkbox, agreed && styles.checkboxOn]}>{agreed ? <Icon name="check" size={14} color="#FFFFFF" /> : null}</View>
         <Text variant="caption" style={styles.agreeText}>
           已阅读并同意
-          <Text variant="caption" color={semantic.info} onPress={() => router.push('/(auth)/agreement?kind=user')}>
+          <Text variant="caption" color={semantic.textPrimary} onPress={() => router.push('/(auth)/agreement?kind=user')}>
             《用户协议》
           </Text>
           和
-          <Text variant="caption" color={semantic.info} onPress={() => router.push('/(auth)/agreement?kind=privacy')}>
+          <Text variant="caption" color={semantic.textPrimary} onPress={() => router.push('/(auth)/agreement?kind=privacy')}>
             《隐私政策》
           </Text>
           ，未注册的手机号验证后自动创建账号
@@ -132,13 +142,13 @@ export default function Login() {
       </Text>
 
       <BottomSheet visible={agreeSheet} onClose={() => setAgreeSheet(false)} title="请阅读并同意以下条款">
-        <Text variant="body">
+        <Text variant="caption" color={semantic.textPrimary} style={styles.sheetText}>
           为保障你的权益，登录前请阅读并同意
-          <Text variant="body" color={semantic.info} onPress={() => router.push('/(auth)/agreement?kind=user')}>
+          <Text variant="body" color={semantic.textPrimary} onPress={() => router.push('/(auth)/agreement?kind=user')}>
             《用户协议》
           </Text>
           和
-          <Text variant="body" color={semantic.info} onPress={() => router.push('/(auth)/agreement?kind=privacy')}>
+          <Text variant="body" color={semantic.textPrimary} onPress={() => router.push('/(auth)/agreement?kind=privacy')}>
             《隐私政策》
           </Text>
           。你上传的资料和题目仅本人可见。
@@ -168,27 +178,33 @@ export default function Login() {
 
 const styles = StyleSheet.create({
   inviteInput: { marginTop: spacing.sm, fontSize: 16, color: semantic.textPrimary },
-  header: { marginTop: 56, marginBottom: spacing.xxxl },
-  sub: { marginTop: spacing.sm },
+  header: { marginTop: 36, marginBottom: 28 },
+  title: { marginTop: 24 },
+  sub: { marginTop: 6, fontSize: 14 },
+  sheetText: { lineHeight: 22 },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: 56,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.lg,
-    borderWidth: 1,
+    paddingLeft: spacing.lg,
+    paddingRight: 6,
+    borderRadius: radius.xl,
+    borderWidth: 1.5,
     borderColor: semantic.border,
     backgroundColor: semantic.surface,
   },
+  inputFilled: { borderColor: semantic.textPrimary },
   inputError: { borderColor: semantic.danger },
+  clear: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  clearDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: semantic.fill, alignItems: 'center', justifyContent: 'center' },
   divider: { width: 1, height: 20, backgroundColor: semantic.border, marginHorizontal: spacing.md },
-  input: { flex: 1, fontSize: 18, color: semantic.textPrimary, minHeight: layout.minTouch },
+  input: { flex: 1, minWidth: 0, fontSize: 17, color: semantic.textPrimary, minHeight: layout.minTouch },
   tip: { marginTop: spacing.sm },
-  button: { marginTop: spacing.xl },
-  agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginTop: spacing.lg, padding: spacing.xs, borderRadius: radius.sm },
+  button: { marginTop: 20 },
+  agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginTop: spacing.md, padding: spacing.xs, borderRadius: radius.sm },
   agreeHighlight: { backgroundColor: semantic.amberSoft },
   checkbox: { width: 18, height: 18, marginTop: 1, borderRadius: 9, borderWidth: 1.5, borderColor: semantic.textSecondary, alignItems: 'center', justifyContent: 'center' },
-  checkboxOn: { backgroundColor: semantic.primary, borderColor: semantic.primary },
+  checkboxOn: { backgroundColor: semantic.textPrimary, borderColor: semantic.textPrimary },
   agreeText: { flex: 1 },
   footer: { position: 'absolute', bottom: 40, alignSelf: 'center' },
   sheetActions: { gap: spacing.sm, marginTop: spacing.xl },

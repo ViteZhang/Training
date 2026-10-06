@@ -80,13 +80,15 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
     <>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.meta}>
-          <Text variant="caption">
-            {qtypeNames[q.qtype]}
-            {q.score !== undefined ? ` · ${q.score} 分` : ''}
-          </Text>
-          {item.source ? <Text variant="caption">{sourceText(item.source)}</Text> : null}
+          <View style={styles.pill}>
+            <Text variant="small" color={semantic.textPrimary} style={styles.medium}>
+              {qtypeNames[q.qtype]}
+              {q.score !== undefined ? ` · ${q.score} 分` : ''}
+            </Text>
+          </View>
+          {item.source ? <Text variant="small">{sourceText(item.source)}</Text> : null}
         </View>
-        <TextInput accessibilityLabel="题干" value={q.stem} onChangeText={(v) => setQ({ ...q, stem: v })} multiline style={[styles.input, styles.stem]} maxFontSizeMultiplier={layout.maxFontScale} />
+        <TextInput accessibilityLabel="题干" value={q.stem} onChangeText={(v) => setQ({ ...q, stem: v })} multiline style={styles.stem} maxFontSizeMultiplier={layout.maxFontScale} />
         {q.options?.map((o) => (
           <Text key={o.key} variant="body">
             {o.key}. {o.text}
@@ -94,10 +96,11 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
         ))}
 
         <View style={styles.sectionHead}>
-          <Text variant="bodyStrong" style={styles.flex}>
+          <Text variant="caption" color={semantic.textPrimary} style={styles.medium}>
             参考答案
+            {q.answer && q.answer_origin ? <Text variant="caption"> · {originLabel[q.answer_origin] ?? ''}</Text> : null}
           </Text>
-          {q.answer && q.answer_origin ? <Tag label={originLabel[q.answer_origin] ?? ''} tone={q.answer_origin === 'ai_generated' ? 'ai' : 'neutral'} /> : null}
+          {q.answer && q.answer_origin === 'ai_generated' ? <Tag label="AI 生成" tone="ai" /> : null}
         </View>
         {q.answer ? (
           <TextInput accessibilityLabel="参考答案" value={q.answer} onChangeText={(v) => setQ({ ...q, answer: v })} multiline style={styles.input} maxFontSizeMultiplier={layout.maxFontScale} />
@@ -111,16 +114,16 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
 
         {subjective ? <RubricEditor points={points} score={q.score} onChange={(p) => setQ({ ...q, rubric_points: p })} /> : null}
 
-        <Text variant="bodyStrong" style={styles.section}>
+        <Text variant="caption" color={semantic.textPrimary} style={[styles.section, styles.medium]}>
           知识点
         </Text>
         <TextInput accessibilityLabel="知识点归属" placeholder="板块 / 章节 / 知识点" value={kp} onChangeText={setKp} style={styles.input} maxFontSizeMultiplier={layout.maxFontScale} />
-        <Button title="删除这道题" kind="text" onPress={() => setRemoving(true)} style={styles.delete} />
+        <Button title="删除这道题" kind="text" color={semantic.danger} onPress={() => setRemoving(true)} style={styles.delete} />
       </ScrollView>
       <Footer>
         <View style={styles.actions}>
           <Button title="稍后再看" kind="secondary" onPress={() => router.back()} style={styles.flex} />
-          <Button title="确认" disabled={mismatch || !q.stem.trim()} loading={busy === 'save'} onPress={() => void save()} style={styles.flex} />
+          <Button title="确认" style={styles.flex2} disabled={mismatch || !q.stem.trim()} loading={busy === 'save'} onPress={() => void save()} />
         </View>
       </Footer>
       <ConfirmDialog
@@ -220,7 +223,7 @@ export default function ItemScreen() {
   const done = () => router.back();
   return (
     <Screen>
-      <PageHeader title="核对这一条" onBack={() => router.back()} />
+      <PageHeader title={it.question ? '核对这道题' : '核对这一条'} onBack={() => router.back()} />
       {it.question ? <QuestionEditor item={it} onSaved={done} /> : <OtherItem item={it} onSaved={done} />}
     </Screen>
   );
@@ -228,13 +231,16 @@ export default function ItemScreen() {
 
 const styles = StyleSheet.create({
   scroll: { paddingBottom: spacing.xl, gap: spacing.md },
-  meta: { gap: spacing.xs },
-  input: { minHeight: 48, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, padding: spacing.sm, fontSize: 16, lineHeight: 24, color: semantic.textPrimary, backgroundColor: semantic.surface },
-  stem: { fontSize: 18 },
+  meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: spacing.sm },
+  pill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: semantic.fill },
+  medium: { fontWeight: '500' },
+  input: { minHeight: 48, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.xl, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, lineHeight: 24, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  stem: { fontSize: 20, lineHeight: 28, fontWeight: '700', color: semantic.textPrimary, padding: 0 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
   section: { marginTop: spacing.sm },
-  missing: { gap: spacing.sm, backgroundColor: semantic.amberSoft },
-  actions: { flexDirection: 'row', gap: spacing.sm },
+  missing: { gap: spacing.sm, backgroundColor: semantic.amberSoft, borderColor: '#F3DDB3' },
+  actions: { flexDirection: 'row', gap: 10 },
   flex: { flex: 1 },
-  delete: { alignSelf: 'flex-start' },
+  flex2: { flex: 1.6 },
+  delete: { alignSelf: 'flex-start', paddingHorizontal: 0 },
 });

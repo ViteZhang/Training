@@ -1,15 +1,15 @@
 // 1.1 你考哪门专业课：选考试年份；添加专业课（名称必填、代码选填），最多 4 门，至少 1 门才能下一步；
 // 免费版最多 3 门，第 4 门提示开通会员；目标院校专业选填。
 import { ApiError, type Schemas } from '@training/api-client';
-import { layout, radius, semantic, spacing } from '@training/ui-tokens';
+import { fontFamily, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { Button, Card, ConfirmDialog, ErrorState, Loading, QuotaSheet, Screen, Text, toast } from '@/components';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Button, ConfirmDialog, ErrorState, Icon, Loading, QuotaSheet, Screen, Text, toast } from '@/components';
 import { setStep } from '@/features/onboarding/api';
 import { loadDraft, saveDraft } from '@/features/onboarding/draft';
-import { Footer, OptionCard, StepHeader } from '@/features/onboarding/ui';
+import { Footer, StepHeader } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
 
@@ -20,7 +20,6 @@ export default function SubjectStep() {
   const draft = loadDraft();
   const [year, setYear] = useState<number | undefined>(draft.examYear);
   const [name, setName] = useState('');
-  const [code, setCode] = useState('');
   const [school, setSchool] = useState(draft.targetSchoolMajor ?? '');
   const [quota, setQuota] = useState(false);
   const [removing, setRemoving] = useState<Schemas['Subject'] | null>(null);
@@ -30,18 +29,23 @@ export default function SubjectStep() {
   const list = subjects.data?.items ?? [];
   const full = list.length >= 4;
 
+  // 设计稿 1.1：一个输入框写「代码 + 名称」，开头是 3 位数字时拆成代码
+  const parsed = (() => {
+    const t = name.trim();
+    const m = /^(\d{3})\s*(.+)$/.exec(t);
+    return m ? { code: m[1] ?? '', name: (m[2] ?? '').trim() } : { code: '', name: t };
+  })();
   const add = async () => {
-    if (!name.trim()) return;
+    if (!parsed.name) return;
     if (subjects.data && !subjects.data.can_add && !full) {
       setQuota(true);
       return;
     }
     setBusy(true);
     try {
-      await unwrap(api.POST('/subjects', { body: { name: name.trim(), code: code.trim() || null, full_score: 150 } }));
-      track('subject_add', { from: 'onboarding', has_code: !!code.trim() });
+      await unwrap(api.POST('/subjects', { body: { name: parsed.name, code: parsed.code || null, full_score: 150 } }));
+      track('subject_add', { from: 'onboarding', has_code: !!parsed.code });
       setName('');
-      setCode('');
       await qc.invalidateQueries({ queryKey: ['subjects'] });
     } catch (e) {
       if (e instanceof ApiError && e.isQuotaExceeded) setQuota(true);
@@ -80,60 +84,89 @@ export default function SubjectStep() {
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
         <StepHeader step={1} title="你考哪门专业课？" desc="导入的资料会按专业课整理。目前支持以名词解释、简答、论述为主的文科专业课。" />
 
-        <Text variant="bodyStrong" style={styles.label}>
-          参加哪一年的考试
-        </Text>
-        <View style={styles.gap}>
-          {years.data?.items.map((y) => (
-            <OptionCard key={y.exam_year} label={y.label} selected={y.exam_year === selectedYear} onPress={() => setYear(y.exam_year)}>
-              <Text variant="bodyStrong">{y.label}</Text>
-              <Text variant="caption">专业课考试 {y.subject_exam_date}</Text>
-            </OptionCard>
-          ))}
+        <View style={styles.block}>
+          <Text variant="caption" color={semantic.textPrimary} style={styles.label}>
+            参加哪一年的考试
+          </Text>
+          <View style={styles.years} accessibilityRole="radiogroup">
+            {years.data?.items.map((y) => {
+              const on = y.exam_year === selectedYear;
+              return (
+                <Pressable key={y.exam_year} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={y.label} onPress={() => setYear(y.exam_year)} style={[styles.year, on && styles.yearOn]}>
+                  <Text variant="caption" color={semantic.textPrimary} style={on ? styles.bold : undefined}>
+                    {y.label}
+                  </Text>
+                  <Text variant="small" style={styles.yearSub}>
+                    专业课考试 {y.subject_exam_date}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
-        <View style={styles.labelRow}>
-          <Text variant="bodyStrong">专业课</Text>
-          <Text variant="caption">最多 4 门</Text>
-        </View>
-        <View style={styles.gap}>
-          {list.map((s) => (
-            <Card key={s.id} style={styles.subjectRow}>
-              <View style={styles.flex}>
-                {s.code ? <Text variant="caption">{s.code}</Text> : null}
-                <Text variant="bodyStrong">{s.name}</Text>
+        <View style={styles.block}>
+          <View style={styles.labelRow}>
+            <Text variant="caption" color={semantic.textPrimary} style={styles.label}>
+              专业课
+            </Text>
+            <Text variant="small">最多 4 门</Text>
+          </View>
+          <View style={styles.list}>
+            {list.map((s) => (
+              <View key={s.id} style={[styles.subjectRow, styles.divider]}>
+                <Text variant="bodyStrong" style={styles.code}>
+                  {s.code || '—'}
+                </Text>
+                <Text variant="body" style={styles.flex}>
+                  {s.name}
+                </Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="删除这门专业课" onPress={() => setRemoving(s)} style={styles.remove}>
+                  <Icon name="close" size={18} color={semantic.textSecondary} />
+                </Pressable>
               </View>
-              <Button title="删除" kind="text" onPress={() => setRemoving(s)} />
-            </Card>
-          ))}
-          {!full ? (
-            <Card style={styles.addCard}>
-              <TextInput accessibilityLabel="专业课名称" placeholder="专业课名称，如：中国古代文学史" value={name} onChangeText={setName} style={styles.input} maxLength={64} maxFontSizeMultiplier={layout.maxFontScale} />
+            ))}
+            {!full ? (
               <View style={styles.subjectRow}>
-                <TextInput accessibilityLabel="专业课代码" placeholder="代码（选填），如 654" value={code} onChangeText={setCode} style={[styles.input, styles.flex]} maxLength={16} maxFontSizeMultiplier={layout.maxFontScale} />
-                <Button title="添加" kind="secondary" disabled={!name.trim()} loading={busy} onPress={() => void add()} />
+                <TextInput
+                  accessibilityLabel="添加专业课"
+                  placeholder="代码 + 名称，如 654 语言文学基础"
+                  placeholderTextColor="#A8A399"
+                  value={name}
+                  onChangeText={setName}
+                  onSubmitEditing={() => void add()}
+                  style={styles.input}
+                  maxLength={64}
+                  maxFontSizeMultiplier={layout.maxFontScale}
+                />
+                <Button title="添加" kind={parsed.name ? 'primary' : 'soft'} size="sm" disabled={!parsed.name} loading={busy} onPress={() => void add()} />
               </View>
-              <Text variant="caption">不知道代码？只写名称也可以，比如「中国古代文学史」</Text>
-            </Card>
-          ) : null}
+            ) : null}
+          </View>
+          <Text variant="small">不知道代码？只写名称也可以，比如「中国古代文学史」</Text>
         </View>
 
-        <View style={styles.labelRow}>
-          <Text variant="bodyStrong">目标院校专业</Text>
-          <Text variant="caption">选填</Text>
+        <View style={styles.block}>
+          <Text variant="caption" color={semantic.textPrimary} style={styles.label}>
+            目标院校专业 <Text variant="caption">选填</Text>
+          </Text>
+          <View style={styles.school}>
+            <TextInput
+              accessibilityLabel="目标院校专业"
+              placeholder="未填写"
+              placeholderTextColor={semantic.textPrimary}
+              value={school}
+              onChangeText={setSchool}
+              style={styles.schoolInput}
+              maxLength={64}
+              maxFontSizeMultiplier={layout.maxFontScale}
+            />
+            <Text variant="small">以后收录了你的院校专业，会给你推送官方题库</Text>
+          </View>
         </View>
-        <TextInput accessibilityLabel="目标院校专业" placeholder="如：海南大学 · 中国语言文学" value={school} onChangeText={setSchool} style={styles.input} maxLength={64} maxFontSizeMultiplier={layout.maxFontScale} />
-        <Text variant="caption" style={styles.hint}>
-          以后收录了你的院校专业，会给你推送官方题库
-        </Text>
       </ScrollView>
       <Footer>
-        <Button title="下一步" disabled={list.length === 0 || !selectedYear} onPress={() => void next()} />
-        {list.length === 0 ? (
-          <Text variant="caption" style={styles.center}>
-            至少添加一门专业课
-          </Text>
-        ) : null}
+        <Button title={list.length === 0 ? '至少添加一门专业课' : '下一步'} disabled={list.length === 0 || !selectedYear} onPress={() => void next()} />
       </Footer>
 
       <QuotaSheet
@@ -164,14 +197,22 @@ export default function SubjectStep() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { paddingBottom: spacing.xl },
-  label: { marginBottom: spacing.sm },
-  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: spacing.xl, marginBottom: spacing.sm },
-  gap: { gap: spacing.sm },
-  subjectRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  addCard: { gap: spacing.sm },
+  scroll: { paddingBottom: spacing.xl, gap: 20 },
+  block: { gap: 10 },
+  label: { fontWeight: '500' },
+  bold: { fontWeight: '700' },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  years: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: 14, backgroundColor: semantic.fill },
+  year: { flex: 1, minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
+  yearOn: { backgroundColor: semantic.surface },
+  yearSub: { fontSize: 11, lineHeight: 15 },
+  list: { borderRadius: radius.card, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface, overflow: 'hidden' },
+  subjectRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingLeft: 18, paddingRight: 8 },
+  divider: { borderBottomWidth: 1, borderBottomColor: semantic.border },
+  code: { minWidth: 36, fontFamily: fontFamily.numberSemiBold },
+  remove: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
-  input: { minHeight: 48, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 16, color: semantic.textPrimary, backgroundColor: semantic.surface },
-  hint: { marginTop: spacing.sm },
-  center: { textAlign: 'center' },
+  input: { flex: 1, minWidth: 0, minHeight: 44, fontSize: 15, color: semantic.textPrimary },
+  school: { gap: 2, minHeight: 56, justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 18, borderRadius: radius.xl, backgroundColor: semantic.fill },
+  schoolInput: { fontSize: 14, minHeight: 24, padding: 0, color: semantic.textPrimary },
 });

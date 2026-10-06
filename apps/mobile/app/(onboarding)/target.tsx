@@ -1,13 +1,13 @@
 // 1.2 设定目标分：每门专业课选满分（100 / 150 / 300），± 设目标分，默认取满分的 70%；可「先不设这门」或整页「先跳过」。
 import type { Schemas } from '@training/api-client';
-import { semantic, spacing } from '@training/ui-tokens';
+import { colors, fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, ErrorState, Loading, Screen, Text, toast } from '@/components';
 import { setStep } from '@/features/onboarding/api';
-import { Chips, Footer, StepHeader, Stepper } from '@/features/onboarding/ui';
+import { Footer, StepHeader, Stepper } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
 
 type FullScore = 100 | 150 | 300;
@@ -65,29 +65,49 @@ export default function TargetStep() {
             const d = draftOf(s);
             return (
               <Card key={s.id} style={styles.card}>
-                <Text variant="caption">{s.code ?? ''}</Text>
-                <Text variant="h3">{s.name}</Text>
-                <Text variant="caption">满分</Text>
-                <Chips<FullScore>
-                  options={[100, 150, 300]}
-                  value={d.full}
-                  onChange={(full) => set(s.id, { full, target: d.target === null ? null : Math.min(defaultTarget(full), full) })}
-                />
+                <View style={styles.head}>
+                  <Text variant="bodyStrong" style={styles.flex}>
+                    {s.code ? <Text variant="bodyStrong" style={styles.code}>{s.code} </Text> : null}
+                    {s.name}
+                  </Text>
+                  <Text variant="small">满分</Text>
+                  {([100, 150, 300] as FullScore[]).map((full) => (
+                    <Pressable
+                      key={full}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: d.full === full }}
+                      accessibilityLabel={`满分 ${full}`}
+                      onPress={() => set(s.id, { full, target: d.target === null ? null : Math.min(defaultTarget(full), full) })}
+                      style={[styles.full, d.full === full && styles.fullOn]}
+                      hitSlop={6}
+                    >
+                      <Text variant="small" color={d.full === full ? colors.ink : semantic.textSecondary} style={d.full === full ? styles.bold : undefined}>
+                        {full}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
                 {d.target !== null ? (
-                  <View style={styles.targetRow}>
+                  <>
                     <Stepper value={d.target} min={0} max={d.full} onChange={(v) => set(s.id, { ...d, target: v })} suffix={`/ ${d.full}`} />
-                    <Button title="先不设这门" kind="text" onPress={() => set(s.id, { ...d, target: null })} />
-                  </View>
+                    <View style={styles.track}>
+                      <View style={[styles.marker, { left: `${(d.target / d.full) * 100}%` }]} />
+                    </View>
+                    <Button title="先不设这门" kind="text" size="sm" onPress={() => set(s.id, { ...d, target: null })} />
+                  </>
                 ) : (
-                  <Button title="设个目标分" kind="secondary" onPress={() => set(s.id, { ...d, target: defaultTarget(d.full) })} />
+                  <Button title="设个目标分" kind="soft" size="sm" style={styles.start} onPress={() => set(s.id, { ...d, target: defaultTarget(d.full) })} />
                 )}
               </Card>
             );
           })}
         </View>
-        <Text variant="caption" color={semantic.textSecondary} style={styles.hint}>
-          不知道定多少？可以参考目标院校往年的复试线，和上岸学长学姐的专业课成绩
-        </Text>
+        <View style={styles.hint}>
+          <View style={styles.dot} />
+          <Text variant="small" style={styles.flex}>
+            不知道定多少？可以参考目标院校往年的复试线，和上岸学长学姐的专业课成绩
+          </Text>
+        </View>
       </ScrollView>
       <Footer>
         <Button title="下一步" loading={busy} onPress={() => void save()} />
@@ -100,7 +120,16 @@ export default function TargetStep() {
 const styles = StyleSheet.create({
   scroll: { paddingBottom: spacing.xl },
   gap: { gap: spacing.md },
-  card: { gap: spacing.sm },
-  targetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' },
-  hint: { marginTop: spacing.lg },
+  card: { gap: 14 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  flex: { flex: 1 },
+  bold: { fontWeight: '700' },
+  code: { fontFamily: fontFamily.numberSemiBold },
+  full: { minWidth: 40, minHeight: 28, paddingHorizontal: 8, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  fullOn: { backgroundColor: semantic.fill },
+  track: { height: 4, borderRadius: 2, backgroundColor: semantic.border },
+  marker: { position: 'absolute', top: -6, width: 2, height: 16, marginLeft: -1, backgroundColor: colors.amber },
+  start: { alignSelf: 'flex-start' },
+  hint: { flexDirection: 'row', gap: 10, marginTop: spacing.md, padding: 16, borderRadius: radius.xl, backgroundColor: semantic.fill },
+  dot: { width: 8, height: 8, borderRadius: 4, marginTop: 5, backgroundColor: colors.amber },
 });

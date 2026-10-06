@@ -1,12 +1,12 @@
 // 0.3 输入验证码 / 0.3b 验证码错误 / 0.3c 收不到验证码。
 // 6 位输满自动登录；支持 iOS 与安卓短信自动填充；60 秒倒计时后可重发；输错清空并提示剩余次数。
-import { colors, fontFamily, layout, radius, semantic, spacing } from '@training/ui-tokens';
+import { fontFamily, layout, semantic, spacing } from '@training/ui-tokens';
 import { ApiError } from '@training/api-client';
 import * as Device from 'expo-device';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { BottomSheet, Button, Screen, Text } from '@/components';
+import { BottomSheet, Button, Screen, Text, NavBar } from '@/components';
 import { saveTokens } from '@/features/auth/actions';
 import { formatPhone } from '@/features/auth/phone';
 import { routeFor } from '@/features/auth/routing';
@@ -86,15 +86,17 @@ export default function Code() {
 
   return (
     <Screen>
-      <Button title="返回" kind="text" onPress={() => router.back()} style={styles.back} />
-      <Text variant="h1">输入验证码</Text>
-      <Text variant="body" color={semantic.textSecondary} style={styles.sub}>
-        6 位验证码已发送至 +86 {formatPhone(phone)}
+      <NavBar />
+      <Text variant="h1" style={styles.title}>
+        输入验证码
+      </Text>
+      <Text variant="caption" style={styles.sub}>
+        6 位验证码已发送至 <Text variant="caption" color={semantic.textPrimary}>+86 {formatPhone(phone)}</Text>
       </Text>
 
       <Pressable onPress={() => input.current?.focus()} style={styles.boxes} accessibilityLabel="验证码输入框">
         {Array.from({ length: LEN }, (_, i) => (
-          <View key={i} style={[styles.box, i === code.length && styles.boxActive, error && styles.boxError]}>
+          <View key={i} style={[styles.box, (i < code.length || i === code.length) && styles.boxActive, error && styles.boxError]}>
             <Text style={styles.digit}>{code[i] ?? ''}</Text>
           </View>
         ))}
@@ -130,7 +132,7 @@ export default function Code() {
         ) : (
           <Button title="重新获取验证码" kind="text" onPress={() => void resend()} />
         )}
-        <Button title="收不到验证码？" kind="text" onPress={() => setHelp(true)} />
+        <Button title="收不到验证码？" kind="text" style={styles.helpLink} onPress={() => setHelp(true)} />
       </View>
       <Text variant="caption" style={styles.note}>
         输满 6 位自动登录，支持短信验证码自动填充
@@ -165,27 +167,28 @@ export default function Code() {
 }
 
 const styles = StyleSheet.create({
-  back: { alignSelf: 'flex-start', marginTop: spacing.sm, marginBottom: spacing.lg, paddingHorizontal: 0 },
-  sub: { marginTop: spacing.sm },
-  boxes: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.xxxl },
+  title: { marginTop: 14 },
+  sub: { marginTop: 6, fontSize: 14 },
+  boxes: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 28 },
   box: {
-    width: 48,
-    height: 56,
-    borderRadius: radius.md,
+    width: 50,
+    height: 60,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: semantic.border,
     backgroundColor: semantic.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  boxActive: { borderColor: colors.indigo, borderWidth: 1.5 },
+  boxActive: { borderColor: semantic.textPrimary, borderWidth: 1.5 },
   boxError: { borderColor: semantic.danger },
   digit: { fontFamily: fontFamily.numberSemiBold, fontSize: 24, lineHeight: 30 },
   hidden: { position: 'absolute', opacity: 0, height: 1, width: 1 },
   tip: { marginTop: spacing.md },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.lg, minHeight: layout.minTouch },
-  count: { fontFamily: fontFamily.numberSemiBold, color: colors.indigo },
-  note: { marginTop: spacing.sm },
+  count: { color: semantic.textSecondary },
+  note: { marginTop: spacing.md, fontSize: 12 },
+  helpLink: { marginRight: -8 },
   helpItem: { marginBottom: spacing.sm },
   helpActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
   flex: { flex: 1 },
