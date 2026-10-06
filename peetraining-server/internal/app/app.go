@@ -126,6 +126,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	})
 	salt := sha256.Sum256([]byte("ai-calls:" + cfg.JWTSecret))
 	models, fallback := ai.Routing(cfg.AI, clients.AIFallback)
+	log.Info("AI 配置", "provider", cfg.AI.Provider, "model_strong", models.Strong, "model_cheap", models.Cheap, "fallback", fallback != nil)
 	engine := ai.NewEngine(ai.Config{
 		Client: clients.AI, Fallback: fallback, Queries: q, UseMock: cfg.AI.Provider == config.ProviderMock,
 		Models: models, Salt: hex.EncodeToString(salt[:]), Prices: ai.PricesFrom(cfg.AI), Moderation: clients.Moderation,

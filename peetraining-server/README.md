@@ -15,7 +15,7 @@ make dev-down     # 停掉本地 MySQL 与 Redis
 
 本地不需要任何真实密钥：短信、AI、OCR、语音、内容安全、支付默认都走 mock（`internal/cloud`）。
 mock OSS 把上传的文件存在系统临时目录下的 `peetraining-mock-oss`（`OSS_MOCK_DIR` 可改），API 与 Worker 两个进程共用它。
-mock AI 不调用大模型（返回空结果），mock OCR 把文件字节当文本，所以本地导入真实 PDF 或图片解析不出题目；要看真实效果需设置 `AI_PROVIDER=bailian` 或 `relay` 并填对应的地址与密钥（见 `.env.example`）。
+mock AI 不调用大模型（返回空结果），mock OCR 把文件字节当文本，所以本地导入真实 PDF 或图片解析不出题目；要看真实效果：`cp .env.local.example .env.local`，填入密钥，`make ai-check` 确认可用后再 `make dev`（`.env.local` 不进仓库，`make dev` 会自动读取）。
 
 ## 常用命令
 

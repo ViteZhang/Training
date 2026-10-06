@@ -4,17 +4,23 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X peetraining-server/internal/app.Version=$(VERSION)
 TOOL := go tool -modfile=tools/go.mod
 DEV_COMPOSE := docker compose -f docker-compose.dev.yml
+# 本机私密配置（大模型密钥等）写在 .env.local（不进仓库，模板见 .env.local.example），dev 等命令启动前自动读取。
+LOAD_ENV := set -a; [ ! -f .env.local ] || . ./.env.local; set +a;
 DEV_ENV := APP_ENV=local MYSQL_DSN='training:training@tcp(127.0.0.1:3306)/training' REDIS_ADDR=127.0.0.1:6379
 
-.PHONY: dev dev-deps dev-down gen gen-check test test-unit lint migrate-new migrate-up migrate-status eval eval-all build docker api-tag
+.PHONY: dev ai-check dev-deps dev-down gen gen-check test test-unit lint migrate-new migrate-up migrate-status eval eval-all build docker api-tag
 
 ## dev：起本地 MySQL 与 Redis，执行迁移，再同时启动 API（:8080）与 Worker；Ctrl+C 一起停止
 dev: dev-deps
 	$(DEV_ENV) go run ./cmd/api migrate up
-	@trap 'kill 0' INT TERM EXIT; \
+	@trap 'kill 0' INT TERM EXIT; $(LOAD_ENV) \
 	$(DEV_ENV) go run ./cmd/worker & \
 	$(DEV_ENV) go run ./cmd/api & \
 	wait
+
+## ai-check：读取 .env.local，向大模型发一条测试请求，确认地址、密钥与模型名可用（不需要 MySQL 与 Redis）
+ai-check:
+	@$(LOAD_ENV) $(DEV_ENV) go run ./cmd/api ai-check
 
 dev-deps:
 	$(DEV_COMPOSE) up -d --wait
