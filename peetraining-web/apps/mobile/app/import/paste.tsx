@@ -46,6 +46,9 @@ export default function PasteScreen() {
   return (
     <Screen>
       <PageHeader title="粘贴文字" onBack={() => router.back()} />
+      <Text variant="small" style={styles.label}>
+        把题目粘贴到这里
+      </Text>
       <TextInput
         accessibilityLabel="要导入的文字"
         multiline
@@ -57,10 +60,13 @@ export default function PasteScreen() {
         textAlignVertical="top"
         maxFontSizeMultiplier={layout.maxFontScale}
       />
-      <View style={styles.meta}>
-        <Text variant="caption">每道题之间空一行识别更准；答案写在题目下方，以「答案：」开头</Text>
-        <Text variant="caption" color={over ? semantic.danger : semantic.textSecondary}>
-          {count} / {limits.maxPasteChars} 字
+      <Text variant="small" color={over ? semantic.danger : semantic.textSecondary} style={styles.count}>
+        {count} / {limits.maxPasteChars} 字
+      </Text>
+      <View style={styles.tip}>
+        <View style={styles.dot} />
+        <Text variant="small" style={styles.flex}>
+          每道题之间空一行识别更准；答案写在题目下方，以「答案：」开头
         </Text>
       </View>
       <Footer>
@@ -72,6 +78,10 @@ export default function PasteScreen() {
 }
 
 const styles = StyleSheet.create({
-  input: { flex: 1, minHeight: 240, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, padding: spacing.md, fontSize: 16, lineHeight: 24, color: semantic.textPrimary, backgroundColor: semantic.surface },
-  meta: { marginTop: spacing.sm, gap: spacing.xs },
+  label: { marginTop: spacing.md, marginBottom: 10 },
+  input: { flex: 1, minHeight: 240, borderWidth: 1.5, borderColor: semantic.textPrimary, borderRadius: radius.xl, padding: 14, fontSize: 14, lineHeight: 25, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  count: { textAlign: 'right', marginTop: 6 },
+  tip: { flexDirection: 'row', gap: 10, marginTop: spacing.md, padding: 16, borderRadius: radius.xl, backgroundColor: semantic.fill },
+  dot: { width: 8, height: 8, borderRadius: 4, marginTop: 5, backgroundColor: semantic.info },
+  flex: { flex: 1 },
 });

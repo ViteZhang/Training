@@ -7,6 +7,7 @@ export { Logo } from './Logo';
 export { BackButton, NavBar } from './NavBar';
 export { ProgressBar } from './ProgressBar';
 export { Screen } from './Screen';
+export { Segmented } from './Segmented';
 export { AIFailed, AIGenerating, EmptyState, ErrorState, Loading, QuotaSheet, Skeleton } from './States';
 export { Tag } from './Tag';
 export { Text } from './Text';

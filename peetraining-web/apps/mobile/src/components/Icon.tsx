@@ -21,6 +21,21 @@ const paths = {
   close: <Path d="M6 6l12 12M18 6L6 18" />,
   check: <Path d="M5 12l5 5L20 7" />,
   bell: <Path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0" />,
+  camera: (
+    <>
+      <Path d="M4 8h3l1.5-2h7L17 8h3v11H4z" />
+      <Circle cx={12} cy={13} r={3.5} />
+    </>
+  ),
+  image: (
+    <>
+      <Path d="M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4" />
+      <Circle cx={9} cy={9} r={1.5} />
+    </>
+  ),
+  mic: <Path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3" />,
+  file: <Path d="M7 3h7l5 5v13H7zM14 3v5h5" />,
+  clipboard: <Path d="M8 4h8v3H8zM8 5.5H6v15.5h12V5.5h-2M9 12h6M9 16h4" />,
   chevron: <Path d="M9 5l7 7-7 7" />,
   back: <Path d="M15 5l-7 7 7 7" />,
   edit: <Path d="M4 20h4L18 10l-4-4L4 16zM14 6l4 4" />,

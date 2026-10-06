@@ -1,7 +1,8 @@
 import { colors, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { BackButton, Text } from '@/components';
+import { BackButton, Icon, Text } from '@/components';
+import type { IconName } from '@/components/Icon';
 
 /** 引导顶部：5 步进度条（PRD 1：1.1 到 1.5 分别为第 1–5 步）。 */
 export function StepHeader({ step, title, desc, onBack }: { step: number; title: string; desc?: string; onBack?: () => void }) {
@@ -28,8 +29,20 @@ export function StepHeader({ step, title, desc, onBack }: { step: number; title:
   );
 }
 
-/** 可选卡片（单选），选中时 2px 夜靛描边（设计稿 1.3、1.4）。 */
-export function OptionCard({ selected, onPress, children, label }: { selected: boolean; onPress: () => void; children: ReactNode; label: string }) {
+/** 可选卡片（单选）：左侧可放图标块，右侧单选圈；选中时 1.5px 夜靛描边（设计稿 1.3、1.4）。 */
+export function OptionCard({
+  selected,
+  onPress,
+  children,
+  label,
+  icon,
+}: {
+  selected: boolean;
+  onPress: () => void;
+  children: ReactNode;
+  label: string;
+  icon?: { name: IconName; bg: string; fg: string };
+}) {
   return (
     <Pressable
       accessibilityRole="radio"
@@ -38,7 +51,13 @@ export function OptionCard({ selected, onPress, children, label }: { selected: b
       onPress={onPress}
       style={[styles.option, selected && styles.optionOn]}
     >
+      {icon ? (
+        <View style={[styles.optionIcon, { backgroundColor: icon.bg }]}>
+          <Icon name={icon.name} size={22} color={icon.fg} />
+        </View>
+      ) : null}
       <View style={styles.flex}>{children}</View>
+      <View style={[styles.radio, selected && styles.radioOn]}>{selected ? <View style={styles.radioDot} /> : null}</View>
     </Pressable>
   );
 }
@@ -94,8 +113,12 @@ const styles = StyleSheet.create({
   barOn: { backgroundColor: colors.ink },
   title: { marginTop: spacing.lg },
   desc: { fontSize: 14, lineHeight: 21 },
-  option: { flexDirection: 'row', gap: spacing.md, alignItems: 'center', paddingVertical: 14, paddingHorizontal: 18, borderRadius: radius.xl, borderWidth: 2, borderColor: semantic.border, backgroundColor: semantic.surface, minHeight: layout.minTouch },
-  optionOn: { borderColor: colors.indigo },
+  option: { flexDirection: 'row', gap: 14, alignItems: 'flex-start', padding: 16, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface, minHeight: layout.minTouch },
+  optionOn: { borderColor: colors.indigo, borderWidth: 1.5, padding: 15.5 },
+  optionIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  radio: { width: 20, height: 20, marginTop: 2, borderRadius: 10, borderWidth: 1.5, borderColor: '#BDB8AD', alignItems: 'center', justifyContent: 'center' },
+  radioOn: { borderColor: colors.indigo },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.indigo },
   flex: { flex: 1 },
   chips: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   chip: { minHeight: 40, minWidth: 64, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: semantic.fill, alignItems: 'center', justifyContent: 'center' },
