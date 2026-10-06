@@ -1,5 +1,5 @@
 // 资料解析额度条（3.1c、6.3）：「免费版 · 累计 98 / 100 页」，快用完时给「开通会员」。
-import { semantic, spacing } from '@training/ui-tokens';
+import { semantic } from '@training/ui-tokens';
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { Button, Card, ProgressBar, Text } from '@/components';
@@ -15,31 +15,32 @@ export function ParseQuotaBar() {
   const left = limit !== undefined ? Math.max(limit - item.used, 0) : undefined;
   const low = limit !== undefined && left !== undefined && left <= limit * 0.1;
   return (
-    <Card style={styles.card}>
+    <Card tone="fill" style={styles.card}>
       <View style={styles.row}>
-        <Text variant="bodyStrong" style={styles.flex}>
+        <Text variant="caption" color={semantic.textPrimary} style={[styles.flex, styles.bold]}>
           资料解析额度
         </Text>
-        <Text variant="caption">
-          {quota.data.membership.is_member ? '会员' : '免费版'} · {periodName[item.period]} <Text variant="number">{item.used}</Text>
+        <Text variant="small">
+          {quota.data.membership.is_member ? '会员' : '免费版'} · {periodName[item.period]} {item.used}
           {limit !== undefined ? ` / ${limit}` : ''} 页
         </Text>
       </View>
-      {limit !== undefined ? <ProgressBar value={Math.min(item.used / limit, 1)} /> : null}
+      {limit !== undefined ? <ProgressBar value={Math.min(item.used / limit, 1)} height={4} /> : null}
       {low ? (
-        <>
-          <Text variant="caption" color={semantic.danger}>
+        <View style={styles.row}>
+          <Text variant="small" style={styles.flex}>
             还剩 {left} 页。用完后仍可刷题，再解析资料需开通会员
           </Text>
-          <Button title="开通会员" kind="secondary" onPress={() => router.push('/member')} />
-        </>
+          <Button title="开通会员" kind="text" size="sm" color={semantic.textPrimary} onPress={() => router.push('/member')} />
+        </View>
       ) : null}
     </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { gap: spacing.sm },
-  row: { flexDirection: 'row', alignItems: 'baseline' },
+  card: { gap: 10, paddingVertical: 16 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   flex: { flex: 1 },
+  bold: { fontWeight: '700' },
 });

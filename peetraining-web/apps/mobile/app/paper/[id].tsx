@@ -8,7 +8,7 @@ import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, ErrorState, Loading, QuotaSheet, Screen, Tag, Text, toast } from '@/components';
+import { Button, Card, ErrorState, Loading, QuotaSheet, Screen, Tag, Text, toast } from '@/components';
 import { qtypeNames } from '@/features/import/api';
 import { PageHeader } from '@/features/import/ui';
 import { paperKeys, usePaper } from '@/features/paper/api';
@@ -53,9 +53,9 @@ export default function PaperModePage() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <PageHeader title={p.title} onBack={() => router.back()} />
         <View style={styles.facts}>
-          <Text variant="body">{p.question_count} 题</Text>
-          <Text variant="body">{p.full_score} 分</Text>
-          <Text variant="body">{p.duration_minutes} 分钟</Text>
+          <Text variant="caption">{p.question_count} 题</Text>
+          <Text variant="caption">{p.full_score} 分</Text>
+          <Text variant="caption">{p.duration_minutes} 分钟</Text>
         </View>
         {p.missing_note ? <Text variant="caption" color={semantic.info}>{p.missing_note}</Text> : null}
         {!p.counts_for_estimate ? <Text variant="caption">AI 组卷的成绩只作参考，不计入预估分</Text> : null}
@@ -69,31 +69,39 @@ export default function PaperModePage() {
             style={[styles.mode, chosen === m && styles.modeOn]}
           >
             <View style={styles.titleRow}>
-              <Text variant="h3">{modeCopy[m].title}</Text>
-              {p.recommended_mode === m ? <Tag label="推荐" tone="brand" /> : null}
+              <Text variant="h3" style={styles.flex}>
+                {modeCopy[m].title}
+              </Text>
+              {p.recommended_mode === m ? <Tag label="推荐" tone="mastered" /> : null}
             </View>
             {modeCopy[m].lines.map((l) => (
-              <Text key={l} variant="caption">
-                · {l}
+              <Text key={l} variant="small" color={semantic.textPrimary}>
+                ·  {l}
               </Text>
             ))}
           </Pressable>
         ))}
-        <Text variant="bodyStrong">建议用时 · 按你真题的题型分值折算</Text>
-        <View style={styles.times}>
+        <Card style={styles.timeCard}>
+          <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+            建议用时 · 按你真题的题型分值折算
+          </Text>
+          <View style={styles.times}>
           {p.sections.map((s) => (
             <View key={s.qtype} style={styles.time}>
               <Text variant="number">{s.suggested_minutes}′</Text>
-              <Text variant="caption">{qtypeNames[s.qtype]}</Text>
+              <Text variant="small">{qtypeNames[s.qtype]}</Text>
             </View>
           ))}
           <View style={styles.time}>
             <Text variant="number">{p.check_minutes}′</Text>
-            <Text variant="caption">检查</Text>
+            <Text variant="small">检查</Text>
           </View>
-        </View>
+          </View>
+        </Card>
       </ScrollView>
-      <Button title={chosen === 'mock' ? '开始模拟考试' : '开始练习'} loading={start.isPending} onPress={() => start.mutate(chosen)} />
+      <View style={styles.footer}>
+        <Button title={chosen === 'mock' ? '开始模拟考试' : '开始练习'} loading={start.isPending} onPress={() => start.mutate(chosen)} />
+      </View>
       <QuotaSheet
         visible={quotaOut}
         onClose={() => setQuotaOut(false)}
@@ -107,11 +115,15 @@ export default function PaperModePage() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { gap: spacing.md, paddingBottom: spacing.xl },
-  facts: { flexDirection: 'row', gap: spacing.lg },
-  mode: { gap: spacing.xs, padding: spacing.lg, borderRadius: radius.lg, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
-  modeOn: { borderColor: semantic.primary, borderWidth: 2 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  times: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  time: { minWidth: 72, alignItems: 'center', padding: spacing.sm, borderRadius: radius.md, backgroundColor: semantic.background },
+  scroll: { gap: 12, paddingBottom: spacing.xl },
+  facts: { flexDirection: 'row', gap: spacing.lg, marginTop: 4 },
+  mode: { gap: 6, padding: 18, borderRadius: radius.card, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
+  modeOn: { borderColor: semantic.textPrimary, borderWidth: 2, padding: 17 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: 2 },
+  flex: { flex: 1 },
+  bold: { fontWeight: '700' },
+  timeCard: { gap: 10 },
+  times: { flexDirection: 'row', justifyContent: 'space-between' },
+  time: { flex: 1, gap: 2 },
+  footer: { paddingVertical: spacing.md },
 });

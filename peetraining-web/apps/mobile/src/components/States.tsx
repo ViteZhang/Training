@@ -80,34 +80,44 @@ export interface AIGeneratingProps {
   current: number;
   /** 预计时长，如「约 5 秒」 */
   eta?: string;
+  /** 标题，如「AI 正在批改」；不传只显示步骤 */
+  title?: string;
+  /** 标题下的一行说明（会和预计时长拼在一起） */
+  desc?: string;
   /** 可离开的任务（解析、整卷批改、作文批改）显示「先离开，好了通知我」 */
   onLeave?: () => void;
 }
 
-/** AI 生成中：分步打勾 + 预计时长；超过 15 秒换安抚文案。 */
-export function AIGenerating({ steps, current, eta, onLeave }: AIGeneratingProps) {
+/** AI 生成中（设计稿 4.6）：三个圆点 + 标题 + 分步打勾；超过 15 秒换安抚文案。 */
+export function AIGenerating({ steps, current, eta, title, desc, onLeave }: AIGeneratingProps) {
   const [slow, setSlow] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setSlow(true), timing.aiSlowMs);
     return () => clearTimeout(t);
   }, []);
+  const sub = slow ? '内容比较多，还在认真处理，请再等一会儿' : [desc, eta ? `${eta.startsWith('约') || eta.startsWith('大约') || eta.startsWith('每') ? '' : '预计'}${eta}` : ''].filter(Boolean).join(' · ');
   return (
     <View style={styles.ai} accessibilityLiveRegion="polite">
-      <Icon name="sparkle" size={32} color={semantic.primary} />
-      {steps.map((s, i) => (
-        <View key={s} style={styles.step}>
-          <View style={[styles.dot, i < current && styles.dotDone, i === current && styles.dotActive]}>
-            {i < current ? <Icon name="check" size={12} color="#FFFFFF" /> : null}
+      <View style={styles.dots} accessibilityElementsHidden>
+        <View style={[styles.aiDot, { backgroundColor: semantic.textPrimary }]} />
+        <View style={[styles.aiDot, { backgroundColor: '#8C877D' }]} />
+        <View style={[styles.aiDot, { backgroundColor: '#CFCAC0' }]} />
+      </View>
+      {title ? <Text variant="h2">{title}</Text> : null}
+      {sub ? <Text variant="caption">{sub}</Text> : null}
+      <View style={styles.steps}>
+        {steps.map((st, i) => (
+          <View key={st} style={styles.step}>
+            <View style={[styles.dot, i < current && styles.dotDone, i === current && styles.dotActive]}>
+              {i < current ? <Icon name="check" size={12} color="#FFFFFF" /> : null}
+            </View>
+            <Text variant="body" color={i > current ? semantic.textSecondary : undefined}>
+              {st}
+            </Text>
           </View>
-          <Text variant={i === current ? 'bodyStrong' : 'body'} color={i > current ? semantic.textSecondary : undefined}>
-            {s}
-          </Text>
-        </View>
-      ))}
-      <Text variant="caption" style={styles.center}>
-        {slow ? '内容比较多，还在认真处理，请再等一会儿' : eta ? `预计${eta}` : ''}
-      </Text>
-      {onLeave ? <Button title="先离开，好了通知我" kind="text" onPress={onLeave} /> : null}
+        ))}
+      </View>
+      {onLeave ? <Button title="先离开，好了通知我" kind="text" style={styles.leave} onPress={onLeave} /> : null}
     </View>
   );
 }
@@ -127,20 +137,28 @@ export interface QuotaSheetProps {
   onUpgrade?: () => void;
 }
 
-/** 额度不足：底部弹层（如 4.9），给开通会员和免费出路。 */
+/** 额度不足：底部弹层（设计稿 4.9）：锁形图标、标题、说明，「开通会员」+ 不付费也能继续的出路。 */
 export function QuotaSheet({ visible, onClose, title, desc, freeOptions, onUpgrade }: QuotaSheetProps) {
   return (
-    <BottomSheet visible={visible} onClose={onClose} title={title}>
+    <BottomSheet visible={visible} onClose={onClose}>
+      <View style={styles.lock}>
+        <Icon name="lock" size={22} color={semantic.danger} />
+      </View>
+      <Text variant="h2" style={styles.sheetTitle}>
+        {title}
+      </Text>
       {desc ? (
-        <Text variant="body" color={semantic.textSecondary} style={styles.sheetDesc}>
+        <Text variant="caption" style={styles.sheetDesc}>
           {desc}
         </Text>
       ) : null}
       <View style={styles.sheetActions}>
         {onUpgrade ? <Button title="开通会员" onPress={onUpgrade} block /> : null}
-        {freeOptions.map((o) => (
-          <Button key={o.label} title={o.label} kind="secondary" onPress={o.onPress} block />
-        ))}
+        <View style={styles.freeRow}>
+          {freeOptions.map((o) => (
+            <Button key={o.label} title={o.label} kind={onUpgrade ? 'text' : 'secondary'} color={onUpgrade ? semantic.textPrimary : undefined} onPress={o.onPress} style={styles.free} />
+          ))}
+        </View>
       </View>
     </BottomSheet>
   );
@@ -154,11 +172,19 @@ const styles = StyleSheet.create({
   blockTitle: { marginTop: spacing.sm },
   center: { textAlign: 'center' },
   action: { marginTop: spacing.md },
-  ai: { alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xxl },
-  step: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, alignSelf: 'stretch', paddingHorizontal: spacing.xxl },
-  dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: semantic.border, alignItems: 'center', justifyContent: 'center' },
-  dotActive: { borderColor: semantic.primary },
-  dotDone: { backgroundColor: semantic.primary, borderColor: semantic.primary },
-  sheetDesc: { marginBottom: spacing.lg },
-  sheetActions: { gap: spacing.md },
+  ai: { gap: 8, paddingVertical: spacing.xxl, paddingHorizontal: 18 },
+  dots: { flexDirection: 'row', gap: 6, marginBottom: 8 },
+  aiDot: { width: 8, height: 8, borderRadius: 4 },
+  steps: { gap: 14, marginTop: spacing.lg },
+  step: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  dot: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#BDB8AD', alignItems: 'center', justifyContent: 'center' },
+  dotActive: { borderColor: semantic.textPrimary },
+  dotDone: { backgroundColor: semantic.textPrimary, borderColor: semantic.textPrimary, borderStyle: 'solid' },
+  leave: { alignSelf: 'flex-start', paddingHorizontal: 0, marginTop: spacing.md },
+  lock: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: semantic.dangerSoft, marginTop: 4, marginBottom: 14 },
+  sheetTitle: { marginBottom: 6 },
+  sheetDesc: { marginBottom: spacing.lg, lineHeight: 21 },
+  sheetActions: { gap: 6 },
+  freeRow: { flexDirection: 'row', gap: 8 },
+  free: { flex: 1 },
 });

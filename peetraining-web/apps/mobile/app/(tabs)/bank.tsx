@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, EmptyState, ErrorState, Loading, Screen, Text } from '@/components';
+import { Button, Card, EmptyState, ErrorState, Icon, Loading, Screen, Segmented, Text, UnderlineTabs } from '@/components';
 import { useOverview, useMaterials } from '@/features/bank/api';
 import { EssayKnowledgeBase } from '@/features/bank/EssayKB';
 import { MaterialList } from '@/features/bank/MaterialList';
@@ -41,12 +41,14 @@ function KnowledgeTab({ subjectId }: { subjectId: number }) {
       />
       {data.needs_review_count > 0 && filter !== 'needs_review' ? (
         <Pressable accessibilityRole="button" onPress={() => setFilter('needs_review')} style={styles.banner}>
-          <Text variant="caption">
-            <Text variant="caption" color={semantic.danger}>
+          <View style={styles.dot} />
+          <Text variant="caption" color="#6B4A12" style={styles.flex}>
+            <Text variant="caption" color="#6B4A12" style={styles.bold}>
               {data.needs_review_count} 处待核对
             </Text>{' '}
             · 采分点核对后批改更准
           </Text>
+          <Icon name="chevron" size={16} color="#6B4A12" />
         </Pressable>
       ) : null}
       {data.sections.length === 0 ? (
@@ -68,7 +70,11 @@ function MaterialTab({ subjectId, label }: { subjectId: number; label: string })
   return (
     <View style={styles.gap}>
       {mats.data!.items.length === 0 ? <EmptyState title="还没有资料" /> : <MaterialList items={mats.data!.items} subjectId={subjectId} />}
-      <Button title={`追加资料到 ${label}`} kind="secondary" onPress={() => router.push({ pathname: '/import', params: { subjectId: String(subjectId) } })} />
+      <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/import', params: { subjectId: String(subjectId) } })} style={styles.append}>
+        <Text variant="caption" color={semantic.textPrimary}>
+          ＋ 追加资料到 {label}
+        </Text>
+      </Pressable>
       <ParseQuotaBar />
     </View>
   );
@@ -97,9 +103,21 @@ export default function BankTab() {
           <Text variant="h1" style={styles.flex}>
             题库
           </Text>
-          <Button title="考情分析" kind="text" onPress={() => router.push({ pathname: '/bank/profile', params: { subjectId: String(subject.id) } })} />
-          <Button title="图谱" kind="text" onPress={() => router.push({ pathname: '/bank/graph', params: { subjectId: String(subject.id) } })} />
-          <Button title="导入" kind="text" onPress={() => router.push({ pathname: '/import', params: { subjectId: String(subject.id) } })} />
+          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/bank/profile', params: { subjectId: String(subject.id) } })} style={[styles.chip, styles.chipGreen]}>
+            <Text variant="caption" color="#1F5C3E" style={styles.medium}>
+              考情分析
+            </Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/bank/graph', params: { subjectId: String(subject.id) } })} style={styles.chip}>
+            <Text variant="caption" color={semantic.textPrimary}>
+              图谱
+            </Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="导入" onPress={() => router.push({ pathname: '/import', params: { subjectId: String(subject.id) } })} style={[styles.chip, styles.chipInk]}>
+            <Text variant="caption" color={semantic.textOnBrand}>
+              ＋ 导入
+            </Text>
+          </Pressable>
         </View>
         {official && !subject.is_essay ? (
           <Pressable accessibilityRole="button" onPress={() => router.push('/bank/official')} style={styles.official}>
@@ -110,16 +128,7 @@ export default function BankTab() {
           </Pressable>
         ) : null}
         {list.length > 1 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subjects}>
-            {list.map((s) => (
-              <Pressable key={s.id} accessibilityRole="tab" accessibilityState={{ selected: s.id === subject.id }} onPress={() => setPicked(s.id)} style={[styles.subject, s.id === subject.id && styles.subjectOn]}>
-                <Text variant="bodyStrong" color={s.id === subject.id ? semantic.textOnBrand : semantic.textPrimary}>
-                  {s.code ? `${s.code} ` : ''}
-                  {s.name}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+          <Segmented options={list.map((s) => ({ key: s.id, label: `${s.code ? `${s.code} ` : ''}${s.name}` }))} value={subject.id} onChange={setPicked} />
         ) : null}
 
         {subject.is_essay ? (
@@ -134,12 +143,7 @@ export default function BankTab() {
           </Card>
         ) : (
           <>
-            <Pressable accessibilityRole="search" onPress={() => router.push({ pathname: '/bank/search', params: { subjectId: String(subject.id) } })} style={styles.search}>
-              <Text variant="body" color={semantic.textSecondary}>
-                搜索知识点、题目或原文
-              </Text>
-            </Pressable>
-            <Segments<Tab>
+            <UnderlineTabs<Tab>
               value={tab}
               onChange={setTab}
               options={[
@@ -148,6 +152,12 @@ export default function BankTab() {
                 { key: 'material', label: '资料', count: o?.material_count },
               ]}
             />
+            {tab === 'kp' ? (
+              <Pressable accessibilityRole="search" onPress={() => router.push({ pathname: '/bank/search', params: { subjectId: String(subject.id) } })} style={styles.search}>
+                <Icon name="search" size={18} color={semantic.textSecondary} />
+                <Text variant="caption">搜索知识点、题目或原文</Text>
+              </Pressable>
+            ) : null}
             {tab === 'kp' ? <KnowledgeTab subjectId={subject.id} /> : null}
             {tab === 'question' ? <QuestionList subjectId={subject.id} /> : null}
             {tab === 'material' ? <MaterialTab subjectId={subject.id} label={label} /> : null}
@@ -159,14 +169,18 @@ export default function BankTab() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { paddingBottom: spacing.xl, gap: spacing.md },
-  title: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.lg },
+  scroll: { paddingBottom: spacing.xl, gap: 14 },
+  title: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.sm },
   flex: { flex: 1 },
-  gap: { gap: spacing.sm },
-  subjects: { gap: spacing.sm },
-  subject: { paddingHorizontal: spacing.md, minHeight: 40, justifyContent: 'center', borderRadius: radius.lg, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
-  subjectOn: { backgroundColor: semantic.primary, borderColor: semantic.primary },
-  search: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.lg, backgroundColor: semantic.surface, borderWidth: 1, borderColor: semantic.border },
+  bold: { fontWeight: '700' },
+  medium: { fontWeight: '500' },
+  gap: { gap: 12 },
+  chip: { minHeight: 34, paddingHorizontal: 12, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: semantic.fill },
+  chipGreen: { backgroundColor: semantic.masteredSoft },
+  chipInk: { backgroundColor: semantic.primary },
+  search: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 16, borderRadius: radius.lg, backgroundColor: semantic.fill },
   official: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.lg, backgroundColor: semantic.primarySoft },
-  banner: { padding: spacing.sm, borderRadius: radius.md, backgroundColor: semantic.dangerSoft },
+  banner: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.amberSoft },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#B26A00' },
+  append: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radius.lg, borderWidth: 1, borderStyle: 'dashed', borderColor: '#D6D2C8' },
 });

@@ -7,8 +7,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { AIGenerating, BottomSheet, Button, Card, ErrorState, Loading, ProgressBar, Screen, Text, toast } from '@/components';
-import { Checkbox, PageHeader, Segments } from '@/features/import/ui';
+import { AIGenerating, BottomSheet, Button, Card, ErrorState, Loading, Screen, Segmented, Text, toast } from '@/components';
+import { Checkbox, PageHeader } from '@/features/import/ui';
 import { essayKeys, fmtScore, useCreateEssay, useEssay, type Essay } from '@/features/essay/api';
 import { api, unwrap } from '@/lib/api';
 
@@ -110,73 +110,90 @@ function Result({ e }: { e: Essay }) {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <PageHeader title="作文批改" onBack={() => router.back()} right={!e.disputed ? <Button title="有异议" kind="text" onPress={() => setDispute(true)} /> : undefined} />
-        <Text variant="caption" numberOfLines={2}>
+        <PageHeader title="作文批改" onBack={() => router.back()} right={!e.disputed ? <Button title="有异议" kind="text" size="sm" style={styles.link} onPress={() => setDispute(true)} /> : undefined} />
+        <Text variant="small" numberOfLines={1}>
           {e.topic} · {e.word_count} 字{e.draft_no > 1 ? ` · 第 ${e.draft_no} 稿` : ''}
         </Text>
-        <Card style={styles.gap}>
-          <Text variant="small">AI 批改得分 · 仅供参考</Text>
-          <View style={styles.rowBase}>
-            <Text variant="score">{fmtScore(e.score)}</Text>
-            <Text variant="caption"> / {fmtScore(e.full_score)}</Text>
-            {e.prev_delta !== undefined ? (
-              <Text variant="caption" color={e.prev_delta >= 0 ? semantic.mastered : semantic.danger} style={styles.delta}>
-                较上篇 {e.prev_delta >= 0 ? `+${e.prev_delta}` : e.prev_delta}
-              </Text>
-            ) : null}
-          </View>
-          {e.disputed && e.score_before !== undefined ? <Text variant="caption">已复核：原来 {fmtScore(e.score_before)} 分，以复核结果为准</Text> : null}
-          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/essay/rubric', params: { subjectId: String(e.subject_id) } })}>
-            <Text variant="caption" color={semantic.primary}>
-              {generic ? '按通用五维度标准 · 分数只作参考，不计入预估分 ›' : `按你的评分细则 · ${e.counts_for_estimate ? '计入预估分' : '真题限时完成的才计入预估分'} ›`}
+        <View style={styles.headRow}>
+          <View style={[styles.rowBase, styles.flex]}>
+            <Text variant="score" color={semantic.textPrimary} style={styles.big}>
+              {fmtScore(e.score)}
             </Text>
-          </Pressable>
-          {(e.dimensions ?? []).map((d) => (
-            <View key={d.name} style={styles.dim}>
-              <View style={styles.row}>
-                <Text variant="body" style={styles.flex}>
-                  {d.name}
-                  {d.name === e.weakest_dimension ? <Text variant="caption" color={semantic.danger}>  失分主项</Text> : null}
+            <Text variant="caption"> / {fmtScore(e.full_score)}</Text>
+          </View>
+          <View style={styles.right}>
+            {e.prev_delta !== undefined ? (
+              <View style={[styles.deltaPill, { backgroundColor: e.prev_delta >= 0 ? semantic.masteredSoft : semantic.dangerSoft }]}>
+                <Text variant="small" color={e.prev_delta >= 0 ? '#1F6B4A' : semantic.danger}>
+                  较上篇 {e.prev_delta >= 0 ? `+${e.prev_delta}` : e.prev_delta}
                 </Text>
-                <Text variant="bodyStrong">
+              </View>
+            ) : null}
+            <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/essay/rubric', params: { subjectId: String(e.subject_id) } })}>
+              <Text variant="small">评分标准 ›</Text>
+            </Pressable>
+          </View>
+        </View>
+        <Text variant="small">AI 批改得分 · 仅供参考</Text>
+        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/essay/rubric', params: { subjectId: String(e.subject_id) } })}>
+          <Text variant="small" color={semantic.textPrimary}>
+            {generic ? '按通用五维度标准 · 分数只作参考，不计入预估分 ›' : `按你的评分细则 · ${e.counts_for_estimate ? '计入预估分' : '真题限时完成的才计入预估分'} ›`}
+          </Text>
+        </Pressable>
+        {e.disputed && e.score_before !== undefined ? <Text variant="small">已复核：原来 {fmtScore(e.score_before)} 分，以复核结果为准</Text> : null}
+        <Card style={styles.gapSm}>
+          {(e.dimensions ?? []).map((d) => {
+            const weak = d.name === e.weakest_dimension;
+            return (
+              <View key={d.name} style={styles.dimRow}>
+                <Text variant="small" color={semantic.textPrimary} style={styles.dimName} numberOfLines={1}>
+                  {d.name}
+                </Text>
+                <View style={styles.bar}>
+                  <View style={[styles.fill, { width: `${(d.max ? d.score / d.max : 0) * 100}%`, backgroundColor: weak ? colors.amber : colors.indigo }]} />
+                </View>
+                <Text variant="small" style={styles.frac}>
                   {fmtScore(d.score)}/{fmtScore(d.max)}
                 </Text>
               </View>
-              <ProgressBar value={d.max ? d.score / d.max : 0} />
-              {d.comment ? <Text variant="small">{d.comment}</Text> : null}
-            </View>
-          ))}
+            );
+          })}
+          {e.weakest_dimension ? (
+            <Text variant="small" color="#8A4B12">
+              失分主项：{e.weakest_dimension}
+            </Text>
+          ) : null}
         </Card>
 
-        <Segments<Tab>
+        <Segmented<Tab>
           options={[
             { key: 'summary', label: '总评' },
-            { key: 'annotations', label: '逐段批注', count: e.annotations?.length },
-            { key: 'models', label: '范文对比', count: models.length },
+            { key: 'annotations', label: `逐段批注${e.annotations?.length ? ` ${e.annotations.length}` : ''}` },
+            { key: 'models', label: `范文对比${models.length ? ` ${models.length}` : ''}` },
           ]}
           value={tab}
           onChange={setTab}
         />
         {tab === 'summary' ? (
-          <Card style={styles.gap}>
-            {e.thesis ? <Text variant="caption">立意：{e.thesis}</Text> : null}
+          <View style={styles.gap}>
+            {e.thesis ? <Text variant="small">立意：{e.thesis}</Text> : null}
             {[
-              { title: '亮点', items: e.highlights ?? [] },
-              { title: '问题', items: e.problems ?? [] },
-              { title: '建议', items: e.suggestions ?? [] },
-            ].map((g) =>
-              g.items.length ? (
-                <View key={g.title} style={styles.gapSm}>
-                  <Text variant="bodyStrong">{g.title}</Text>
-                  {g.items.map((t) => (
-                    <Text key={t} variant="body">
-                      · {t}
-                    </Text>
-                  ))}
+              { title: '亮点', items: e.highlights ?? [], color: semantic.mastered },
+              { title: '问题', items: e.problems ?? [], color: semantic.danger },
+              { title: '建议', items: e.suggestions ?? [], color: semantic.textPrimary },
+            ].flatMap((g) =>
+              g.items.map((t, i) => (
+                <View key={`${g.title}${i}`} style={styles.fb}>
+                  <Text variant="caption" color={g.color} style={styles.fbLabel}>
+                    {g.title}
+                  </Text>
+                  <Text variant="caption" color={semantic.textPrimary} style={[styles.flex, styles.lh]}>
+                    {t}
+                  </Text>
                 </View>
-              ) : null,
+              )),
             )}
-          </Card>
+          </View>
         ) : null}
         {tab === 'annotations' ? (
           <Card>
@@ -184,15 +201,19 @@ function Result({ e }: { e: Essay }) {
           </Card>
         ) : null}
         {tab === 'models' ? (
-          <Card style={styles.gap}>
+          <View style={styles.models}>
             {models.length === 0 ? (
               <Text variant="caption">{e.topic_source === 'exam' ? '这道题还没有你导入的范文' : '只有真题题目会对照你导入的同题范文'}</Text>
             ) : (
               <>
-                <Text variant="caption">你导入的同题范文 · {models.length} 篇</Text>
+                <Text variant="caption" color="#7A4E00" style={styles.bold}>
+                  你导入的同题范文 · {models.length} 篇
+                </Text>
                 {models.map((m) => (
                   <Pressable key={m.id} accessibilityRole="button" onPress={() => router.push({ pathname: '/essay/model/[id]', params: { id: String(m.id) } })} style={styles.model}>
-                    <Text variant="bodyStrong">{m.title} ›</Text>
+                    <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+                      《{m.title}》 ›
+                    </Text>
                     {m.structure?.opening ? <Text variant="caption">开头：{m.structure.opening}</Text> : null}
                     {(m.structure?.points ?? []).map((p) => (
                       <Text key={p} variant="caption">
@@ -203,7 +224,7 @@ function Result({ e }: { e: Essay }) {
                 ))}
               </>
             )}
-          </Card>
+          </View>
         ) : null}
       </ScrollView>
       <View style={styles.nav}>
@@ -216,7 +237,7 @@ function Result({ e }: { e: Essay }) {
             router.push({ pathname: '/essay/book', params: { subjectId: String(e.subject_id) } });
           }}
         />
-        <Button title="按建议重写" style={styles.flex} loading={rewrite.isPending} onPress={() => rewrite.mutate({ parent_essay_id: e.id })} />
+        <Button title="按建议重写" style={styles.flex2} loading={rewrite.isPending} onPress={() => rewrite.mutate({ parent_essay_id: e.id })} />
       </View>
       <DisputeSheet e={e} visible={dispute} onClose={() => setDispute(false)} />
     </Screen>
@@ -262,17 +283,33 @@ export default function EssayResultPage() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { gap: spacing.md, paddingBottom: spacing.xl },
-  gap: { gap: spacing.sm },
-  gapSm: { gap: spacing.xs },
+  scroll: { gap: 12, paddingBottom: spacing.xl },
+  gap: { gap: 12 },
+  gapSm: { gap: 10 },
   flex: { flex: 1 },
+  flex2: { flex: 1.6 },
+  bold: { fontWeight: '700' },
+  lh: { lineHeight: 22 },
+  link: { paddingHorizontal: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  rowBase: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap' },
+  headRow: { flexDirection: 'row', alignItems: 'flex-end' },
+  rowBase: { flexDirection: 'row', alignItems: 'baseline' },
+  big: { fontSize: 52, lineHeight: 58 },
+  right: { alignItems: 'flex-end', gap: 4, paddingBottom: 8 },
+  deltaPill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill },
   delta: { marginLeft: spacing.sm },
-  dim: { gap: 4, paddingVertical: 2 },
+  dim: { gap: 4 },
+  dimRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 24 },
+  dimName: { width: 76 },
+  bar: { flex: 1, height: 6, borderRadius: 3, backgroundColor: semantic.border, overflow: 'hidden' },
+  fill: { height: 6, borderRadius: 3 },
+  frac: { width: 44, textAlign: 'right' },
+  fb: { flexDirection: 'row', gap: 10 },
+  fbLabel: { fontWeight: '700', width: 30, lineHeight: 22 },
+  models: { gap: 8, padding: 16, borderRadius: radius.xl, backgroundColor: semantic.amberSoft },
+  model: { gap: 2, paddingTop: 6 },
+  nav: { flexDirection: 'row', gap: 10, paddingVertical: spacing.md },
   para: { gap: spacing.xs, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: semantic.border },
   mark: { backgroundColor: semantic.dangerSoft, textDecorationLine: 'underline', textDecorationColor: colors.red },
-  model: { gap: 4, padding: spacing.md, borderRadius: radius.md, backgroundColor: semantic.background },
-  note: { minHeight: 44, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: semantic.border },
-  nav: { flexDirection: 'row', gap: spacing.sm },
+  note: { minHeight: 88, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: semantic.border, fontSize: 14, color: semantic.textPrimary },
 });

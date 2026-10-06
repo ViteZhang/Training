@@ -15,11 +15,12 @@ import { PageHeader, Segments } from '@/features/import/ui';
 import { api, unwrap } from '@/lib/api';
 
 type Filter = 'all' | 'weak' | 'exam';
+// 设计稿 3.9：已掌握墨色、待巩固琥珀、学习中浅灰、未学习白底描边
 const stateColor: Record<Schemas['MasteryState'], string> = {
-  mastered: semantic.mastered,
-  consolidating: semantic.progress,
-  learning: semantic.info,
-  unlearned: colors.line,
+  mastered: colors.indigo,
+  consolidating: colors.amber,
+  learning: '#CFCAC0',
+  unlearned: colors.white,
 };
 const SIZE = 800;
 
@@ -29,6 +30,7 @@ export default function GraphScreen() {
   const [filter, setFilter] = useState<Filter>('all');
   const [section, setSection] = useState<number | undefined>();
   const [zoom, setZoom] = useState(1);
+  const [canvasW, setCanvasW] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   const key = ['bank', subjectId, 'graph', filter, section ?? 0];
   const graph = useQuery({
@@ -50,6 +52,17 @@ export default function GraphScreen() {
 
   if (graph.isLoading) return <Screen><Loading rows={6} /></Screen>;
   if (graph.isError || !data) return <Screen><ErrorState error={graph.error} onRetry={() => void graph.refetch()} /></Screen>;
+  // 视图框取所有节点的外接矩形，默认缩放到画布宽度能看全（设计稿 3.9）
+  const placed = [...layout.values()] as { x: number; y: number; r: number }[];
+  const pad = 40;
+  const minX = placed.length ? Math.min(...placed.map((p) => p.x - p.r)) - pad : 0;
+  const minY = placed.length ? Math.min(...placed.map((p) => p.y - p.r)) - pad : 0;
+  const maxX = placed.length ? Math.max(...placed.map((p) => p.x + p.r)) + pad : SIZE;
+  const maxY = placed.length ? Math.max(...placed.map((p) => p.y + p.r)) + pad + 14 : SIZE;
+  const side = Math.max(maxX - minX, maxY - minY, 240);
+  const box = { x: minX - (side - (maxX - minX)) / 2, y: minY - (side - (maxY - minY)) / 2, w: side, h: side };
+  const w = (canvasW || 340) * zoom;
+  const h = w;
   const node = data.nodes.find((n) => n.id === picked);
   const name = (id: number) => data.nodes.find((n) => n.id === id)?.name ?? '';
   const rels = node ? data.edges.filter((e) => e.source_id === node.id || e.target_id === node.id) : [];
@@ -87,9 +100,9 @@ export default function GraphScreen() {
       {data.nodes.length === 0 ? (
         <EmptyState title="这里还没有知识点" />
       ) : (
-        <ScrollView style={styles.canvas} contentContainerStyle={{ width: SIZE * zoom }} horizontal>
-          <ScrollView contentContainerStyle={{ height: SIZE * zoom }}>
-            <Svg width={SIZE * zoom} height={SIZE * zoom} viewBox={`0 0 ${SIZE} ${SIZE}`} accessibilityLabel="知识图谱">
+        <ScrollView style={styles.canvas} contentContainerStyle={{ width: w }} horizontal onLayout={(e) => setCanvasW(e.nativeEvent.layout.width)}>
+          <ScrollView contentContainerStyle={{ height: h }}>
+            <Svg width={w} height={h} viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`} accessibilityLabel="知识图谱">
               {data.edges.map((e) => {
                 const a = layout.get(e.source_id);
                 const b = layout.get(e.target_id);
@@ -101,7 +114,7 @@ export default function GraphScreen() {
                     y1={a.y}
                     x2={b.x}
                     y2={b.y}
-                    stroke={e.relation_type === 'contrast' ? semantic.danger : semantic.border}
+                    stroke={picked && (e.source_id === picked || e.target_id === picked) ? colors.ink : e.relation_type === 'contrast' ? semantic.danger : '#CFCAC0'}
                     strokeDasharray={e.relation_type === 'sibling' ? '4 4' : undefined}
                     strokeWidth={picked && (e.source_id === picked || e.target_id === picked) ? 2.5 : 1}
                   />
@@ -112,7 +125,15 @@ export default function GraphScreen() {
                 if (!p) return null;
                 return (
                   <G key={n.id} onPress={() => setPicked(n.id)}>
-                    <Circle cx={p.x} cy={p.y} r={p.r} fill={stateColor[n.state]} stroke={n.id === picked ? semantic.primary : semantic.surface} strokeWidth={n.id === picked ? 3 : 1.5} />
+                    <Circle
+                      cx={p.x}
+                      cy={p.y}
+                      r={p.r}
+                      fill={stateColor[n.state]}
+                      stroke={n.id === picked ? colors.ink : n.state === 'unlearned' ? '#BDB8AD' : colors.white}
+                      strokeWidth={n.id === picked ? 3 : 1.5}
+                      strokeDasharray={n.id === picked ? '4 3' : undefined}
+                    />
                     <SvgText x={p.x} y={p.y + p.r + 12} fontSize={11} fill={semantic.textPrimary} textAnchor="middle">
                       {n.name.length > 6 ? `${n.name.slice(0, 6)}…` : n.name}
                     </SvgText>
@@ -124,11 +145,17 @@ export default function GraphScreen() {
         </ScrollView>
       )}
       <View style={styles.footer}>
-        <Text variant="small" color={semantic.textSecondary} style={styles.flex}>
-          {(['mastered', 'consolidating', 'learning', 'unlearned'] as const).map((s) => `● ${stateNames[s]}`).join('  ')} · 圆越大真题考得越多
-        </Text>
-        <Button title="－" kind="secondary" accessibilityLabel="缩小" disabled={zoom <= 0.5} onPress={() => setZoom(Math.max(zoom - 0.25, 0.5))} />
-        <Button title="＋" kind="secondary" accessibilityLabel="放大" disabled={zoom >= 2.5} onPress={() => setZoom(Math.min(zoom + 0.25, 2.5))} />
+        <View style={[styles.flex, styles.legend]}>
+          {(['mastered', 'consolidating', 'learning', 'unlearned'] as const).map((st) => (
+            <View key={st} style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: stateColor[st] }, st === 'unlearned' && styles.legendLine]} />
+              <Text variant="small">{stateNames[st]}</Text>
+            </View>
+          ))}
+          <Text variant="small">· 圆越大真题考得越多</Text>
+        </View>
+        <Button title="－" kind="soft" size="sm" accessibilityLabel="缩小" disabled={zoom <= 1} onPress={() => setZoom(Math.max(zoom - 0.5, 1))} />
+        <Button title="＋" kind="soft" size="sm" accessibilityLabel="放大" disabled={zoom >= 3} onPress={() => setZoom(Math.min(zoom + 0.5, 3))} />
       </View>
       <BottomSheet visible={!!node} onClose={() => setPicked(null)} title={node?.name ?? ''}>
         {node ? (
@@ -165,7 +192,11 @@ export default function GraphScreen() {
 
 const styles = StyleSheet.create({
   gap: { gap: spacing.sm },
-  canvas: { flex: 1, marginTop: spacing.sm, backgroundColor: semantic.surface, borderRadius: 12 },
+  canvas: { flex: 1, marginTop: spacing.md, backgroundColor: semantic.fill, borderRadius: 22 },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 2 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  legendDot: { width: 9, height: 9, borderRadius: 5 },
+  legendLine: { borderWidth: 1, borderColor: '#BDB8AD' },
   footer: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.sm },
   flex: { flex: 1 },
   rel: { flexDirection: 'row', alignItems: 'center' },

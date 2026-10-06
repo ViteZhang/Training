@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, EmptyState, ErrorState, Loading, ProgressBar, Screen, Text } from '@/components';
+import { Button, Card, EmptyState, ErrorState, Icon, Loading, ProgressBar, Screen, Segmented, Text } from '@/components';
 import { useAddFalseMastery, useDashboard } from '@/features/dashboard/api';
 import { PageHeader } from '@/features/import/ui';
 import { lossNames, modeNames } from '@/features/paper/api';
@@ -80,29 +80,16 @@ export default function DashboardPage() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <PageHeader title="提分看板" onBack={() => router.back()} />
         {list.length > 1 ? (
-          <View style={styles.tabs}>
-            {list.map((s) => (
-              <Pressable
-                key={s.id}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: s.id === sid }}
-                onPress={() => setPicked(s.id)}
-                style={[styles.tab, s.id === sid && styles.tabOn]}
-              >
-                <Text variant="caption" color={s.id === sid ? semantic.textOnBrand : undefined}>
-                  {s.code ? `${s.code} ` : ''}
-                  {s.name}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <Segmented options={list.map((x) => ({ key: x.id, label: `${x.code ? `${x.code} ` : ''}${x.name}` }))} value={sid} onChange={setPicked} />
         ) : null}
 
         <Card style={styles.gap}>
-          <Text variant="h3">预估分趋势</Text>
+          <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+            预估分趋势
+          </Text>
           {e.ready ? (
             <>
-              <EstimateLine e={e} onBrand={false} />
+              <EstimateLine e={e} />
               {d.trend.length > 0 ? <Trend weeks={d.trend} full={e.full_score} target={e.target_score} /> : null}
             </>
           ) : (
@@ -114,21 +101,29 @@ export default function DashboardPage() {
         </Card>
 
         <Card style={styles.gap}>
-          <Text variant="h3">失分归因 · 近 30 天</Text>
+          <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+            失分归因 · 近 30 天
+          </Text>
           {lossTotal > 0 ? (
-            (['knowledge', 'norm', 'time'] as const).map((k) => (
-              <Pressable
-                key={k}
-                accessibilityRole="button"
-                onPress={() => router.push({ pathname: '/practice/wrong', params: { subjectId: String(sid), group: 'loss' } })}
-                style={styles.lossRow}
-              >
-                <Text variant="body" style={styles.flex}>
-                  {lossNames[k]}
-                </Text>
-                <Text variant="bodyStrong">{Math.round(d.loss_shares[k] * 100)}% ›</Text>
-              </Pressable>
-            ))
+            <>
+              <View style={styles.stack}>
+                {(['knowledge', 'norm', 'time'] as const).map((k, i) => (d.loss_shares[k] > 0 ? <View key={k} style={{ flex: d.loss_shares[k], backgroundColor: lossColor[i] }} /> : null))}
+              </View>
+              <View style={styles.legend}>
+                {(['knowledge', 'norm', 'time'] as const).map((k, i) => (
+                  <Pressable
+                    key={k}
+                    accessibilityRole="button"
+                    onPress={() => router.push({ pathname: '/practice/wrong', params: { subjectId: String(sid), group: 'loss' } })}
+                    style={styles.lossItem}
+                  >
+                    <Text variant="small" color={lossInk[i]}>
+                      {lossNames[k]} {Math.round(d.loss_shares[k] * 100)}% ›
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
           ) : (
             <Text variant="caption">近 30 天还没有主观题批改，做几道主观题后显示</Text>
           )}
@@ -136,38 +131,51 @@ export default function DashboardPage() {
 
         <Card style={styles.gap}>
           <View style={styles.row}>
-            <Text variant="h3" style={styles.flex}>
+            <Text variant="caption" color={semantic.textPrimary} style={[styles.flex, styles.bold]}>
               各板块掌握度
             </Text>
             {d.sections_ready ? <Text variant="small">× 你真题里的分值占比</Text> : null}
           </View>
           {d.sections.length === 0 ? <Text variant="caption">题库里还没有板块</Text> : null}
           {d.sections.map((s) => (
-            <View key={s.id} style={styles.section}>
-              <View style={styles.row}>
-                <Text variant="body" style={styles.flex}>
-                  {s.name}
-                </Text>
-                <Text variant="bodyStrong">{Math.round(s.mastery)}%</Text>
-                {d.sections_ready ? <Text variant="small">占{Math.round(s.share * 100)}%</Text> : null}
+            <View key={s.id} style={styles.secRow}>
+              <Text variant="small" color={semantic.textPrimary} style={styles.secName} numberOfLines={1}>
+                {s.name}
+              </Text>
+              <View style={styles.bar}>
+                <View style={[styles.fill, { width: `${Math.min(100, s.mastery)}%`, backgroundColor: s.mastery < 40 ? colors.amber : colors.indigo }]} />
               </View>
-              <ProgressBar value={s.mastery / 100} />
+              <Text variant="small" color={s.mastery < 40 ? '#9A4A1C' : semantic.textPrimary} style={[styles.pct, styles.bold]}>
+                {Math.round(s.mastery)}%
+              </Text>
+              {d.sections_ready ? (
+                <Text variant="small" style={styles.share}>
+                  占{Math.round(s.share * 100)}%
+                </Text>
+              ) : null}
             </View>
           ))}
           {!d.sections_ready && d.sections.length > 0 ? <Text variant="small">导入 2 套以上真题卷后显示各板块的分值占比</Text> : null}
         </Card>
 
         {d.false_mastery.length > 0 ? (
-          <Card style={[styles.gap, styles.falseCard]}>
-            <Text variant="bodyStrong">{d.false_mastery.length} 个「以为会了」</Text>
-            <Text variant="caption">自评掌握但最近作答正确率偏低：{d.false_mastery.map((k) => k.name).join('、')}</Text>
-            <Button title="加入今日训练" kind="secondary" loading={add.isPending} onPress={() => add.mutate()} />
-          </Card>
+          <Pressable accessibilityRole="button" accessibilityLabel="加入今日训练" disabled={add.isPending} onPress={() => add.mutate()} style={styles.falseRow}>
+            <View style={styles.dot} />
+            <Text variant="caption" color={semantic.textPrimary} style={styles.flex}>
+              <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+                {d.false_mastery.length} 个「以为会了」
+              </Text>
+              <Text variant="caption"> · {add.isPending ? '正在加入…' : '加入今日训练'}</Text>
+            </Text>
+            <Icon name="chevron" size={16} color={semantic.textSecondary} />
+          </Pressable>
         ) : null}
 
         {d.essay_dims.length > 0 ? (
           <Card style={styles.gap}>
-            <Text variant="h3">作文各维度平均分</Text>
+            <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+              作文各维度平均分
+            </Text>
             {d.essay_dims.map((x) => (
               <View key={x.name} style={styles.section}>
                 <View style={styles.row}>
@@ -217,7 +225,22 @@ export default function DashboardPage() {
   );
 }
 
+const lossColor = [colors.amber, '#B26A00', colors.ink];
+const lossInk = ['#8A4B12', '#9A5B00', colors.ink];
+
 const styles = StyleSheet.create({
+  bold: { fontWeight: '700' },
+  stack: { flexDirection: 'row', gap: 2, height: 8, borderRadius: 4, overflow: 'hidden' },
+  legend: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap' },
+  lossItem: { minHeight: 32, justifyContent: 'center' },
+  secRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 26 },
+  secName: { width: 96 },
+  bar: { flex: 1, height: 6, borderRadius: 3, backgroundColor: semantic.border, overflow: 'hidden' },
+  fill: { height: 6, borderRadius: 3 },
+  pct: { width: 38, textAlign: 'right' },
+  share: { width: 38, textAlign: 'right', fontSize: 11 },
+  falseRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.fill },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.amber },
   scroll: { gap: spacing.md, paddingBottom: spacing.xl },
   gap: { gap: spacing.sm },
   flex: { flex: 1 },

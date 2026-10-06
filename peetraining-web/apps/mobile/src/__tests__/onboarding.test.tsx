@@ -70,7 +70,7 @@ describe('1.1 你考哪门专业课', () => {
     };
     await wrap(<SubjectStep />);
     expect(await screen.findByText('至少添加一门专业课')).toBeTruthy();
-    await fireEvent.changeText(screen.getByLabelText('专业课名称'), '中国古代文学史');
+    await fireEvent.changeText(screen.getByLabelText('添加专业课'), '中国古代文学史');
     await fireEvent.press(screen.getByText('添加'));
     await waitFor(() => expect(screen.getByText('中国古代文学史')).toBeTruthy());
     expect(mockCalls.find((c) => c.method === 'POST')?.init).toEqual({ body: { name: '中国古代文学史', code: null, full_score: 150 } });
@@ -83,7 +83,7 @@ describe('1.1 你考哪门专业课', () => {
       'GET /subjects': () => ({ status: 200, data: { items: [subject(1, 'a'), subject(2, 'b'), subject(3, 'c')], max_subjects: 3, can_add: false } }),
     };
     await wrap(<SubjectStep />);
-    await fireEvent.changeText(await screen.findByLabelText('专业课名称'), '第四门');
+    await fireEvent.changeText(await screen.findByLabelText('添加专业课'), '第四门');
     await fireEvent.press(screen.getByText('添加'));
     expect(screen.getByText('免费版最多添加 3 门专业课')).toBeTruthy();
     expect(mockCalls.some((c) => c.method === 'POST')).toBe(false);

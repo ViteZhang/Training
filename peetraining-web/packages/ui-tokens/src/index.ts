@@ -49,6 +49,11 @@ export const semantic = {
   dangerSoft: '#FBECEB',
   infoSoft: '#EAF0FB',
   masteredSoft: '#E8F5EF',
+  /** 卡片内的浅底块、次级胶囊按钮（设计稿 #F7F7F5，在纸白底上加深一档） */
+  fill: '#F3F0E8',
+  /** 不可用按钮 */
+  disabledBg: '#ECE9E2',
+  disabledText: '#9E9A92',
 } as const;
 
 /** 设计稿旧色 → VI 色（dev-spec 第十一节），读 .dc.html 时对照替换。 */
@@ -73,16 +78,25 @@ export const fontFamily = {
   body: undefined as string | undefined,
 } as const;
 
-/** 字号层级（App，VI 第 05 板）。lineHeight 单位与 fontSize 相同。 */
+/**
+ * 字号层级（App）。字号与字重按 docs/design/pages 设计稿的实际用法（页面标题 26、卡片标题 17、正文 15、辅助 13、注释 12），
+ * 字体族与颜色按 VI：界面文字用系统黑体，数字用 Sora，思源宋体只用在品牌标题（display）。lineHeight 单位与 fontSize 相同。
+ */
 export const typography = {
-  h1: { fontSize: 32, lineHeight: 40, fontFamily: fontFamily.serifHeavy },
-  h2: { fontSize: 22, lineHeight: 30, fontWeight: '700' as const },
-  h3: { fontSize: 18, lineHeight: 26, fontWeight: '700' as const },
-  body: { fontSize: 16, lineHeight: 24 },
-  bodyStrong: { fontSize: 16, lineHeight: 24, fontWeight: '600' as const },
-  caption: { fontSize: 13, lineHeight: 18, color: colors.gray },
-  small: { fontSize: 11, lineHeight: 16, color: colors.gray },
-  score: { fontSize: 48, lineHeight: 52, fontFamily: fontFamily.numberBold, color: colors.indigo },
+  /** 品牌标题：启动页、报告页大标题（VI 第 05 板 H1） */
+  display: { fontSize: 32, lineHeight: 40, fontFamily: fontFamily.serifHeavy },
+  /** 页面大标题：「训练」「选择题目文件」 */
+  h1: { fontSize: 26, lineHeight: 35, fontWeight: '700' as const },
+  /** 弹层标题、结果页标题 */
+  h2: { fontSize: 20, lineHeight: 28, fontWeight: '700' as const },
+  /** 卡片标题、分组标题 */
+  h3: { fontSize: 17, lineHeight: 24, fontWeight: '700' as const },
+  body: { fontSize: 15, lineHeight: 22 },
+  bodyStrong: { fontSize: 15, lineHeight: 22, fontWeight: '500' as const },
+  caption: { fontSize: 13, lineHeight: 19, color: colors.gray },
+  small: { fontSize: 12, lineHeight: 17, color: colors.gray },
+  /** 倒计时、分数大数字 */
+  score: { fontSize: 40, lineHeight: 46, fontFamily: fontFamily.numberSemiBold, color: colors.indigo, letterSpacing: -1 },
   number: { fontSize: 20, lineHeight: 26, fontFamily: fontFamily.numberSemiBold },
 } as const;
 
@@ -90,14 +104,16 @@ export const typography = {
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, xxxl: 32 } as const;
 
 /** 圆角（取自设计稿常用值）。 */
-export const radius = { sm: 4, md: 12, lg: 16, xl: 18, pill: 999 } as const;
+export const radius = { sm: 4, md: 12, lg: 16, xl: 18, card: 22, pill: 999 } as const;
 
 /** 基准尺寸与可点区域（dev-spec 第十一节）。 */
 export const layout = {
   baseWidth: 390,
   baseHeight: 844,
   minTouch: 44,
-  pagePadding: 20,
+  pagePadding: 22,
+  /** 主按钮高度（设计稿 50，圆角为一半） */
+  buttonHeight: 50,
   /** 系统字体放大到 1.3 倍不破版 */
   maxFontScale: 1.3,
 } as const;

@@ -6,8 +6,8 @@ import { radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { BottomSheet, Button, ConfirmDialog, ErrorState, Loading, QuotaSheet, Screen, Tag, Text, toast } from '@/components';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { BottomSheet, Button, ConfirmDialog, ErrorState, Icon, Loading, QuotaSheet, Screen, Tag, Text, toast } from '@/components';
 import { clearEssayDraft, countWords, essayKeys, loadEssayDraft, saveEssayDraft, sourceNames, useEssay, useEssayKB, type Essay } from '@/features/essay/api';
 import { clock } from '@/features/paper/api';
 import { HandwritingFlow } from '@/features/practice/handwriting';
@@ -134,24 +134,31 @@ function Writer({ e }: { e: Essay }) {
   return (
     <Screen>
       <View style={styles.top}>
-        <Button title="退出" kind="text" onPress={() => setLeave(true)} />
+        <Button title="退出" kind="text" color={semantic.textPrimary} style={styles.exit} onPress={() => setLeave(true)} />
         {timed ? (
-          <Text variant="number" color={left <= 0 ? semantic.danger : undefined} accessibilityLabel="剩余时间">
-            {left > 0 ? clock(left) : '时间到'}
-          </Text>
+          <View style={styles.clock}>
+            <Icon name="clock" size={16} color={left <= 0 ? semantic.danger : semantic.textPrimary} />
+            <Text variant="bodyStrong" style={styles.clockText} color={left <= 0 ? semantic.danger : semantic.textPrimary} accessibilityLabel="剩余时间">
+              {left > 0 ? clock(left) : '时间到'}
+            </Text>
+          </View>
         ) : (
-          <Text variant="caption">不计时</Text>
+          <Text variant="small">不计时</Text>
         )}
-        <Button title="提交" loading={submit.isPending} onPress={() => submit.mutate(undefined)} />
+        <Button title="提交" size="sm" loading={submit.isPending} onPress={() => submit.mutate(undefined)} />
       </View>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.row}>
           <Tag label={e.topic_source === 'ai' ? 'AI 出题' : sourceNames[e.topic_source]} tone={e.topic_source === 'ai' ? 'ai' : 'neutral'} />
           {e.draft_no > 1 ? <Tag label={`第 ${e.draft_no} 稿`} /> : null}
           <View style={styles.flex} />
-          <Button title={timed ? '关闭计时' : '开启计时'} kind="text" onPress={() => setTimed((v) => !v)} />
+          <Button title={timed ? '关闭计时' : '开启计时'} kind="text" size="sm" style={styles.exit} onPress={() => setTimed((v) => !v)} />
         </View>
-        <Text variant="bodyStrong">{e.topic}</Text>
+        <View style={styles.topic}>
+          <Text variant="caption" color="#7A4E00" style={styles.lh}>
+            {e.topic}
+          </Text>
+        </View>
         {e.status === 'failed' && e.fail_reason ? (
           <Text variant="caption" color={semantic.danger}>
             {e.fail_reason}
@@ -174,13 +181,30 @@ function Writer({ e }: { e: Essay }) {
         />
       </ScrollView>
       <View style={styles.toolbar}>
-        <Button title="素材" kind="text" onPress={() => setMaterials(true)} />
-        <Button title="拍照上传" kind="text" onPress={() => setPhoto(true)} />
+        <Pressable accessibilityRole="button" accessibilityLabel="素材" onPress={() => setMaterials(true)} style={[styles.tool, styles.toolAmber]}>
+          <Icon name="book" size={15} color="#7A4E00" />
+          <Text variant="caption" color="#7A4E00">
+            素材
+          </Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="拍照上传" onPress={() => setPhoto(true)} style={styles.tool}>
+          <Icon name="camera" size={15} />
+          <Text variant="caption" color={semantic.textPrimary}>
+            拍照上传
+          </Text>
+        </Pressable>
         <View style={styles.flex} />
-        <Text variant="caption">
-          {words}
-          {e.required_words ? ` / ${e.required_words}` : ''} 字 · {saved ? '草稿已保存' : '保存中'}
-        </Text>
+        <View style={styles.count}>
+          <Text variant="small" color={semantic.textPrimary}>
+            <Text variant="small" color={semantic.textPrimary} style={styles.bold}>
+              {words}
+            </Text>
+            {e.required_words ? ` / ${e.required_words}` : ''} 字
+          </Text>
+          <Text variant="small" style={styles.tiny}>
+            {saved ? '草稿已保存' : '保存中'}
+          </Text>
+        </View>
       </View>
       <MaterialSheet subjectId={e.subject_id} visible={materials} onClose={() => setMaterials(false)} onInsert={insert} />
       <BottomSheet visible={photo} onClose={() => setPhoto(false)} title="上传手写稿">
@@ -229,13 +253,23 @@ export default function EssayWritePage() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { gap: spacing.sm, paddingBottom: spacing.xl },
+  scroll: { gap: 12, paddingBottom: spacing.xl },
   gap: { gap: spacing.sm },
   flex: { flex: 1 },
+  bold: { fontWeight: '700' },
+  lh: { lineHeight: 21 },
+  tiny: { fontSize: 11 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  editor: { minHeight: 360, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface, fontSize: 17, lineHeight: 28 },
-  toolbar: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: semantic.border },
+  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52 },
+  exit: { paddingHorizontal: 0 },
+  clock: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  clockText: { fontWeight: '700' },
+  topic: { padding: 14, borderRadius: radius.lg, backgroundColor: semantic.amberSoft },
+  editor: { minHeight: 360, paddingVertical: 4, fontSize: 16, lineHeight: 30, color: semantic.textPrimary },
+  toolbar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, borderTopWidth: 1, borderTopColor: semantic.border },
+  tool: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: semantic.fill },
+  toolAmber: { backgroundColor: semantic.amberSoft },
+  count: { alignItems: 'flex-end' },
   sheetList: { maxHeight: 320 },
-  material: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: semantic.border },
+  material: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 12, borderTopWidth: 1, borderTopColor: semantic.border },
 });
