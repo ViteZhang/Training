@@ -5,6 +5,19 @@ function jsonResponse(status: number, body: unknown) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
+// expo/fetch（Expo SDK 52 起替换了全局 fetch）返回的响应不是全局 Response 的实例。
+function foreignResponse(status: number, body: unknown) {
+  const r = jsonResponse(status, body);
+  return {
+    status: r.status,
+    statusText: r.statusText,
+    ok: r.ok,
+    headers: r.headers,
+    text: () => r.text(),
+    json: () => r.json(),
+  } as unknown as Response;
+}
+
 describe('createApiClient', () => {
   it('带上令牌，写请求自动加幂等键', async () => {
     const seen: Request[] = [];
@@ -83,5 +96,32 @@ describe('unwrap', () => {
     expect(new ApiError(404, { code: 'NOT_FOUND', message: 'x' }).isNotFound).toBe(true);
     expect(new ApiError(401, { code: 'UNAUTHORIZED', message: 'x' }).isUnauthorized).toBe(true);
     expect(new ApiError(500, undefined).code).toBe('UNKNOWN');
+  });
+
+  it('fetch 返回的响应不是全局 Response 实例时照常解析（expo/fetch）', async () => {
+    const client = createApiClient({
+      baseUrl: 'https://x.test/api/v1',
+      getAccessToken: () => undefined,
+      refresh: async () => undefined,
+      fetch: async () => foreignResponse(200, { remaining_today: 9, resend_after_seconds: 60 }),
+    });
+    await expect(unwrap(client.POST('/auth/sms-codes', { body: { phone: '13900000001', purpose: 'login', agree: true } }))).resolves.toEqual({
+      remaining_today: 9,
+      resend_after_seconds: 60,
+    });
+  });
+
+  it('expo/fetch 下 401 刷新令牌后重试成功', async () => {
+    let token = 'old';
+    const client = createApiClient({
+      baseUrl: 'https://x.test/api/v1',
+      getAccessToken: () => token,
+      refresh: async () => (token = 'new'),
+      fetch: async (input) =>
+        (input as Request).headers.get('Authorization') === 'Bearer new'
+          ? foreignResponse(200, { items: [], max_subjects: 3, can_add: true })
+          : foreignResponse(401, { code: 'UNAUTHORIZED', message: '登录已失效' }),
+    });
+    await expect(unwrap(client.GET('/subjects'))).resolves.toMatchObject({ max_subjects: 3 });
   });
 });
