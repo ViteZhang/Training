@@ -1,7 +1,7 @@
 // 4.13 答题规范：按题型讲结构（名词解释三段：定义、特征要点、出处或例子，并标约占分值）；
 // 「高分写法」用用户资料里的原文与采分点；「你上次的写法」用用户自己的答案并标出缺了什么；「按结构写一道」由 AI 按结构批改。
 import type { Schemas } from '@training/api-client';
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -39,65 +39,82 @@ function NormBody({ n }: { n: Schemas['AnswerNorm'] }) {
   return (
     <View style={styles.gap}>
       <Card style={styles.gap}>
+        <Text variant="caption" color={colors.ink} style={styles.bold}>
+          {n.elements.length === 3 ? '三段结构' : `${n.elements.length} 个要素`}，照着写更容易拿满分
+        </Text>
         {n.elements.map((e, i) => (
           <View key={e.name} style={styles.element}>
             <View style={styles.num}>
-              <Text variant="bodyStrong" color={semantic.textOnBrand}>
+              <Text variant="small" color={semantic.textOnBrand} style={styles.bold}>
                 {i + 1}
               </Text>
             </View>
             <View style={styles.flex}>
-              <Text variant="bodyStrong">{e.name}</Text>
-              <Text variant="caption">
+              <Text variant="caption" color={colors.ink} style={styles.bold}>
+                {e.name}
+              </Text>
+              <Text variant="small">
                 {e.desc}，约占 {Math.round(e.share * 100)}%
               </Text>
             </View>
           </View>
         ))}
         {n.tips.map((t) => (
-          <Text key={t} variant="caption">
+          <Text key={t} variant="small">
             · {t}
           </Text>
         ))}
       </Card>
 
       {n.example ? (
-        <Card style={styles.gap}>
-          <Text variant="bodyStrong">高分写法</Text>
-          <Text variant="caption">用你资料里的原文和采分点 · {n.example.stem}</Text>
-          {n.example.original_text || n.example.reference_answer ? <Text variant="body">{n.example.original_text ?? n.example.reference_answer}</Text> : null}
+        <View style={[styles.tinted, styles.good]}>
+          <View style={styles.row}>
+            <Text variant="caption" color="#1F6B4A" style={[styles.bold, styles.flex]}>
+              高分写法
+            </Text>
+            <Text variant="small" color="#1F6B4A">
+              用你资料里的原文和采分点 · {n.example.stem}
+            </Text>
+          </View>
+          {n.example.original_text || n.example.reference_answer ? (
+            <Text variant="caption" color={colors.ink} style={styles.lh}>
+              {n.example.original_text ?? n.example.reference_answer}
+            </Text>
+          ) : null}
           <View style={styles.tags}>
             {n.example.rubric_points.map((r) => (
               <Tag key={r} label={r} tone="mastered" />
             ))}
           </View>
           {n.example.source_ref ? (
-            <Text variant="caption">
+            <Text variant="small">
               出自 {n.example.source_ref.file_name}
               {n.example.source_ref.page ? ` 第 ${n.example.source_ref.page} 页` : ''}
             </Text>
           ) : null}
-        </Card>
+        </View>
       ) : (
         <EmptyState title="还没有带采分点的同类题" desc="导入真题或讲义后，这里会用你资料里的原文示范高分写法" />
       )}
 
       {n.last ? (
-        <Card style={styles.gap}>
-          <Text variant="bodyStrong">
+        <View style={[styles.tinted, styles.bad]}>
+          <Text variant="caption" color={semantic.danger} style={styles.bold}>
             你上次的写法{n.last.score !== undefined && n.last.full_score !== undefined ? ` · ${n.last.score} / ${n.last.full_score} 分` : ''}
           </Text>
-          <Text variant="body">{n.last.answer_text}</Text>
+          <Text variant="caption" color={colors.ink} style={styles.lh}>
+            {n.last.answer_text}
+          </Text>
           {n.last.missing.length > 0 ? (
-            <Text variant="caption" color={semantic.danger}>
+            <Text variant="small" color={semantic.danger}>
               缺：{n.last.missing.join('、')}
             </Text>
           ) : (
-            <Text variant="caption" color={semantic.mastered}>
+            <Text variant="small" color={semantic.mastered}>
               采分点都写到了
             </Text>
           )}
-        </Card>
+        </View>
       ) : null}
 
       {n.practice_question_id ? (
@@ -164,8 +181,14 @@ const styles = StyleSheet.create({
   scroll: { gap: spacing.md, paddingBottom: spacing.xl },
   gap: { gap: spacing.sm },
   flex: { flex: 1 },
-  element: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  num: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: semantic.primary },
+  element: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  num: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: semantic.primary },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bold: { fontWeight: '700' },
+  lh: { lineHeight: 23 },
+  tinted: { gap: 8, padding: 16, borderRadius: radius.xl },
+  good: { backgroundColor: semantic.masteredSoft },
+  bad: { backgroundColor: semantic.dangerSoft },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
-  input: { minHeight: 160, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, padding: spacing.md, fontSize: 16, lineHeight: 24, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  input: { minHeight: 160, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.xl, padding: 14, fontSize: 15, lineHeight: 26, color: semantic.textPrimary, backgroundColor: semantic.surface },
 });

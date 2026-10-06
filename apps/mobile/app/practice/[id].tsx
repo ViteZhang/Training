@@ -5,14 +5,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { BottomSheet, Button, ConfirmDialog, EmptyState, ErrorState, Loading, Screen, Text, toast } from '@/components';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { BackButton, BottomSheet, Button, ConfirmDialog, EmptyState, ErrorState, Loading, NavBar, Screen, Text, toast } from '@/components';
 import { practiceKeys, useSession } from '@/features/practice/api';
 import { isObjective, judge } from '@/features/practice/judge';
 import { cacheSession, submitAttempt } from '@/features/practice/offline';
 import { DisputeSheet, GradingResultView, useRegrade } from '@/features/practice/grading';
 import { FillBlank, Options, QuestionHeader, ResultPanel, type LocalResult } from '@/features/practice/QuestionView';
 import { SubjectiveFlow } from '@/features/practice/SubjectiveFlow';
+import { qtypeNames } from '@/features/import/api';
 import { api, unwrap } from '@/lib/api';
 
 const reportReasons = ['答案不对', '题干有错字或缺字', '选项有问题', '和知识点不相关'];
@@ -140,19 +141,18 @@ export default function PracticeRunner() {
 
   return (
     <Screen>
-      <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel="退出训练" onPress={() => setExiting(true)} style={styles.close}>
-          <Text variant="h3">×</Text>
-        </Pressable>
-        <Text variant="bodyStrong" style={styles.flex}>
-          {s.title} · {index + 1} / {s.questions.length}
-        </Text>
-        <Text variant="number">{clock(elapsed)}</Text>
+      <NavBar
+        title={`${s.title} · ${index + 1} / ${s.questions.length}`}
+        left={<BackButton icon="close" label="退出训练" onPress={() => setExiting(true)} />}
+        right={<Text variant="small">{clock(elapsed)}</Text>}
+      />
+      <View style={styles.progress} accessibilityElementsHidden>
+        <View style={[styles.progressFill, { width: `${((index + (result ? 1 : 0)) / Math.max(1, s.questions.length)) * 100}%` }]} />
       </View>
       <ScrollView contentContainerStyle={styles.scroll}>
         <QuestionHeader q={q} />
-        <Text variant="body" style={styles.stem}>
-          {q.stem}
+        <Text variant="h2" style={styles.stem}>
+          {q.qtype === 'term' ? `${qtypeNames.term}：${q.stem}` : q.stem}
         </Text>
         {q.options?.length ? <Options q={q} selected={result?.revealed ? [] : (result && q.answered?.selected) || selected} result={result} onToggle={toggle} /> : null}
         {q.qtype === 'fill_blank' ? <FillBlank value={text} onChange={setText} disabled={!!result} /> : null}
@@ -186,7 +186,7 @@ export default function PracticeRunner() {
           <>
             {q.qtype === 'multi_choice' ? <Button title="提交" disabled={selected.length === 0} onPress={() => void send({ selected })} /> : null}
             {q.qtype === 'fill_blank' ? <Button title="提交" disabled={!text.trim()} onPress={() => void send({ answer_text: text })} /> : null}
-            <Button title="不会，看答案" kind="text" onPress={() => void send({ revealed: true })} />
+            <Button title="不会，看答案" kind="soft" style={styles.reveal} onPress={() => void send({ revealed: true })} />
           </>
         ) : null}
       </View>
@@ -216,11 +216,12 @@ function fromAnswered(a?: { is_correct?: boolean; revealed: boolean; self_assess
 }
 
 const styles = StyleSheet.create({
-  top: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
-  close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  progress: { height: 3, borderRadius: 2, backgroundColor: semantic.border, marginTop: 4, marginBottom: spacing.md },
+  progressFill: { height: 3, borderRadius: 2, backgroundColor: semantic.textPrimary },
+  reveal: { alignSelf: 'center', paddingHorizontal: 24 },
   flex: { flex: 1 },
   scroll: { gap: spacing.md, paddingBottom: spacing.xl },
-  stem: { fontSize: 17, lineHeight: 26 },
+  stem: { lineHeight: 30 },
   subjective: { padding: spacing.md, borderRadius: 12, backgroundColor: semantic.infoSoft },
   assess: { gap: spacing.sm },
   row: { flexDirection: 'row', gap: spacing.sm },

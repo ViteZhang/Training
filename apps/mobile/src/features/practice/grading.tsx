@@ -1,12 +1,13 @@
 // 主观题：4.4 作答（打字、语音与拍照入口、草稿、字数、剩余次数、限时）、4.6 批改中、4.7 批改结果、4.8 异议。
 import type { Schemas } from '@training/api-client';
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Switch, TextInput, View } from 'react-native';
-import { AIGenerating, BottomSheet, Button, Tag, Text, toast } from '@/components';
-import { importKeys, useQuota } from '@/features/import/api';
+import { Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { AIGenerating, BottomSheet, Button, Icon, Tag, Text, toast } from '@/components';
+import type { IconName } from '@/components/Icon';
+import { importKeys, qtypeNames, useQuota } from '@/features/import/api';
 import { Checkbox } from '@/features/import/ui';
 import { useFeatureFlag } from '@/lib/flags';
 import { api, unwrap } from '@/lib/api';
@@ -57,6 +58,17 @@ export function useGradingRemaining() {
   return Math.max(item.limit - item.used, 0);
 }
 
+function Tool({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={styles.tool}>
+      <Icon name={icon} size={16} />
+      <Text variant="caption" color={semantic.textPrimary}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export function SubjectiveInput({
   q,
   text,
@@ -77,9 +89,12 @@ export function SubjectiveInput({
   const n = [...text.replace(/\s/g, '')].length;
   return (
     <View style={styles.gap}>
-      <Text variant="caption">
+      <Text variant="small">
         {q.source_ref ? `出自 ${q.source_ref.file_name} · ` : ''}
         {q.rubric_count > 0 ? `按你资料里的 ${q.rubric_count} 个采分点批改` : '按参考答案批改'}
+      </Text>
+      <Text variant="small" style={styles.label}>
+        你的答案
       </Text>
       <TextInput
         accessibilityLabel="你的答案"
@@ -92,17 +107,17 @@ export function SubjectiveInput({
         textAlignVertical="top"
       />
       <View style={styles.row}>
-        {voice ? <Button title="语音" kind="text" onPress={() => toast('语音作答马上上线')} /> : null}
-        <Button title="拍手写稿" kind="text" onPress={onPhoto} />
-        <Text variant="caption" style={styles.flex}>
+        {voice ? <Tool icon="mic" label="语音" onPress={() => toast('语音作答马上上线')} /> : null}
+        <Tool icon="camera" label="拍手写稿" onPress={onPhoto} />
+        <Text variant="small" style={[styles.flex, styles.right]}>
           {wordHint(q.qtype, n)}
         </Text>
       </View>
       <View style={styles.row}>
-        <Text variant="caption" style={styles.flex}>
+        <Text variant="small" style={styles.flex}>
           {remaining === undefined ? '' : remaining === null ? '批改次数不限' : `今日免费批改还剩 ${remaining} 次`}
         </Text>
-        <Text variant="caption">限时作答</Text>
+        <Text variant="small">限时作答</Text>
         <Switch accessibilityLabel="限时作答" value={timed} onValueChange={onTimed} trackColor={{ true: semantic.primary }} />
       </View>
     </View>
@@ -118,10 +133,22 @@ export function GradingProgress({ q }: { q: PracticeQuestion }) {
   }, []);
   return (
     <View style={styles.gap}>
-      <Text variant="h2">AI 正在批改</Text>
-      <AIGenerating steps={['提取你的答案要点', `比对你资料里的 ${q.rubric_count || 1} 个采分点`, '生成修改建议']} current={step} eta="大约需要 5 秒" />
-      {q.source_ref ? <Text variant="caption">采分点来自：{q.source_ref.file_name}{q.source_ref.page ? ` 第 ${q.source_ref.page} 页` : ''}。</Text> : null}
-      <Text variant="caption">采分点不对的话，可以在知识点里改，之后按新的批改。</Text>
+      <AIGenerating
+        title="AI 正在批改"
+        desc={`${qtypeNames[q.qtype]}：${q.stem.slice(0, 12)}`}
+        steps={['提取你的答案要点', `比对你资料里的 ${q.rubric_count || 1} 个采分点`, '生成修改建议']}
+        current={step}
+        eta="大约需要 5 秒"
+      />
+      <View style={styles.box}>
+        {q.source_ref ? (
+          <Text variant="small">
+            采分点来自：{q.source_ref.file_name}
+            {q.source_ref.page ? ` 第 ${q.source_ref.page} 页` : ''}。
+          </Text>
+        ) : null}
+        <Text variant="small">采分点不对的话，可以在知识点里改，之后按新的批改。</Text>
+      </View>
     </View>
   );
 }
@@ -156,60 +183,81 @@ export function GradingResultView({
 }) {
   const [showRef, setShowRef] = useState(false);
   return (
-    <View style={styles.gap}>
-      <View style={styles.row}>
-        <Text variant="score">{g.score ?? '—'}</Text>
-        <Text variant="body" style={styles.flex}>
+    <View style={styles.gap12}>
+      <View style={styles.scoreRow}>
+        <Text variant="score" color={colors.ink} style={styles.score}>
+          {g.score ?? '—'}
+        </Text>
+        <Text variant="caption" style={styles.of}>
           / {g.full_score} 分
         </Text>
-        {g.disputed ? <Tag label="已复核" tone="info" /> : <Button title="有异议" kind="text" onPress={onDispute} />}
+        <View style={[styles.flex, styles.gap2]}>
+          {g.counts ? (
+            <Text variant="small">
+              命中 {g.counts.hit} · 部分命中 {g.counts.partial} · 遗漏 {g.counts.miss}
+            </Text>
+          ) : null}
+        </View>
+        {g.disputed ? <Tag label="已复核" tone="info" /> : <Button title="有异议" kind="text" size="sm" style={styles.link} onPress={onDispute} />}
       </View>
       {g.trigger !== 'submit' ? (
-        <Text variant="caption" color={semantic.info}>
+        <Text variant="small" color={semantic.info}>
           {g.trigger === 'dispute_recheck' ? '复核重批的结果，未消耗批改次数' : g.trigger === 'rubric_changed' ? '按新采分点重批，未消耗批改次数' : '待批改已提交'}
         </Text>
       ) : null}
-      {g.counts ? (
-        <Text variant="caption">
-          命中 {g.counts.hit} · 部分命中 {g.counts.partial} · 遗漏 {g.counts.miss}
-        </Text>
-      ) : null}
-      {g.points.map((p) => (
-        <View key={p.seq} style={styles.point}>
-          <View style={styles.row}>
-            <Text variant="bodyStrong" style={styles.flex}>
-              {p.content}
-            </Text>
-            <Tag label={`${verdictText[p.verdict]} +${p.got}`} tone={verdictTone[p.verdict]} />
+      <View style={styles.points}>
+        {g.points.map((p, i) => (
+          <View key={p.seq} style={[styles.point, i > 0 && styles.divider]}>
+            <View style={[styles.mark, { backgroundColor: verdictColor[p.verdict] }]}>
+              {p.verdict === 'partial' ? (
+                <Text variant="small" color={colors.white} style={styles.bold}>
+                  半
+                </Text>
+              ) : (
+                <Icon name={p.verdict === 'hit' ? 'check' : 'close'} size={12} color={colors.white} />
+              )}
+            </View>
+            <View style={[styles.flex, styles.gap4]}>
+              <View style={styles.rowWrap}>
+                <Text variant="body" style={styles.bold}>
+                  {p.content}
+                </Text>
+                <Tag label={`${verdictText[p.verdict]} +${p.got}`} tone={verdictTone[p.verdict]} />
+              </View>
+              {p.quote ? <Text variant="small">你写的是「{p.quote}」</Text> : null}
+              {p.reason ? <Text variant="small">{p.reason}</Text> : null}
+            </View>
           </View>
-          {p.quote ? <Text variant="caption">你写的是「{p.quote}」</Text> : null}
-          {p.reason ? <Text variant="caption">{p.reason}</Text> : null}
-        </View>
-      ))}
-      <Text variant="caption">
-        批改依据：{sourceText[g.rubric_source]}
-        {g.rubric_ref ? ` · 出自 ${g.rubric_ref.file_name}${g.rubric_ref.page ? ` 第 ${g.rubric_ref.page} 页` : ''}` : ''}
-      </Text>
-      {g.rubric_changed ? (
-        <Button title="采分点已修改，按新采分点重批" kind="secondary" loading={regrading} onPress={onRegrade} />
-      ) : (
-        <Button title="采分点不对？" kind="text" onPress={() => router.push({ pathname: '/bank/question/[id]', params: { id: String(g.question_id) } })} />
-      )}
-      {g.structure_note ? <Text variant="caption">{g.structure_note}</Text> : null}
+        ))}
+      </View>
+      <View style={styles.row}>
+        <Text variant="small" style={styles.flex}>
+          批改依据：{sourceText[g.rubric_source]}
+          {g.rubric_ref ? ` · 出自 ${g.rubric_ref.file_name}${g.rubric_ref.page ? ` 第 ${g.rubric_ref.page} 页` : ''}` : ''}
+        </Text>
+        {g.rubric_changed ? null : (
+          <Button title="采分点不对？" kind="text" size="sm" color={semantic.textPrimary} style={styles.link} onPress={() => router.push({ pathname: '/bank/question/[id]', params: { id: String(g.question_id) } })} />
+        )}
+      </View>
+      {g.rubric_changed ? <Button title="采分点已修改，按新采分点重批" kind="secondary" loading={regrading} onPress={onRegrade} /> : null}
+      {g.structure_note ? <Text variant="small">{g.structure_note}</Text> : null}
       {g.loss.length > 0 ? (
         <View style={styles.box}>
-          <Text variant="bodyStrong">失分归因</Text>
+          <Text variant="caption" color={colors.ink} style={styles.bold}>
+            失分归因
+          </Text>
           {g.loss.map((l) => (
-            <View key={l.type} style={styles.row}>
+            <View key={l.type} style={[styles.row, styles.lossRow]}>
               <View style={styles.flex}>
-                <Text variant="body">
-                  {lossNames[l.type]} −{l.points}
+                <Text variant="caption" color={colors.ink} style={styles.bold}>
+                  {lossNames[l.type]} <Text variant="caption" color={semantic.danger} style={styles.bold}>−{l.points}</Text>
                 </Text>
-                <Text variant="caption">{l.reason}</Text>
+                {l.reason ? <Text variant="small">{l.reason}</Text> : null}
               </View>
               <Button
                 title={nextAction[l.type]}
-                kind="text"
+                kind="secondary"
+                size="sm"
                 onPress={() =>
                   l.type === 'knowledge' && kpId
                     ? router.push({ pathname: '/bank/kp/[id]', params: { id: String(kpId) } })
@@ -224,32 +272,40 @@ export function GradingResultView({
       ) : null}
       {g.suggestions.length > 0 ? (
         <View style={styles.box}>
-          <Text variant="bodyStrong">修改建议</Text>
-          {g.suggestions.map((s) => (
-            <Text key={s} variant="body">
-              · {s}
+          <Text variant="caption" color={colors.ink} style={styles.bold}>
+            修改建议
+          </Text>
+          {g.suggestions.map((x) => (
+            <Text key={x} variant="caption" color={colors.ink}>
+              · {x}
             </Text>
           ))}
         </View>
       ) : null}
-      {g.kp_changes.map((k) => (
-        <Text key={k.kp_id} variant="caption">
-          {k.name} 掌握分 {Math.round(k.m)}
+      <View style={styles.row}>
+        <Text variant="small" color={colors.ink} style={styles.flex}>
+          {g.kp_changes.map((k) => `${k.name} 掌握分 ${Math.round(k.m)}`).join(' · ')}
         </Text>
-      ))}
-      {g.wrong_book === 'added' || g.wrong_book === 'still' ? <Text variant="caption" color={semantic.danger}>已加入错题本</Text> : null}
+        {g.wrong_book === 'added' || g.wrong_book === 'still' ? <Text variant="small">已加入错题本</Text> : null}
+      </View>
       {g.reference_answer ? (
         <View>
-          <Button title={showRef ? '收起参考答案' : '参考答案'} kind="text" onPress={() => setShowRef(!showRef)} />
-          {showRef ? <Text variant="body">{g.reference_answer}</Text> : null}
+          <Button title={showRef ? '收起参考答案' : '参考答案'} kind="secondary" onPress={() => setShowRef(!showRef)} />
+          {showRef ? (
+            <Text variant="caption" color={colors.ink} style={styles.refText}>
+              {g.reference_answer}
+            </Text>
+          ) : null}
         </View>
       ) : null}
-      <Text variant="small" color={semantic.textSecondary}>
+      <Text variant="small" style={styles.center}>
         AI 批改得分，仅供参考
       </Text>
     </View>
   );
 }
+
+const verdictColor = { hit: colors.green, partial: '#B26A00', miss: colors.red } as const;
 
 const reasons: { key: Schemas['DisputeRequest']['reason']; text: string }[] = [
   { key: 'hit_missed', text: '我其实答到了某个采分点' },
@@ -275,25 +331,40 @@ export function DisputeSheet({ g, visible, onClose, onDone }: { g: GradingResult
   return (
     <BottomSheet visible={visible} onClose={onClose} title="对批改有异议？">
       <View style={styles.gap}>
-        {reasons.map((r) => (
-          <Checkbox key={r.key} checked={reason === r.key} onChange={() => setReason(r.key)} label={r.text} />
-        ))}
+        <View style={styles.reasons}>
+          {reasons.map((r) => {
+            const on = reason === r.key;
+            return (
+              <Pressable key={r.key} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={r.text} onPress={() => setReason(r.key)} style={[styles.reason, on && styles.reasonOn]}>
+                <Text variant="caption" color={semantic.textPrimary}>
+                  {r.text}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
         {reason === 'rubric_wrong' ? (
-          <>
-            <Text variant="caption">采分点来自你的资料，可以直接改，改完这道题按新采分点重批，不消耗批改次数。</Text>
-            <Button
-              title="去修改 ›"
-              onPress={() => {
-                onClose();
-                router.push({ pathname: '/bank/question/[id]', params: { id: String(g.question_id) } });
-              }}
-            />
-          </>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              onClose();
+              router.push({ pathname: '/bank/question/[id]', params: { id: String(g.question_id) } });
+            }}
+            style={styles.info}
+          >
+            <Text variant="small" color="#1D4C77" style={styles.flex}>
+              采分点{g.rubric_ref ? `来自你的资料「${g.rubric_ref.file_name}」` : '来自你的资料'}，可以直接改，改完这道题按新采分点重批，不消耗批改次数
+            </Text>
+            <Text variant="caption" color="#1D4C77" style={styles.bold}>
+              去修改 ›
+            </Text>
+          </Pressable>
         ) : (
           <>
-            <TextInput accessibilityLabel="补充说明" value={note} onChangeText={setNote} placeholder="补充说明（选填）" placeholderTextColor={semantic.textSecondary} style={styles.note} />
+            <Text variant="small">补充说明（选填）</Text>
+            <TextInput accessibilityLabel="补充说明" value={note} onChangeText={setNote} multiline placeholder="比如：我写的「言外之意」就是韵味无穷的意思" placeholderTextColor="#A8A399" style={styles.note} textAlignVertical="top" />
             <Checkbox checked={allow} onChange={setAllow} label="允许后台查看这道题和我的答案，用于排查批改问题" />
-            <Text variant="caption">提交后会重新批改一次，不消耗批改次数。</Text>
+            <Text variant="small">提交后会重新批改一次，不消耗批改次数。</Text>
             <Button title="提交" disabled={!reason} loading={submit.isPending} onPress={() => submit.mutate()} />
           </>
         )}
@@ -324,12 +395,34 @@ export function useSubmitSubjective(sessionId: number) {
 
 const styles = StyleSheet.create({
   gap: { gap: spacing.sm },
+  gap12: { gap: 12 },
+  gap2: { gap: 2 },
+  gap4: { gap: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  rowWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   flex: { flex: 1 },
-  answer: { minHeight: 180, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, padding: spacing.md, fontSize: 16, lineHeight: 24, color: semantic.textPrimary, backgroundColor: semantic.surface },
-  point: { gap: 2, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: semantic.border },
-  box: { gap: spacing.xs, padding: spacing.md, borderRadius: radius.md, backgroundColor: semantic.surface, borderWidth: 1, borderColor: semantic.border },
-  note: { minHeight: 44, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 16, color: semantic.textPrimary },
+  bold: { fontWeight: '700' },
+  right: { textAlign: 'right' },
+  center: { textAlign: 'center' },
+  label: { marginTop: 4 },
+  link: { paddingHorizontal: 0 },
+  tool: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: semantic.fill },
+  answer: { minHeight: 220, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.xl, padding: 14, fontSize: 15, lineHeight: 28, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  scoreRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
+  score: { fontSize: 48, lineHeight: 52 },
+  of: { marginBottom: 6, marginRight: 8 },
+  points: { paddingHorizontal: 16, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
+  point: { flexDirection: 'row', gap: 12, paddingVertical: 14 },
+  divider: { borderTopWidth: 1, borderTopColor: semantic.border },
+  mark: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  box: { gap: 6, padding: 16, borderRadius: radius.xl, backgroundColor: semantic.fill },
+  lossRow: { borderTopWidth: 1, borderTopColor: semantic.border, paddingTop: 8 },
+  refText: { marginTop: 8, lineHeight: 22 },
+  note: { minHeight: 88, borderWidth: 1, borderColor: semantic.border, borderRadius: 14, padding: 12, fontSize: 14, lineHeight: 22, color: semantic.textPrimary },
+  reasons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  reason: { minHeight: 40, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: semantic.border, justifyContent: 'center', backgroundColor: semantic.surface },
+  reasonOn: { borderColor: semantic.textPrimary, borderWidth: 2, paddingHorizontal: 13 },
+  info: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, backgroundColor: semantic.infoSoft },
 });
 
 /** 待批改（4.9「明天再批改」存下的答案）：训练页一键提交。 */

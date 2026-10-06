@@ -75,10 +75,14 @@ export function SubjectiveFlow({
     return (
       <View style={styles.gap}>
         <View style={styles.ref}>
-          <Text variant="bodyStrong">参考答案</Text>
-          <Text variant="body">{q.answer ?? '这道题还没有参考答案'}</Text>
+          <Text variant="small">参考答案</Text>
+          <Text variant="caption" color={semantic.textPrimary} style={styles.lh}>
+            {q.answer ?? '这道题还没有参考答案'}
+          </Text>
         </View>
-        <Text variant="bodyStrong">对照参考答案，你掌握得怎么样？</Text>
+        <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+          对照参考答案，你掌握得怎么样？
+        </Text>
         <View style={styles.row}>
           {(
             [
@@ -87,7 +91,7 @@ export function SubjectiveFlow({
               ['mastered', '掌握'],
             ] as const
           ).map(([k, label]) => (
-            <Button key={k} title={label} kind="secondary" style={styles.flex} onPress={() => onSelfAssess(k)} />
+            <Button key={k} title={label} kind="soft" style={styles.flex} onPress={() => onSelfAssess(k)} />
           ))}
         </View>
       </View>
@@ -97,8 +101,10 @@ export function SubjectiveFlow({
   return (
     <View style={styles.gap}>
       <SubjectiveInput q={q} text={draft.text} onChange={draft.setText} timed={timed} onTimed={setTimed} onPhoto={() => setPhoto(true)} />
-      <Button title="提交批改" disabled={!draft.text.trim()} onPress={() => send()} />
-      <Button title="看参考答案" kind="text" onPress={() => setShowRef(true)} />
+      <View style={styles.row}>
+        <Button title="看参考答案" kind="secondary" style={styles.flex} onPress={() => setShowRef(true)} />
+        <Button title="提交批改" style={styles.flex2} disabled={!draft.text.trim()} onPress={() => send()} />
+      </View>
       <QuotaSheet
         visible={quotaOut}
         onClose={() => {
@@ -134,5 +140,8 @@ const styles = StyleSheet.create({
   gap: { gap: spacing.sm },
   row: { flexDirection: 'row', gap: spacing.sm },
   flex: { flex: 1 },
-  ref: { gap: spacing.xs, padding: spacing.md, borderRadius: 12, backgroundColor: semantic.infoSoft },
+  flex2: { flex: 1.6 },
+  bold: { fontWeight: '700' },
+  lh: { lineHeight: 22 },
+  ref: { gap: 6, padding: 16, borderRadius: 18, backgroundColor: semantic.fill },
 });

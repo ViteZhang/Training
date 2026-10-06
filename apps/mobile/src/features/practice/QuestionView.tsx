@@ -1,6 +1,6 @@
 // 4.3 答题：选项、判分结果、解析、出处与知识点入口。主观题在 T18 接通打字作答与 AI 批改，这里先提供「看参考答案」自评。
 import type { Schemas } from '@training/api-client';
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { radius, semantic } from '@training/ui-tokens';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Button, Tag, Text } from '@/components';
@@ -25,10 +25,10 @@ export interface LocalResult {
 export function QuestionHeader({ q }: { q: PracticeQuestion }) {
   return (
     <View style={styles.tags}>
-      <Tag label={qtypeNames[q.qtype]} tone="brand" />
+      <Tag label={qtypeNames[q.qtype]} />
       {q.plan_group ? <Tag label={groupTagNames[q.plan_group]} tone="info" /> : null}
       {q.origin_tags.includes('ai_generated') ? <Tag label="AI 出题" tone="ai" /> : null}
-      {q.source === 'exam' && q.exam_year ? <Tag label={`${q.exam_year} 真题`} /> : null}
+      {q.source === 'exam' && q.exam_year ? <Tag label={`${q.exam_year} 真题`} tone="mastered" /> : null}
     </View>
   );
 }
@@ -51,9 +51,11 @@ export function Options({ q, selected, result, onToggle }: { q: PracticeQuestion
             onPress={() => onToggle(o.key)}
             style={[styles.option, picked && styles.optionOn, right && styles.optionRight, wrong && styles.optionWrong]}
           >
-            <Text variant="bodyStrong" style={styles.letter}>
-              {o.key}
-            </Text>
+            <View style={[styles.letter, (picked || right || wrong) && styles.letterOn, right && styles.letterRight, wrong && styles.letterWrong]}>
+              <Text variant="caption" color={picked || right || wrong ? semantic.textOnBrand : semantic.textPrimary} style={styles.letterText}>
+                {o.key}
+              </Text>
+            </View>
             <Text variant="body" style={styles.flex}>
               {o.text}
             </Text>
@@ -85,20 +87,24 @@ export function ResultPanel({ q, result, onReport }: { q: PracticeQuestion; resu
   const color = result.revealed ? semantic.info : result.correct ? semantic.mastered : result.correct === false ? semantic.danger : semantic.textPrimary;
   return (
     <View style={styles.result}>
-      <Text variant="h3" color={color}>
+      <Text variant="bodyStrong" color={color} style={styles.bold}>
         {title}
       </Text>
       {answer ? (
-        <Text variant="body">
+        <Text variant="caption" color={result.correct === false ? semantic.danger : semantic.textPrimary} style={styles.bold}>
           {q.options?.length ? `正确答案是 ${answer}` : `参考答案：${answer}`}
         </Text>
       ) : null}
-      {analysis ? <Text variant="body" color={semantic.textSecondary}>{analysis}</Text> : null}
+      {analysis ? (
+        <Text variant="caption" style={styles.lh}>
+          {analysis}
+        </Text>
+      ) : null}
       {result.wrongBook === 'added' ? <Text variant="caption" color={semantic.danger}>已加入错题本</Text> : null}
       {result.wrongBook === 'removed' ? <Text variant="caption" color={semantic.mastered}>两次答对，已从错题本移出</Text> : null}
       {!result.synced ? <Text variant="caption" color={semantic.info}>离线作答，联网后自动提交并复核</Text> : null}
       {q.source_ref ? (
-        <Text variant="caption">
+        <Text variant="small">
           {q.origin_tags.includes('ai_generated') && q.knowledge_points[0] ? `AI 按你的知识点「${q.knowledge_points[0].name}」出题 · ` : ''}
           依据 {q.source_ref.file_name}
           {q.source_ref.page ? ` 第 ${q.source_ref.page} 页` : ''}
@@ -106,24 +112,32 @@ export function ResultPanel({ q, result, onReport }: { q: PracticeQuestion; resu
       ) : null}
       <View style={styles.links}>
         {q.knowledge_points.slice(0, 2).map((k) => (
-          <Button key={k.id} title={`知识点：${k.name} ›`} kind="text" onPress={() => router.push({ pathname: '/bank/kp/[id]', params: { id: String(k.id) } })} />
+          <Button key={k.id} title={`知识点：${k.name} ›`} kind="text" size="sm" color={semantic.textPrimary} style={styles.link} onPress={() => router.push({ pathname: '/bank/kp/[id]', params: { id: String(k.id) } })} />
         ))}
-        <Button title="题目有问题" kind="text" onPress={onReport} />
+        <View style={styles.flex} />
+        <Button title="题目有问题" kind="text" size="sm" style={styles.link} onPress={onReport} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
-  options: { gap: spacing.sm },
-  option: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 52, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
-  optionOn: { borderColor: semantic.primary, backgroundColor: semantic.primarySoft },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  options: { gap: 10 },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 12, paddingHorizontal: 14, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
+  optionOn: { borderColor: semantic.primary, borderWidth: 1.5 },
   optionRight: { borderColor: semantic.mastered, backgroundColor: semantic.masteredSoft },
   optionWrong: { borderColor: semantic.danger, backgroundColor: semantic.dangerSoft },
-  letter: { width: 24 },
+  letter: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: semantic.fill },
+  letterOn: { backgroundColor: semantic.primary },
+  letterRight: { backgroundColor: semantic.mastered },
+  letterWrong: { backgroundColor: semantic.danger },
+  letterText: { fontWeight: '600' },
   flex: { flex: 1 },
-  input: { minHeight: 52, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 16, color: semantic.textPrimary, backgroundColor: semantic.surface },
-  result: { gap: spacing.sm, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: semantic.surface, borderWidth: 1, borderColor: semantic.border },
+  bold: { fontWeight: '700' },
+  lh: { lineHeight: 22 },
+  link: { paddingHorizontal: 0 },
+  input: { minHeight: 52, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.xl, paddingHorizontal: 14, fontSize: 15, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  result: { gap: 8, padding: 16, borderRadius: radius.xl, backgroundColor: semantic.fill },
   links: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
 });
