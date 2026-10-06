@@ -65,24 +65,38 @@ export function createApiClient(opts: ApiClientOptions) {
       }
       return request;
     },
+    // 不改响应时返回 undefined：openapi-fetch 要求返回值是全局 Response 的实例，而 Expo 的
+    // expo/fetch（替换了全局 fetch）返回的响应不是，原样返回会被当成异常（App 里显示「网络开小差了」）。
     async onResponse({ request, response }) {
       if (response.status !== 401 || !opts.refresh || request.headers.get('X-Retried') === '1') {
-        return response;
+        return undefined;
       }
       // 并发的多个 401 只刷新一次。
       refreshing ??= opts.refresh().finally(() => {
         refreshing = undefined;
       });
       const token = await refreshing;
-      if (!token) return response;
+      if (!token) return undefined;
       const retry = new Request(request, { headers: new Headers(request.headers) });
       retry.headers.set('Authorization', `Bearer ${token}`);
       retry.headers.set('X-Retried', '1');
-      return (opts.fetch ?? fetch)(retry);
+      return toResponse(await (opts.fetch ?? fetch)(retry));
     },
   };
   client.use(middleware);
   return client;
+}
+
+/** 把 expo/fetch 等返回的非标准响应转成全局 Response（中间件替换响应时 openapi-fetch 要求）。 */
+async function toResponse(res: Response): Promise<Response> {
+  if (res instanceof Response) return res;
+  res = res as Response;
+  const headers: Record<string, string> = {};
+  res.headers.forEach((value, key) => {
+    headers[key] = value;
+  });
+  const body = res.status === 204 || res.status === 304 ? null : await res.text();
+  return new Response(body, { status: res.status, statusText: res.statusText, headers });
 }
 
 export type ApiClient = ReturnType<typeof createApiClient>;
