@@ -20,7 +20,7 @@ export function Cloze({ item, busy, onAssess }: { item: ReciteItem; busy: boolea
   const all = blanks.length > 0 && blanks.every((i) => shown.has(i));
   return (
     <View style={styles.gap}>
-      <Text variant="caption">点空格查看</Text>
+      <Text variant="small">点空格查看</Text>
       <Text variant="body" style={styles.text}>
         {item.segments.map((s, i) =>
           s.blank ? (
@@ -42,10 +42,18 @@ export function Cloze({ item, busy, onAssess }: { item: ReciteItem; busy: boolea
           ),
         )}
       </Text>
-      {blanks.length > 0 && !all ? <Button title="全部显示" kind="text" onPress={() => setShown(new Set(blanks))} /> : null}
+      {blanks.length > 0 && !all ? <Button title="全部显示" kind="soft" size="sm" style={styles.left} onPress={() => setShown(new Set(blanks))} /> : null}
       <View style={styles.row}>
         {(['forgot', 'vague', 'remembered'] as const).map((r) => (
-          <Button key={r} title={levelNames[r]} kind={r === 'remembered' ? 'primary' : 'secondary'} style={styles.flex} disabled={busy} onPress={() => onAssess(r)} />
+          <Button
+            key={r}
+            title={levelNames[r]}
+            kind={r === 'remembered' ? 'primary' : r === 'vague' ? 'soft' : 'secondary'}
+            color={r === 'forgot' ? semantic.danger : undefined}
+            style={styles.flex}
+            disabled={busy}
+            onPress={() => onAssess(r)}
+          />
         ))}
       </View>
     </View>
@@ -179,12 +187,13 @@ export function Oral({ item, sessionId, busy, onSubmit }: { item: ReciteItem; se
 }
 
 const styles = StyleSheet.create({
-  gap: { gap: spacing.sm },
+  gap: { gap: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   flex: { flex: 1 },
   text: { fontSize: 17, lineHeight: 30 },
-  blank: { backgroundColor: semantic.primarySoft, borderRadius: radius.sm },
-  shown: { textDecorationLine: 'underline' },
+  blank: { backgroundColor: '#EEEBFB', borderRadius: radius.sm },
+  shown: { backgroundColor: '#EEEBFB', color: '#3E3190' },
+  left: { alignSelf: 'flex-start' },
   box: { gap: spacing.xs, padding: spacing.md, borderRadius: radius.md, backgroundColor: semantic.infoSoft },
   legend: { flexDirection: 'row', gap: spacing.lg },
   input: { minHeight: 160, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, padding: spacing.md, fontSize: 16, lineHeight: 24, color: semantic.textPrimary, backgroundColor: semantic.surface },

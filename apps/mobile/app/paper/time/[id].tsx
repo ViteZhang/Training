@@ -1,7 +1,7 @@
 // 4.25 时间分析报告：是否用满时间、未作答题数、估计时间失分；各题型建议与实际用时对比，超时与少用标出，检查时间；
 // 下次分配建议；近几次整卷未答题数趋势；「按建议再做一套」。建议用时与选择模式、考情分析同一套数字（PRD 11.9）。
 import type { Schemas } from '@training/api-client';
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { semantic, spacing } from '@training/ui-tokens';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, ErrorState, Loading, Screen, Tag, Text } from '@/components';
@@ -73,15 +73,15 @@ export default function TimeReportPage() {
         <View style={styles.stats}>
           <View style={styles.stat}>
             <Text variant="number">{t.used_full ? `${t.total_minutes}′` : `${t.used_minutes}′`}</Text>
-            <Text variant="caption">{t.used_full ? '用满时间' : `共 ${t.total_minutes}′，未用满`}</Text>
+            <Text variant="small">{t.used_full ? '用满时间' : `共 ${t.total_minutes}′，未用满`}</Text>
           </View>
           <View style={styles.stat}>
             <Text variant="number">{t.unanswered} 题</Text>
-            <Text variant="caption">未作答</Text>
+            <Text variant="small">未作答</Text>
           </View>
           <View style={styles.stat}>
             <Text variant="number">约 {t.time_loss}</Text>
-            <Text variant="caption">时间失分</Text>
+            <Text variant="small">时间失分</Text>
           </View>
         </View>
 
@@ -112,20 +112,26 @@ export default function TimeReportPage() {
           </View>
         </Card>
 
-        <Card style={styles.gap}>
-          <Text variant="h3">下次这样分配</Text>
+        <Card tone="fill" style={styles.gap}>
+          <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+            下次这样分配
+          </Text>
           {t.advice.map((a) => (
-            <Text key={a} variant="body">
+            <Text key={a} variant="caption" color={semantic.textPrimary}>
               · {a}
             </Text>
           ))}
         </Card>
 
         {t.trend.length > 1 ? (
-          <Card style={styles.gap}>
-            <Text variant="caption">近 {t.trend.length} 次整卷未答题</Text>
-            <Text variant="number">{t.trend.map((p) => p.unanswered).join(' → ')}</Text>
-          </Card>
+          <View style={styles.trend}>
+            <Text variant="small" style={styles.flex}>
+              近 {t.trend.length} 次整卷未答题
+            </Text>
+            <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+              {t.trend.map((p) => p.unanswered).join(' → ')}
+            </Text>
+          </View>
         ) : null}
       </ScrollView>
       <Button
@@ -142,11 +148,13 @@ export default function TimeReportPage() {
 
 const styles = StyleSheet.create({
   scroll: { gap: spacing.md, paddingBottom: spacing.xl },
+  bold: { fontWeight: '700' },
+  trend: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4 },
   gap: { gap: spacing.sm },
   flex: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  stats: { flexDirection: 'row', gap: spacing.sm },
-  stat: { flex: 1, alignItems: 'center', padding: spacing.md, borderRadius: radius.md, backgroundColor: semantic.surface, gap: 2 },
+  stats: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  stat: { flex: 1, gap: 2, paddingVertical: spacing.sm },
   section: { gap: spacing.xs, paddingVertical: spacing.xs },
   bars: { gap: 4 },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

@@ -1,13 +1,12 @@
 // 4.14 背诵：挖空 / 默写 / 口述三种模式切换（口述受功能开关控制）；标原文出处；
 // 挖空自评没记住 / 模糊 / 记住了；默写与口述显示关键词覆盖（4.15）。背完进入 4.17。
-import { semantic, spacing } from '@training/ui-tokens';
+import { radius, semantic, spacing } from '@training/ui-tokens';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, ConfirmDialog, EmptyState, ErrorState, Loading, Screen, Text, toast } from '@/components';
-import { Segments } from '@/features/import/ui';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { BackButton, Button, Card, ConfirmDialog, EmptyState, ErrorState, Loading, NavBar, Screen, Segmented, Text, toast } from '@/components';
 import { modeNames, reciteKeys, useReciteSession, type ReciteMode } from '@/features/recite/api';
 import { Cloze, CoverageView, Dictation, Oral, type RecordBody, type RecordResult } from '@/features/recite/ItemView';
 import { api, unwrap } from '@/lib/api';
@@ -69,19 +68,20 @@ export default function RecitePage() {
 
   return (
     <Screen>
-      <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel="退出背诵" onPress={() => setExiting(true)} style={styles.close}>
-          <Text variant="h3">×</Text>
-        </Pressable>
-        <Text variant="bodyStrong" style={styles.flex}>
-          {s.title}
-        </Text>
-        <Text variant="caption">
-          {index + 1} / {s.items.length}
-        </Text>
+      <NavBar
+        title={s.title}
+        left={<BackButton icon="close" label="退出背诵" onPress={() => setExiting(true)} />}
+        right={
+          <Text variant="small">
+            {index + 1} / {s.items.length}
+          </Text>
+        }
+      />
+      <View style={styles.progress} accessibilityElementsHidden>
+        <View style={[styles.progressFill, { width: `${(finished / Math.max(1, s.items.length)) * 100}%` }]} />
       </View>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Segments<ReciteMode>
+        <Segmented<ReciteMode>
           value={mode}
           onChange={(m) => {
             setMode(m);
@@ -89,14 +89,22 @@ export default function RecitePage() {
           }}
           options={modes.map((m) => ({ key: m, label: modeNames[m] }))}
         />
-        {item.path.length > 0 ? <Text variant="caption">{item.path.join(' · ')}</Text> : null}
-        <Text variant="h2">{item.name}</Text>
-        {item.source_ref ? (
-          <Text variant="caption">
-            原文出自 {item.source_ref.file_name}
-            {item.source_ref.page ? ` 第 ${item.source_ref.page} 页` : ''}
-          </Text>
-        ) : null}
+        <Card style={styles.card}>
+          {item.path.length > 0 ? (
+            <View style={styles.path}>
+              <Text variant="small" color="#3E3190">
+                {item.path.join(' · ')}
+              </Text>
+            </View>
+          ) : null}
+          <Text variant="h1">{item.name}</Text>
+          {item.source_ref ? (
+            <Text variant="small">
+              原文出自 {item.source_ref.file_name}
+              {item.source_ref.page ? ` 第 ${item.source_ref.page} 页` : ''}
+            </Text>
+          ) : null}
+        </Card>
         {result ? (
           <>
             <CoverageView item={item} result={result} />
@@ -112,7 +120,7 @@ export default function RecitePage() {
         ) : (
           <Oral key={`o${item.kp_id}`} item={item} sessionId={sessionId} busy={busy} onSubmit={(audio_key) => void record({ mode: 'oral', audio_key })} />
         )}
-        <Text variant="small" color={semantic.textSecondary}>
+        <Text variant="small" style={styles.center}>
           背诵按遗忘规律安排复习：没记住明天再背，模糊 2 天后，记住了 3 天后起逐步拉长
         </Text>
       </ScrollView>
@@ -134,8 +142,11 @@ export default function RecitePage() {
 }
 
 const styles = StyleSheet.create({
-  top: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
-  close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  progress: { height: 3, borderRadius: 2, backgroundColor: semantic.border, marginTop: 4, marginBottom: spacing.md },
+  progressFill: { height: 3, borderRadius: 2, backgroundColor: '#8C80E0' },
+  card: { gap: 8 },
+  path: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: '#EEEBFB' },
+  center: { textAlign: 'center' },
   flex: { flex: 1 },
   row: { flexDirection: 'row', gap: spacing.sm },
   scroll: { gap: spacing.md, paddingBottom: spacing.xl },

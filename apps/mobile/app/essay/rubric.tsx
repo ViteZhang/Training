@@ -2,10 +2,10 @@
 // 改了标准后新写的作文按新标准批改，已批改的分数不变；按你资料里的细则批改、真题限时完成的作文才计入预估分（PRD 11.13）。
 import type { Schemas } from '@training/api-client';
 import { radius, semantic, spacing } from '@training/ui-tokens';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { Button, Card, ErrorState, Loading, Screen, Tag, Text, toast } from '@/components';
 import { PageHeader } from '@/features/import/ui';
 import { essayKeys, fmtScore, useRubrics } from '@/features/essay/api';
@@ -14,41 +14,53 @@ import { api, unwrap } from '@/lib/api';
 type Rubric = Schemas['EssayRubric'];
 type Dim = Schemas['EssayDimension'];
 
-function RubricCard({ r, active }: { r: Rubric; active: boolean }) {
+/** 正在使用的评分标准（设计稿 5.9）：大标题 + 来源 + 维度卡 + 分档。 */
+function RubricMain({ r, subjectLabel }: { r: Rubric; subjectLabel?: string }) {
   const bands = r.dimensions.flatMap((d) => d.bands ?? []);
   return (
-    <Card style={styles.gap}>
-      <View style={styles.row}>
-        <Text variant="h3" style={styles.flex}>
-          {r.source === 'generic' ? '通用标准' : '你的资料'}
-        </Text>
-        {active ? <Tag label="正在使用" tone="brand" /> : null}
-      </View>
-      <Text variant="caption">
-        {r.name} · 满分 {fmtScore(r.full_score)}
-        {r.source_ref ? ` · 从 ${r.source_ref.file_name}${r.source_ref.page ? ` 第 ${r.source_ref.page} 页` : ''}识别` : ''}
-        {r.source === 'generic' ? ' · 分数只作参考，不计入预估分' : r.origin === 'user_confirmed' ? ' · 你改过' : ''}
+    <View style={styles.gap}>
+      <Text variant="h2">
+        {subjectLabel ? `${subjectLabel} · ` : ''}满分 {fmtScore(r.full_score)}
       </Text>
-      {r.dimensions.map((d) => (
-        <View key={d.name} style={styles.dim}>
-          <View style={styles.flex}>
-            <Text variant="bodyStrong">{d.name}</Text>
-            {d.description ? <Text variant="caption">{d.description}</Text> : null}
-          </View>
-          <Text variant="number">{fmtScore(d.score)}</Text>
-        </View>
-      ))}
-      {bands.length > 0 ? (
-        <View style={styles.gapSm}>
-          <Text variant="caption">分档</Text>
-          {bands.map((b, i) => (
-            <Text key={i} variant="small">
-              {b.range} · {b.description}
+      <View style={styles.row}>
+        <Tag label={r.source === 'generic' ? '通用标准' : '你的资料'} tone={r.source === 'generic' ? 'neutral' : 'mastered'} />
+        <Text variant="small" style={styles.flex}>
+          {r.name} · 满分 {fmtScore(r.full_score)}
+          {r.source_ref ? ` · 从 ${r.source_ref.file_name}${r.source_ref.page ? ` 第 ${r.source_ref.page} 页` : ''}识别` : ''}
+          {r.source === 'generic' ? ' · 分数只作参考，不计入预估分' : r.origin === 'user_confirmed' ? ' · 你改过' : ''}
+        </Text>
+      </View>
+      <Card style={styles.dims}>
+        {r.dimensions.map((d, i) => (
+          <View key={d.name} style={[styles.dim, i > 0 && styles.divider]}>
+            <View style={[styles.flex, styles.gap2]}>
+              <Text variant="body">{d.name}</Text>
+              {d.description ? <Text variant="small">{d.description}</Text> : null}
+            </View>
+            <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+              {fmtScore(d.score)}
             </Text>
-          ))}
+          </View>
+        ))}
+      </Card>
+      {bands.length > 0 ? (
+        <View style={styles.gap}>
+          <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+            分档
+          </Text>
+          <View style={styles.bands}>
+            {bands.map((bd, i) => (
+              <View key={i} style={styles.band}>
+                <Text variant="small">{bd.description}</Text>
+                <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+                  {bd.range}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
       ) : null}
-    </Card>
+    </View>
   );
 }
 
@@ -89,6 +101,9 @@ export default function EssayRubricPage() {
   const sid = Number(subjectId);
   const qc = useQueryClient();
   const rubrics = useRubrics(sid);
+  const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => unwrap(api.GET('/subjects')) });
+  const subj = subjects.data?.items?.find((x) => x.id === sid);
+  const subjectLabel = subj ? `${subj.code ? `${subj.code} ` : ''}${subj.name}` : undefined;
   const [editing, setEditing] = useState(false);
   const done = (r: Schemas['EssayRubrics']) => {
     qc.setQueryData(essayKeys.rubrics(sid), r);
@@ -119,26 +134,33 @@ export default function EssayRubricPage() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <PageHeader title="评分标准" onBack={() => router.back()} right={r.user && !editing ? <Button title="编辑" kind="text" onPress={() => setEditing(true)} /> : undefined} />
+        <PageHeader title="评分标准" onBack={() => router.back()} right={r.user && !editing ? <Button title="编辑" kind="text" size="sm" color={semantic.textPrimary} style={styles.link} onPress={() => setEditing(true)} /> : undefined} />
         {r.user && editing ? (
           <Editor r={r.user} onCancel={() => setEditing(false)} saving={save.isPending} onSave={(name, dims) => save.mutate({ name, dims })} />
         ) : null}
-        {r.user && !editing ? <RubricCard r={r.user} active={usingUser} /> : null}
+        {!editing ? <RubricMain r={usingUser && r.user ? r.user : r.generic} subjectLabel={subjectLabel} /> : null}
         {!r.user ? (
-          <Card style={styles.gap}>
-            <Text variant="caption">还没有从你的资料里识别出评分细则。导入评分细则后，按你学校的标准批改，分数才计入预估分</Text>
+          <Card tone="fill" style={styles.gap}>
+            <Text variant="small">还没有从你的资料里识别出评分细则。导入评分细则后，按你学校的标准批改，分数才计入预估分</Text>
             <Button title="导入评分细则" kind="secondary" onPress={() => router.push({ pathname: '/import', params: { subjectId: String(sid) } })} />
           </Card>
         ) : null}
-        <RubricCard r={r.generic} active={!usingUser} />
-        {r.user ? (
-          usingUser ? (
-            <Button title="改用通用标准" kind="secondary" loading={select.isPending} onPress={() => select.mutate('generic')} />
-          ) : (
-            <Button title="改用你资料里的标准" loading={select.isPending} onPress={() => select.mutate('user_material')} />
-          )
+        {r.user && !editing ? (
+          <Pressable accessibilityRole="switch" accessibilityState={{ checked: !usingUser }} disabled={select.isPending} onPress={() => select.mutate(usingUser ? 'generic' : 'user_material')} style={styles.switchRow}>
+            <View style={styles.flex}>
+              <Text variant="body">{usingUser ? '改用通用标准' : '改用你资料里的标准'}</Text>
+              <Text variant="small">{usingUser ? '觉得识别的细则不准时可以切回' : '按你学校的细则批改，分数才计入预估分'}</Text>
+            </View>
+            <Switch
+              accessibilityLabel={usingUser ? '改用通用标准' : '改用你资料里的标准'}
+              value={!usingUser}
+              disabled={select.isPending}
+              onValueChange={(v) => select.mutate(v ? 'generic' : 'user_material')}
+              trackColor={{ true: semantic.primary, false: semantic.border }}
+            />
+          </Pressable>
         ) : null}
-        <Text variant="small" color={semantic.textSecondary}>
+        <Text variant="small" style={styles.lh}>
           改了评分标准后，新写的作文按新标准批改，已批改的分数不变。按你资料里的细则批改、真题限时完成的作文，才会计入预估分。
         </Text>
       </ScrollView>
@@ -147,12 +169,21 @@ export default function EssayRubricPage() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { gap: spacing.md, paddingBottom: spacing.xl },
-  gap: { gap: spacing.sm },
+  scroll: { gap: 14, paddingBottom: spacing.xl },
+  gap: { gap: 10 },
+  gap2: { gap: 2 },
   gapSm: { gap: spacing.xs },
   flex: { flex: 1 },
+  bold: { fontWeight: '700' },
+  lh: { lineHeight: 19 },
+  link: { paddingHorizontal: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  dim: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: semantic.border },
+  dims: { paddingVertical: 4 },
+  dim: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 62, paddingVertical: 10 },
+  divider: { borderTopWidth: 1, borderTopColor: semantic.border },
+  bands: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  band: { flexBasis: '22%', flexGrow: 1, gap: 2, padding: 10, borderRadius: 14, backgroundColor: semantic.fill },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, borderTopWidth: 1, borderBottomWidth: 1, borderColor: semantic.border },
   editRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   input: { minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface, fontSize: 16 },
   score: { width: 72, textAlign: 'center' },

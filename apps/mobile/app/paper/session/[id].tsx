@@ -1,12 +1,12 @@
 // 4.20 练习模式作答、4.21 模拟考试作答、4.22 答题卡、4.23 交卷确认；交卷后显示批改进度与得分。
 // 倒计时以服务端 deadline_at 为准（按 server_now 校准本机时钟）；草稿每 5 秒存 MMKV 并同步到服务端；
 // 模拟考试被系统中断（杀掉 App、来电）后，10 分钟内可恢复一次并补回中断时长（PRD 11.9）。
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { BottomSheet, Button, Card, ConfirmDialog, ErrorState, Loading, Screen, Tag, Text, toast } from '@/components';
+import { BackButton, BottomSheet, Button, Card, ConfirmDialog, ErrorState, Icon, Loading, Screen, Tag, Text, toast } from '@/components';
 import { qtypeNames } from '@/features/import/api';
 import { clearDrafts, clock, lastActive, loadDrafts, markActive, paperKeys, saveDrafts, type PaperItem, type PaperSession } from '@/features/paper/api';
 import { api, unwrap } from '@/lib/api';
@@ -291,21 +291,28 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
   return (
     <Screen>
       <View style={styles.top}>
-        <Button title="退出" kind="text" onPress={() => setLeave(true)} />
-        <Text variant="number" color={lastMinutes ? semantic.danger : undefined} accessibilityLabel={mock ? '剩余时间' : '已用时间'}>
-          {mock && left !== undefined ? clock(left) : clock(elapsed)}
-        </Text>
-        <Button title="答题卡" kind="text" onPress={() => setCardOpen(true)} />
+        <BackButton icon="close" label="退出" onPress={() => setLeave(true)} />
+        <View style={styles.clock}>
+          <Text variant="number" style={styles.clockText} color={lastMinutes ? semantic.danger : semantic.textPrimary} accessibilityLabel={mock ? '剩余时间' : '已用时间'}>
+            {mock && left !== undefined ? clock(left) : clock(elapsed)}
+          </Text>
+          <Text variant="small" color={mock ? semantic.danger : semantic.textSecondary} style={styles.tiny}>
+            {mock ? '模拟考试 · 不可暂停' : '练习模式'}
+          </Text>
+        </View>
+        <Button title="答题卡" kind="soft" size="sm" onPress={() => setCardOpen(true)} />
       </View>
       {lastMinutes ? (
         <View style={[styles.banner, styles.bannerDanger]}>
-          <Text variant="caption" color={semantic.danger}>
+          <Icon name="clock" size={18} color={colors.white} />
+          <Text variant="caption" color={colors.white} style={styles.flex}>
             还剩 {Math.ceil((left ?? 0) / 60)} 分钟，先把没写的题写上要点
           </Text>
         </View>
       ) : reminder ? (
         <View style={styles.banner}>
-          <Text variant="caption" color={semantic.info}>
+          <Icon name="clock" size={18} color={colors.white} />
+          <Text variant="caption" color={colors.white} style={styles.flex}>
             {reminder.text}
           </Text>
         </View>
@@ -319,13 +326,23 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.qHead}>
-            <Text variant="caption" style={styles.flex}>
-              第 {seq} / {s.items.length} 题 · {qtypeNames[item.qtype]} · {item.score} 分
+            <Text variant="small" style={styles.flex}>
+              第 <Text variant="small" color={semantic.textPrimary} style={styles.bold}>{seq}</Text> / {s.items.length} 题 · {qtypeNames[item.qtype]} · {item.score} 分
             </Text>
             {item.origin_tags?.includes('ai_generated') ? <Tag label="AI 变式题" tone="ai" /> : null}
-            <Button title={item.marked ? '已标记' : '标记'} kind="text" onPress={() => mark.mutate(!item.marked)} />
+            <Pressable accessibilityRole="button" accessibilityLabel={item.marked ? '已标记' : '标记'} onPress={() => mark.mutate(!item.marked)} style={[styles.mark, item.marked && styles.markOn]}>
+              <View style={[styles.markDot, item.marked && styles.markDotOn]} />
+              <Text variant="small" color={semantic.textPrimary}>
+                {item.marked ? '已标记' : '标记'}
+              </Text>
+            </Pressable>
           </View>
-          <Text variant="body">{item.stem}</Text>
+          <Text variant="h2">{item.qtype === 'term' ? `${qtypeNames.term}：${item.stem}` : item.stem}</Text>
+          {objective(item) ? null : (
+            <Text variant="small" style={styles.label}>
+              你的答案
+            </Text>
+          )}
           {objective(item) ? (
             <View style={styles.gapSm}>
               {item.options!.map((o) => {
@@ -338,7 +355,9 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
                     onPress={() => toggleKey(o.key)}
                     style={[styles.option, on && styles.optionOn]}
                   >
-                    <Text variant="bodyStrong">{o.key}</Text>
+                    <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+                      {o.key}
+                    </Text>
                     <Text variant="body" style={styles.flex}>
                       {o.text}
                     </Text>
@@ -358,7 +377,7 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
                 style={styles.answer}
                 textAlignVertical="top"
               />
-              <Text variant="caption">
+              <Text variant="small">
                 {chars(text)} 字{item.required_words ? ` · 建议 ${item.required_words} 字左右` : ''}
               </Text>
             </>
@@ -454,26 +473,35 @@ export default function PaperSessionPage() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { gap: spacing.md, paddingBottom: spacing.xl },
+  scroll: { gap: 12, paddingBottom: spacing.xl },
   gap: { gap: spacing.sm },
-  gapSm: { gap: spacing.xs },
+  gapSm: { gap: 10 },
   flex: { flex: 1 },
+  bold: { fontWeight: '700' },
+  tiny: { fontSize: 11, lineHeight: 15 },
+  label: { marginBottom: -4 },
   list: { paddingVertical: spacing.sm },
-  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  banner: { padding: spacing.sm, borderRadius: radius.md, backgroundColor: semantic.infoSoft, marginBottom: spacing.sm },
-  bannerDanger: { backgroundColor: semantic.dangerSoft },
+  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52 },
+  clock: { alignItems: 'center' },
+  clockText: { fontSize: 18, lineHeight: 24 },
+  banner: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radius.lg, backgroundColor: colors.indigo, marginBottom: spacing.md },
+  bannerDanger: { backgroundColor: semantic.danger },
   qHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  option: { flexDirection: 'row', gap: spacing.sm, minHeight: 48, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
-  optionOn: { borderColor: semantic.primary, backgroundColor: semantic.primarySoft },
-  answer: { minHeight: 220, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface, fontSize: 16, lineHeight: 24 },
-  nav: { flexDirection: 'row', gap: spacing.sm },
+  mark: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 30, paddingHorizontal: 10, borderRadius: radius.pill, borderWidth: 1, borderColor: semantic.border },
+  markOn: { borderColor: colors.amber, backgroundColor: semantic.amberSoft },
+  markDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#CFCAC0' },
+  markDotOn: { backgroundColor: colors.amber },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingVertical: 12, paddingHorizontal: 14, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
+  optionOn: { borderColor: semantic.primary, borderWidth: 1.5 },
+  answer: { minHeight: 260, padding: 14, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface, fontSize: 15, lineHeight: 28, color: semantic.textPrimary },
+  nav: { flexDirection: 'row', gap: 10, paddingVertical: spacing.sm },
   sheetNav: { marginTop: spacing.lg, marginBottom: spacing.lg },
   counts: { flexDirection: 'row', gap: spacing.lg },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  cell: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: semantic.border },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  cell: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
   cellDone: { backgroundColor: semantic.primary, borderColor: semantic.primary },
   cellOn: { borderWidth: 2, borderColor: semantic.textPrimary },
-  flag: { position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 4, backgroundColor: semantic.danger },
-  resultRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: semantic.border },
+  flag: { position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.amber },
+  resultRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, borderTopWidth: 1, borderTopColor: semantic.border },
   seq: { width: 28 },
 });
