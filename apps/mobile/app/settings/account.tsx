@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { BottomSheet, Button, Card, ConfirmDialog, ErrorState, Loading, Screen, Tag, Text, toast } from '@/components';
+import { BottomSheet, Button, Card, NavBar, ConfirmDialog, ErrorState, Loading, Screen, Tag, Text, toast } from '@/components';
 import { formatPhone, isValidPhone, normalizePhone } from '@/features/auth/phone';
 import { api, unwrap } from '@/lib/api';
 
@@ -33,10 +33,7 @@ export default function AccountSecurity() {
 
   return (
     <Screen scroll>
-      <Button title="返回" kind="text" onPress={() => router.back()} style={styles.back} />
-      <Text variant="h2" style={styles.title}>
-        账号与安全
-      </Text>
+      <NavBar title="账号与安全" />
 
       <Text variant="caption" style={styles.section}>
         登录方式

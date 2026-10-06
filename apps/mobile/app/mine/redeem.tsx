@@ -40,8 +40,12 @@ export default function RedeemPage() {
         </Card>
       ) : (
         <View style={styles.gap}>
-          <Text variant="h3">输入兑换码</Text>
-          <Text variant="caption">兑换码来自官方活动，每个码只能使用一次</Text>
+          <Text variant="h1" style={styles.title}>
+            输入兑换码
+          </Text>
+          <Text variant="caption" style={styles.desc}>
+            兑换码来自官方活动，每个码只能使用一次
+          </Text>
           <TextInput
             accessibilityLabel="兑换码"
             value={code}
@@ -63,16 +67,22 @@ export default function RedeemPage() {
           <Button title="兑换" disabled={code.replace(/[\s-]/g, '').length < 8} loading={redeem.isPending} onPress={() => redeem.mutate()} />
         </View>
       )}
-      <Card style={styles.gap}>
-        <Text variant="bodyStrong">兑换说明</Text>
-        <Text variant="caption">兑换码不区分大小写；兑换后的会员时长会叠加到当前会员之后；兑换码有有效期，过期无法使用。</Text>
+      <Card tone="fill" style={styles.gap}>
+        <Text variant="small" color={semantic.textPrimary} style={styles.bold}>
+          兑换说明
+        </Text>
+        <Text variant="small" style={styles.lh}>兑换码不区分大小写；兑换后的会员时长会叠加到当前会员之后；兑换码有有效期，过期无法使用。</Text>
       </Card>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  gap: { gap: spacing.sm, marginBottom: spacing.md },
-  input: { minHeight: 52, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface, fontSize: 20, letterSpacing: 4 },
+  gap: { gap: 12, marginBottom: spacing.md },
+  title: { marginTop: spacing.sm },
+  desc: { fontSize: 14, marginTop: -6, marginBottom: 6 },
+  bold: { fontWeight: '700' },
+  lh: { lineHeight: 19 },
+  input: { minHeight: 56, paddingHorizontal: 16, borderRadius: radius.xl, borderWidth: 1.5, borderColor: semantic.border, backgroundColor: semantic.surface, fontSize: 18, letterSpacing: 3, color: semantic.textPrimary },
   inputError: { borderColor: semantic.danger },
 });

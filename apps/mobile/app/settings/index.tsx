@@ -7,7 +7,7 @@ import { Directory, Paths } from 'expo-file-system';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
-import { BottomSheet, Button, Card, ConfirmDialog, ErrorState, Loading, Screen, Text, toast } from '@/components';
+import { BottomSheet, Button, ConfirmDialog, ErrorState, Icon, ListCard, Loading, Screen, Text, toast } from '@/components';
 import { logout } from '@/features/auth/actions';
 import { PageHeader } from '@/features/import/ui';
 import { mineKeys, useMe, useOverview, useProfile } from '@/features/mine/api';
@@ -36,8 +36,8 @@ function Row({ title, desc, onPress, right }: { title: string; desc?: string; on
       <Text variant="body" style={styles.flex}>
         {title}
       </Text>
-      {desc ? <Text variant="caption">{desc}</Text> : null}
-      {right ?? (onPress ? <Text variant="caption"> ›</Text> : null)}
+      {desc ? <Text variant="small">{desc}</Text> : null}
+      {right ?? (onPress ? <Icon name="chevron" size={16} color={semantic.textSecondary} /> : null)}
     </Pressable>
   );
 }
@@ -85,46 +85,46 @@ export default function SettingsPage() {
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll}>
         <PageHeader title="设置" onBack={() => router.back()} />
-        <Text variant="caption">账号</Text>
-        <Card style={styles.list}>
+        <Text variant="small" style={styles.section}>账号</Text>
+        <ListCard>
           <Row title="账号与安全" desc={me.data.phone_masked} onPress={() => router.push('/settings/account')} />
-        </Card>
+        </ListCard>
 
-        <Text variant="caption">通知</Text>
-        <Card style={styles.list}>
+        <Text variant="small" style={styles.section}>通知</Text>
+        <ListCard>
           <Row
             title="每日训练提醒"
             desc={p.notify_daily ? `每天 ${time}` : undefined}
             onPress={p.notify_daily ? () => setTimeSheet(true) : undefined}
-            right={<Switch accessibilityLabel="每日训练提醒开关" value={p.notify_daily} onValueChange={(v) => save.mutate({ notify_daily: v })} trackColor={{ true: semantic.primary }} />}
+            right={<Switch accessibilityLabel="每日训练提醒开关" value={p.notify_daily} onValueChange={(v) => save.mutate({ notify_daily: v })} trackColor={{ true: semantic.primary, false: semantic.border }} thumbColor="#FFFFFF" />}
           />
           <Row
             title="复习到期提醒"
-            right={<Switch accessibilityLabel="复习到期提醒开关" value={p.notify_review_due} onValueChange={(v) => save.mutate({ notify_review_due: v })} trackColor={{ true: semantic.primary }} />}
+            right={<Switch accessibilityLabel="复习到期提醒开关" value={p.notify_review_due} onValueChange={(v) => save.mutate({ notify_review_due: v })} trackColor={{ true: semantic.primary, false: semantic.border }} thumbColor="#FFFFFF" />}
           />
           <Row
             title="资料解析和批改完成"
-            right={<Switch accessibilityLabel="资料解析和批改完成提醒开关" value={p.notify_task_done} onValueChange={(v) => save.mutate({ notify_task_done: v })} trackColor={{ true: semantic.primary }} />}
+            right={<Switch accessibilityLabel="资料解析和批改完成提醒开关" value={p.notify_task_done} onValueChange={(v) => save.mutate({ notify_task_done: v })} trackColor={{ true: semantic.primary, false: semantic.border }} thumbColor="#FFFFFF" />}
           />
-        </Card>
+        </ListCard>
 
-        <Text variant="caption">资料与隐私</Text>
-        <Card style={styles.list}>
+        <Text variant="small" style={styles.section}>资料与隐私</Text>
+        <ListCard>
           <Row title="我的资料" desc={overview.data ? `${overview.data.materials} 份` : undefined} onPress={() => router.push('/library')} />
           <Row title="导出题库" onPress={() => router.push('/mine/export')} />
           <Row title="用户协议与隐私政策" onPress={() => router.push('/(auth)/agreement')} />
-        </Card>
+        </ListCard>
 
-        <Text variant="caption">通用</Text>
-        <Card style={styles.list}>
+        <Text variant="small" style={styles.section}>通用</Text>
+        <ListCard>
           <Row title="清除缓存" desc={fmtSize(cache)} onPress={clearCache} />
           <Row title="意见反馈" onPress={() => router.push('/mine/feedback')} />
           <Row title={`关于${appConfig.appName}`} desc={`v${appConfig.version}${appConfig.variant === 'production' ? '' : ' 内测版'}`} />
-        </Card>
+        </ListCard>
         <Text variant="small" color={semantic.textSecondary}>
           清除缓存只删除临时文件（导出文档、图片缓存），不会删除没写完的草稿。
         </Text>
-        <Button title="退出登录" kind="secondary" onPress={() => setConfirmLogout(true)} />
+        <Button title="退出登录" kind="secondary" color={semantic.danger} onPress={() => setConfirmLogout(true)} />
       </ScrollView>
       <BottomSheet visible={timeSheet} onClose={() => setTimeSheet(false)} title="每日训练提醒时间">
         <View style={styles.times}>
@@ -159,7 +159,8 @@ export default function SettingsPage() {
 const styles = StyleSheet.create({
   scroll: { gap: spacing.sm, paddingBottom: spacing.xl },
   flex: { flex: 1 },
+  section: { marginTop: spacing.sm, marginLeft: 4 },
   list: { paddingVertical: spacing.xs },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 52, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: semantic.border },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56 },
   times: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingBottom: spacing.lg },
 });
