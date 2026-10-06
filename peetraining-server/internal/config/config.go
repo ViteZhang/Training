@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -64,6 +65,8 @@ type OSSConfig struct {
 	AccessKeySecret string
 	// MockBaseURL 是本地 mock 预签名地址的前缀（真机调试填本机局域网地址），只在 OSS_PROVIDER=mock 时用。
 	MockBaseURL string
+	// MockDir 是本地 mock 对象的存放目录；API 与 Worker 分进程运行，必须共用同一个目录才能读到上传的文件；为空时存在内存里（单进程测试用）。
+	MockDir string
 }
 
 type ProviderConfig struct {
@@ -154,6 +157,7 @@ func load(getenv func(string) string) (*Config, error) {
 			AccessKeyID:     get("OSS_ACCESS_KEY_ID", ""),
 			AccessKeySecret: get("OSS_ACCESS_KEY_SECRET", ""),
 			MockBaseURL:     get("OSS_MOCK_BASE_URL", ""),
+			MockDir:         get("OSS_MOCK_DIR", filepath.Join(os.TempDir(), "peetraining-mock-oss")),
 		},
 		SMS: SMSConfig{
 			Provider:     get("SMS_PROVIDER", ProviderMock),

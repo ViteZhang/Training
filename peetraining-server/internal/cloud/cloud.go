@@ -95,6 +95,14 @@ func New(cfg *config.Config) (*Clients, error) {
 	}
 	pick("OSS", cfg.OSS.Provider, func() {
 		m := oss.NewMock()
+		if cfg.OSS.MockDir != "" {
+			d, err := oss.NewDirMock(cfg.OSS.MockDir)
+			if err != nil {
+				errs = append(errs, err)
+			} else {
+				m = d
+			}
+		}
 		if cfg.OSS.MockBaseURL != "" {
 			m.BaseURL = cfg.OSS.MockBaseURL
 		}
