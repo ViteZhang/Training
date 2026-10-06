@@ -49,6 +49,12 @@ const paths = {
   refresh: <Path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" />,
   trash: <Path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13M10 11v6M14 11v6" />,
   folder: <Path d="M3 6h7l2 2h9v11H3z" />,
+  clock: (
+    <>
+      <Circle cx={12} cy={12} r={8.5} />
+      <Path d="M12 7.5V12l3 2" />
+    </>
+  ),
   chevron: <Path d="M9 5l7 7-7 7" />,
   back: <Path d="M15 5l-7 7 7 7" />,
   edit: <Path d="M4 20h4L18 10l-4-4L4 16zM14 6l4 4" />,

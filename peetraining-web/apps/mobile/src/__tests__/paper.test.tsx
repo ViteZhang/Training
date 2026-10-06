@@ -150,7 +150,7 @@ describe('4.20–4.23 作答', () => {
       return { status: 200, data: session({ status: 'grading' }) };
     };
     const r = await wrap(<PaperSessionPage />);
-    expect(await screen.findByText('第2题题干')).toBeTruthy();
+    expect(await screen.findByText(/第2题题干/)).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('你的答案'), '玄学清谈');
     await fireEvent.press(screen.getByText('标记'));
     await waitFor(() => expect(screen.getByText('已标记')).toBeTruthy());
@@ -195,7 +195,7 @@ describe('4.20–4.23 作答', () => {
     mockResponses['POST /paper-sessions/{sessionId}/pause'] = () => ({ status: 200, data: session({ mode: 'practice', status: 'paused', deadline_at: undefined }) });
     const r = await wrap(<PaperSessionPage />);
     expect(await screen.findByLabelText('已用时间')).toBeTruthy();
-    await fireEvent.press(screen.getByText('退出'));
+    await fireEvent.press(screen.getByLabelText('退出'));
     await fireEvent.press(screen.getByText('暂停并离开'));
     expect(await screen.findByText('已暂停')).toBeTruthy();
     await r.unmount();

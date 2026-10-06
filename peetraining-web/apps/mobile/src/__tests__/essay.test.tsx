@@ -98,10 +98,11 @@ describe('5.1 作文训练', () => {
     mockResponses['POST /essays'] = () => ({ status: 201, data: essay() });
     const r = await wrap(<EssayHomePage />);
     expect(await screen.findByText('本周目标 2 篇')).toBeTruthy();
-    expect(screen.getByText('已完成 1 · 平均 112 分 · 本周还能批改 0 篇')).toBeTruthy();
+    expect(screen.getByText('已完成 1 · 平均 112 分')).toBeTruthy();
+    expect(screen.getByText('本周还能批改 0 篇')).toBeTruthy();
     expect(screen.getByText('评分标准：按你资料里的评分细则（满分 150）')).toBeTruthy();
     expect(screen.getByText('已写 2 稿 · 最高 112 分 · 附 2 篇你导入的范文')).toBeTruthy();
-    await fireEvent.press(screen.getByText('去写'));
+    await fireEvent.press(screen.getAllByLabelText(/^去写：/)[0]!);
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith({ pathname: '/essay/write/[id]', params: { id: '70' } }));
     expect(mockCalls.find((c) => c.path === '/essays')?.init).toMatchObject({ body: { subject_id: 8, topic_source: 'exam', question_id: 30, idempotency_key: 'uuid-1' } });
     await r.unmount();
@@ -196,12 +197,12 @@ describe('5.5–5.6 批改', () => {
     expect(screen.getByText('按你的评分细则 · 计入预估分 ›')).toBeTruthy();
     expect(screen.getByText('22/30')).toBeTruthy();
     expect(screen.getByText(/失分主项/)).toBeTruthy();
-    expect(screen.getByText('· 第 3 段后加一层转折')).toBeTruthy();
+    expect(screen.getByText(/第 3 段后加一层转折/)).toBeTruthy();
     await fireEvent.press(screen.getByText(/^逐段批注/));
     expect(screen.getByText('生活变得越来越快，每个人都很忙碌')).toBeTruthy();
     expect(screen.getByText('表述空泛')).toBeTruthy();
     await fireEvent.press(screen.getByText(/^范文对比/));
-    expect(screen.getByText('慢中见真 ›')).toBeTruthy();
+    expect(screen.getByText(/慢中见真/)).toBeTruthy();
     expect(screen.getByText('· 快的代价')).toBeTruthy();
 
     await fireEvent.press(screen.getByText('有异议'));
@@ -257,7 +258,8 @@ describe('5.7–5.9', () => {
     mockResponses['PUT /subjects/{subjectId}/essay-rubrics/user'] = () => ({ status: 200, data: { active_id: 9, user: { ...user, name: '改过的细则', origin: 'user_confirmed' }, generic: gen } });
     const r = await wrap(<EssayRubricPage />);
     expect(await screen.findByText('学校评分细则 · 满分 60 · 从 908 历年作文真题.pdf 第 2 页识别')).toBeTruthy();
-    expect(screen.getByText('25–30 · 一类')).toBeTruthy();
+    expect(screen.getByText('25–30')).toBeTruthy();
+    expect(screen.getByText('一类')).toBeTruthy();
     await fireEvent.press(screen.getByText('编辑'));
     await fireEvent.changeText(screen.getByLabelText('标准名称'), '改过的细则');
     await fireEvent.changeText(screen.getByLabelText('维度 2 分值'), '40');
