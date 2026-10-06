@@ -21,9 +21,11 @@ export function ConfirmDialog({ visible, title, message, confirmText = '确定',
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.mask}>
         <View style={styles.box} accessibilityRole="alert">
-          <Text variant="h3">{title}</Text>
+          <Text variant="h3" style={styles.title}>
+            {title}
+          </Text>
           {message ? (
-            <Text variant="body" color={semantic.textSecondary} style={styles.message}>
+            <Text variant="caption" style={styles.message}>
               {message}
             </Text>
           ) : null}
@@ -38,9 +40,10 @@ export function ConfirmDialog({ visible, title, message, confirmText = '确定',
 }
 
 const styles = StyleSheet.create({
-  mask: { flex: 1, backgroundColor: 'rgba(27,26,23,0.45)', justifyContent: 'center', padding: spacing.xxl },
-  box: { backgroundColor: semantic.surface, borderRadius: radius.xl, padding: spacing.xl },
-  message: { marginTop: spacing.sm },
-  actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
-  action: { flex: 1 },
+  mask: { flex: 1, backgroundColor: 'rgba(27,26,23,0.45)', justifyContent: 'center', paddingHorizontal: 40 },
+  box: { backgroundColor: semantic.surface, borderRadius: radius.card, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 20 },
+  title: { fontSize: 18, lineHeight: 26, textAlign: 'center' },
+  message: { marginTop: spacing.sm, textAlign: 'center', lineHeight: 21 },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 20 },
+  action: { flex: 1, minHeight: 46 },
 });

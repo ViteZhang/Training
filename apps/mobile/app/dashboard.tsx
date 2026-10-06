@@ -102,7 +102,7 @@ export default function DashboardPage() {
           <Text variant="h3">预估分趋势</Text>
           {e.ready ? (
             <>
-              <EstimateLine e={e} onBrand={false} />
+              <EstimateLine e={e} />
               {d.trend.length > 0 ? <Trend weeks={d.trend} full={e.full_score} target={e.target_score} /> : null}
             </>
           ) : (
