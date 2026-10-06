@@ -2,7 +2,7 @@
 // 「立即开通」在支付开关关闭时隐藏，只显示兑换码入口；会员服务协议；注明不自动续费。
 import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
-import { colors, radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 import { router } from 'expo-router';
@@ -55,32 +55,38 @@ export default function MemberCenter() {
 
   return (
     <Screen>
-      <PageHeader title="会员中心" onBack={() => router.back()} />
+      <PageHeader title={c.membership.is_member ? '会员中心' : '开通会员'} onBack={() => router.back()} />
       <ScrollView contentContainerStyle={styles.body}>
-        <View style={styles.hero}>
-          <Text variant="h2" color={colors.white}>
-            {c.membership.is_member ? `${c.membership.tier ? tierNames[c.membership.tier] : '会员'}生效中` : '开通会员'}
+        {c.membership.is_member ? (
+          <View style={styles.hero}>
+            <Text variant="h2" color={colors.white}>
+              {`${c.membership.tier ? tierNames[c.membership.tier] : '会员'}生效中`}
+            </Text>
+            <Text variant="small" color="#C4C0E0">
+              {c.membership.ends_at ? `有效期至 ${ymd(c.membership.ends_at)}，续费时长叠加` : ''}
+            </Text>
+          </View>
+        ) : (
+          <Text variant="h1" style={styles.title}>
+            备考期间，批改不限次
           </Text>
-          <Text variant="caption" color={colors.white}>
-            {c.membership.is_member && c.membership.ends_at ? `有效期至 ${ymd(c.membership.ends_at)}，续费时长叠加` : '备考期间，批改不限次'}
-          </Text>
-        </View>
+        )}
 
-        <Card style={styles.gap}>
-          <View style={styles.tableRow}>
-            <Text variant="bodyStrong" style={styles.cellName}>权益</Text>
-            <Text variant="bodyStrong" style={styles.cell}>免费版</Text>
-            <Text variant="bodyStrong" style={styles.cell} color={semantic.primary}>会员</Text>
+        <Card style={styles.table}>
+          <View style={[styles.tableRow, styles.tableHead]}>
+            <Text variant="small" style={styles.cellName}>权益</Text>
+            <Text variant="small" style={styles.cell}>免费版</Text>
+            <Text variant="small" color={semantic.textPrimary} style={[styles.cell, styles.bold]}>会员</Text>
           </View>
           {c.benefits.map((b) => (
-            <View key={b.quota_type} style={styles.tableRow} accessibilityLabel={`${b.name} 免费版 ${ruleText(b.quota_type, b.free)} 会员 ${ruleText(b.quota_type, b.member)}`}>
-              <Text variant="body" style={styles.cellName}>{b.name}</Text>
-              <Text variant="caption" style={styles.cell}>{ruleText(b.quota_type, b.free)}</Text>
-              <Text variant="bodyStrong" style={styles.cell} color={semantic.primary}>{ruleText(b.quota_type, b.member)}</Text>
+            <View key={b.quota_type} style={[styles.tableRow, styles.divider]} accessibilityLabel={`${b.name} 免费版 ${ruleText(b.quota_type, b.free)} 会员 ${ruleText(b.quota_type, b.member)}`}>
+              <Text variant="caption" color={semantic.textPrimary} style={styles.cellName}>{b.name}</Text>
+              <Text variant="small" style={styles.cell}>{ruleText(b.quota_type, b.free)}</Text>
+              <Text variant="caption" color={semantic.textPrimary} style={[styles.cell, styles.bold]}>{ruleText(b.quota_type, b.member)}</Text>
             </View>
           ))}
-          <Text variant="caption">客观题判分、背诵、错题本、复习计划、考情分析、导出题库，免费版也不限</Text>
         </Card>
+        <Text variant="small">客观题判分、背诵、错题本、复习计划、考情分析、导出题库，免费版也不限</Text>
 
         {canPay ? (
           <>
@@ -98,16 +104,16 @@ export default function MemberCenter() {
                 >
                   <View style={styles.flex}>
                     <View style={styles.inline}>
-                      <Text variant="h3">{p.name}</Text>
-                      {p.recommended ? <Tag label="推荐" tone="brand" /> : null}
+                      <Text variant="bodyStrong" style={styles.bold}>
+                        {p.name}
+                      </Text>
+                      {p.recommended ? <Tag label="推荐" tone="outline" /> : null}
                     </View>
-                    <Text variant="caption">
+                    <Text variant="small">
                       {p.available ? (p.ends_at ? `有效期至 ${ymd(p.ends_at)} · ${positioning[p.tier]}` : positioning[p.tier]) : p.unavailable_reason ?? '暂未开放'}
                     </Text>
                   </View>
-                  <Text variant="h2" color={on ? semantic.primary : semantic.textPrimary}>
-                    {yuan(p.price_cents)}
-                  </Text>
+                  <Text style={styles.price}>{yuan(p.price_cents)}</Text>
                 </Pressable>
               );
             })}
@@ -153,17 +159,23 @@ export default function MemberCenter() {
 }
 
 const styles = StyleSheet.create({
-  body: { gap: spacing.md, paddingBottom: spacing.xl },
+  body: { gap: 12, paddingBottom: spacing.xl },
   gap: { gap: spacing.sm },
   flex: { flex: 1, gap: 2 },
+  bold: { fontWeight: '700' },
+  title: { marginTop: spacing.sm, marginBottom: 4 },
   inline: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
-  hero: { gap: spacing.xs, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: semantic.primary },
-  tableRow: { flexDirection: 'row', alignItems: 'center', minHeight: 36 },
-  cellName: { flex: 1.4 },
+  hero: { gap: 4, padding: 18, borderRadius: radius.card, backgroundColor: semantic.primary },
+  table: { paddingVertical: 0, paddingHorizontal: 0, overflow: 'hidden' },
+  tableHead: { backgroundColor: semantic.fill, minHeight: 38 },
+  tableRow: { flexDirection: 'row', alignItems: 'center', minHeight: 42, paddingHorizontal: 16 },
+  divider: { borderTopWidth: 1, borderTopColor: semantic.border },
+  cellName: { flex: 1.6 },
   cell: { flex: 1, textAlign: 'center' },
-  plan: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, borderRadius: radius.lg, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
-  planOn: { borderColor: semantic.primary, borderWidth: 2, backgroundColor: semantic.primarySoft },
+  plan: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: 16, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
+  planOn: { borderColor: semantic.textPrimary, borderWidth: 2, padding: 15 },
   planOff: { opacity: 0.5 },
-  channel: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.lg, borderRadius: radius.md, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
+  price: { fontFamily: fontFamily.numberSemiBold, fontSize: 24, color: semantic.textPrimary },
+  channel: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.lg, borderRadius: radius.lg, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
   footer: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap' },
 });

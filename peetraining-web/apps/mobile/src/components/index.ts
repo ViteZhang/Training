@@ -5,6 +5,7 @@ export { Card } from './Card';
 export { ConfirmDialog } from './ConfirmDialog';
 export { Icon } from './Icon';
 export { InfoCard, RubricLine } from './InfoCard';
+export { ListCard } from './ListCard';
 export { Logo } from './Logo';
 export { BackButton, NavBar } from './NavBar';
 export { ProgressBar } from './ProgressBar';

@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { BottomSheet, Button, Card, ConfirmDialog, ErrorState, Loading, QuotaSheet, Screen, Tag, Text, toast } from '@/components';
+import { BottomSheet, Button, Card, Icon, ListCard, NavBar, ConfirmDialog, ErrorState, Loading, QuotaSheet, Screen, Tag, Text, toast } from '@/components';
 import { stageInfo, stages } from '@/features/onboarding/api';
 import { Chips, OptionCard, Stepper } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
@@ -51,34 +51,37 @@ export default function PrepSettings() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Button title="返回" kind="text" onPress={() => router.back()} style={styles.back} />
-        <Text variant="h2">备考设置</Text>
+        <NavBar title="备考设置" />
 
-        <Text variant="caption" style={styles.section}>
+        <Text variant="small" style={styles.section}>
           专业课与目标
         </Text>
-        <Card style={styles.gap}>
+        <ListCard>
           {subjects.data?.items.map((s) => (
-            <Pressable key={s.id} accessibilityRole="button" onPress={() => setEditing(s)} style={styles.row}>
-              <View style={styles.flex}>
-                <Text variant="caption">{s.code ?? ''}</Text>
-                <Text variant="bodyStrong">{s.name}</Text>
-              </View>
-              <Text variant="body" color={s.target_score == null ? semantic.textSecondary : undefined}>
-                {s.target_score == null ? '未设目标' : `目标 ${s.target_score} / ${s.full_score}`}
+            <Pressable key={s.id} accessibilityRole="button" onPress={() => setEditing(s)} style={styles.listRow}>
+              <Text variant="body" style={styles.flex}>
+                {s.code ? `${s.code} ` : ''}
+                {s.name}
               </Text>
+              <Text variant="small">{s.target_score == null ? '未设目标' : `目标 ${s.target_score} / ${s.full_score}`}</Text>
+              <Icon name="chevron" size={16} color={semantic.textSecondary} />
             </Pressable>
           ))}
-          <Button
-            title="添加专业课"
-            kind="secondary"
+          <Pressable
+            accessibilityRole="button"
             disabled={(subjects.data?.items.length ?? 0) >= 4}
             onPress={() => (subjects.data?.can_add ? setAdding(true) : setQuota(true))}
-          />
-          <Text variant="caption">删除专业课会一起删除它的题库</Text>
-        </Card>
+            style={styles.listRow}
+          >
+            <View style={styles.flex}>
+              <Text variant="body">添加专业课</Text>
+              <Text variant="small">删除专业课会一起删除它的题库</Text>
+            </View>
+            <Icon name="chevron" size={16} color={semantic.textSecondary} />
+          </Pressable>
+        </ListCard>
 
-        <Text variant="caption" style={styles.section}>
+        <Text variant="small" style={styles.section}>
           目标院校（选填）
         </Text>
         <Pressable accessibilityRole="button" onPress={() => setSchoolEdit(p.target_school_major ?? '')}>
@@ -93,7 +96,7 @@ export default function PrepSettings() {
           </Card>
         </Pressable>
 
-        <Text variant="caption" style={styles.section}>
+        <Text variant="small" style={styles.section}>
           时间
         </Text>
         <Card style={styles.gap}>
@@ -107,7 +110,7 @@ export default function PrepSettings() {
           <Chips options={[30, 45, 60, 90] as const} value={effectiveMinutes} onChange={(m) => save.mutate({ daily_minutes: m })} format={(n) => `${n} 分钟`} />
         </Card>
 
-        <Text variant="caption" style={styles.section}>
+        <Text variant="small" style={styles.section}>
           备考阶段
         </Text>
         <View style={styles.gap}>
@@ -123,7 +126,7 @@ export default function PrepSettings() {
           {p.suggested_reason ? <Text variant="caption">系统建议：{p.suggested_reason}</Text> : null}
         </View>
 
-        <Text variant="caption" style={styles.section}>
+        <Text variant="small" style={styles.section}>
           作文
         </Text>
         <Card style={styles.row}>
@@ -273,6 +276,7 @@ function AddSubjectSheet({ onClose, onSaved, onQuota }: { onClose: () => void; o
 }
 
 const styles = StyleSheet.create({
+  listRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 56, paddingVertical: 8 },
   scroll: { paddingBottom: spacing.xxxl },
   back: { alignSelf: 'flex-start', marginTop: spacing.sm, paddingHorizontal: 0 },
   section: { marginTop: spacing.xl, marginBottom: spacing.sm },

@@ -142,12 +142,12 @@ describe('6.2 提分看板', () => {
     expect(await screen.findByLabelText('预估分 98 到 106')).toBeTruthy();
     expect(screen.getByText('W2')).toBeTruthy();
     expect(screen.getByText('目标 115')).toBeTruthy();
-    expect(screen.getByText('50% ›')).toBeTruthy();
+    expect(screen.getByText(/50% ›/)).toBeTruthy();
     expect(screen.getByText('占30%')).toBeTruthy();
     expect(screen.getByText('2 个「以为会了」')).toBeTruthy();
-    await fireEvent.press(screen.getByText('加入今日训练'));
+    await fireEvent.press(screen.getByLabelText('加入今日训练'));
     await waitFor(() => expect(mockCalls.some((c) => c.method === 'POST' && c.path === '/subjects/{subjectId}/false-mastery/plan')).toBe(true));
-    await fireEvent.press(screen.getAllByText('25% ›')[0]!);
+    await fireEvent.press(screen.getAllByText(/25% ›/)[0]!);
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/practice/wrong', params: { subjectId: '7', group: 'loss' } });
     await fireEvent.press(screen.getByLabelText('2023 年真题'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/paper/report/[id]', params: { id: '90' } });

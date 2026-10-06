@@ -4,7 +4,7 @@ import { semantic, spacing } from '@training/ui-tokens';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Button, Card, ConfirmDialog, Icon, Screen, Text, toast } from '@/components';
+import { Button, Card, NavBar, ConfirmDialog, Icon, Screen, Text, toast } from '@/components';
 import { useSession } from '@/lib/session';
 import { queryClient } from '@/lib/queryClient';
 import { api, unwrap } from '@/lib/api';
@@ -38,8 +38,7 @@ export default function DeleteAccount() {
 
   return (
     <Screen scroll>
-      <Button title="返回" kind="text" onPress={() => router.back()} style={styles.back} />
-      <Text variant="h2">注销账号</Text>
+      <NavBar title="注销账号" />
       <Card style={styles.card}>
         <Text variant="bodyStrong">注销前请确认</Text>
         {items.map((t) => (
