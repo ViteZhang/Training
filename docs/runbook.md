@@ -11,8 +11,7 @@
 | docker-compose.app.yml | 接入现有 `dreamer-net` 的 api、worker、asynqmon |
 | .env.app.example | 可提交仓库的应用服务环境变量模板（只有占位值，不含真实密钥） |
 | db/init.sql | 本地或新建项目库的完整手动初始化 SQL |
-| scripts/release.sh | 发布：拉镜像 → 迁移 → 重启 → 健康检查，失败自动回滚 |
-| scripts/rollback.sh | 回滚到上一版本或指定版本 |
+| scripts/release.sh | 发布 latest 镜像：拉镜像 → 重启 → 健康检查 |
 | ci/test.sh、ci/build-push.sh、ci/deploy.sh | 云效辅助脚本；使用原生 Go、ACR 镜像任务时，`build-push.sh` 不参与发布 |
 
 ---
@@ -47,7 +46,7 @@ docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
 docker network inspect dreamer-net
 ```
 
-在现有 MySQL 容器中创建 `training`、`training_dev` 数据库和各自独立的应用账号。`training_dev` 供本机开发使用；生产 `training` 留给云效发布时的 Goose 迁移初始化。把 [db/init.sql](/Users/a1/Documents/workspace/myself/peetraining-server/db/init.sql) 手动执行到 `training_dev`，不要把它执行到现有 `dreamer_ai` 库。
+在现有 MySQL 容器中创建 `training`、`training_dev` 数据库和各自独立的应用账号。`training_dev` 供本机开发使用；生产 `training` 按已完成的数据库初始化准备。把 [db/init.sql](/Users/a1/Documents/workspace/myself/peetraining-server/db/init.sql) 手动执行到 `training_dev`，不要把它执行到现有 `dreamer_ai` 库。
 
 ```bash
 docker exec -it <现有-mysql-容器名> mysql -uroot -p
@@ -67,7 +66,7 @@ mysql -h 127.0.0.1 -P 3306 -uroot -p < db/init.sql
 mysql -h 127.0.0.1 -P 3306 -u training_dev -p training_dev -e 'SELECT MAX(version_id) FROM goose_db_version;'
 ```
 
-结果应为 `18`。生产库不要执行这份本地初始化文件；首次发布时流水线会通过 `/app/api migrate up` 按顺序创建表与默认配置。
+结果应为 `18`。生产库不要执行这份本地初始化文件；生产库表结构已提前初始化，发布流水线不会执行数据库迁移。以后有新的迁移时，先单独在数据库执行并确认完成，再发布对应服务版本。
 
 验证：
 - `docker ps` 中现有 MySQL、Redis、Nginx 都是 running
@@ -101,11 +100,11 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
 | `OSS_*`、`OCR_*`、`ASR_*`、`MODERATION_*` | 真实云服务凭据 | 当前代码尚未接入生产 provider，不能仅靠填 Key 启用 |
 | `WECHAT_PAY_*`、`ALIPAY_*`、`APPLE_IAP_*` | 已开通支付渠道的完整凭据 | 只在开放对应支付渠道时填写，并将 `PAY_PROVIDER=real` |
 
-首次部署模板的 `VERSION=bootstrap` 只是基准标记；部署脚本发布时会替换为本次镜像 tag。首次部署没有已运行的旧版本，健康检查失败时会停止新 API/Worker 并报错，不会尝试回滚到不存在的旧镜像。后续发布才有自动回滚目标。
+镜像和部署统一使用 ACR 的 `latest` tag，不需要在服务器或云效配置 `VERSION`。健康检查失败时，发布脚本会停止本次 API/Worker，先查看日志并修复配置后重新发布。
 
 应用实际连接的是 Docker 网络内的容器名，不是 ECS 公网 IP。执行 `docker ps` 确认 MySQL、Redis 容器名；再用 `docker network inspect dreamer-net` 确认这些容器和本项目都在同一个网络。数据库密码建议使用 `openssl rand -hex 24`，避免 DSN 分隔符影响解析。
 
-**当前不能直接正式上线。** `internal/cloud` 目前只有 mock 短信，production 明确拒绝 mock，而 `SMS_PROVIDER=aliyun` 也尚未实现；因此 API 和 Worker 会启动失败。OSS、OCR、ASR、内容安全也只有 mock provider。先完成这些生产 provider 接入和真实凭据验证，再执行首次发布。`/app/api migrate up` 单独可能成功，但它通过不代表 API 服务能启动。
+**当前不能直接正式上线。** `internal/cloud` 目前只有 mock 短信，production 明确拒绝 mock，而 `SMS_PROVIDER=aliyun` 也尚未实现；因此 API 和 Worker 会启动失败。OSS、OCR、ASR、内容安全也只有 mock provider。先完成这些生产 provider 接入和真实凭据验证，再执行首次发布。数据库迁移需要在发布前单独完成，部署脚本不会自动执行迁移。
 
 现有 `dreamer-nginx` 负责 80/443、证书和前端静态文件。它需要加入 `dreamer-net`，并把 `/api/` 反向代理到 `http://training-api:8080`；证书、域名和 `/admin/` 仍按你现有 Nginx 配置管理。
 
@@ -114,7 +113,7 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
 ### 5. 云效流水线
 
 1. 云效「代码管理」仓库选 `peetraining-server`，代码源分支先选 `main`。首次上线先用手动触发；验收通过后再打开 main 提交自动触发。
-2. 在「变量和缓存」中定义流水线变量 `VERSION`，选用符合 Docker tag 规则的版本号。Go 编译、原生镜像推送和 Docker 部署都使用同一个版本号。原生镜像任务使用 ACR 服务连接；部署私有镜像时，还需让 ECS 能拉取 ACR 镜像。
+2. 不需要定义 `VERSION` 流水线变量。镜像固定推送到 `latest`，应用机的 Compose 也固定拉取 `latest`。原生镜像任务使用 ACR 服务连接；部署私有镜像时，还需让 ECS 能拉取 ACR 镜像。
    - `FONT_IMAGE` 是 PDF 导出字体资源；`RUNTIME_IMAGE` 是 API/Worker 最终运行环境。基础镜像已导入到你的 ACR：
      ```bash
      ACR_REGISTRY=crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com
@@ -137,28 +136,26 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
      这一步只需在字体或基础 Debian 版本变更时重跑。完成后 ACR 中会有一个只包含 Droid Sans Fallback 与 DejaVu Sans 字体文件的小镜像，日常服务发布不会再执行 `apt-get`。
      云效镜像任务所用 ACR 服务连接需要对 `dreamer-lab` 命名空间有拉取基础镜像和推送镜像的权限。
 3. 按流水线节点配置阶段：
-   - **测试**：添加「执行命令」任务，使用带 Docker 的 Linux 构建机，执行 `bash deploy/ci/test.sh`。
-   - **Go 构建**：保留截图中的「安装 Go」步骤，选择 Go 1.27 和 Linux/amd64；在「执行 Golang 构建命令」中勾选指定运行 Shell 并选择 Bash，然后粘贴：
+   - **测试**：部署不是测试流水线，测试节点可以先不添加；需要时再单独运行 `bash deploy/ci/test.sh`。
+   - **Go 构建**：选择云效前一步已经安装好的 Go 1.25.3 和 Linux/amd64；在「执行 Golang 构建命令」中选择 Bash，然后粘贴。该命令不安装 Go，也不设置版本号：
      ```bash
      set -euo pipefail
-     go version
-     : "${VERSION:?请先在云效流水线变量中设置 VERSION}"
-     if [[ ! "$VERSION" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
-       echo "VERSION 不是合法的 Docker 镜像 tag：$VERSION" >&2
-       exit 2
-     fi
      export GOPROXY=https://goproxy.cn,direct
-     export GOTOOLCHAIN=local GOOS=linux GOARCH=amd64 CGO_ENABLED=0
-     go mod download
-     LDFLAGS="-s -w -X peetraining-server/internal/app.Version=${VERSION}"
-     mkdir -p bin
-     go build -trimpath -ldflags "$LDFLAGS" -o bin/api ./cmd/api
-     go build -trimpath -ldflags "$LDFLAGS" -o bin/worker ./cmd/worker
+     export GOTOOLCHAIN=local
+     go version
+     case "$(go env GOVERSION)" in
+       go1.25.*) ;;
+       *) echo "构建机不是 Go 1.25：$(go env GOVERSION)" >&2
+         exit 2
+         ;;
+     esac
+     export GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+     make build
      test -s bin/api && test -s bin/worker
-     printf 'VERSION=%s\n' "$VERSION" > .release-version
      ```
-   - **构建物上传**：上传 `bin/`、`.release-version`、`Dockerfile`、`.dockerignore` 和 `deploy/`，保留这些相对路径。后续镜像构建任务和 Docker 部署任务都下载这个构建物。镜像任务在构建物根目录下应能看到 Dockerfile 与 `bin/api`、`bin/worker`；部署任务应能看到 `deploy/ci/deploy.sh` 和 `deploy/scripts/`。不要上传 `.env` 或其他密钥。
-   - **镜像构建并推送**：保留你已有的云效原生任务，使用截图里的 ACR 服务连接；构建源选择上一步的构建物。镜像仓库填 `crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com/dreamer-lab/peetraining-server`，tag 填同一个流水线变量 `VERSION`。Dockerfile 路径填 `Dockerfile`，ContextPath 指向构建物根目录（其中应能直接看到 `bin/`）。「更多构建参数」填：
+     `GOPROXY` 只负责模块下载代理；`GOTOOLCHAIN=local` 强制使用云效已安装的 Go，不会自动下载 1.27。项目 `go.mod` 已调整为 Go 1.25 兼容依赖。
+   - **构建物上传**：上传 `bin/`、`Dockerfile`、`.dockerignore` 和 `deploy/`，保留这些相对路径。后续镜像构建任务和 Docker 部署任务都下载这个构建物。镜像任务在构建物根目录下应能看到 Dockerfile 与 `bin/api`、`bin/worker`；部署任务应能看到 `deploy/ci/deploy.sh` 和 `deploy/scripts/`。不要上传 `.env` 或其他密钥。
+   - **镜像构建并推送**：保留你已有的云效原生任务，使用截图里的 ACR 服务连接；构建源选择上一步的构建物。镜像仓库填 `crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com/dreamer-lab/peetraining-server`，tag 固定填 `latest`。Dockerfile 路径填 `Dockerfile`，ContextPath 指向构建物根目录（其中应能直接看到 `bin/`）。「更多构建参数」填：
      ```text
      --build-arg FONT_IMAGE=crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com/dreamer-lab/peetraining-fonts:bookworm --build-arg RUNTIME_IMAGE=crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com/dreamer-lab/distroless-static-debian12:nonroot
      ```
@@ -166,21 +163,20 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
    - **Docker 部署**：主机组选应用 ECS，执行用户选可运行 Docker 的部署账号；下载同一个构建物并将执行目录设为它的根目录。脚本步骤选择 Bash，并配置如下命令：
      ```bash
      set -euo pipefail
-     : "${VERSION:?请将云效流水线变量 VERSION 传给此部署任务}"
-     bash deploy/ci/deploy.sh "$VERSION"
+     bash deploy/ci/deploy.sh
      ```
    - 私有 ACR 登录：若 ECS 尚未登录，在 Docker 部署任务配置加密变量 `ACR_REGISTRY`、`ACR_USERNAME`、`ACR_PASSWORD`，并将这些环境变量传给脚本；`deploy/ci/deploy.sh` 会在 ECS 上登录后拉取镜像。也可以先在 ECS 手动 `docker login`，此时部署任务无需传 ACR 密码。云效镜像构建节点的登录态不会自动传到 ECS。
    - `bash deploy/ci/build-push.sh` 是另一种完整构建并推送方案；选择它时才由脚本构建镜像，不要和云效原生镜像推送任务同时使用。
 5. 应用 ECS 先安装云效主机部署 Agent，并按上面的模板单独建立 `/opt/training/.env`，权限设为 `600`。部署脚本会保留这个文件，并检查 `dreamer-net` 网络存在。
 
-验证：provider 实现完成后，手动运行流水线；构建和部署都成功，`https://training.dreamelab.cn/api/v1/health` 返回 200，服务运行版本与 `VERSION` 及 ACR 推送的 tag 一致。首次成功后再启用 main 自动触发。
+验证：provider 实现完成后，手动运行流水线；构建和部署都成功，`https://training.dreamelab.cn/api/v1/health` 返回 200，ACR 中的 `latest` 镜像已被应用机拉取。Asynqmon 是可选监控服务，发布脚本不会自动启动它；需要时单独配置私有镜像后启动。首次成功后再启用 main 自动触发。
 
 ### 6. G1 验收清单
 
 - [ ] `curl https://training.dreamelab.cn/api/v1/health` 返回 200，`mysql`、`redis` 都是 `ok`
 - [ ] 浏览器打开 https://training.dreamelab.cn/admin/ 能看到页面
 - [ ] 从公网连 ECS 的 3306、6379 失败；应用容器能通过 dreamer-net 访问
-- [ ] 改一行代码提交，流水线自动发布成功；再执行一次 `/opt/training/scripts/rollback.sh`，健康检查通过且版本号回到上一个
+- [ ] 改一行代码提交，流水线自动发布成功；健康检查失败时能停止 API/Worker，并按日志修复后重新发布
 
 ---
 
@@ -228,11 +224,11 @@ unset ADMIN_INITIAL_PASSWORD
 4. 越权访问：`make test` 里的 TestIntegrationIDOR 会用另一个用户的 ID 调全部 App 接口，必须全部 404；新增接口自动纳入。
 5. 发版前跑一遍 `make eval-all`（真实样本），都达标才发。
 
-## 二、日常发布与回滚
+## 二、日常发布
 
-- 发布：合并到 main 自动触发流水线。发布脚本执行迁移，迁移失败时不会切换版本；健康检查 60 秒内不通过会自动回滚应用镜像。
-- 手动发布指定版本：应用机上 `/opt/training/scripts/release.sh v0.1.3`
-- 回滚：`/opt/training/scripts/rollback.sh`（回到上一版本）或 `rollback.sh v0.1.1`。迁移只加不删，回滚镜像不需要回滚数据库。
+- 发布：合并到 main 自动触发流水线。数据库迁移需在发布前单独完成；流水线把镜像推送为 `latest`，部署脚本拉取后重启 API/Worker 并做健康检查。
+- 手动重新拉取并发布：应用机上执行 `/opt/training/scripts/release.sh`。
+- 健康检查失败：查看 `docker compose -f docker-compose.app.yml logs api worker`，修复配置或代码后重新运行流水线；数据库迁移不会由部署脚本执行。
 - 新功能先用功能开关只对自己的账号打开（后台 7.8），在生产上自测后再对全部用户打开。
 - 查看队列：`ssh -L 8081:127.0.0.1:8081 应用机`，浏览器打开 http://localhost:8081（asynqmon 只绑定在本机回环地址）。
 
@@ -243,7 +239,7 @@ unset ADMIN_INITIAL_PASSWORD
 | 健康检查 503，mysql=error | ECS 上现有 MySQL 容器日志、磁盘 `df -h` | 检查 MySQL 容器与 dreamer-net、数据盘剩余空间；不要直接删除 MySQL 数据文件 |
 | 健康检查 503，redis=error | ECS 上现有 Redis 容器日志 | 检查 Redis 容器与 dreamer-net；AOF 损坏时使用 Redis 工具修复 |
 | 502 Bad Gateway | `docker compose -f docker-compose.app.yml ps`、`logs api` | api 启动失败多为 .env 缺项（日志会写明哪个变量）；修正后 `up -d api` |
-| 发布时迁移失败 | 流水线日志里的迁移报错 | 版本未切换、服务不受影响；修迁移后重新发布（不要改已合并的迁移文件，写新的） |
+| 数据库结构不匹配 | 应用日志里的 SQL/字段报错 | 先单独执行已审核的迁移 SQL，再重新发布（不要改已合并的迁移文件，写新的） |
 | 队列积压 | asynqmon 各队列 pending 数 | 看 worker 日志里失败最多的任务类型；AI 服务异常时在后台 7.8 回滚提示词版本或模型 |
 | AI 成本异常 | 后台 7.8 成本统计 | 下调免费额度（7.8）或暂时关闭对应功能开关 |
 | 用户付了钱没开通会员 | api 日志搜订单号：「支付回调验签失败」「支付回调开通失败」「订单重复支付」；订单表 status | 验签失败多为平台公钥或 APIv3 密钥配错；金额不符、重复支付需人工核对后在后台 7.3 处理（ADR 0011）；渠道会按自身策略重发回调，修好配置后通常自动补开通 |

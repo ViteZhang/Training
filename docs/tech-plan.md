@@ -9,7 +9,7 @@
 | 移动端 | Expo SDK 57 + TypeScript + Expo Router，development build | EAS 打包 |
 | 管理后台 | React + Vite + TypeScript + React Router + Ant Design | 应用机 Nginx，training.dreamelab.cn/admin/ |
 | 接口契约 | OpenAPI 3，契约先行，后端仓库维护 | — |
-| API 服务 | Go 1.27 + Gin | ECS · Docker Compose |
+| API 服务 | Go 1.25.3 + Gin | ECS · Docker Compose |
 | 后台任务 | Go Worker + Asynq（Redis 队列与定时） | ECS · Docker Compose |
 | 数据库 | MySQL 8 自建；sqlc + go-sql-driver/mysql；迁移 goose | 数据库机 · Docker |
 | 队列与缓存 | Redis 自建，开 AOF | 数据库机 · Docker |
@@ -50,13 +50,13 @@
 
 ## 环境与发布
 
-- 只有本地和生产两套环境。本地用 docker compose 起 MySQL 与 Redis，短信、AI、OCR、支付默认 mock
+- 只有本地和生产两套环境。本地不启动 Docker 数据库，直连 ECS 上预先初始化的 MySQL 与 Redis；短信、AI、OCR、支付默认 mock
 - 生产：training.dreamelab.cn，内测即生产。发布迁移只加不删，删除字段分两次发布；新功能先用功能开关对自己的账号打开；内测用户 50 人以内
-- 发布流程：跑测试 → 构建镜像并打版本号 → 推送 ACR → 应用机执行迁移 → docker compose pull 与 up；回滚把镜像版本号改回上一个；后台网页由流水线构建后同步到 Nginx 目录
+- 发布流程：云效 Go 1.25.3 构建 → 构建镜像并以 `latest` 推送 ACR → 应用机 docker compose pull 与 up；数据库迁移在发布前单独完成；后台网页由流水线构建后同步到 Nginx 目录
 
 ## 交接要求
 
-代码由 Claude Code 编写，以后由技术合伙人维护。交付标准：没参与开发的工程师拿到仓库就能接手。每个仓库必须有：CLAUDE.md、README.md（本地启动、环境变量、测试、发布）、docs/architecture.md（模块、数据流、核心表）、docs/adr/（每个重要决定一篇）、docs/runbook.md（后端：发布、回滚、故障排查）。账号与密钥清单单独保管和移交，不进仓库。
+代码由 Claude Code 编写，以后由技术合伙人维护。交付标准：没参与开发的工程师拿到仓库就能接手。每个仓库必须有：CLAUDE.md、README.md（本地启动、环境变量、测试、发布）、docs/architecture.md（模块、数据流、核心表）、docs/adr/（每个重要决定一篇）、docs/runbook.md（后端：发布、故障排查）。账号与密钥清单单独保管和移交，不进仓库。
 
 ## 合规
 

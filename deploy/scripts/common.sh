@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
-# 发布与回滚脚本共用的设置。在应用机 /opt/training 下执行。
+# 发布脚本共用的设置。在应用机 /opt/training 下执行。
 set -euo pipefail
 
 APP_DIR=${APP_DIR:-/opt/training}
 COMPOSE="docker compose -f ${APP_DIR}/docker-compose.app.yml --env-file ${APP_DIR}/.env"
 log() { printf '%s %s\n' "$(date '+%F %T')" "$*"; }
-
-# 读取 .env 里的变量（只读需要的几项，不 source 整个文件，避免密钥进入 shell 历史）
-env_get() { { grep -E "^$1=" "${APP_DIR}/.env" || true; } | tail -1 | cut -d= -f2-; }
 
 # 等健康检查通过：https://域名/api/v1/health 返回 200
 wait_healthy() {

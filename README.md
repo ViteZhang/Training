@@ -5,7 +5,7 @@
 
 ## 本地启动
 
-需要：Go 1.27（`go.mod` 声明了 1.27，旧版本 Go 会自动下载 1.27 工具链），以及 ECS 上 MySQL、Redis 对你本机的可达地址。
+需要：Go 1.25.3（`go.mod` 已按 Go 1.25 锁定依赖，不会自动下载其他工具链），以及 ECS 上 MySQL、Redis 对你本机的可达地址。
 
 ```bash
 cp .env.local.example .env.local   # 填入 training_dev 数据库密码和 ECS 地址
@@ -18,7 +18,7 @@ curl localhost:8080/api/v1/health
 
 本地 API 写入独立的 `training_dev` 库；Redis 使用逻辑库 DB 2，生产使用 DB 1，现有服务默认 DB 0。短信、AI、OCR、语音、内容安全、支付和 OSS 默认走 mock。默认只启动 API，不执行迁移，也不启动 Worker。`make dev-worker` 会额外启动本地 DB 2 队列的 Worker；只有明确需要时才使用。
 
-本地不安装 Docker，也不启动第二套 MySQL / Redis。先在 ECS 上为本地开发创建独立的 `training_dev` 数据库和账号，再把 [db/init.sql](/Users/a1/Documents/workspace/myself/peetraining-server/db/init.sql) 手动执行到它。该文件包含全部 18 个迁移的 Up SQL、内置配置种子和 Goose 版本记录。生产 `training` 库由云效发布时运行应用内嵌 Goose 迁移初始化；不要把本地 SQL 执行到现有 `dreamer_ai` 库。
+本地不安装 Docker，也不启动第二套 MySQL / Redis。先在 ECS 上为本地开发创建独立的 `training_dev` 数据库和账号，再把 [db/init.sql](/Users/a1/Documents/workspace/myself/peetraining-server/db/init.sql) 手动执行到它。该文件包含全部 18 个迁移的 Up SQL、内置配置种子和 Goose 版本记录。生产 `training` 库已提前初始化，云效发布不会运行数据库迁移；不要把本地 SQL 执行到现有 `dreamer_ai` 库。
 
 执行完 SQL 后，复制 `.env.local.example` 为 `.env.local`，填好 ECS MySQL/Redis 地址和密码，再运行 `make dev`。需要处理异步题库或批改任务时，另开终端运行 `make dev-worker`；它会使用 Redis DB 2。`make migrate-status` 和 `make migrate-up` 仅用于后续新增迁移，不要在已经执行 `db/init.sql` 的库上重复执行旧迁移。
 
@@ -53,7 +53,7 @@ GoLand 运行 `cmd/api` 时，在运行配置中设置 `APP_ENV=local` 并加载
 
 | 入口 | 说明 |
 | --- | --- |
-| `api` | HTTP 服务；`api migrate up\|status` 执行迁移（发布流水线在启动新版本前执行 up） |
+| `api` | HTTP 服务；`api migrate up\|status` 用于显式执行或查看数据库迁移 |
 | `worker` | Asynq 任务消费与定时任务；调度器全局只能有一个实例 |
 | `eval` | AI 评测命令 |
 
@@ -86,4 +86,4 @@ docs/           PRD、研发规格、任务卡、ADR
 
 ## 发布
 
-见 [docs/runbook.md](docs/runbook.md)：首次搭建、发布与回滚（`deploy/scripts/release.sh`、`rollback.sh`）、故障排查。
+见 [docs/runbook.md](docs/runbook.md)：首次搭建、发布与故障排查（`deploy/scripts/release.sh`）。

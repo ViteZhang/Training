@@ -13,7 +13,7 @@
 
 - deploy/docker-compose.app.yml（接入现有 dreamer-net 的 api、worker、asynqmon）
 - 现有 Nginx：HTTPS、/api/v1/ 反向代理、/admin/ 静态目录、上传大小限制、健康检查；本项目不再提供 Nginx 配置
-- 云效流水线配置：测试 → 构建镜像 → 推送 ACR → 执行迁移 → pull 与 up；回滚脚本
+- 云效流水线配置：Go 构建 → 构建镜像 → 推送 ACR → pull 与 up；数据库迁移在发布前单独完成；镜像固定使用 `latest`
 - docs/runbook.md：按顺序列出你需要在阿里云控制台、云效、两台服务器上手动完成的每一步，以及每一步如何验证
 
 ## 参考
@@ -24,7 +24,7 @@
 
 - G1：https://training.dreamelab.cn/api/v1/health 正常；/admin/ 能打开（可先放占位页）
 - MySQL 与 Redis 从公网连不上，从应用机能连上
-- 改一行代码走一遍流水线，发布与回滚各成功一次
+- 改一行代码走一遍流水线，发布成功并通过健康检查
 
 ## 注意
 
@@ -39,9 +39,9 @@
 - 实现要点：
   - deploy/docker-compose.app.yml（api、worker、asynqmon 加入现有 dreamer-net）；MySQL、Redis、Nginx 沿用 ECS 现有容器
   - Nginx：HTTP 跳 HTTPS、/api/ 反向代理（Docker DNS 动态解析，api 重建后不 502）、/admin/ 单页应用回退、访问日志不记查询参数、请求体上限 2 MB
-  - 发布脚本 release.sh：拉镜像 → 迁移（失败不切版本）→ 重启 → 健康检查，失败自动回滚；rollback.sh 回到上一版本或指定版本
+  - 发布脚本 release.sh：拉 latest 镜像 → 重启 → 健康检查；失败时停止 API/Worker，查看日志后重新发布
   - 云效流水线按 runbook 第 5 步配置：Go 原生构建任务编译二进制并上传构建物，原生 Docker 任务构建并推送 ACR，主机部署任务调用 ci/deploy.sh；ci/build-push.sh 作为替代构建方案
-  - docs/runbook.md：首次搭建（每步有验证方法）、G1 验收清单、发布回滚、故障排查
+  - docs/runbook.md：首次搭建（每步有验证方法）、G1 验收清单、发布、故障排查
 - 偏离计划的地方与原因：
   - 修了 T01 Dockerfile 的一个问题：ENTRYPOINT 与 compose 的 command 叠加导致 api 起不来，改为 CMD（冒烟测试发现）
 - 在开发环境里已验证：
@@ -54,4 +54,4 @@
 - 验收结果：
   - [ ] G1 health 正常、/admin/ 能打开——需要服务器就绪后验证（本地整套冒烟已通过）
   - [ ] MySQL 与 Redis 公网连不上、应用机能连上——需要服务器验证（compose 只绑内网 IP）
-  - [ ] 流水线发布与回滚各一次——需要云效配置后验证
+  - [ ] 流水线发布一次并通过健康检查——需要云效配置后验证

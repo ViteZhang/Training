@@ -6,4 +6,3 @@ evals/private/
 # 构建产物
 bin/
 /eval
-.release-version

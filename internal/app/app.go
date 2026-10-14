@@ -52,7 +52,7 @@ import (
 	"peetraining-server/internal/store"
 )
 
-// Version 在构建时用 -ldflags "-X peetraining-server/internal/app.Version=v0.1.0" 注入。
+// Version 保留用于健康检查和日志的兼容字段；镜像发布统一使用 latest，不再注入发布版本号。
 var Version = "dev"
 
 // NewLogger 创建写到标准输出的 JSON 日志器（容器日志由 SLS 采集）。

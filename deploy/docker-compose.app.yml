@@ -1,11 +1,11 @@
 # 应用服务：api、worker、asynqmon。
 # ECS 已有 dreamer-nginx、dreamer-mysql、dreamer-redis，本文件不再重复启动网关或数据库。
 # 在 /opt/training 下运行：docker compose -f docker-compose.app.yml --env-file .env up -d
-# .env 由 runbook 第 4 步创建，包含 IMAGE、VERSION 与全部应用环境变量（不进仓库）。
+# .env 由 runbook 第 4 步创建，包含 IMAGE 与全部应用环境变量（不进仓库）。
 name: training
 
 x-app: &app
-  image: ${IMAGE:?需要在 .env 里设置 IMAGE}:${VERSION:?需要设置 VERSION}
+  image: ${IMAGE:?需要在 .env 里设置 IMAGE}:latest
   env_file: .env
   restart: unless-stopped
   logging:
