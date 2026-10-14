@@ -7,6 +7,10 @@ source "$(dirname "$0")/common.sh"
 
 NEW=${1:?用法：release.sh <版本号>}
 CUR=$(env_get VERSION)
+FIRST_RELEASE=0
+if ! docker container inspect training-api >/dev/null 2>&1; then
+  FIRST_RELEASE=1
+fi
 log "当前版本 ${CUR}，发布 ${NEW}"
 
 "$(dirname "$0")/backup-mysql.sh" "pre-${NEW}"
@@ -23,11 +27,16 @@ if ! ${COMPOSE} run --rm --no-deps api /app/api migrate up; then
 fi
 
 ${COMPOSE} up -d --no-deps api worker
-${COMPOSE} up -d nginx asynqmon
+${COMPOSE} up -d asynqmon
 
 if wait_healthy; then
   log "发布成功：${NEW}"
 else
+  if [ "${FIRST_RELEASE}" -eq 1 ]; then
+    log "首次发布健康检查失败；没有上一版本可回滚，停止新服务并保留迁移结果"
+    ${COMPOSE} stop api worker
+    exit 1
+  fi
   log "健康检查失败，自动回滚到 ${CUR}"
   "$(dirname "$0")/rollback.sh"
   exit 1

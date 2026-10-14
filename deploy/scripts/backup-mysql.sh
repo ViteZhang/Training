@@ -16,7 +16,9 @@ FILE="${BACKUP_DIR}/training-$(date -u +%Y%m%dT%H%M%SZ)-${TAG}.sql.gz"
 log "备份到 ${FILE}"
 trap 'rm -f "${FILE}"; log "备份失败"' ERR
 IMG=$(env_get BACKUP_MYSQL_IMAGE); IMG=${IMG:-mysql:8.4}
-docker run --rm --network host -e MYSQL_PWD="${DB_PASS}" "${IMG}" \
+# 现有 ECS 的 MySQL 容器在 dreamer-net；使用同一网络才能解析其容器名。
+BACKUP_NETWORK=${BACKUP_DOCKER_NETWORK:-dreamer-net}
+docker run --rm --network "${BACKUP_NETWORK}" -e MYSQL_PWD="${DB_PASS}" "${IMG}" \
   mysqldump -h "${DB_HOST}" -P "${DB_PORT}" -u "${DB_USER}" \
   --single-transaction --routines --triggers --set-gtid-purged=OFF --source-data=2 "${DB_NAME}" \
   | gzip > "${FILE}"

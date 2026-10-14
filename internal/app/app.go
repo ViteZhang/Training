@@ -254,6 +254,7 @@ func (b *Base) Handler() (http.Handler, error) {
 		Events:     events.New(b.Logger, nil),
 		Metrics:    monitor.NewHTTPCounter(b.Redis),
 		DevMockPay: b.devMockPay(),
+		DevDocs:    b.Config.AppEnv == config.EnvLocal,
 	})
 }
 

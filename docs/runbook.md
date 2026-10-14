@@ -1,21 +1,20 @@
 # 运维手册（runbook）
 
-生产只有一套：https://training.dreamelab.cn（API /api/v1/，后台 /admin/）。全部资源在阿里云华北 2（北京）。
-本手册按顺序列出需要在阿里云控制台、云效、两台服务器上手动完成的步骤，每一步都写了怎么验证。
+生产只有一套：https://training.dreamelab.cn（API /api/v1/，后台 /admin/）。本项目复用现有 ECS 上的 `dreamer-mysql`、`dreamer-redis`、`dreamer-nginx`，应用容器加入同一个 `dreamer-net`。
+本手册按顺序列出需要在阿里云控制台、现有 ECS 和云效上手动完成的步骤，每一步都写了怎么验证。
 密钥只在控制台和服务器上填写，不写进仓库、文档和聊天。
 
 部署文件都在 `deploy/`：
 
 | 文件 | 用途 |
 | --- | --- |
-| docker-compose.app.yml | 应用机：nginx、api、worker、asynqmon |
-| docker-compose.db.yml | 数据库机：mysql、redis |
-| nginx/training.conf | HTTPS、/api/ 反向代理、/admin/ 静态目录 |
-| .env.app.example / .env.db.example | 两台机器 .env 的模板（只有占位值） |
+| docker-compose.app.yml | 接入现有 `dreamer-net` 的 api、worker、asynqmon |
+| .env.app.example | 可提交仓库的应用服务环境变量模板（只有占位值，不含真实密钥） |
+| db/init.sql | 本地或新建项目库的完整手动初始化 SQL |
 | scripts/release.sh | 发布：备份 → 拉镜像 → 迁移 → 重启 → 健康检查，失败自动回滚 |
 | scripts/rollback.sh | 回滚到上一版本或指定版本 |
 | scripts/backup-mysql.sh | 全量备份并上传 OSS（每日 + 每次发布前） |
-| scripts/backup-binlog.sh | binlog 持续上传 OSS（数据库机，每 10 分钟） |
+| scripts/backup-binlog.sh | 现有 MySQL 容器的 binlog 持续上传 OSS（按需启用） |
 | scripts/restore-mysql.sh | 用备份恢复到指定库（演练用） |
 | ci/test.sh、ci/build-push.sh、ci/deploy.sh | 云效流水线三个阶段调用的脚本 |
 
@@ -25,84 +24,111 @@
 
 ### 1. 账号与权限
 
-1. 阿里云主账号下建 RAM 子账号 `training-app`，只授予：OSS 业务桶读写、短信发送、文字识别、智能语音交互、内容安全、百炼调用。生成 AccessKey，**只填进应用机 .env**。
-2. 再建 RAM 子账号 `training-backup`，只授予备份桶的写权限，AccessKey 只配置在两台机器的 ossutil 里。
+1. 阿里云主账号下建 RAM 子账号 `training-app`，只授予：OSS 业务桶读写、短信发送、文字识别、智能语音交互、内容安全、百炼调用。生成 AccessKey，**只填进 ECS .env**。
+2. 再建 RAM 子账号 `training-backup`，只授予备份桶的写权限，AccessKey 只配置在 ECS 的 ossutil 里。
 
 验证：RAM 控制台里两个子账号的权限策略只有上面这些。
 
 ### 2. 网络、OSS、镜像仓库
 
 1. 专有网络 VPC（华北 2）里建一个交换机。
-2. 两台 ECS 放在同一个 VPC：
-   - 应用机 4 核 16G，分配公网 IP（或 EIP）
-   - 数据库机 2 核 4G 以上（Q09），**不分配公网 IP**，另挂一块数据盘（开云盘加密）
+2. 现有 ECS 保留公网 IP（或 EIP），MySQL、Redis、Nginx 和本项目应用容器都运行在这台机器上，并加入 `dreamer-net`。
 3. 安全组：
    - 应用机：入方向只开 22（限定你的办公 IP）、80、443
-   - 数据库机：入方向只允许应用机内网 IP 访问 3306、6379，22 只允许应用机内网 IP（从应用机跳转登录）
+   - MySQL、Redis 不需要额外开放公网端口；3306、6379 只在 Docker 网络内使用
 4. OSS：
    - 业务私有桶（如 `training-prod`），读写权限「私有」，开服务端加密（SSE-OSS）；跨域规则允许 App 直传（PUT，来源 `*`，允许头 `*`）
    - 备份桶（如 `training-backup`），私有，开服务端加密；生命周期规则：`mysql/` 前缀 30 天后删除
-5. 容器镜像服务 ACR 个人版或企业版：建命名空间；把 `golang:1.27`、`gcr.io/distroless/static-debian12:nonroot`、`nginx:1.27-alpine`、`mysql:8.4`、`redis:7`、`hibiken/asynqmon:latest` 同步到 ACR（国内构建机和服务器可能拉不到 docker.io、gcr.io）。
-6. 云盘快照：给两台机器的系统盘与数据库数据盘设置自动快照策略（每日，保留 7 天）。
+5. 容器镜像服务 ACR 个人版或企业版：建命名空间；推送本项目 API 镜像，并按需同步 `hibiken/asynqmon` 基础镜像。现有 MySQL、Redis、Nginx 镜像由你的 Compose 管理，不由本项目重复部署。
+6. 给 ECS 数据盘设置自动快照策略（每日，保留 7 天）。
 
-验证：从你的电脑 `telnet <数据库机任何地址> 3306` 连不上；应用机上 `nc -zv <数据库机内网 IP> 3306` 在第 3 步之后能连上。
+验证：从你的电脑访问 ECS 公网 `3306`、`6379` 应失败；在 ECS 上通过容器网络访问现有 MySQL、Redis 成功。
 
-### 3. 数据库机
+### 3. 现有 ECS 上准备项目数据库
+
+先确认现有容器和网络，不要再执行本仓库的数据库 Compose：
 
 ```bash
-# 挂载数据盘到 /data（以 /dev/vdb 为例）
-mkfs.ext4 /dev/vdb && mkdir -p /data && echo '/dev/vdb /data ext4 defaults 0 0' >> /etc/fstab && mount -a
-mkdir -p /data/mysql /data/redis /data/backup /opt/training-db
-
-# 安装 Docker（阿里云镜像源）后：
-cd /opt/training-db
-# 把仓库 deploy/docker-compose.db.yml、deploy/mysql/、deploy/scripts/ 拷到这里
-cp .env.db.example .env   # 按模板填写：DB_PRIVATE_IP 填本机内网 IP，密码用随机串
-docker compose -f docker-compose.db.yml up -d
+docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+docker network inspect dreamer-net
 ```
+
+在现有 MySQL 容器中创建 `training`、`training_dev` 数据库和各自独立的应用账号。`training_dev` 供本机开发使用；生产 `training` 留给云效发布时的 Goose 迁移初始化。把 [db/init.sql](/Users/a1/Documents/workspace/myself/peetraining-server/db/init.sql) 手动执行到 `training_dev`，不要把它执行到现有 `dreamer_ai` 库。
+
+```bash
+docker exec -it <现有-mysql-容器名> mysql -uroot -p
+CREATE DATABASE IF NOT EXISTS training CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+CREATE DATABASE IF NOT EXISTS training_dev CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+CREATE USER IF NOT EXISTS 'training'@'%' IDENTIFIED BY '<生产应用随机密码>';
+CREATE USER IF NOT EXISTS 'training_dev'@'%' IDENTIFIED BY '<本地开发随机密码>';
+GRANT ALL PRIVILEGES ON training.* TO 'training'@'%';
+GRANT ALL PRIVILEGES ON training_dev.* TO 'training_dev'@'%';
+FLUSH PRIVILEGES;
+```
+
+手动执行并验证版本：
+
+```bash
+mysql -h 127.0.0.1 -P 3306 -uroot -p < db/init.sql
+mysql -h 127.0.0.1 -P 3306 -u training_dev -p training_dev -e 'SELECT MAX(version_id) FROM goose_db_version;'
+```
+
+结果应为 `18`。生产库不要执行这份本地初始化文件；首次发布时流水线会通过 `/app/api migrate up` 按顺序创建表与默认配置。
 
 建备份账号（应用账号 training 没有备份所需权限）：
 
 ```bash
-docker compose -f docker-compose.db.yml exec mysql mysql -uroot -p -e "
-CREATE USER 'backup'@'<应用机内网 IP>' IDENTIFIED BY '<随机密码>';
-GRANT SELECT, RELOAD, LOCK TABLES, SHOW VIEW, TRIGGER, PROCESS, REPLICATION CLIENT, EVENT ON *.* TO 'backup'@'<应用机内网 IP>';
-ALTER USER 'training'@'%' ACCOUNT LOCK; CREATE USER 'training'@'<应用机内网 IP>' IDENTIFIED BY '<应用账号密码>';
-GRANT ALL ON training.* TO 'training'@'<应用机内网 IP>';"
+docker exec -it <现有-mysql-容器名> mysql -uroot -p -e "
+CREATE USER 'backup'@'%' IDENTIFIED BY '<随机密码>';
+GRANT SELECT, RELOAD, LOCK TABLES, SHOW VIEW, TRIGGER, PROCESS, REPLICATION CLIENT, EVENT ON *.* TO 'backup'@'%';"
 ```
 
 binlog 上传（安装并配置 ossutil，使用 training-backup 子账号）：
 
 ```bash
 crontab -e
-*/10 * * * * BACKUP_OSS_BUCKET=training-backup /opt/training-db/scripts/backup-binlog.sh >> /var/log/binlog-backup.log 2>&1
+*/10 * * * * BACKUP_OSS_BUCKET=training-backup APP_DIR=/opt/training /opt/training/scripts/backup-binlog.sh >> /var/log/binlog-backup.log 2>&1
 ```
 
 验证：
-- `docker compose -f docker-compose.db.yml ps` 两个服务都是 healthy / running
-- 应用机上 `docker run --rm mysql:8.4 mysql -h <内网 IP> -utraining -p -e 'select 1'` 成功
-- 你的电脑上连数据库机公网（如果有）或 3306 失败
+- `docker ps` 中现有 MySQL、Redis、Nginx 都是 running
+- `docker network inspect dreamer-net` 能看到现有容器
+- 你的电脑访问 ECS 公网 3306、6379 失败
 
 ### 4. 应用机
 
 ```bash
-mkdir -p /opt/training/{certs,admin,nginx,scripts} /data/backup
+mkdir -p /opt/training/scripts /data/backup
 cd /opt/training
-# 安装 Docker、ossutil（training-backup 子账号）
-cp <仓库>/deploy/.env.app.example .env   # 按模板填写全部值；JWT_SECRET 用 openssl rand -base64 48
-echo 'BACKUP_OSS_BUCKET=training-backup' >> .env
-echo 'BACKUP_MYSQL_DSN=backup:<备份账号密码>@tcp(<数据库机内网 IP>:3306)/training' >> .env
+# 安装 Docker、ossutil，并用 training-backup 子账号配置 ossutil
+cp <仓库>/deploy/.env.app.example .env
 chmod 600 .env
+# ACR 若为私有仓库，在应用机预先登录，之后云效部署任务不必传 ACR 密码
 docker login --username <ACR 用户名> registry.cn-beijing.aliyuncs.com
 ```
 
-证书：在阿里云「数字证书管理服务」为 training.dreamelab.cn 申请免费 DV 证书，下载 Nginx 格式，放到
-`/opt/training/certs/training.dreamelab.cn.pem` 与 `.key`。证书到期前 30 天在控制台续期并替换文件，然后
-`docker compose -f docker-compose.app.yml exec nginx nginx -s reload`。
+`deploy/.env.app.example` 是可以提交仓库的变量模板，真实 `/opt/training/.env` 不应提交。仓库已跟踪模板文件；不要为了提交真实配置而取消 `.gitignore` 对本地 `.env` 的忽略。先把 `CHANGE_ME` 全部替换掉，再核对：
 
-DNS：training.dreamelab.cn 的 A 记录指向应用机公网 IP。
+| 配置 | 你需要填写什么 | 是否必填 |
+| --- | --- | --- |
+| `IMAGE` | ACR 完整镜像地址，含命名空间和 `peetraining-server` | 必填；必须与流水线 `ACR_REGISTRY/ACR_NAMESPACE` 拼出的地址一致 |
+| `MYSQL_DSN` | training 应用账号、密码、MySQL 容器名和 `training` 库名 | 必填；账号应只授权 `training.*` |
+| `REDIS_ADDR` / `REDIS_PASSWORD` / `REDIS_DB` | Redis 容器名、密码及未被其他业务占用的库号 | 必填；无密码时密码留空，模板使用 DB 1 |
+| `JWT_SECRET` | 在安全终端运行 `openssl rand -hex 32` 生成 | 必填；不要重复使用本地开发值 |
+| `BACKUP_MYSQL_DSN` | 单独的 backup 账号连接串 | 发布备份必填 |
+| `BACKUP_OSS_BUCKET` | 已创建的私有备份桶名 | 发布备份必填；ECS 的 ossutil 要有该桶写权限 |
+| `BAILIAN_API_KEY` | 百炼 API Key | 使用 AI 时必填；模板默认选择已接入的百炼客户端 |
+| `SMS_*` | 短信签名与模板 | 当前无法通过配置启用，代码还没有生产短信实现，见下方阻塞说明 |
+| `OSS_*`、`OCR_*`、`ASR_*`、`MODERATION_*` | 真实云服务凭据 | 当前代码尚未接入生产 provider，不能仅靠填 Key 启用 |
+| `WECHAT_PAY_*`、`ALIPAY_*`、`APPLE_IAP_*` | 已开通支付渠道的完整凭据 | 只在开放对应支付渠道时填写，并将 `PAY_PROVIDER=real` |
 
-管理后台占位页（T05 之前）：`echo '<h1>考研Training 后台</h1>' > /opt/training/admin/index.html`
+首次部署模板的 `VERSION=bootstrap` 只是基准标记；部署脚本发布时会替换为本次镜像 tag。首次部署没有已运行的旧版本，健康检查失败时会停止新 API/Worker 并报错，不会尝试回滚到不存在的旧镜像。后续发布才有自动回滚目标。
+
+应用实际连接的是 Docker 网络内的容器名，不是 ECS 公网 IP。执行 `docker ps` 确认 MySQL、Redis 容器名；再用 `docker network inspect dreamer-net` 确认这些容器和本项目都在同一个网络。数据库密码建议使用 `openssl rand -hex 24`，避免 DSN 分隔符影响解析。
+
+**当前不能直接正式上线。** `internal/cloud` 目前只有 mock 短信，production 明确拒绝 mock，而 `SMS_PROVIDER=aliyun` 也尚未实现；因此 API 和 Worker 会启动失败。OSS、OCR、ASR、内容安全也只有 mock provider。先完成这些生产 provider 接入和真实凭据验证，再执行首次发布。`/app/api migrate up` 单独可能成功，但它通过不代表 API 服务能启动。
+
+现有 `dreamer-nginx` 负责 80/443、证书和前端静态文件。它需要加入 `dreamer-net`，并把 `/api/` 反向代理到 `http://training-api:8080`；证书、域名和 `/admin/` 仍按你现有 Nginx 配置管理。
 
 每日备份：
 
@@ -116,26 +142,28 @@ crontab -e
 
 ### 5. 云效流水线
 
-1. 云效「代码管理」建 peetraining-server 仓库，把 GitHub 暂存仓库的 `peetraining-server/` 同步过去（见仓库根目录 README-启动包.md「仓库与同步」）。
-2. 云效「流水线」新建流水线，代码源选 peetraining-server 的 main 分支，触发方式：代码提交自动触发 + 手动触发。
-3. 变量（私密变量勾选「加密」）：`ACR_REGISTRY`、`ACR_NAMESPACE`、`ACR_USERNAME`、`ACR_PASSWORD`、`GO_IMAGE`、`RUNTIME_IMAGE`（ACR 里同步的基础镜像）。
-4. 阶段：
-   - **测试**：「执行命令」任务，构建环境选带 Docker 的 Linux 构建机，命令 `bash deploy/ci/test.sh`
-   - **构建镜像**：「执行命令」任务，命令 `bash deploy/ci/build-push.sh`；把仓库的 `deploy/` 目录与 `.release-version` 打包为构建产物
-   - **部署**：「主机部署」任务，主机组选应用机，部署脚本：
+1. 云效「代码管理」仓库选 `peetraining-server`，代码源分支先选 `main`。首次上线先用手动触发；验收通过后再打开 main 提交自动触发。
+2. 添加流水线变量：构建阶段必填 `ACR_REGISTRY`（如 `registry.cn-beijing.aliyuncs.com`）、`ACR_NAMESPACE`、`ACR_USERNAME`、`ACR_PASSWORD`；用户名和密码勾选加密/保密。`GO_IMAGE`、`RUNTIME_IMAGE` 是可选项，只在基础镜像已同步到 ACR 时设置。`VERSION` 可不设置，脚本默认使用 Git tag 或提交号。
+3. 按截图中的节点配置阶段：
+   - **测试**：添加「执行命令」任务，使用带 Docker 的 Linux 构建机，执行 `bash deploy/ci/test.sh`。
+   - **Go 构建 Docker 镜像并推送镜像仓库**：添加「执行命令」任务，执行 `bash deploy/ci/build-push.sh`。成功后脚本在制品目录写入 `.release-version`。
+   - **制品传递**：把代码目录中的 `deploy/` 与 `.release-version` 作为流水线制品传给部署阶段；不要把服务器 `.env`、`.env.local` 或任何密钥打包。
+   - **Docker 部署**：主机组选应用 ECS，执行用户选可运行 Docker 的部署账号（截图里使用 root 也可），部署脚本填写：
      ```bash
+     set -euo pipefail
      source .release-version
      bash deploy/ci/deploy.sh "$VERSION"
      ```
-5. 在应用机上安装云效主机部署 Agent（按控制台提示的命令执行）。
+4. 私有 ACR 镜像拉取：要么在 ECS 上预先执行一次 `docker login`，要么给「Docker 部署」任务配置加密变量 `ACR_REGISTRY`、`ACR_USERNAME`、`ACR_PASSWORD`，脚本会在主机上登录。云效构建机的登录态不会自动传到 ECS。
+5. 应用 ECS 先安装云效主机部署 Agent，并按上面的模板单独建立 `/opt/training/.env`，权限设为 `600`。部署脚本会保留这个文件，并检查 `dreamer-net` 网络存在。
 
-验证：手动运行一次流水线，三个阶段都成功；`https://training.dreamelab.cn/api/v1/health` 返回 200，version 是这次的版本号。
+验证：provider 实现完成后，手动运行流水线；三个阶段均成功，`https://training.dreamelab.cn/api/v1/health` 返回 200，`version` 与 `.release-version` 一致。首次成功后再启用 main 自动触发。
 
 ### 6. G1 验收清单
 
 - [ ] `curl https://training.dreamelab.cn/api/v1/health` 返回 200，`mysql`、`redis` 都是 `ok`
 - [ ] 浏览器打开 https://training.dreamelab.cn/admin/ 能看到页面
-- [ ] 从公网连数据库机 3306、6379 失败；从应用机能连上
+- [ ] 从公网连 ECS 的 3306、6379 失败；应用容器能通过 dreamer-net 访问
 - [ ] 手动执行 `/opt/training/scripts/backup-mysql.sh manual`，OSS 备份桶 `mysql/full/` 下有文件，并按「三、备份恢复」在本地恢复成功
 - [ ] 改一行代码提交，流水线自动发布成功；再执行一次 `/opt/training/scripts/rollback.sh`，健康检查通过且版本号回到上一个
 
@@ -219,8 +247,8 @@ docker exec restore-test mysql -uroot -ptest training -e 'SELECT COUNT(*) FROM u
 
 | 现象 | 先看 | 处理 |
 | --- | --- | --- |
-| 健康检查 503，mysql=error | 数据库机 `docker compose ps`、磁盘 `df -h /data` | 重启 mysql；磁盘满时清理 binlog（`PURGE BINARY LOGS BEFORE NOW() - INTERVAL 3 DAY`，确认已上传 OSS） |
-| 健康检查 503，redis=error | 数据库机 redis 容器日志 | 重启 redis；AOF 损坏时 `redis-check-aof --fix` |
+| 健康检查 503，mysql=error | ECS 上现有 MySQL 容器日志、磁盘 `df -h` | 检查 MySQL 容器与 dreamer-net；磁盘满时清理 binlog（确认已上传 OSS） |
+| 健康检查 503，redis=error | ECS 上现有 Redis 容器日志 | 检查 Redis 容器与 dreamer-net；AOF 损坏时使用 Redis 工具修复 |
 | 502 Bad Gateway | `docker compose -f docker-compose.app.yml ps`、`logs api` | api 启动失败多为 .env 缺项（日志会写明哪个变量）；修正后 `up -d api` |
 | 发布时迁移失败 | 流水线日志里的迁移报错 | 版本未切换、服务不受影响；修迁移后重新发布（不要改已合并的迁移文件，写新的） |
 | 队列积压 | asynqmon 各队列 pending 数 | 看 worker 日志里失败最多的任务类型；AI 服务异常时在后台 7.8 回滚提示词版本或模型 |

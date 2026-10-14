@@ -3,24 +3,19 @@ SHELL := /bin/bash
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X peetraining-server/internal/app.Version=$(VERSION)
 TOOL := go tool -modfile=tools/go.mod
-DEV_COMPOSE := docker compose -f docker-compose.dev.yml
-DEV_ENV := APP_ENV=local MYSQL_DSN='training:training@tcp(127.0.0.1:3306)/training' REDIS_ADDR=127.0.0.1:6379
+.PHONY: dev dev-worker dev-migrate gen gen-check test test-unit lint migrate-new migrate-up migrate-status eval eval-all build docker api-tag
 
-.PHONY: dev dev-deps dev-down gen gen-check test test-unit lint migrate-new migrate-up migrate-status eval eval-all build docker api-tag
+## dev：直连 .env.local 配置的 ECS MySQL 与 Redis，启动本地 API；Ctrl+C 停止
+dev:
+	./scripts/dev.sh
 
-## dev：起本地 MySQL 与 Redis，执行迁移，再同时启动 API（:8080）与 Worker；Ctrl+C 一起停止
-dev: dev-deps
-	$(DEV_ENV) go run ./cmd/api migrate up
-	@trap 'kill 0' INT TERM EXIT; \
-	$(DEV_ENV) go run ./cmd/worker & \
-	$(DEV_ENV) go run ./cmd/api & \
-	wait
+## dev-worker：同时启动 Worker（会消费共享 Redis 队列）
+dev-worker:
+	./scripts/dev.sh --worker
 
-dev-deps:
-	$(DEV_COMPOSE) up -d --wait
-
-dev-down:
-	$(DEV_COMPOSE) down
+## dev-migrate：对 .env.local 配置的数据库执行迁移（显式操作）
+dev-migrate:
+	./scripts/dev.sh --migrate up
 
 ## gen：按 api/openapi.yaml 生成 internal/gen，按 db/queries 生成 internal/dbq
 gen:
@@ -51,10 +46,10 @@ migrate-new:
 	go run ./cmd/api migrate new $(name)
 
 migrate-up:
-	$(DEV_ENV) go run ./cmd/api migrate up
+	./scripts/dev.sh --migrate up
 
 migrate-status:
-	$(DEV_ENV) go run ./cmd/api migrate status
+	./scripts/dev.sh --migrate status
 
 ## eval cap=import|kp|rubric|grading|essay|ocr [args="-model qwen-max -prompt v2 -record -note 改了什么"]：跑 AI 评测（ADR 0012）
 eval:

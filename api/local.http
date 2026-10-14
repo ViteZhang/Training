@@ -1,0 +1,18 @@
+# 在 GoLand 中打开，点击请求左侧的运行按钮。全部请求只读，不创建用户或发送短信。
+@baseUrl = http://127.0.0.1:8080
+
+### 健康检查：API、MySQL、Redis 正常时返回 200，各状态为 ok
+GET {{baseUrl}}/api/v1/health
+Accept: application/json
+
+### 启动配置：无需登录，返回功能开关、协议及考试配置
+GET {{baseUrl}}/api/v1/bootstrap?platform=ios&app_version=1.0.0
+Accept: application/json
+
+### OpenAPI 契约：APP_ENV=local 且重启到最新代码后可访问
+GET {{baseUrl}}/openapi.json
+Accept: application/json
+
+### 鉴权检查：未带令牌，预期返回 401
+GET {{baseUrl}}/api/v1/me
+Accept: application/json
