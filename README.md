@@ -86,4 +86,4 @@ docs/           PRD、研发规格、任务卡、ADR
 
 ## 发布
 
-见 [docs/runbook.md](docs/runbook.md)：首次搭建、发布与回滚（`deploy/scripts/release.sh`、`rollback.sh`）、备份恢复、故障排查。
+见 [docs/runbook.md](docs/runbook.md)：首次搭建、发布与回滚（`deploy/scripts/release.sh`、`rollback.sh`）、故障排查。

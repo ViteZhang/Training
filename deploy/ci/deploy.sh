@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
-# 云效流水线「部署」阶段（主机部署任务在应用机上执行）：同步部署文件，然后发布。
-# 云效「主机部署」会把制品解压到工作目录；这里同步应用 Compose 和运维脚本到 /opt/training。
+# 云效 Docker 部署节点在 ECS 上执行：bash deploy/ci/deploy.sh "$VERSION"。
+# 制品解压到工作目录后，需保留 deploy/ci/、deploy/scripts/ 和 deploy/docker-compose.app.yml 的路径。
+# 这里同步应用 Compose 和运维脚本到 /opt/training。
 # ECS 已有 dreamer-nginx，不覆盖服务器上的 .env、证书和前端文件。
 set -euo pipefail
 APP_DIR=${APP_DIR:-/opt/training}
-VERSION=${1:?用法：deploy.sh <版本号>}
+VERSION=${1:-${VERSION:-}}
+if [[ -z "$VERSION" && -f .release-version ]]; then
+  VERSION=$(awk -F= '$1 == "VERSION" { value = substr($0, index($0, "=") + 1) } END { print value }' .release-version)
+fi
+if [[ -z "$VERSION" ]]; then
+  printf '%s\n' '缺少 VERSION；请传入版本号或在当前目录提供 .release-version。' >&2
+  exit 2
+fi
 SRC=$(cd "$(dirname "$0")/.." && pwd)
 
 if [[ ! "$VERSION" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
@@ -27,7 +35,7 @@ if [[ "$(env_value APP_ENV)" != production ]]; then
   printf '%s\n' '服务器 .env 必须设置 APP_ENV=production。' >&2
   exit 2
 fi
-for key in IMAGE VERSION MYSQL_DSN REDIS_ADDR JWT_SECRET BACKUP_MYSQL_DSN BACKUP_OSS_BUCKET; do
+for key in IMAGE VERSION MYSQL_DSN REDIS_ADDR JWT_SECRET; do
   value=$(env_value "$key")
   if [[ -z "$value" || "$value" == *CHANGE_ME* || "$value" == *'<'* ]]; then
     printf '服务器 .env 尚未正确配置：%s\n' "$key" >&2

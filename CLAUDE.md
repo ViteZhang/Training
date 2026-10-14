@@ -39,7 +39,7 @@
 - internal/jobs/：Asynq 任务定义、处理器与定时任务
 - db/migrations/：goose SQL 迁移；db/queries/：sqlc 查询；sqlc.yaml
 - evals/：AI 评测数据集（JSONL）与门槛配置；真实样本放 evals/private/，不提交到仓库
-- deploy/：接入现有 dreamer-net 的应用 Compose、云效脚本、发布与备份脚本
+- deploy/：接入现有 dreamer-net 的应用 Compose、云效脚本与发布回滚脚本
 
 ## 常用命令
 
@@ -91,7 +91,7 @@ PAY_PROVIDER、PAY_NOTIFY_BASE_URL、WECHAT_PAY_*、ALIPAY_*、APPLE_IAP_*、ALE
 
 - 只有一个生产环境：https://training.dreamelab.cn，API 在 /api/v1/，管理后台在 /admin/
 - ECS 现有 `dreamer-nginx`、`dreamer-mysql`、`dreamer-redis`；项目只部署 api、worker、asynqmon，并全部加入外部 Docker 网络 `dreamer-net`
-- 云效流水线：测试 → 构建镜像 → 推送 ACR → 备份数据库 → 执行迁移 → docker compose pull 与 up；回滚把镜像版本改回上一个
+- 云效流水线：测试 → 构建镜像 → 推送 ACR → 执行迁移 → docker compose pull 与 up；回滚把镜像版本改回上一个
 - 没有测试环境：新功能先用功能开关只对自己的账号打开
 
 ## 完成一张卡前自检

@@ -60,11 +60,12 @@ eval-all:
 	@fail=0; for c in import kp rubric grading essay ocr; do echo "== $$c"; go run ./cmd/eval -cap=$$c $(args) || fail=1; done; exit $$fail
 
 build:
+	mkdir -p bin
 	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/api ./cmd/api
 	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/worker ./cmd/worker
 
-docker:
-	docker build --build-arg VERSION=$(VERSION) -t peetraining-server:$(VERSION) .
+docker: build
+	docker build -t peetraining-server:$(VERSION) .
 
 ## api-tag v=api-v0.3：给接口契约打标签，供前端 pnpm gen:api 拉取
 api-tag:

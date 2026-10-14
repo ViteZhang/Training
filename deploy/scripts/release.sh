@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 发布新版本（流水线最后一步通过 SSH 在应用机执行）：
-#   备份数据库 → 拉镜像 → 执行迁移 → 重启 api 与 worker → 健康检查；健康检查失败自动回滚到上一版本。
+#   拉镜像 → 执行迁移 → 重启 api 与 worker → 健康检查；健康检查失败自动回滚到上一版本。
 # 用法：deploy/scripts/release.sh v0.1.3
 # 迁移只加不删（CLAUDE.md 必须遵守第 3 条），所以回滚镜像时不需要回滚数据库。
 source "$(dirname "$0")/common.sh"
@@ -12,8 +12,6 @@ if ! docker container inspect training-api >/dev/null 2>&1; then
   FIRST_RELEASE=1
 fi
 log "当前版本 ${CUR}，发布 ${NEW}"
-
-"$(dirname "$0")/backup-mysql.sh" "pre-${NEW}"
 
 sed -i "s/^VERSION=.*/VERSION=${NEW}/" "${APP_DIR}/.env"
 echo "${CUR}" > "${APP_DIR}/PREVIOUS_VERSION"

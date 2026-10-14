@@ -11,12 +11,9 @@
 | docker-compose.app.yml | 接入现有 `dreamer-net` 的 api、worker、asynqmon |
 | .env.app.example | 可提交仓库的应用服务环境变量模板（只有占位值，不含真实密钥） |
 | db/init.sql | 本地或新建项目库的完整手动初始化 SQL |
-| scripts/release.sh | 发布：备份 → 拉镜像 → 迁移 → 重启 → 健康检查，失败自动回滚 |
+| scripts/release.sh | 发布：拉镜像 → 迁移 → 重启 → 健康检查，失败自动回滚 |
 | scripts/rollback.sh | 回滚到上一版本或指定版本 |
-| scripts/backup-mysql.sh | 全量备份并上传 OSS（每日 + 每次发布前） |
-| scripts/backup-binlog.sh | 现有 MySQL 容器的 binlog 持续上传 OSS（按需启用） |
-| scripts/restore-mysql.sh | 用备份恢复到指定库（演练用） |
-| ci/test.sh、ci/build-push.sh、ci/deploy.sh | 云效流水线三个阶段调用的脚本 |
+| ci/test.sh、ci/build-push.sh、ci/deploy.sh | 云效辅助脚本；使用原生 Go、ACR 镜像任务时，`build-push.sh` 不参与发布 |
 
 ---
 
@@ -25,9 +22,8 @@
 ### 1. 账号与权限
 
 1. 阿里云主账号下建 RAM 子账号 `training-app`，只授予：OSS 业务桶读写、短信发送、文字识别、智能语音交互、内容安全、百炼调用。生成 AccessKey，**只填进 ECS .env**。
-2. 再建 RAM 子账号 `training-backup`，只授予备份桶的写权限，AccessKey 只配置在 ECS 的 ossutil 里。
 
-验证：RAM 控制台里两个子账号的权限策略只有上面这些。
+验证：RAM 控制台里子账号的权限策略只有上面这些。
 
 ### 2. 网络、OSS、镜像仓库
 
@@ -38,9 +34,7 @@
    - MySQL、Redis 不需要额外开放公网端口；3306、6379 只在 Docker 网络内使用
 4. OSS：
    - 业务私有桶（如 `training-prod`），读写权限「私有」，开服务端加密（SSE-OSS）；跨域规则允许 App 直传（PUT，来源 `*`，允许头 `*`）
-   - 备份桶（如 `training-backup`），私有，开服务端加密；生命周期规则：`mysql/` 前缀 30 天后删除
 5. 容器镜像服务 ACR 个人版或企业版：建命名空间；推送本项目 API 镜像，并按需同步 `hibiken/asynqmon` 基础镜像。现有 MySQL、Redis、Nginx 镜像由你的 Compose 管理，不由本项目重复部署。
-6. 给 ECS 数据盘设置自动快照策略（每日，保留 7 天）。
 
 验证：从你的电脑访问 ECS 公网 `3306`、`6379` 应失败；在 ECS 上通过容器网络访问现有 MySQL、Redis 成功。
 
@@ -75,21 +69,6 @@ mysql -h 127.0.0.1 -P 3306 -u training_dev -p training_dev -e 'SELECT MAX(versio
 
 结果应为 `18`。生产库不要执行这份本地初始化文件；首次发布时流水线会通过 `/app/api migrate up` 按顺序创建表与默认配置。
 
-建备份账号（应用账号 training 没有备份所需权限）：
-
-```bash
-docker exec -it <现有-mysql-容器名> mysql -uroot -p -e "
-CREATE USER 'backup'@'%' IDENTIFIED BY '<随机密码>';
-GRANT SELECT, RELOAD, LOCK TABLES, SHOW VIEW, TRIGGER, PROCESS, REPLICATION CLIENT, EVENT ON *.* TO 'backup'@'%';"
-```
-
-binlog 上传（安装并配置 ossutil，使用 training-backup 子账号）：
-
-```bash
-crontab -e
-*/10 * * * * BACKUP_OSS_BUCKET=training-backup APP_DIR=/opt/training /opt/training/scripts/backup-binlog.sh >> /var/log/binlog-backup.log 2>&1
-```
-
 验证：
 - `docker ps` 中现有 MySQL、Redis、Nginx 都是 running
 - `docker network inspect dreamer-net` 能看到现有容器
@@ -98,9 +77,9 @@ crontab -e
 ### 4. 应用机
 
 ```bash
-mkdir -p /opt/training/scripts /data/backup
+mkdir -p /opt/training/scripts
 cd /opt/training
-# 安装 Docker、ossutil，并用 training-backup 子账号配置 ossutil
+# 安装 Docker
 cp <仓库>/deploy/.env.app.example .env
 chmod 600 .env
 # ACR 若为私有仓库，在应用机预先登录，之后云效部署任务不必传 ACR 密码
@@ -109,14 +88,14 @@ docker login --username <ACR 用户名> registry.cn-beijing.aliyuncs.com
 
 `deploy/.env.app.example` 是可以提交仓库的变量模板，真实 `/opt/training/.env` 不应提交。仓库已跟踪模板文件；不要为了提交真实配置而取消 `.gitignore` 对本地 `.env` 的忽略。先把 `CHANGE_ME` 全部替换掉，再核对：
 
+如果这台 ECS 之前按旧版手册配置过 MySQL 备份，先在 `crontab -e` 删除调用 `backup-mysql.sh` 或 `backup-binlog.sh` 的行，再删除 `/opt/training/scripts/` 下这两个旧脚本，并从 `/opt/training/.env` 删除不再使用的 `BACKUP_*` 项。此调整不删除 OSS 中已有文件，也不删除 MySQL 数据。
+
 | 配置 | 你需要填写什么 | 是否必填 |
 | --- | --- | --- |
 | `IMAGE` | ACR 完整镜像地址，含命名空间和 `peetraining-server` | 必填；必须与流水线 `ACR_REGISTRY/ACR_NAMESPACE` 拼出的地址一致 |
 | `MYSQL_DSN` | training 应用账号、密码、MySQL 容器名和 `training` 库名 | 必填；账号应只授权 `training.*` |
 | `REDIS_ADDR` / `REDIS_PASSWORD` / `REDIS_DB` | Redis 容器名、密码及未被其他业务占用的库号 | 必填；无密码时密码留空，模板使用 DB 1 |
 | `JWT_SECRET` | 在安全终端运行 `openssl rand -hex 32` 生成 | 必填；不要重复使用本地开发值 |
-| `BACKUP_MYSQL_DSN` | 单独的 backup 账号连接串 | 发布备份必填 |
-| `BACKUP_OSS_BUCKET` | 已创建的私有备份桶名 | 发布备份必填；ECS 的 ossutil 要有该桶写权限 |
 | `BAILIAN_API_KEY` | 百炼 API Key | 使用 AI 时必填；模板默认选择已接入的百炼客户端 |
 | `SMS_*` | 短信签名与模板 | 当前无法通过配置启用，代码还没有生产短信实现，见下方阻塞说明 |
 | `OSS_*`、`OCR_*`、`ASR_*`、`MODERATION_*` | 真实云服务凭据 | 当前代码尚未接入生产 provider，不能仅靠填 Key 启用 |
@@ -130,41 +109,72 @@ docker login --username <ACR 用户名> registry.cn-beijing.aliyuncs.com
 
 现有 `dreamer-nginx` 负责 80/443、证书和前端静态文件。它需要加入 `dreamer-net`，并把 `/api/` 反向代理到 `http://training-api:8080`；证书、域名和 `/admin/` 仍按你现有 Nginx 配置管理。
 
-每日备份：
-
-```bash
-crontab -e
-30 18 * * * APP_DIR=/opt/training /opt/training/scripts/backup-mysql.sh daily >> /var/log/mysql-backup.log 2>&1
-```
-（UTC 18:30 = 北京时间 02:30）
-
 验证：`dig training.dreamelab.cn` 解析到应用机；证书文件存在且权限 600。
 
 ### 5. 云效流水线
 
 1. 云效「代码管理」仓库选 `peetraining-server`，代码源分支先选 `main`。首次上线先用手动触发；验收通过后再打开 main 提交自动触发。
-2. 添加流水线变量：构建阶段必填 `ACR_REGISTRY`（如 `registry.cn-beijing.aliyuncs.com`）、`ACR_NAMESPACE`、`ACR_USERNAME`、`ACR_PASSWORD`；用户名和密码勾选加密/保密。`GO_IMAGE`、`RUNTIME_IMAGE` 是可选项，只在基础镜像已同步到 ACR 时设置。`VERSION` 可不设置，脚本默认使用 Git tag 或提交号。
-3. 按截图中的节点配置阶段：
+2. 在「变量和缓存」中定义流水线变量 `VERSION`，选用符合 Docker tag 规则的版本号。Go 编译、原生镜像推送和 Docker 部署都使用同一个版本号。原生镜像任务使用 ACR 服务连接；部署私有镜像时，还需让 ECS 能拉取 ACR 镜像。
+   - 中国大陆构建机可能无法访问 GCR 或 Docker Hub。本项目 Dockerfile 需要两个基础镜像：运行时 `gcr.io/distroless/static-debian12:nonroot`，以及安装 PDF 字体用的 `golang:1.27`。在一台能拉取原镜像且能推送到你 ACR 的机器上同步一次。把下面地址替换成 ACR 控制台提供的公网域名、命名空间和用户名；`docker login` 会交互式询问密码：
+     ```bash
+     ACR_REGISTRY=registry.cn-beijing.aliyuncs.com
+     ACR_NAMESPACE=your_namespace
+     ACR_USERNAME=your_acr_username
+
+     docker login --username "$ACR_USERNAME" "$ACR_REGISTRY"
+     docker pull golang:1.27
+     docker tag golang:1.27 "$ACR_REGISTRY/$ACR_NAMESPACE/golang:1.27"
+     docker push "$ACR_REGISTRY/$ACR_NAMESPACE/golang:1.27"
+
+     docker pull gcr.io/distroless/static-debian12:nonroot
+     docker tag gcr.io/distroless/static-debian12:nonroot "$ACR_REGISTRY/$ACR_NAMESPACE/distroless-static-debian12:nonroot"
+     docker push "$ACR_REGISTRY/$ACR_NAMESPACE/distroless-static-debian12:nonroot"
+     ```
+     云效镜像任务所用 ACR 服务连接必须能拉取上述两个私有基础镜像，并能推送项目镜像。基础镜像地址不是密码，不需要设为加密变量。
+3. 按流水线节点配置阶段：
    - **测试**：添加「执行命令」任务，使用带 Docker 的 Linux 构建机，执行 `bash deploy/ci/test.sh`。
-   - **Go 构建 Docker 镜像并推送镜像仓库**：添加「执行命令」任务，执行 `bash deploy/ci/build-push.sh`。成功后脚本在制品目录写入 `.release-version`。
-   - **制品传递**：把代码目录中的 `deploy/` 与 `.release-version` 作为流水线制品传给部署阶段；不要把服务器 `.env`、`.env.local` 或任何密钥打包。
-   - **Docker 部署**：主机组选应用 ECS，执行用户选可运行 Docker 的部署账号（截图里使用 root 也可），部署脚本填写：
+   - **Go 构建**：保留截图中的「安装 Go」步骤，选择 Go 1.27 和 Linux/amd64；在「执行 Golang 构建命令」中勾选指定运行 Shell 并选择 Bash，然后粘贴：
      ```bash
      set -euo pipefail
-     source .release-version
+     go version
+     : "${VERSION:?请先在云效流水线变量中设置 VERSION}"
+     if [[ ! "$VERSION" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+       echo "VERSION 不是合法的 Docker 镜像 tag：$VERSION" >&2
+       exit 2
+     fi
+     export GOPROXY=https://goproxy.cn,direct
+     export GOTOOLCHAIN=local GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+     go mod download
+     LDFLAGS="-s -w -X peetraining-server/internal/app.Version=${VERSION}"
+     mkdir -p bin
+     go build -trimpath -ldflags "$LDFLAGS" -o bin/api ./cmd/api
+     go build -trimpath -ldflags "$LDFLAGS" -o bin/worker ./cmd/worker
+     test -s bin/api && test -s bin/worker
+     printf 'VERSION=%s\n' "$VERSION" > .release-version
+     ```
+   - **构建物上传**：上传 `bin/`、`.release-version`、`Dockerfile`、`.dockerignore` 和 `deploy/`，保留这些相对路径。后续镜像构建任务和 Docker 部署任务都下载这个构建物。镜像任务在构建物根目录下应能看到 Dockerfile 与 `bin/api`、`bin/worker`；部署任务应能看到 `deploy/ci/deploy.sh` 和 `deploy/scripts/`。不要上传 `.env` 或其他密钥。
+   - **镜像构建并推送**：保留你已有的云效原生任务，使用截图里的 ACR 服务连接；构建源选择上一步的构建物。镜像仓库填 `registry.cn-beijing.aliyuncs.com/<命名空间>/peetraining-server`（换成你的 ACR 地址），tag 填同一个流水线变量 `VERSION`。Dockerfile 路径填 `Dockerfile`，ContextPath 指向构建物根目录（其中应能直接看到 `bin/`）。「更多构建参数」填：
+     ```text
+     --build-arg FONT_IMAGE=registry.cn-beijing.aliyuncs.com/your_namespace/golang:1.27 --build-arg RUNTIME_IMAGE=registry.cn-beijing.aliyuncs.com/your_namespace/distroless-static-debian12:nonroot
+     ```
+     将示例地址替换为自己的 ACR 地址。二进制由 Go 步骤编译，Dockerfile 在此处直接复制进运行镜像；若 `bin/api` 或 `bin/worker` 不在构建上下文根目录，镜像构建会因 `COPY` 找不到文件而失败。
+   - **Docker 部署**：主机组选应用 ECS，执行用户选可运行 Docker 的部署账号；下载同一个构建物并将执行目录设为它的根目录。脚本步骤选择 Bash，并配置如下命令：
+     ```bash
+     set -euo pipefail
+     : "${VERSION:?请将云效流水线变量 VERSION 传给此部署任务}"
      bash deploy/ci/deploy.sh "$VERSION"
      ```
-4. 私有 ACR 镜像拉取：要么在 ECS 上预先执行一次 `docker login`，要么给「Docker 部署」任务配置加密变量 `ACR_REGISTRY`、`ACR_USERNAME`、`ACR_PASSWORD`，脚本会在主机上登录。云效构建机的登录态不会自动传到 ECS。
+   - 私有 ACR 登录：若 ECS 尚未登录，在 Docker 部署任务配置加密变量 `ACR_REGISTRY`、`ACR_USERNAME`、`ACR_PASSWORD`，并将这些环境变量传给脚本；`deploy/ci/deploy.sh` 会在 ECS 上登录后拉取镜像。也可以先在 ECS 手动 `docker login`，此时部署任务无需传 ACR 密码。云效镜像构建节点的登录态不会自动传到 ECS。
+   - `bash deploy/ci/build-push.sh` 是另一种完整构建并推送方案；选择它时才由脚本构建镜像，不要和云效原生镜像推送任务同时使用。
 5. 应用 ECS 先安装云效主机部署 Agent，并按上面的模板单独建立 `/opt/training/.env`，权限设为 `600`。部署脚本会保留这个文件，并检查 `dreamer-net` 网络存在。
 
-验证：provider 实现完成后，手动运行流水线；三个阶段均成功，`https://training.dreamelab.cn/api/v1/health` 返回 200，`version` 与 `.release-version` 一致。首次成功后再启用 main 自动触发。
+验证：provider 实现完成后，手动运行流水线；构建和部署都成功，`https://training.dreamelab.cn/api/v1/health` 返回 200，服务运行版本与 `VERSION` 及 ACR 推送的 tag 一致。首次成功后再启用 main 自动触发。
 
 ### 6. G1 验收清单
 
 - [ ] `curl https://training.dreamelab.cn/api/v1/health` 返回 200，`mysql`、`redis` 都是 `ok`
 - [ ] 浏览器打开 https://training.dreamelab.cn/admin/ 能看到页面
 - [ ] 从公网连 ECS 的 3306、6379 失败；应用容器能通过 dreamer-net 访问
-- [ ] 手动执行 `/opt/training/scripts/backup-mysql.sh manual`，OSS 备份桶 `mysql/full/` 下有文件，并按「三、备份恢复」在本地恢复成功
 - [ ] 改一行代码提交，流水线自动发布成功；再执行一次 `/opt/training/scripts/rollback.sh`，健康检查通过且版本号回到上一个
 
 ---
@@ -215,39 +225,17 @@ unset ADMIN_INITIAL_PASSWORD
 
 ## 二、日常发布与回滚
 
-- 发布：合并到 main 自动触发流水线。发布脚本先备份数据库，迁移失败时不会切换版本；健康检查 60 秒内不通过会自动回滚。
+- 发布：合并到 main 自动触发流水线。发布脚本执行迁移，迁移失败时不会切换版本；健康检查 60 秒内不通过会自动回滚应用镜像。
 - 手动发布指定版本：应用机上 `/opt/training/scripts/release.sh v0.1.3`
 - 回滚：`/opt/training/scripts/rollback.sh`（回到上一版本）或 `rollback.sh v0.1.1`。迁移只加不删，回滚镜像不需要回滚数据库。
 - 新功能先用功能开关只对自己的账号打开（后台 7.8），在生产上自测后再对全部用户打开。
 - 查看队列：`ssh -L 8081:127.0.0.1:8081 应用机`，浏览器打开 http://localhost:8081（asynqmon 只绑定在本机回环地址）。
 
-## 三、备份恢复
-
-备份：每日全量（`mysql/full/`）+ 每次发布前全量 + 每 10 分钟上传 binlog（`mysql/binlog/`），OSS 保留 30 天；云盘每日快照保留 7 天。
-
-**每月演练一次**（恢复到本地或临时库，不要对生产库执行）：
-
-```bash
-ossutil cp oss://training-backup/mysql/full/<最近的文件>.sql.gz .
-docker run -d --name restore-test -p 127.0.0.1:3307:3306 -e MYSQL_ROOT_PASSWORD=test mysql:8.4
-MYSQL_PWD=test deploy/scripts/restore-mysql.sh <文件>.sql.gz 127.0.0.1 3307 root training
-# 核对用户数、最近的迁移版本
-docker exec restore-test mysql -uroot -ptest training -e 'SELECT COUNT(*) FROM users; SELECT MAX(version_id) FROM goose_db_version;'
-```
-
-按时间点恢复（误删数据时）：先恢复最近一次全量；备份文件开头的 `-- CHANGE REPLICATION SOURCE TO SOURCE_LOG_FILE=..., SOURCE_LOG_POS=...` 记录了 binlog 位置；
-下载之后的 binlog，用 `mysqlbinlog --start-position=<位置> --stop-datetime='<误操作之前的时间>' mysql-bin.0000xx ... | mysql ...` 回放。
-
-演练结果记在本节末尾：
-
-| 日期 | 备份文件 | 恢复耗时 | 用户数核对 | 执行人 |
-| --- | --- | --- | --- | --- |
-
-## 四、故障排查
+## 三、故障排查
 
 | 现象 | 先看 | 处理 |
 | --- | --- | --- |
-| 健康检查 503，mysql=error | ECS 上现有 MySQL 容器日志、磁盘 `df -h` | 检查 MySQL 容器与 dreamer-net；磁盘满时清理 binlog（确认已上传 OSS） |
+| 健康检查 503，mysql=error | ECS 上现有 MySQL 容器日志、磁盘 `df -h` | 检查 MySQL 容器与 dreamer-net、数据盘剩余空间；不要直接删除 MySQL 数据文件 |
 | 健康检查 503，redis=error | ECS 上现有 Redis 容器日志 | 检查 Redis 容器与 dreamer-net；AOF 损坏时使用 Redis 工具修复 |
 | 502 Bad Gateway | `docker compose -f docker-compose.app.yml ps`、`logs api` | api 启动失败多为 .env 缺项（日志会写明哪个变量）；修正后 `up -d api` |
 | 发布时迁移失败 | 流水线日志里的迁移报错 | 版本未切换、服务不受影响；修迁移后重新发布（不要改已合并的迁移文件，写新的） |

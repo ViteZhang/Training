@@ -1,5 +1,4 @@
 .git
-bin
 evals/private
 .env
 *.local
