@@ -1,12 +1,10 @@
 # Go 二进制由云效 Go 构建任务生成到 bin/；这里负责组装运行镜像。
-# FONT_IMAGE 和 RUNTIME_IMAGE 在国内构建时可传入 ACR 中同步的镜像地址。
-ARG FONT_IMAGE=golang:1.27
-ARG RUNTIME_IMAGE=gcr.io/distroless/static-debian12:nonroot
+# 两个镜像地址必须显式传入 ACR 中的镜像，避免默认回源 Docker Hub 或 GCR。
+ARG FONT_IMAGE
+ARG RUNTIME_IMAGE
 
 FROM ${FONT_IMAGE} AS fonts
-# 导出题库的 PDF 需要 TrueType 字体：中文 Droid Sans Fallback（Apache 2.0）、字母数字 DejaVu Sans（自由许可）；
-# 运行镜像不含字体，从构建阶段复制过去。
-RUN apt-get update && apt-get install -y --no-install-recommends fonts-droid-fallback fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
+# FONT_IMAGE 是一次性构建并推送到 ACR 的字体资源镜像，日常发布不再运行 apt-get。
 
 # distroless 自带 CA 证书与时区数据，不含 shell，以非 root 运行。
 # 用 CMD 而不是 ENTRYPOINT：compose 里 command 写完整命令（/app/api、/app/worker、/app/api migrate up）。

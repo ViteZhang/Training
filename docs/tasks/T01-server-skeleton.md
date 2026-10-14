@@ -51,7 +51,7 @@
   - 依赖与理由：gin（路由，CLAUDE.md 选型）、go-sql-driver/mysql、go-redis/v9、asynq、goose/v3（迁移）、oapi-codegen/runtime（生成代码运行时）、testcontainers-go（集成测试）；工具 oapi-codegen、golangci-lint 用 go.mod 的 tool 指令锁版本
 - 偏离计划的地方与原因：
   - 没有用 goose 命令行，改为 `api migrate` 子命令：goose 命令行会把所有数据库驱动都编译进来，且生产镜像里本来就需要能执行迁移
-  - Go 代码由云效 Go 环境编译；Dockerfile 使用 `FONT_IMAGE` 与 `RUNTIME_IMAGE` 构建参数，在国内构建时传入 ACR 中同步的 golang 与 distroless 镜像
+  - Go 代码由云效 Go 环境编译；Dockerfile 使用 `FONT_IMAGE` 与 `RUNTIME_IMAGE` 构建参数，字体资源镜像一次性构建到 ACR，运行镜像使用 ACR 中的 distroless 镜像
   - golangci-lint 用 v2.14.0：v2.5.0 不支持 Go 1.27 标准库
 - 需要手动验证的步骤：
   - 本机 `make dev` 后 `curl localhost:8080/api/v1/health` 返回 200（已在开发环境验证）

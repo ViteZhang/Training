@@ -64,8 +64,11 @@ build:
 	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/api ./cmd/api
 	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/worker ./cmd/worker
 
-docker: build
-	docker build -t peetraining-server:$(VERSION) .
+docker:
+	@test -n "$(FONT_IMAGE)" || (echo "请设置 FONT_IMAGE=<ACR 中的一次性 PDF 字体资源镜像>" && exit 2)
+	@test -n "$(RUNTIME_IMAGE)" || (echo "请设置 RUNTIME_IMAGE=<ACR 中的 distroless 运行镜像>" && exit 2)
+	$(MAKE) build VERSION=$(VERSION)
+	docker build --build-arg "FONT_IMAGE=$(FONT_IMAGE)" --build-arg "RUNTIME_IMAGE=$(RUNTIME_IMAGE)" -t peetraining-server:$(VERSION) .
 
 ## api-tag v=api-v0.3：给接口契约打标签，供前端 pnpm gen:api 拉取
 api-tag:

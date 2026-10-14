@@ -83,7 +83,7 @@ cd /opt/training
 cp <仓库>/deploy/.env.app.example .env
 chmod 600 .env
 # ACR 若为私有仓库，在应用机预先登录，之后云效部署任务不必传 ACR 密码
-docker login --username <ACR 用户名> registry.cn-beijing.aliyuncs.com
+docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com
 ```
 
 `deploy/.env.app.example` 是可以提交仓库的变量模板，真实 `/opt/training/.env` 不应提交。仓库已跟踪模板文件；不要为了提交真实配置而取消 `.gitignore` 对本地 `.env` 的忽略。先把 `CHANGE_ME` 全部替换掉，再核对：
@@ -115,22 +115,27 @@ docker login --username <ACR 用户名> registry.cn-beijing.aliyuncs.com
 
 1. 云效「代码管理」仓库选 `peetraining-server`，代码源分支先选 `main`。首次上线先用手动触发；验收通过后再打开 main 提交自动触发。
 2. 在「变量和缓存」中定义流水线变量 `VERSION`，选用符合 Docker tag 规则的版本号。Go 编译、原生镜像推送和 Docker 部署都使用同一个版本号。原生镜像任务使用 ACR 服务连接；部署私有镜像时，还需让 ECS 能拉取 ACR 镜像。
-   - 中国大陆构建机可能无法访问 GCR 或 Docker Hub。本项目 Dockerfile 需要两个基础镜像：运行时 `gcr.io/distroless/static-debian12:nonroot`，以及安装 PDF 字体用的 `golang:1.27`。在一台能拉取原镜像且能推送到你 ACR 的机器上同步一次。把下面地址替换成 ACR 控制台提供的公网域名、命名空间和用户名；`docker login` 会交互式询问密码：
+   - `FONT_IMAGE` 是 PDF 导出字体资源；`RUNTIME_IMAGE` 是 API/Worker 最终运行环境。基础镜像已导入到你的 ACR：
      ```bash
-     ACR_REGISTRY=registry.cn-beijing.aliyuncs.com
-     ACR_NAMESPACE=your_namespace
-     ACR_USERNAME=your_acr_username
-
-     docker login --username "$ACR_USERNAME" "$ACR_REGISTRY"
-     docker pull golang:1.27
-     docker tag golang:1.27 "$ACR_REGISTRY/$ACR_NAMESPACE/golang:1.27"
-     docker push "$ACR_REGISTRY/$ACR_NAMESPACE/golang:1.27"
-
-     docker pull gcr.io/distroless/static-debian12:nonroot
-     docker tag gcr.io/distroless/static-debian12:nonroot "$ACR_REGISTRY/$ACR_NAMESPACE/distroless-static-debian12:nonroot"
-     docker push "$ACR_REGISTRY/$ACR_NAMESPACE/distroless-static-debian12:nonroot"
+     ACR_REGISTRY=crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com
+     ACR_NAMESPACE=dreamer-lab
      ```
-     云效镜像任务所用 ACR 服务连接必须能拉取上述两个私有基础镜像，并能推送项目镜像。基础镜像地址不是密码，不需要设为加密变量。
+     本地不安装 Docker 时，可用 Skopeo 在镜像仓库之间直接复制。登录时输入 ACR 个人实例的用户名和访问凭证，不要使用 `sudo`。本机无法直连 Docker Hub/GCR 时，下面使用已验证可访问的镜像代理；复制完成后可用 `skopeo inspect --raw docker://<ACR地址>/<命名空间>/<仓库>:<tag>` 检查 manifest。
+     ```bash
+     brew install skopeo
+     skopeo login crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com
+     skopeo copy --all docker://docker.1ms.run/library/debian:bookworm-slim \
+       docker://crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com/dreamer-lab/debian:bookworm-slim
+     skopeo copy --all docker://gcr.m.daocloud.io/distroless/static-debian12:nonroot \
+       docker://crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com/dreamer-lab/distroless-static-debian12:nonroot
+     ```
+     两个 tag 的 ACR manifest digest 应分别与代理源一致；不要在每次发布任务里重新拉取公网镜像。
+   - **字体镜像一次性构建**：基础 Debian 镜像导入后，在云效运行一次现有「镜像构建并推送至 ACR」任务，Dockerfile 路径设为 `deploy/docker/Dockerfile.fonts`，构建上下文为仓库根目录，镜像仓库设为 `crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com/dreamer-lab/peetraining-fonts`，tag 设为 `bookworm`，构建参数填：
+     ```text
+     --build-arg FONT_BASE_IMAGE=crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com/dreamer-lab/debian:bookworm-slim
+     ```
+     这一步只需在字体或基础 Debian 版本变更时重跑。完成后 ACR 中会有一个只包含 Droid Sans Fallback 与 DejaVu Sans 字体文件的小镜像，日常服务发布不会再执行 `apt-get`。
+     云效镜像任务所用 ACR 服务连接需要对 `dreamer-lab` 命名空间有拉取基础镜像和推送镜像的权限。
 3. 按流水线节点配置阶段：
    - **测试**：添加「执行命令」任务，使用带 Docker 的 Linux 构建机，执行 `bash deploy/ci/test.sh`。
    - **Go 构建**：保留截图中的「安装 Go」步骤，选择 Go 1.27 和 Linux/amd64；在「执行 Golang 构建命令」中勾选指定运行 Shell 并选择 Bash，然后粘贴：
@@ -153,11 +158,11 @@ docker login --username <ACR 用户名> registry.cn-beijing.aliyuncs.com
      printf 'VERSION=%s\n' "$VERSION" > .release-version
      ```
    - **构建物上传**：上传 `bin/`、`.release-version`、`Dockerfile`、`.dockerignore` 和 `deploy/`，保留这些相对路径。后续镜像构建任务和 Docker 部署任务都下载这个构建物。镜像任务在构建物根目录下应能看到 Dockerfile 与 `bin/api`、`bin/worker`；部署任务应能看到 `deploy/ci/deploy.sh` 和 `deploy/scripts/`。不要上传 `.env` 或其他密钥。
-   - **镜像构建并推送**：保留你已有的云效原生任务，使用截图里的 ACR 服务连接；构建源选择上一步的构建物。镜像仓库填 `registry.cn-beijing.aliyuncs.com/<命名空间>/peetraining-server`（换成你的 ACR 地址），tag 填同一个流水线变量 `VERSION`。Dockerfile 路径填 `Dockerfile`，ContextPath 指向构建物根目录（其中应能直接看到 `bin/`）。「更多构建参数」填：
+   - **镜像构建并推送**：保留你已有的云效原生任务，使用截图里的 ACR 服务连接；构建源选择上一步的构建物。镜像仓库填 `crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com/dreamer-lab/peetraining-server`，tag 填同一个流水线变量 `VERSION`。Dockerfile 路径填 `Dockerfile`，ContextPath 指向构建物根目录（其中应能直接看到 `bin/`）。「更多构建参数」填：
      ```text
-     --build-arg FONT_IMAGE=registry.cn-beijing.aliyuncs.com/your_namespace/golang:1.27 --build-arg RUNTIME_IMAGE=registry.cn-beijing.aliyuncs.com/your_namespace/distroless-static-debian12:nonroot
+     --build-arg FONT_IMAGE=crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com/dreamer-lab/peetraining-fonts:bookworm --build-arg RUNTIME_IMAGE=crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com/dreamer-lab/distroless-static-debian12:nonroot
      ```
-     将示例地址替换为自己的 ACR 地址。二进制由 Go 步骤编译，Dockerfile 在此处直接复制进运行镜像；若 `bin/api` 或 `bin/worker` 不在构建上下文根目录，镜像构建会因 `COPY` 找不到文件而失败。
+     Go 二进制由 Go 步骤编译，Dockerfile 在此处直接复制进运行镜像；若 `bin/api` 或 `bin/worker` 不在构建上下文根目录，镜像构建会因 `COPY` 找不到文件而失败。
    - **Docker 部署**：主机组选应用 ECS，执行用户选可运行 Docker 的部署账号；下载同一个构建物并将执行目录设为它的根目录。脚本步骤选择 Bash，并配置如下命令：
      ```bash
      set -euo pipefail

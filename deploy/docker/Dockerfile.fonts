@@ -1,0 +1,10 @@
+# 一次性构建 PDF 导出所需字体资源镜像；应用发布时直接从 ACR 复制字体，不再安装软件包。
+ARG FONT_BASE_IMAGE
+FROM ${FONT_BASE_IMAGE} AS font-packages
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends fonts-droid-fallback fonts-dejavu-core \
+ && rm -rf /var/lib/apt/lists/*
+
+FROM scratch
+COPY --from=font-packages /usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf /usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf
+COPY --from=font-packages /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
