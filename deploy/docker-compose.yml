@@ -1,11 +1,11 @@
 # 应用服务：api、worker、asynqmon。
-# ECS 已有 dreamer-nginx、dreamer-mysql、dreamer-redis，本文件不再重复启动网关或数据库。
-# 在 /opt/training 下运行：docker compose -f docker-compose.app.yml --env-file .env up -d
-# .env 由 runbook 第 4 步创建，包含 IMAGE 与全部应用环境变量（不进仓库）。
+# /opt/dreamer/project/training/docker-compose.yml 与 .env 只需首次准备；日常发布执行 cd /opt/dreamer/project/training && docker-compose up -d。
+# Docker Compose v2 每次 up 都会先拉取 latest，再按镜像摘要更新容器。
 name: training
 
 x-app: &app
-  image: ${IMAGE:?需要在 .env 里设置 IMAGE}:latest
+  image: ${IMAGE:?需要在 /opt/dreamer/project/training/.env 里设置 IMAGE}:latest
+  pull_policy: always
   env_file: .env
   restart: unless-stopped
   logging:
@@ -23,7 +23,13 @@ services:
     networks:
       dreamer-net:
         aliases: [training-api]
-    stop_grace_period: 40s # 大于 SHUTDOWN_TIMEOUT（30s），让进行中的请求做完
+    stop_grace_period: 40s
+    healthcheck:
+      test: ["CMD", "/app/api", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   worker:
     <<: *app

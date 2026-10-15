@@ -86,4 +86,4 @@ docs/           PRD、研发规格、任务卡、ADR
 
 ## 发布
 
-见 [docs/runbook.md](docs/runbook.md)：首次搭建、发布与故障排查（`deploy/scripts/release.sh`）。
+见 [docs/runbook.md](docs/runbook.md)：首次搭建、发布与故障排查。日常发布在应用机 `/opt/dreamer/project/training` 执行 `docker-compose up -d`。

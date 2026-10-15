@@ -12,7 +12,7 @@
 - MySQL 8（InnoDB、utf8mb4、utf8mb4_0900_ai_ci），自建在数据库机的 Docker 里，数据放独立数据盘
 - 连接强制 parseTime、会话时区 UTC：数据库时间一律存 UTC 的 DATETIME(3)，业务日期在应用层按 Asia/Shanghai 换算
 - 查询用 sqlc 从 SQL 生成类型安全的代码（T03 接入），不用 ORM
-- 迁移用 goose，SQL 文件顺序编号、内嵌进二进制；发布前由运维单独执行 `api migrate up`；应用发布脚本不自动改库；已合并的迁移不修改，字段只加不删
+- 迁移用 goose，SQL 文件顺序编号、内嵌进二进制；发布前由运维单独执行 `api migrate up`；Docker Compose 发布不自动改库；已合并的迁移不修改，字段只加不删
 - 集成测试用 testcontainers 起真实 MySQL，每个测试独占一个数据库
 
 ## 放弃的方案与原因

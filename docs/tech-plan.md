@@ -52,7 +52,7 @@
 
 - 只有本地和生产两套环境。本地不启动 Docker 数据库，直连 ECS 上预先初始化的 MySQL 与 Redis；短信、AI、OCR、支付默认 mock
 - 生产：training.dreamelab.cn，内测即生产。发布迁移只加不删，删除字段分两次发布；新功能先用功能开关对自己的账号打开；内测用户 50 人以内
-- 发布流程：云效 Go 1.25.3 构建 → 构建镜像并以 `latest` 推送 ACR → 应用机 docker compose pull 与 up；数据库迁移在发布前单独完成；后台网页由流水线构建后同步到 Nginx 目录
+- 发布流程：云效 Go 1.25.3 构建 → 构建镜像并以 `latest` 推送 ACR → 应用机执行 `docker-compose up -d`（Compose 自动拉取 latest）；数据库迁移在发布前单独完成；后台网页由流水线构建后同步到 Nginx 目录
 
 ## 交接要求
 
