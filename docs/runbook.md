@@ -80,12 +80,14 @@ cp <仓库>/deploy/docker-compose.yml /opt/dreamer/project/training/docker-compo
 cp <仓库>/deploy/.env.app.example /opt/dreamer/project/training/.env
 chmod 600 /opt/dreamer/project/training/.env
 cd /opt/dreamer/project/training
-docker-compose version # 必须是 Docker Compose v2
+docker compose version # 必须是 Docker Compose v2 插件
 # 私有 ACR 只需在应用机登录一次，凭据由 Docker 保存在服务器上
 docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com
 ```
 
 `docker login`、`.env` 文件所有权和云效部署节点使用同一个 Linux 用户；该用户需要能访问 Docker daemon。
+
+如果 `/opt/dreamer/project/training` 是空目录，这是首次部署，必须先把仓库中的 `deploy/docker-compose.yml` 复制到该目录，并复制 `.env.app.example` 为 `.env` 后填写生产值。`docker-compose.yml` 是配置文件名；Docker Compose v2 的命令写作 `docker compose`（中间有空格）。Compose 不会从已有容器推断项目目录或自动生成这两个文件。
 
 `deploy/.env.app.example` 是可以提交仓库的变量模板，真实 `/opt/dreamer/project/training/.env` 不应提交。仓库已跟踪模板文件；不要为了提交真实配置而取消 `.gitignore` 对本地 `.env` 的忽略。先把 `CHANGE_ME` 全部替换掉，再核对：
 
@@ -102,7 +104,7 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
 | `OSS_*`、`OCR_*`、`ASR_*`、`MODERATION_*` | 真实云服务凭据 | 当前代码尚未接入生产 provider，不能仅靠填 Key 启用 |
 | `WECHAT_PAY_*`、`ALIPAY_*`、`APPLE_IAP_*` | 已开通支付渠道的完整凭据 | 只在开放对应支付渠道时填写，并将 `PAY_PROVIDER=real` |
 
-镜像统一使用 ACR 的 `latest` tag，不需要配置 `VERSION`。Compose 每次启动都会拉取最新镜像；API 健康探测由镜像内的 `/app/api healthcheck` 执行，可用 `docker-compose ps` 查看状态。
+镜像统一使用 ACR 的 `latest` tag，不需要配置 `VERSION`。Compose 每次启动都会拉取最新镜像；API 健康探测由镜像内的 `/app/api healthcheck` 执行，可用 `docker compose ps` 查看状态。
 
 应用实际连接的是 Docker 网络内的容器名，不是 ECS 公网 IP。执行 `docker ps` 确认 MySQL、Redis 容器名；再用 `docker network inspect dreamer-net` 确认这些容器和本项目都在同一个网络。数据库密码建议使用 `openssl rand -hex 24`，避免 DSN 分隔符影响解析。
 
@@ -163,15 +165,21 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
      ```
      Go 二进制由 Go 步骤编译，Dockerfile 在此处直接复制进运行镜像；若 `bin/api` 或 `bin/worker` 不在构建上下文根目录，镜像构建会因 `COPY` 找不到文件而失败。
      如果日志在镜像构建开始前就报 `dockerAcrPersonal`、`GetAuthorizationToken`、`AUTHENTICATION_FAILED` 或 `user jurisdiction error`，这是云效 ACR 服务连接使用的阿里云身份没有获取 ACR 授权令牌的权限。核对该连接绑定的阿里云账号/RAM 用户是否就是拥有此 ACR 实例的账号；给连接实际使用的 RAM 用户授予 ACR 管理权限后，回到云效重新授权或保存服务连接，再重跑流水线。不要改 Dockerfile、Go 命令或镜像构建参数来处理这个错误。
-   - **Docker 部署**：主机组选应用 ECS，执行用户选可运行 Docker 的部署账号；不下载构建物。脚本步骤填写：
+   - **Docker 部署**：主机组选应用 ECS，执行用户选可运行 Docker 的部署账号；不下载构建物。确保服务器目录已按第 4 步放入 `docker-compose.yml` 和填写好的 `.env`。脚本步骤填写：
      ```bash
-     cd /opt/dreamer/project/training && docker-compose up -d
+     set -eu
+     cd /opt/dreamer/project/training || exit 1
+     test -f docker-compose.yml || { echo "缺少 /opt/dreamer/project/training/docker-compose.yml，请先按首次部署步骤复制 Compose 文件" >&2; exit 1; }
+     test -f .env || { echo "缺少 /opt/dreamer/project/training/.env，请先配置生产环境变量" >&2; exit 1; }
+     docker compose version
+     docker compose up -d
+     docker compose ps
      ```
    - 私有 ACR 登录：在首次准备 ECS 时执行一次 `docker login`，之后 Compose 使用服务器保存的凭据拉取镜像。不要把 ACR 密码配置到每次部署任务中；云效构建节点的登录态不会自动传到 ECS。
    - `bash deploy/ci/build-push.sh` 是另一种完整构建并推送方案；选择它时才由脚本构建镜像，不要和云效原生镜像推送任务同时使用。
 5. 应用 ECS 安装云效主机部署 Agent；`/opt/dreamer/project/training/docker-compose.yml`、权限为 `600` 的 `/opt/dreamer/project/training/.env` 和现有 `dreamer-net` 网络必须预先存在。云效部署节点在该目录执行 Compose 命令。
 
-验证：provider 实现完成后，手动运行流水线；构建和部署都成功，`docker-compose ps` 中 api 状态为 healthy，`https://training.dreamelab.cn/api/v1/health` 返回 200。Compose 会自动拉取 ACR 中的 `latest` 镜像。Asynqmon 随 Compose 启动，只绑定应用机回环地址。首次成功后再启用 main 自动触发。
+验证：provider 实现完成后，手动运行流水线；构建和部署都成功，`docker compose ps` 中 api 状态为 healthy，`https://training.dreamelab.cn/api/v1/health` 返回 200。Compose 会自动拉取 ACR 中的 `latest` 镜像。Asynqmon 随 Compose 启动，只绑定应用机回环地址。首次成功后再启用 main 自动触发。
 
 ### 6. G1 验收清单
 
@@ -188,7 +196,7 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
 
 ```
 read -s ADMIN_INITIAL_PASSWORD && export ADMIN_INITIAL_PASSWORD
-docker-compose run --rm -e ADMIN_INITIAL_PASSWORD api create-admin <账号> <显示名> <手机号> admin
+docker compose run --rm -e ADMIN_INITIAL_PASSWORD api create-admin <账号> <显示名> <手机号> admin
 unset ADMIN_INITIAL_PASSWORD
 ```
 
@@ -210,7 +218,7 @@ unset ADMIN_INITIAL_PASSWORD
    | 告警 | 阈值 | 先做什么 |
    | --- | --- | --- |
    | http_errors | 近 15 分钟 5xx 占比 > 2%（至少 50 个请求） | 按 route 聚合 status ≥ 500 的日志，看是哪个接口；必要时回滚 |
-   | queue_backlog:<队列> | 等待 > 200 个，或最老任务等了 > 10 分钟 | worker 是否在跑（`docker-compose ps`）；asynqmon 看失败最多的任务 |
+   | queue_backlog:<队列> | 等待 > 200 个，或最老任务等了 > 10 分钟 | worker 是否在跑（`docker compose ps`）；asynqmon 看失败最多的任务 |
    | ai_failures | 近 15 分钟 AI 调用失败率 > 10%（至少 20 次） | 后台 7.8 看哪个能力在失败；模型平台故障时会自动切备用，提示词问题回滚灰度 |
    | ai_cost_user / ai_cost_revenue | 每活跃用户每天成本超预算；本月成本占收入超上限（7.8 可改） | 下调免费额度或暂时关闭高成本功能 |
    另在 SLS 上配一条兜底告警：5 分钟内没有任何 `log_type=alert` 以外的 worker 日志（worker 挂了时它自己发不出告警）。
@@ -228,9 +236,9 @@ unset ADMIN_INITIAL_PASSWORD
 
 ## 二、日常发布
 
-- 发布：合并到 main 自动触发流水线。数据库迁移需在发布前单独完成；流水线把镜像推送为 `latest`，云效部署节点在 `/opt/dreamer/project/training` 执行 `docker-compose up -d`，Compose 自动拉取并更新容器。
-- 手动重新拉取并发布：应用机上执行 `cd /opt/dreamer/project/training && docker-compose up -d`。
-- 健康检查失败：查看 `docker-compose ps` 和 `docker-compose logs api worker`，修复配置或代码后重新运行流水线；Compose 不会执行数据库迁移。
+- 发布：合并到 main 自动触发流水线。数据库迁移需在发布前单独完成；流水线把镜像推送为 `latest`，云效部署节点在 `/opt/dreamer/project/training` 执行 `docker compose up -d`，Compose 自动拉取并更新容器。
+- 手动重新拉取并发布：应用机上执行 `cd /opt/dreamer/project/training && docker compose up -d`。
+- 健康检查失败：查看 `docker compose ps` 和 `docker compose logs api worker`，修复配置或代码后重新运行流水线；Compose 不会执行数据库迁移。
 - 新功能先用功能开关只对自己的账号打开（后台 7.8），在生产上自测后再对全部用户打开。
 - 查看队列：`ssh -L 8081:127.0.0.1:8081 应用机`，浏览器打开 http://localhost:8081（asynqmon 只绑定在本机回环地址）。
 
@@ -240,12 +248,12 @@ unset ADMIN_INITIAL_PASSWORD
 | --- | --- | --- |
 | 健康检查 503，mysql=error | ECS 上现有 MySQL 容器日志、磁盘 `df -h` | 检查 MySQL 容器与 dreamer-net、数据盘剩余空间；不要直接删除 MySQL 数据文件 |
 | 健康检查 503，redis=error | ECS 上现有 Redis 容器日志 | 检查 Redis 容器与 dreamer-net；AOF 损坏时使用 Redis 工具修复 |
-| 502 Bad Gateway | `docker-compose ps`、`docker-compose logs api` | api 启动失败多为 .env 缺项（日志会写明哪个变量）；修正后在 `/opt/dreamer/project/training` 执行 `docker-compose up -d` |
+| 502 Bad Gateway | `docker compose ps`、`docker compose logs api` | api 启动失败多为 .env 缺项（日志会写明哪个变量）；修正后在 `/opt/dreamer/project/training` 执行 `docker compose up -d` |
 | 数据库结构不匹配 | 应用日志里的 SQL/字段报错 | 先单独执行已审核的迁移 SQL，再重新发布（不要改已合并的迁移文件，写新的） |
 | 队列积压 | asynqmon 各队列 pending 数 | 看 worker 日志里失败最多的任务类型；AI 服务异常时在后台 7.8 回滚提示词版本或模型 |
 | AI 成本异常 | 后台 7.8 成本统计 | 下调免费额度（7.8）或暂时关闭对应功能开关 |
 | 用户付了钱没开通会员 | api 日志搜订单号：「支付回调验签失败」「支付回调开通失败」「订单重复支付」；订单表 status | 验签失败多为平台公钥或 APIv3 密钥配错；金额不符、重复支付需人工核对后在后台 7.3 处理（ADR 0011）；渠道会按自身策略重发回调，修好配置后通常自动补开通 |
 | 证书过期 | 浏览器提示 | 续期并替换 certs 下的文件，`nginx -s reload` |
 
-日志：容器日志 `docker-compose logs --since 1h api`；SLS 采集应用机 `/var/lib/docker/containers/*/*-json.log`（T32 配置告警）。
+日志：容器日志 `docker compose logs --since 1h api`；SLS 采集应用机 `/var/lib/docker/containers/*/*-json.log`（T32 配置告警）。
 日志里没有手机号明文、作答原文和资料原文，排查用户问题用请求 ID（响应头 X-Request-ID）定位。

@@ -1,5 +1,5 @@
 # 应用服务：api、worker、asynqmon。
-# /opt/dreamer/project/training/docker-compose.yml 与 .env 只需首次准备；日常发布执行 cd /opt/dreamer/project/training && docker-compose up -d。
+# /opt/dreamer/project/training/docker-compose.yml 与 .env 只需首次准备；日常发布执行 cd /opt/dreamer/project/training && docker compose up -d。
 # Docker Compose v2 每次 up 都会先拉取 latest，再按镜像摘要更新容器。
 name: training
 
