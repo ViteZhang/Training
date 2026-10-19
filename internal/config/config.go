@@ -23,6 +23,9 @@ const (
 // ProviderMock 是所有云服务的本地默认实现。
 const ProviderMock = "mock"
 
+// ProviderDisabled 显式关闭尚未接入或暂不开放的云服务，调用时返回不可用。
+const ProviderDisabled = "disabled"
+
 type Config struct {
 	AppEnv   string
 	HTTPAddr string
@@ -73,7 +76,7 @@ type ProviderConfig struct {
 // PayConfig 是支付配置（T25，ADR 0011）。PAY_PROVIDER=real 时按各渠道是否配置决定可用渠道；mock 只用于本地与测试。
 type PayConfig struct {
 	Provider string
-	// NotifyBaseURL 是支付平台回调本服务的地址前缀，如 https://training.dreamelab.cn/api/v1。
+	// NotifyBaseURL 是支付平台回调本服务的地址前缀，如 https://training.dreamerlab.cn/api/v1。
 	NotifyBaseURL string
 
 	WechatAppID             string
@@ -180,7 +183,7 @@ func load(getenv func(string) string) (*Config, error) {
 		Moderation: ProviderConfig{Provider: get("MODERATION_PROVIDER", ProviderMock)},
 		Pay: PayConfig{
 			Provider:                get("PAY_PROVIDER", ProviderMock),
-			NotifyBaseURL:           get("PAY_NOTIFY_BASE_URL", "https://training.dreamelab.cn/api/v1"),
+			NotifyBaseURL:           get("PAY_NOTIFY_BASE_URL", "https://training.dreamerlab.cn/api/v1"),
 			WechatAppID:             get("WECHAT_PAY_APP_ID", ""),
 			WechatMchID:             get("WECHAT_PAY_MCH_ID", ""),
 			WechatSerialNo:          get("WECHAT_PAY_SERIAL_NO", ""),

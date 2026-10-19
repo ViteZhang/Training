@@ -7,7 +7,7 @@
 | 层 | 选型 | 运行在 |
 | --- | --- | --- |
 | 移动端 | Expo SDK 57 + TypeScript + Expo Router，development build | EAS 打包 |
-| 管理后台 | React + Vite + TypeScript + React Router + Ant Design | 应用机 Nginx，training.dreamelab.cn/admin/ |
+| 管理后台 | React + Vite + TypeScript + React Router + Ant Design | 应用机 Nginx，training.dreamerlab.cn/admin/ |
 | 接口契约 | OpenAPI 3，契约先行，后端仓库维护 | — |
 | API 服务 | Go 1.25.3 + Gin | ECS · Docker Compose |
 | 后台任务 | Go Worker + Asynq（Redis 队列与定时） | ECS · Docker Compose |
@@ -28,7 +28,7 @@
 - App 和管理后台只调用 Go API；数据库、存储、模型和第三方服务都在 API 后面，客户端不持有任何云服务密钥
 - 应用机（4 核 16G）：nginx（HTTPS、反向代理、托管后台网页）、api、worker、asynqmon（仅内网）
 - 数据库机：mysql、redis，安全组只放行应用机内网访问；MySQL 数据放独立数据盘并启用云盘加密
-- 对外只有一个域名 training.dreamelab.cn：App 调 /api/v1/，后台接口 /api/v1/admin/，后台网页 /admin/
+- 对外只有一个域名 training.dreamerlab.cn：App 调 /api/v1/，后台接口 /api/v1/admin/，后台网页 /admin/
 - 耗时工作（资料解析、整卷批改、作文批改、导出、统计汇总）由 API 写入 Asynq 队列，Worker 执行；单题批改（≤ 8 秒）和 AI 解读（≤ 5 秒）由 API 直接调用模型
 - API 与 Worker 是同一个 Go 程序的两种启动方式
 
@@ -51,7 +51,7 @@
 ## 环境与发布
 
 - 只有本地和生产两套环境。本地不启动 Docker 数据库，直连 ECS 上预先初始化的 MySQL 与 Redis；短信、AI、OCR、支付默认 mock
-- 生产：training.dreamelab.cn，内测即生产。发布迁移只加不删，删除字段分两次发布；新功能先用功能开关对自己的账号打开；内测用户 50 人以内
+- 生产：training.dreamerlab.cn，内测即生产。发布迁移只加不删，删除字段分两次发布；新功能先用功能开关对自己的账号打开；内测用户 50 人以内
 - 发布流程：云效 Go 1.25.3 构建 → 构建镜像并以 `latest` 推送 ACR → 应用机执行 `docker compose up -d`（Compose 自动拉取 latest）；数据库迁移在发布前单独完成；后台网页由流水线构建后同步到 Nginx 目录
 
 ## 交接要求

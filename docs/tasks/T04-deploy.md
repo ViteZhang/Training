@@ -22,7 +22,7 @@
 
 ## 验收
 
-- G1：https://training.dreamelab.cn/api/v1/health 正常；/admin/ 能打开（可先放占位页）
+- G1：https://training.dreamerlab.cn/api/v1/health 正常；/admin/ 能打开（可先放占位页）
 - MySQL 与 Redis 从公网连不上，从应用机能连上
 - 改一行代码走一遍流水线，发布成功并通过健康检查
 

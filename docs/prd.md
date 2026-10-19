@@ -111,7 +111,7 @@ v3 相对 v2 的主要变化：
 | --- | --- | --- | --- |
 | 安卓 | 安装包（存放在 OSS） | 国内主流应用商店 | 内测期兑换码；正式版微信支付、支付宝 |
 | iOS | TestFlight | App Store | 内测期兑换码；正式版 App 内购买 |
-| 管理后台 | 网页 training.dreamelab.cn/admin/，仅内部账号 | 同左 | — |
+| 管理后台 | 网页 training.dreamerlab.cn/admin/，仅内部账号 | 同左 | — |
 
 ### 3.4 功能开关
 

@@ -1,6 +1,6 @@
 # 运维手册（runbook）
 
-生产只有一套：https://training.dreamelab.cn（API /api/v1/，后台 /admin/）。本项目复用现有 ECS 上的 `dreamer-mysql`、`dreamer-redis`、`dreamer-nginx`，应用容器加入同一个 `dreamer-net`。
+生产只有一套：https://training.dreamerlab.cn（API /api/v1/，后台 /admin/）。本项目复用现有 ECS 上的 `dreamer-mysql`、`dreamer-redis`、`dreamer-nginx`，应用容器加入同一个 `dreamer-net`。
 本手册按顺序列出需要在阿里云控制台、现有 ECS 和云效上手动完成的步骤，每一步都写了怎么验证。
 密钥只在控制台和服务器上填写，不写进仓库、文档和聊天。
 
@@ -10,6 +10,7 @@
 | --- | --- |
 | docker-compose.yml | 接入现有 `dreamer-net` 的 api、worker、asynqmon；每次启动自动拉取 latest |
 | .env.app.example | 可提交仓库的应用服务环境变量模板（只有占位值，不含真实密钥） |
+| nginx/training.conf | 合并到现有 Nginx 的域名与 HTTPS 配置片段 |
 | db/init.sql | 本地或新建项目库的完整手动初始化 SQL |
 | ci/test.sh、ci/build-push.sh | 可选 CI 脚本；当前流水线使用云效原生 Go 与 ACR 构建节点时不需要它们 |
 
@@ -95,24 +96,52 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
 
 | 配置 | 你需要填写什么 | 是否必填 |
 | --- | --- | --- |
-| `IMAGE` | ACR 完整镜像地址，含命名空间和 `peetraining-server` | 必填；必须与流水线 `ACR_REGISTRY/ACR_NAMESPACE` 拼出的地址一致 |
+| `IMAGE` | ACR 镜像仓库地址，含命名空间和 `peetraining-server`；不要带 `:latest`、`:v1.0` 等标签 | 必填；Compose 会自动追加 `:latest`，必须与流水线发布的仓库地址一致 |
 | `MYSQL_DSN` | training 应用账号、密码、MySQL 容器名和 `training` 库名 | 必填；账号应只授权 `training.*` |
 | `REDIS_ADDR` / `REDIS_PASSWORD` / `REDIS_DB` | Redis 容器名、密码及未被其他业务占用的库号 | 必填；无密码时密码留空，模板使用 DB 1 |
 | `JWT_SECRET` | 在安全终端运行 `openssl rand -hex 32` 生成 | 必填；不要重复使用本地开发值 |
 | `BAILIAN_API_KEY` | 百炼 API Key | 使用 AI 时必填；模板默认选择已接入的百炼客户端 |
-| `SMS_*` | 短信签名与模板 | 当前无法通过配置启用，代码还没有生产短信实现，见下方阻塞说明 |
-| `OSS_*`、`OCR_*`、`ASR_*`、`MODERATION_*` | 真实云服务凭据 | 当前代码尚未接入生产 provider，不能仅靠填 Key 启用 |
+| `SMS_*` | 当前使用 `SMS_PROVIDER=disabled` | 关闭时无法短信登录；接入真实短信实现后再填写签名与模板 |
+| `OSS_*`、`OCR_*`、`ASR_*`、`MODERATION_*` | 当前各 provider 使用 `disabled` | 关闭时相关业务不可用；不能仅靠填 Key 或改成 aliyun 启用 |
 | `WECHAT_PAY_*`、`ALIPAY_*`、`APPLE_IAP_*` | 已开通支付渠道的完整凭据 | 只在开放对应支付渠道时填写，并将 `PAY_PROVIDER=real` |
 
 镜像统一使用 ACR 的 `latest` tag，不需要配置 `VERSION`。Compose 每次启动都会拉取最新镜像；API 健康探测由镜像内的 `/app/api healthcheck` 执行，可用 `docker compose ps` 查看状态。
 
+如果出现 `peetraining-server:v1.0:latest` 和 `invalid reference format`，说明 `IMAGE` 已带标签，又被 Compose 追加了 `:latest`。把服务器 `.env` 的 `IMAGE` 改为不带标签的仓库地址；若部署节点导出了同名 `IMAGE` 环境变量，也需删除该标签，因为进程环境变量会优先于 `.env`。可在部署目录执行 `docker compose config --images` 核对最终镜像地址，再执行 `docker compose up -d`。
+
 应用实际连接的是 Docker 网络内的容器名，不是 ECS 公网 IP。执行 `docker ps` 确认 MySQL、Redis 容器名；再用 `docker network inspect dreamer-net` 确认这些容器和本项目都在同一个网络。数据库密码建议使用 `openssl rand -hex 24`，避免 DSN 分隔符影响解析。
 
-**当前不能直接正式上线。** `internal/cloud` 目前只有 mock 短信，production 明确拒绝 mock，而 `SMS_PROVIDER=aliyun` 也尚未实现；因此 API 和 Worker 会启动失败。OSS、OCR、ASR、内容安全也只有 mock provider。先完成这些生产 provider 接入和真实凭据验证，再执行首次发布。数据库迁移需要在发布前单独完成，Compose 不会自动执行迁移。
+**当前可以部署验证健康接口，但未具备完整业务能力。** 短信、OSS、OCR、ASR、内容安全使用 `disabled` 时，API 和 Worker 可以初始化，相关调用会返回不可用；不会发送短信或放行内容审核，因此后台与用户短信登录、文件上传及依赖审核的 AI 功能仍不可用。生产禁止 mock 短信，`aliyun` 仍表示尚未实现的 provider，不会自动降级。接入真实服务并验证后再开放业务。数据库迁移需要在发布前单独完成，Compose 不会自动执行迁移。
 
-现有 `dreamer-nginx` 负责 80/443、证书和前端静态文件。它需要加入 `dreamer-net`，并把 `/api/` 反向代理到 `http://training-api:8080`；证书、域名和 `/admin/` 仍按你现有 Nginx 配置管理。
+若启动日志出现 `微信支付商户私钥：不是合法的 PEM`，表示 `PAY_PROVIDER=real` 已启用微信渠道，但 `WECHAT_PAY_PRIVATE_KEY` 不是有效商户 API 私钥。暂不开通支付时设置 `PAY_PROVIDER=disabled`；已开通其他支付渠道且暂不使用微信时，将全部 `WECHAT_PAY_*` 清空，并保持其他渠道完整配置。需要启用微信时填写真实商户 API 私钥内容（不是文件路径、Nginx HTTPS 私钥或证书），单引号内可用字面量 `\n` 保存 PEM 换行；程序会还原后校验，不能用占位值跳过。
 
-验证：`dig training.dreamelab.cn` 解析到应用机；证书文件存在且权限 600。
+已有服务器 `.env` 需手动修改下面这些项，并先经现有流水线构建发布本次支持 `disabled` 的新镜像；旧镜像不识别 `disabled`：
+
+```dotenv
+APP_ENV=production
+SMS_PROVIDER=disabled
+OSS_PROVIDER=disabled
+OCR_PROVIDER=disabled
+ASR_PROVIDER=disabled
+MODERATION_PROVIDER=disabled
+PAY_PROVIDER=disabled
+```
+
+保持原有 MySQL、Redis、JWT 和真实 AI 配置，生产密钥不要贴入日志或聊天。更新 `.env` 后，在 `/opt/dreamer/project/training` 执行 `docker compose up -d`，随后使用 `docker compose ps` 和 `docker compose logs --tail 100 api worker` 检查启动状态。健康接口只验证 MySQL、Redis 等基础依赖，不代表已关闭的云能力可用。
+
+云能力与业务关系：
+
+| 能力 | 当前业务调用位置 | 暂时关闭的影响 |
+| --- | --- | --- |
+| 短信 | 用户登录验证码、后台登录二次验证 | 无法完成短信登录；阿里云开通后仍需后端真实 provider 接入 |
+| OSS | 上传原件、头像、手写照片、录音、导出文件及下载 | 文件相关能力不可用；阿里云开通后仍需后端真实 provider 接入 |
+| OCR / PDF | 照片资料识别、手写答案识别、PDF 解析 | 相关导入/识别入口不可用；当前 PDF 也通过 OCR 配置对应的解析接口 |
+| ASR | 当前用于口述背诵录音转文字 | 口述背诵不可用；文本背诵无需语音识别 |
+| 内容审核 | 导入资料文本、图片，以及生成答案、知识点讲解、变式题、批改评语等 AI 输出 | 资料导入和这些 AI 输出不会放行；不是仅影响一个独立审核页面 |
+
+现有 `dreamer-nginx` 负责 80/443、证书和前端静态文件。它需要加入 `dreamer-net`，并把新域名的请求反向代理到 `http://training-api:8080`。配置片段见 [deploy/nginx/training.conf](../deploy/nginx/training.conf)，DNS、证书挂载、配置合并与验证步骤见 [Nginx HTTPS 接入](nginx-https.md)。片段追加到现有 `http` 块内；本项目不重新占用宿主机 80/443/8080。`/admin/` 静态页面按前端部署方案另外配置。
+
+验证：`dig training.dreamerlab.cn` 解析到应用机；证书文件存在且权限 600。
 
 ### 5. 云效流水线
 
@@ -179,12 +208,12 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
    - `bash deploy/ci/build-push.sh` 是另一种完整构建并推送方案；选择它时才由脚本构建镜像，不要和云效原生镜像推送任务同时使用。
 5. 应用 ECS 安装云效主机部署 Agent；`/opt/dreamer/project/training/docker-compose.yml`、权限为 `600` 的 `/opt/dreamer/project/training/.env` 和现有 `dreamer-net` 网络必须预先存在。云效部署节点在该目录执行 Compose 命令。
 
-验证：provider 实现完成后，手动运行流水线；构建和部署都成功，`docker compose ps` 中 api 状态为 healthy，`https://training.dreamelab.cn/api/v1/health` 返回 200。Compose 会自动拉取 ACR 中的 `latest` 镜像。Asynqmon 随 Compose 启动，只绑定应用机回环地址。首次成功后再启用 main 自动触发。
+验证：provider 实现完成后，手动运行流水线；构建和部署都成功，`docker compose ps` 中 api 状态为 healthy，`https://training.dreamerlab.cn/api/v1/health` 返回 200。Compose 会自动拉取 ACR 中的 `latest` 镜像。Asynqmon 随 Compose 启动，只绑定应用机回环地址。首次成功后再启用 main 自动触发。
 
 ### 6. G1 验收清单
 
-- [ ] `curl https://training.dreamelab.cn/api/v1/health` 返回 200，`mysql`、`redis` 都是 `ok`
-- [ ] 浏览器打开 https://training.dreamelab.cn/admin/ 能看到页面
+- [ ] `curl https://training.dreamerlab.cn/api/v1/health` 返回 200，`mysql`、`redis` 都是 `ok`
+- [ ] 浏览器打开 https://training.dreamerlab.cn/admin/ 能看到页面
 - [ ] 从公网连 ECS 的 3306、6379 失败；应用容器能通过 dreamer-net 访问
 - [ ] 改一行代码提交，流水线自动发布成功；Compose 将 API 标记为 healthy，异常时可查看容器日志排查
 

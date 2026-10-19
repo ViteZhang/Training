@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"peetraining-server/internal/apperr"
+	"peetraining-server/internal/cloud"
 )
 
 // 错误码集中定义在这里（CLAUDE.md「约定」）。前端按 code 判断，message 直接展示给用户。
@@ -109,6 +110,9 @@ func AsError(err error) *Error {
 	var e *Error
 	if errors.As(err, &e) {
 		return e
+	}
+	if errors.Is(err, cloud.ErrDisabled) {
+		return newError(http.StatusServiceUnavailable, CodeServiceUnavailable, "该功能暂未启用").Wrap(err)
 	}
 	if ae, ok := apperr.As(err); ok {
 		out := fromKind(ae.Kind, ae.Message).Wrap(err)

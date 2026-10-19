@@ -42,15 +42,21 @@ var ErrUnknownProvider = errors.New("未知或尚未实现的服务商")
 func New(cfg *config.Config) (*Clients, error) {
 	var c Clients
 	var errs []error
-	pick := func(name, provider string, mock func()) {
+	pick := func(name, provider string, mock, disabled func()) {
 		switch provider {
 		case config.ProviderMock:
 			mock()
+		case config.ProviderDisabled:
+			if disabled != nil {
+				disabled()
+			} else {
+				errs = append(errs, fmt.Errorf("%s_PROVIDER=%q：%w", name, provider, ErrUnknownProvider))
+			}
 		default:
 			errs = append(errs, fmt.Errorf("%s_PROVIDER=%q：%w", name, provider, ErrUnknownProvider))
 		}
 	}
-	pick("SMS", cfg.SMS.Provider, func() { c.SMS = sms.NewMock() })
+	pick("SMS", cfg.SMS.Provider, func() { c.SMS = sms.NewMock() }, func() { c.SMS = disabledService("短信") })
 	hasBailian := cfg.AI.BailianBaseURL != "" && cfg.AI.BailianAPIKey != ""
 	switch cfg.AI.Provider {
 	case "bailian":
@@ -69,15 +75,17 @@ func New(cfg *config.Config) (*Clients, error) {
 			c.AIFallback = ai.NewOpenAI(cfg.AI.BailianBaseURL, cfg.AI.BailianAPIKey)
 		}
 	default:
-		pick("AI", cfg.AI.Provider, func() { c.AI = ai.NewMock() })
+		pick("AI", cfg.AI.Provider, func() { c.AI = ai.NewMock() }, nil)
 	}
 	if cfg.AI.AltBaseURL != "" && cfg.AI.AltAPIKey != "" {
 		// 对照平台：评测与故障时备用。
 		c.AIAlt = ai.NewOpenAI(cfg.AI.AltBaseURL, cfg.AI.AltAPIKey)
 	}
-	pick("OCR", cfg.OCR.Provider, func() { c.OCR, c.PDF = ocr.NewMock(), ocr.NewMock() })
-	pick("ASR", cfg.ASR.Provider, func() { c.ASR = asr.NewMock() })
-	pick("MODERATION", cfg.Moderation.Provider, func() { c.Moderation = moderation.NewMock() })
+	pick("OCR", cfg.OCR.Provider, func() { c.OCR, c.PDF = ocr.NewMock(), ocr.NewMock() }, func() {
+		c.OCR, c.PDF = disabledService("文字识别"), disabledService("PDF 解析")
+	})
+	pick("ASR", cfg.ASR.Provider, func() { c.ASR = asr.NewMock() }, func() { c.ASR = disabledService("语音识别") })
+	pick("MODERATION", cfg.Moderation.Provider, func() { c.Moderation = moderation.NewMock() }, func() { c.Moderation = disabledService("内容审核") })
 	switch cfg.Pay.Provider {
 	case "real":
 		r, err := newRealPay(cfg.Pay)
@@ -91,7 +99,7 @@ func New(cfg *config.Config) (*Clients, error) {
 			if !cfg.IsProduction() {
 				c.Pay = pay.NewMock(cfg.JWTSecret)
 			}
-		})
+		}, func() { c.Pay = nil })
 	}
 	pick("OSS", cfg.OSS.Provider, func() {
 		m := oss.NewMock()
@@ -99,7 +107,7 @@ func New(cfg *config.Config) (*Clients, error) {
 			m.BaseURL = cfg.OSS.MockBaseURL
 		}
 		c.OSS = m
-	})
+	}, func() { c.OSS = disabledService("文件存储") })
 
 	if cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock {
 		errs = append(errs, errors.New("生产环境不能使用 mock 短信"))
