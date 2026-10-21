@@ -3,7 +3,7 @@
 考研Training：考研文科专业课的 AI 提分教练。考生把自己的专业课资料和题目导进来，AI 解析成个人题库，按采分点批改主观题、安排每日复习，并依据考生自己导入的真题估算专业课分数。
 - 自建题库为主，不限院校；只做名词解释、简答、论述为主的文科专业课
 - 底部导航四个 Tab：今日、题库、训练、我的
-- App 显示名「考研Training」，包名 cn.dreamelab.training，都从配置读取，不写死
+- App 显示名「考研Training」，包名 cn.dreamerlab.training，都从配置读取，不写死
 
 本仓库包含 App（Expo）与管理后台（React）。后端在 peetraining-server 仓库（Go），两边只通过它的 api/openapi.yaml 对接。
 
@@ -67,7 +67,7 @@
 
 ## 环境与发布
 
-- 只有一个生产环境：API 为 https://training.dreamelab.cn/api/v1，管理后台 https://training.dreamelab.cn/admin/
+- 只有一个生产环境：API 为 https://training.dreamerlab.cn/api/v1，管理后台 https://training.dreamerlab.cn/admin/
 - 管理后台：云效流水线构建后同步到应用机 Nginx 的 /admin/ 目录
 - App：EAS Build 三个配置 development / preview（内测）/ production；安卓内测包放 OSS，iOS 走 TestFlight
 

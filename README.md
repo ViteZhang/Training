@@ -36,7 +36,7 @@ API_BASE_URL=http://<本机局域网 IP>:4010 npx expo run:ios       # 需要 Xc
 API_BASE_URL=http://<本机局域网 IP>:4010 npx expo run:android   # 需要 Android Studio
 ```
 
-环境变量（app.config.ts 读取）：`API_BASE_URL`（默认生产地址）、`APP_NAME`、`APP_ID`（默认 cn.dreamelab.training）、`APP_VARIANT`（development / preview / production）。
+环境变量（app.config.ts 读取）：`API_BASE_URL`（默认生产地址）、`APP_NAME`、`APP_ID`（默认 cn.dreamerlab.training）、`APP_VARIANT`（development / preview / production）。
 
 不打开模拟器也可以检查能否打包：`pnpm --filter mobile export`。
 
