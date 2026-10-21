@@ -88,7 +88,7 @@ PAY_PROVIDER、PAY_NOTIFY_BASE_URL、WECHAT_PAY_*、ALIPAY_*、APPLE_IAP_*、ALE
 
 ## 部署
 
-- 只有一个生产环境：https://training.dreamelab.cn，API 在 /api/v1/，管理后台在 /admin/
+- 只有一个生产环境：https://training.dreamerlab.cn，API 在 /api/v1/，管理后台在 /admin/
 - 应用机（4 核 16G）：nginx、api、worker、asynqmon（仅内网）；数据库机：mysql、redis，只对应用机开放内网端口
 - 云效流水线：测试 → 构建镜像 → 推送 ACR → 备份数据库 → 执行迁移 → docker compose pull 与 up；回滚把镜像版本改回上一个
 - 没有测试环境：新功能先用功能开关只对自己的账号打开

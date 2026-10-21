@@ -3,12 +3,12 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 /**
  * App 配置。显示名、包名、接口地址都从环境变量读取，不写死（CLAUDE.md）。
  *   APP_NAME            显示名，默认「考研Training」
- *   APP_ID              iOS Bundle ID 与安卓包名，默认 cn.dreamelab.training（D4）
- *   API_BASE_URL        接口地址，默认生产 https://training.dreamelab.cn/api/v1；本地开发指向 mock 或本机后端
+ *   APP_ID              iOS Bundle ID 与安卓包名，默认 cn.dreamerlab.training（D4）
+ *   API_BASE_URL        接口地址，默认生产 https://training.dreamerlab.cn/api/v1；本地开发指向 mock 或本机后端
  *   APP_VARIANT         development / preview / production（EAS 三个配置，T05）
  */
 const variant = process.env.APP_VARIANT ?? 'development';
-const appId = process.env.APP_ID ?? 'cn.dreamelab.training';
+const appId = process.env.APP_ID ?? 'cn.dreamerlab.training';
 const baseName = process.env.APP_NAME ?? '考研Training';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
@@ -63,7 +63,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ],
   experiments: { typedRoutes: true },
   extra: {
-    apiBaseUrl: process.env.API_BASE_URL ?? 'https://training.dreamelab.cn/api/v1',
+    apiBaseUrl: process.env.API_BASE_URL ?? 'https://training.dreamerlab.cn/api/v1',
     variant,
   },
 });

@@ -1,6 +1,6 @@
 # 运维手册（runbook）
 
-生产只有一套：https://training.dreamelab.cn（API /api/v1/，后台 /admin/）。全部资源在阿里云华北 2（北京）。
+生产只有一套：https://training.dreamerlab.cn（API /api/v1/，后台 /admin/）。全部资源在阿里云华北 2（北京）。
 本手册按顺序列出需要在阿里云控制台、云效、两台服务器上手动完成的步骤，每一步都写了怎么验证。
 密钥只在控制台和服务器上填写，不写进仓库、文档和聊天。
 
@@ -96,11 +96,11 @@ chmod 600 .env
 docker login --username <ACR 用户名> registry.cn-beijing.aliyuncs.com
 ```
 
-证书：在阿里云「数字证书管理服务」为 training.dreamelab.cn 申请免费 DV 证书，下载 Nginx 格式，放到
-`/opt/training/certs/training.dreamelab.cn.pem` 与 `.key`。证书到期前 30 天在控制台续期并替换文件，然后
+证书：在阿里云「数字证书管理服务」为 training.dreamerlab.cn 申请免费 DV 证书，下载 Nginx 格式，放到
+`/opt/training/certs/training.dreamerlab.cn.pem` 与 `.key`。证书到期前 30 天在控制台续期并替换文件，然后
 `docker compose -f docker-compose.app.yml exec nginx nginx -s reload`。
 
-DNS：training.dreamelab.cn 的 A 记录指向应用机公网 IP。
+DNS：training.dreamerlab.cn 的 A 记录指向应用机公网 IP。
 
 管理后台占位页（T05 之前）：`echo '<h1>考研Training 后台</h1>' > /opt/training/admin/index.html`
 
@@ -112,7 +112,7 @@ crontab -e
 ```
 （UTC 18:30 = 北京时间 02:30）
 
-验证：`dig training.dreamelab.cn` 解析到应用机；证书文件存在且权限 600。
+验证：`dig training.dreamerlab.cn` 解析到应用机；证书文件存在且权限 600。
 
 ### 5. 云效流水线
 
@@ -129,12 +129,12 @@ crontab -e
      ```
 5. 在应用机上安装云效主机部署 Agent（按控制台提示的命令执行）。
 
-验证：手动运行一次流水线，三个阶段都成功；`https://training.dreamelab.cn/api/v1/health` 返回 200，version 是这次的版本号。
+验证：手动运行一次流水线，三个阶段都成功；`https://training.dreamerlab.cn/api/v1/health` 返回 200，version 是这次的版本号。
 
 ### 6. G1 验收清单
 
-- [ ] `curl https://training.dreamelab.cn/api/v1/health` 返回 200，`mysql`、`redis` 都是 `ok`
-- [ ] 浏览器打开 https://training.dreamelab.cn/admin/ 能看到页面
+- [ ] `curl https://training.dreamerlab.cn/api/v1/health` 返回 200，`mysql`、`redis` 都是 `ok`
+- [ ] 浏览器打开 https://training.dreamerlab.cn/admin/ 能看到页面
 - [ ] 从公网连数据库机 3306、6379 失败；从应用机能连上
 - [ ] 手动执行 `/opt/training/scripts/backup-mysql.sh manual`，OSS 备份桶 `mysql/full/` 下有文件，并按「三、备份恢复」在本地恢复成功
 - [ ] 改一行代码提交，流水线自动发布成功；再执行一次 `/opt/training/scripts/rollback.sh`，健康检查通过且版本号回到上一个

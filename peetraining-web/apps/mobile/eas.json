@@ -7,20 +7,20 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "env": { "APP_VARIANT": "development", "API_BASE_URL": "https://training.dreamelab.cn/api/v1" },
+      "env": { "APP_VARIANT": "development", "API_BASE_URL": "https://training.dreamerlab.cn/api/v1" },
       "android": { "buildType": "apk" }
     },
     "preview": {
       "distribution": "internal",
       "channel": "preview",
-      "env": { "APP_VARIANT": "preview", "API_BASE_URL": "https://training.dreamelab.cn/api/v1" },
+      "env": { "APP_VARIANT": "preview", "API_BASE_URL": "https://training.dreamerlab.cn/api/v1" },
       "android": { "buildType": "apk" },
       "ios": { "distribution": "store" }
     },
     "production": {
       "channel": "production",
       "autoIncrement": true,
-      "env": { "APP_VARIANT": "production", "API_BASE_URL": "https://training.dreamelab.cn/api/v1" },
+      "env": { "APP_VARIANT": "production", "API_BASE_URL": "https://training.dreamerlab.cn/api/v1" },
       "android": { "buildType": "app-bundle" }
     }
   },
