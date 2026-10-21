@@ -207,7 +207,7 @@ func load(getenv func(string) string) (*Config, error) {
 			AppleIssuerID:           get("APPLE_IAP_ISSUER_ID", ""),
 			AppleKeyID:              get("APPLE_IAP_KEY_ID", ""),
 			ApplePrivateKey:         get("APPLE_IAP_PRIVATE_KEY", ""),
-			AppleBundleID:           get("APPLE_IAP_BUNDLE_ID", "cn.dreamelab.training"),
+			AppleBundleID:           get("APPLE_IAP_BUNDLE_ID", "cn.dreamerlab.training"),
 		},
 
 		AlertWebhookURL:       get("ALERT_WEBHOOK_URL", ""),
