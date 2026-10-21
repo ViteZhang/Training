@@ -12,9 +12,9 @@ ALTER TABLE refunds
 
 -- 会员档位沿用 00008 的 pricing（后台 7.8 改价格），补上 App Store 内购商品 ID。
 UPDATE rule_params SET value = JSON_SET(value,
-  '$.sprint.apple_product_id', 'cn.dreamelab.training.sprint',
-  '$.season.apple_product_id', 'cn.dreamelab.training.season',
-  '$.monthly.apple_product_id', 'cn.dreamelab.training.monthly'),
+  '$.sprint.apple_product_id', 'cn.dreamerlab.training.sprint',
+  '$.season.apple_product_id', 'cn.dreamerlab.training.season',
+  '$.monthly.apple_product_id', 'cn.dreamerlab.training.monthly'),
   description = 'PRD 13.2 会员档位（测试价，单位分）与 App Store 内购商品 ID'
 WHERE param_key = 'pricing';
 

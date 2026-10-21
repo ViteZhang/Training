@@ -25,7 +25,7 @@ parse_dsn() {
 
 # 等健康检查通过：https://域名/api/v1/health 返回 200
 wait_healthy() {
-  local url=${HEALTH_URL:-https://training.dreamelab.cn/api/v1/health}
+  local url=${HEALTH_URL:-https://training.dreamerlab.cn/api/v1/health}
   for _ in $(seq 1 30); do
     if curl -fsS --max-time 3 "$url" >/dev/null; then return 0; fi
     sleep 2
