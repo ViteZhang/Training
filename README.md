@@ -26,6 +26,8 @@ pnpm typecheck && pnpm lint && pnpm test
 
 ### App
 
+Android Studio / Xcode 官方下载、环境配置、真机调试及本地 APK / AAB / IPA 打包步骤见 [移动端打包教程](docs/mobile-build.md)。
+
 App 依赖原生模块（MMKV、SVG），需要 development build，不能用 Expo Go：
 
 ```bash
