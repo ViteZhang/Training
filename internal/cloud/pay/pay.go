@@ -167,6 +167,6 @@ func (m *Mock) AppleTransaction(ctx context.Context, transactionID string) (Appl
 	// 真实交易号是十几位数字；mock 的输入比 orders.transaction_id 长，取哈希缩短。
 	sum := sha256.Sum256([]byte(transactionID))
 	id := "MOCK" + hex.EncodeToString(sum[:8])
-	return AppleTransaction{TransactionID: id, OriginalTransactionID: id, BundleID: "cn.dreamelab.training", ProductID: parts[0],
+	return AppleTransaction{TransactionID: id, OriginalTransactionID: id, BundleID: "cn.dreamerlab.training", ProductID: parts[0],
 		AppAccountToken: parts[1], PurchaseDate: time.Now(), Environment: "Sandbox"}, nil
 }

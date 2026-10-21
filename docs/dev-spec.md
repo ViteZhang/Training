@@ -11,7 +11,7 @@
 | D1  | 首个版本范围 | 按设计稿全部内容开发（App 94 页 + 管理后台 15 页），用 Vibe Coding 方式约一周完成编码；依赖外部条件的功能（在线支付、官方题库、口述背诵、扫描版 PDF、邀请）做好后用功能开关控制开放 |
 | D2  | 视觉基准     | 页面结构与交互以设计稿为准，颜色、字体、Logo 以项目文件「考研Training-VI规范-v1.0.html」为准                                                                                        |
 | D3  | 业务规则依据 | 按最新调整写 PRD v3：[考研Training 产品需求文档（PRD）v3](https://claude.ai/code/artifact/b306694a-b6c4-44f8-9a88-ff59104519df)                                                     |
-| D4  | App 包名     | cn.dreamelab.training（iOS Bundle ID 与安卓包名相同）                                                                                                                               |
+| D4  | App 包名     | cn.dreamerlab.training（iOS Bundle ID 与安卓包名相同）                                                                                                                               |
 | D5  | 预估分算法   | 按 PRD v3 第 11.6 节                                                                                                                                                                |
 | D6  | 测试样本     | 你来收集：30 份真实题目文件 10 月 12 日前、20 道主观题 × 三档答案的人工评分 10 月 19 日前                                                                                           |
 
@@ -315,7 +315,7 @@
 | T02 | W     | 前端工程骨架：pnpm 工作区、Expo development build、四个 Tab、后台登录壳、ui-tokens（VI）、字体与图标资源、api-client 生成、mock 服务 | —                   | 10/5  |
 | T03 | S     | 数据模型 v1（第五节全部表）与 OpenAPI 契约：先出模块 0、1、3 与导入打 api-v0.1，其余模块随对应卡增量加入，10/11 冻结 api-v1.0          | T01                 | 10/6  |
 | T04 | S     | 部署：两台机的 compose、Nginx 与证书、云效流水线、runbook                                                                  | T01                 | 10/6  |
-| T05 | W     | 发布通道：后台同步到 /admin/、EAS 三个配置、包名 cn.dreamelab.training、安卓包放 OSS、TestFlight                                     | T02、T04            | 10/7  |
+| T05 | W     | 发布通道：后台同步到 /admin/、EAS 三个配置、包名 cn.dreamerlab.training、安卓包放 OSS、TestFlight                                     | T02、T04            | 10/7  |
 | T06 | S + W | 账号：短信验证码与限频、令牌与设备、协议版本、注销冷静期；模块 0 全部页面；6.11、6.12                                                | T03                 | 10/7  |
 | T07 | S + W | 备考档案与配置：专业课、目标分、阶段、提醒、rule_params、功能开关；1.1–1.3、6.9                                                      | T03                 | 10/7  |
 | T08 | S     | 资料上传与额度：预签名直传、materials、quota_ledger、内容安全、重复文件识别                                                          | T03                 | 10/8  |

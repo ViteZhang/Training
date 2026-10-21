@@ -171,8 +171,8 @@ func TestApple(t *testing.T) {
 	k, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	der, _ := x509.MarshalPKCS8PrivateKey(k)
 	keyPEM := string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
-	payload, _ := json.Marshal(map[string]any{"transactionId": "2000", "originalTransactionId": "2000", "bundleId": "cn.dreamelab.training",
-		"productId": "cn.dreamelab.training.monthly", "appAccountToken": "6F9619FF-8B86-D011-B42D-00C04FC964FF", "purchaseDate": 1_800_000_000_000, "environment": "Sandbox"})
+	payload, _ := json.Marshal(map[string]any{"transactionId": "2000", "originalTransactionId": "2000", "bundleId": "cn.dreamerlab.training",
+		"productId": "cn.dreamerlab.training.monthly", "appAccountToken": "6F9619FF-8B86-D011-B42D-00C04FC964FF", "purchaseDate": 1_800_000_000_000, "environment": "Sandbox"})
 	jws := "eyJhbGciOiJFUzI1NiJ9." + base64.RawURLEncoding.EncodeToString(payload) + ".sig"
 	var gotToken string
 	prod := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(404) }))
@@ -186,12 +186,12 @@ func TestApple(t *testing.T) {
 		_, _ = io.WriteString(w, `{"signedTransactionInfo":"`+jws+`"}`)
 	}))
 	defer sandbox.Close()
-	a, err := NewApple(AppleConfig{IssuerID: "iss", KeyID: "KID", PrivateKey: keyPEM, BundleID: "cn.dreamelab.training", ProductionURL: prod.URL, SandboxURL: sandbox.URL})
+	a, err := NewApple(AppleConfig{IssuerID: "iss", KeyID: "KID", PrivateKey: keyPEM, BundleID: "cn.dreamerlab.training", ProductionURL: prod.URL, SandboxURL: sandbox.URL})
 	if err != nil {
 		t.Fatal(err)
 	}
 	tx, err := a.Transaction(context.Background(), "2000")
-	if err != nil || tx.ProductID != "cn.dreamelab.training.monthly" || tx.AppAccountToken != "6f9619ff-8b86-d011-b42d-00c04fc964ff" || tx.Revoked {
+	if err != nil || tx.ProductID != "cn.dreamerlab.training.monthly" || tx.AppAccountToken != "6f9619ff-8b86-d011-b42d-00c04fc964ff" || tx.Revoked {
 		t.Fatalf("正式环境查不到时查沙盒：%+v %v", tx, err)
 	}
 	parsed, err := jwt.Parse(gotToken, func(*jwt.Token) (any, error) { return &k.PublicKey, nil }, jwt.WithAudience("appstoreconnect-v1"))
