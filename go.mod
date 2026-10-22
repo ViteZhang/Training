@@ -5,13 +5,17 @@ go 1.25.0
 require (
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.2.4
 	github.com/alibabacloud-go/dysmsapi-20170525/v4 v4.1.3
+	github.com/alibabacloud-go/green-20220302/v2 v2.23.0
+	github.com/alibabacloud-go/ocr-api-20210707/v3 v3.1.3
 	github.com/alibabacloud-go/tea v1.5.2
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.9
+	github.com/aliyun/alibabacloud-oss-go-sdk-v2 v1.6.0
 	github.com/getkin/kin-openapi v0.149.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hibiken/asynq v0.26.0
+	github.com/klippa-app/go-pdfium v1.19.8
 	github.com/oapi-codegen/gin-middleware v1.1.0
 	github.com/oapi-codegen/nullable v1.2.0
 	github.com/oapi-codegen/runtime v1.7.0
@@ -21,6 +25,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.44.0
 	github.com/testcontainers/testcontainers-go/modules/mysql v0.44.0
 	github.com/testcontainers/testcontainers-go/modules/redis v0.44.0
+	github.com/tetratelabs/wazero v1.12.0
 	github.com/xuri/excelize/v2 v2.11.0
 )
 
@@ -32,6 +37,7 @@ require (
 	github.com/aliyun/credentials-go v1.4.5 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/jolestar/go-commons-pool/v2 v2.1.2 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )

@@ -102,7 +102,8 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
 | `JWT_SECRET` | 在安全终端运行 `openssl rand -hex 32` 生成 | 必填；不要重复使用本地开发值 |
 | `BAILIAN_API_KEY` | 百炼 API Key | 使用 AI 时必填；模板默认选择已接入的百炼客户端 |
 | `SMS_*` | `SMS_PROVIDER=aliyun`，审核通过的 `SMS_SIGN_NAME`、`SMS_TEMPLATE_CODE`；模板变量不是 `code` 时设 `SMS_TEMPLATE_PARAM` | 必填（短信登录）；凭证用 `ALIYUN_ACCESS_KEY_ID` / `SECRET`，见下方「阿里云短信」 |
-| `OSS_*`、`OCR_*`、`ASR_*`、`MODERATION_*` | 当前各 provider 使用 `disabled` | 关闭时相关业务不可用；不能仅靠填 Key 或改成 aliyun 启用 |
+| `OSS_*`、`OCR_*`、`MODERATION_*` | 已接入阿里云，设为 `aliyun` 并按下方「OSS、文字识别、内容安全」开通；PDF 文字层由内嵌 PDFium 解析 | 资料上传与解析必填 OSS 与内容安全；照片与扫描版 PDF 另需文字识别 |
+| `ASR_*` | 语音识别还没有接入，保持 `disabled` | 口述背诵不可用 |
 | `WECHAT_PAY_*`、`ALIPAY_*`、`APPLE_IAP_*` | 已开通支付渠道的完整凭据 | 只在开放对应支付渠道时填写，并将 `PAY_PROVIDER=real` |
 
 镜像统一使用 ACR 的 `latest` tag，不需要配置 `VERSION`。Compose 每次启动都会拉取最新镜像；API 健康探测由镜像内的 `/app/api healthcheck` 执行，可用 `docker compose ps` 查看状态。
@@ -111,19 +112,19 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
 
 应用实际连接的是 Docker 网络内的容器名，不是 ECS 公网 IP。执行 `docker ps` 确认 MySQL、Redis 容器名；再用 `docker network inspect dreamer-net` 确认这些容器和本项目都在同一个网络。数据库密码建议使用 `openssl rand -hex 24`，避免 DSN 分隔符影响解析。
 
-**短信已接入阿里云（`SMS_PROVIDER=aliyun`）。** OSS、OCR、ASR、内容安全使用 `disabled` 时，API 和 Worker 可以初始化，相关调用会返回不可用；不会发送短信或放行内容审核，因此文件上传及依赖审核的 AI 功能仍不可用。生产禁止 mock 短信；OSS、OCR、ASR、内容安全的 `aliyun` 仍表示尚未实现的 provider，填了会启动失败，不会自动降级。接入真实服务并验证后再开放业务。数据库迁移需要在发布前单独完成，Compose 不会自动执行迁移。
+**短信、OSS、文字识别、内容安全已接入阿里云（`*_PROVIDER=aliyun`）；语音识别（ASR）还没有接入。** 某项设为 `disabled` 时 API 和 Worker 照常启动，相关调用返回不可用，不会伪造成功结果；例如内容安全关闭时资料导入和 AI 生成都不会放行。`aliyun` 缺配置时 api 与 worker 启动直接报错并写明缺哪个变量。生产禁止 mock 短信。数据库迁移需要在发布前单独完成，Compose 不会自动执行迁移。
 
 若启动日志出现 `微信支付商户私钥：不是合法的 PEM`，表示 `PAY_PROVIDER=real` 已启用微信渠道，但 `WECHAT_PAY_PRIVATE_KEY` 不是有效商户 API 私钥。暂不开通支付时设置 `PAY_PROVIDER=disabled`；已开通其他支付渠道且暂不使用微信时，将全部 `WECHAT_PAY_*` 清空，并保持其他渠道完整配置。需要启用微信时填写真实商户 API 私钥内容（不是文件路径、Nginx HTTPS 私钥或证书），单引号内可用字面量 `\n` 保存 PEM 换行；程序会还原后校验，不能用占位值跳过。
 
-已有服务器 `.env` 需手动修改下面这些项，并先经现有流水线构建发布本次支持 `disabled` 的新镜像；旧镜像不识别 `disabled`：
+已有服务器 `.env` 的云服务配置应为下面这样（OSS、文字识别、内容安全的开通步骤与其余变量见「OSS、文字识别、内容安全」；必须先发布包含这些实现的新镜像，旧镜像不识别 `aliyun`，会启动失败）：
 
 ```dotenv
 APP_ENV=production
 SMS_PROVIDER=aliyun
-OSS_PROVIDER=disabled
-OCR_PROVIDER=disabled
+OSS_PROVIDER=aliyun
+OCR_PROVIDER=aliyun
 ASR_PROVIDER=disabled
-MODERATION_PROVIDER=disabled
+MODERATION_PROVIDER=aliyun
 PAY_PROVIDER=disabled
 ```
 
@@ -134,8 +135,9 @@ PAY_PROVIDER=disabled
 | 能力 | 当前业务调用位置 | 暂时关闭的影响 |
 | --- | --- | --- |
 | 短信 | 用户登录验证码、后台登录二次验证 | 已接入阿里云；设为 `disabled` 时无法完成短信登录 |
-| OSS | 上传原件、头像、手写照片、录音、导出文件及下载 | 文件相关能力不可用；阿里云开通后仍需后端真实 provider 接入 |
-| OCR / PDF | 照片资料识别、手写答案识别、PDF 解析 | 相关导入/识别入口不可用；当前 PDF 也通过 OCR 配置对应的解析接口 |
+| OSS | 上传原件、头像、手写照片、录音、导出文件及下载 | 已接入阿里云；关闭时文件相关能力不可用 |
+| OCR | 照片资料识别、手写答案识别、扫描版 PDF 的扫描页 | 已接入阿里云；关闭时照片导入与手写识别不可用 |
+| PDF | 文字版 PDF 取文字（内嵌 PDFium，本机解析，不调用外部服务） | `PDF_PROVIDER` 不填时跟随 `OCR_PROVIDER`；只想开 PDF 不开 OCR 时设 `PDF_PROVIDER=pdfium` |
 | ASR | 当前用于口述背诵录音转文字 | 口述背诵不可用；文本背诵无需语音识别 |
 | 内容审核 | 导入资料文本、图片，以及生成答案、知识点讲解、变式题、批改评语等 AI 输出 | 资料导入和这些 AI 输出不会放行；不是仅影响一个独立审核页面 |
 
@@ -170,6 +172,42 @@ PAY_PROVIDER=disabled
      -d '{"phone":"<你的手机号>","purpose":"login","agree":true}'
    # 返回 200 且手机收到短信；失败时：docker compose logs --since 10m api | grep "sms send failed"
    ```
+
+#### OSS、文字识别、内容安全（资料上传与解析）
+
+资料导入流程：App 用预签名地址把文件直传 OSS → Worker 从 OSS 读原件取文字（Word、Excel、文字版 PDF 在本机解析；照片、扫描页调文字识别）→ 内容安全审核 → 百炼结构化成题目。少开任何一项，导入都会失败。
+
+1. **OSS**：按「2. 网络、OSS、镜像仓库」建好私有桶（如 `training-prod`，华北 2）。RAM 子账号 `training-app` 授权这个桶的读写（`oss:PutObject`、`oss:GetObject`、`oss:HeadObject`、`oss:DeleteObject`、`oss:ListObjects`）。
+   App 原生上传不受跨域限制；管理后台网页要上传时，再给桶加跨域规则（PUT、GET，来源填后台域名，允许头 `*`，暴露头 `ETag`）。
+2. **文字识别**：开通「文字识别 OCR」（统一识别接口，按量付费），`training-app` 授权 `AliyunOCRFullAccess`。用到「通用文字识别 · 高精版」（拍照资料、扫描页）与「手写体识别」（手写答案）。
+3. **内容安全**：开通「内容安全」增强版，`training-app` 授权 `AliyunYundunGreenWebFullAccess`。控制台「规则配置」里可以按服务（文本 `comment_detection_pro`、图片 `baselineCheck`）调整检测项。
+   文科专业课资料常有政治、历史、法律内容，程序默认只拦「高风险」（`MODERATION_REJECT_LEVEL=high`）；上线前用几份真实资料试导入，被误拦就在控制台放宽对应检测项。
+4. 服务器 `.env`：
+
+   ```dotenv
+   OSS_PROVIDER=aliyun
+   OSS_ENDPOINT=oss-cn-beijing.aliyuncs.com                    # 公网地址：App 直传与下载
+   OSS_INTERNAL_ENDPOINT=oss-cn-beijing-internal.aliyuncs.com  # 内网地址：服务端读写，不花公网流量
+   OSS_REGION=cn-beijing
+   OSS_BUCKET=<桶名>
+   OCR_PROVIDER=aliyun
+   MODERATION_PROVIDER=aliyun
+   MODERATION_REJECT_LEVEL=high
+   ALIYUN_ACCESS_KEY_ID=<training-app 的 AccessKey ID>
+   ALIYUN_ACCESS_KEY_SECRET=<training-app 的 AccessKey Secret>
+   ```
+
+   OSS 默认复用 `ALIYUN_ACCESS_KEY_*`，要用单独的 AccessKey 时填 `OSS_ACCESS_KEY_ID` / `SECRET`。`OSS_ENDPOINT` 误填成内网地址时，程序会自动把给 App 的地址换成公网地址。
+   改完在 `/opt/dreamer/project/training` 执行 `docker compose up -d`。
+5. 验证：App 里选一份 Word 或文字版 PDF 导入，应能看到「上传 → 解析中 → 识别出的题目」；再拍一张印刷体题目照片导入。失败时：
+
+   ```bash
+   docker compose logs --since 10m api worker | grep -iE "oss|ocr|pdfium|moderation|内容安全|文字识别"
+   ```
+
+   常见原因：`AccessDenied`（RAM 没授权该服务或该桶）、`InvalidAccessKeyId`（密钥填错）、App 上传返回 403（`OSS_ENDPOINT` 地域与桶不一致，或手机时间偏差过大）。
+
+扫描版 PDF 受功能开关 `scanned_pdf` 控制，默认关闭：关闭时扫描页不送识别、不花识别费用，资料提示改用拍照导入。
 
 ### 5. 云效流水线
 
@@ -310,7 +348,7 @@ unset ADMIN_INITIAL_PASSWORD
 | 队列积压 | asynqmon 各队列 pending 数 | 看 worker 日志里失败最多的任务类型；AI 服务异常时在后台 7.8 回滚提示词版本或模型 |
 | AI 成本异常 | 后台 7.8 成本统计 | 下调免费额度（7.8）或暂时关闭对应功能开关 |
 | 用户付了钱没开通会员 | api 日志搜订单号：「支付回调验签失败」「支付回调开通失败」「订单重复支付」；订单表 status | 验签失败多为平台公钥或 APIv3 密钥配错；金额不符、重复支付需人工核对后在后台 7.3 处理（ADR 0011）；渠道会按自身策略重发回调，修好配置后通常自动补开通 |
-| App 登录提示「网络错误」 | `docker compose ps` 里 api 是否在反复重启；`docker compose logs --tail 50 api` | 多为 api 启动失败（Nginx 返回 502）。日志出现「未知或尚未实现的服务商」：对应的 *_PROVIDER 填了还没实现的值（SMS 支持 aliyun；OSS / OCR / ASR / MODERATION 只支持 mock、disabled）；出现「SMS_PROVIDER=aliyun 需要设置 …」：按「阿里云短信」补齐配置 |
+| App 登录提示「网络错误」 | `docker compose ps` 里 api 是否在反复重启；`docker compose logs --tail 50 api` | 多为 api 启动失败（Nginx 返回 502）。日志出现「未知或尚未实现的服务商」：对应的 *_PROVIDER 填了还没实现的值（SMS、OSS、OCR、MODERATION 支持 aliyun；PDF 支持 pdfium；ASR 只支持 mock、disabled），或镜像还是旧版本；出现「SMS_PROVIDER=aliyun 需要设置 …」：按「阿里云短信」补齐配置 |
 | 获取验证码提示「验证码发送失败」 | `docker compose logs --since 10m api \| grep "sms send failed"`，看阿里云错误码 | `isv.SMS_SIGNATURE_ILLEGAL` / `isv.SMS_TEMPLATE_ILLEGAL`：签名或模板未审核通过或填错；`isv.TEMPLATE_MISSING_PARAMETERS`：SMS_TEMPLATE_PARAM 与模板变量名不一致；`InvalidAccessKeyId.NotFound` / `SignatureDoesNotMatch`：AccessKey 填错；`Forbidden.RAM`：子账号缺短信权限；`isv.AMOUNT_NOT_ENOUGH`：余额不足；`isv.BUSINESS_LIMIT_CONTROL`：触发阿里云流控 |
 | 证书过期 | 浏览器提示 | 续期并替换 certs 下的文件，`nginx -s reload` |
 

@@ -41,7 +41,7 @@ func TestDisabledProductionServicesFailClosed(t *testing.T) {
 	if result.Text != "" {
 		t.Error("关闭识别时不应返回伪造文本")
 	}
-	_, err = c.PDF.ParsePDF(ctx, []byte("PDF"))
+	_, err = c.PDF.ParsePDF(ctx, []byte("PDF"), ocr.PDFOptions{})
 	check("PDF", err)
 	_, err = c.ASR.Transcribe(ctx, asr.Audio{})
 	check("语音识别", err)

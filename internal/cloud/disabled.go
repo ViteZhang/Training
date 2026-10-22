@@ -36,7 +36,7 @@ func (d disabledService) Recognize(context.Context, ocr.Image) (ocr.Result, erro
 	return ocr.Result{}, d.err()
 }
 
-func (d disabledService) ParsePDF(context.Context, []byte) ([]ocr.PDFPage, error) {
+func (d disabledService) ParsePDF(context.Context, []byte, ocr.PDFOptions) ([]ocr.PDFPage, error) {
 	return nil, d.err()
 }
 
