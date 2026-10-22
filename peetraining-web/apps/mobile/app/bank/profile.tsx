@@ -75,13 +75,13 @@ export default function ExamProfileScreen() {
               <Text variant="caption" color={colors.ink} style={styles.qname}>
                 {qtypeNames[x.qtype]}
               </Text>
-              <Text variant="small" style={styles.flex}>
+              <Text variant="small" num style={styles.flex}>
                 {x.count} 题 × {x.score_each} 分
               </Text>
-              <Text variant="caption" color={colors.ink} style={[styles.num, styles.bold]}>
+              <Text variant="caption" num={600} color={colors.ink} style={styles.num}>
                 {x.total} 分
               </Text>
-              <Text variant="small" style={styles.num}>
+              <Text variant="small" num style={styles.num}>
                 {x.suggested_minutes}′
               </Text>
             </View>
@@ -106,10 +106,10 @@ export default function ExamProfileScreen() {
               <View style={styles.bar}>
                 <View style={[styles.barFill, { width: `${Math.min(1, x.share) * 100}%` }]} />
               </View>
-              <Text variant="small" color={colors.ink} style={[styles.pct, styles.bold]}>
+              <Text variant="small" num={600} color={colors.ink} style={styles.pct}>
                 {pct(x.share)}
               </Text>
-              <Text variant="small" color={x.mastery < 40 ? weakInk : undefined} style={styles.pct}>
+              <Text variant="small" num color={x.mastery < 40 ? weakInk : undefined} style={styles.pct}>
                 {Math.round(x.mastery)}%
               </Text>
             </View>

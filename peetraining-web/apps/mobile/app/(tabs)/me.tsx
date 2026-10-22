@@ -107,12 +107,12 @@ export default function MeTab() {
                 <Text style={styles.range}>
                   {d.estimate.low}–{d.estimate.high}
                 </Text>
-                <Text variant="small" style={styles.flex}>
+                <Text variant="small" num style={styles.flex}>
                   {' '}/ {d.estimate.full_score}
                 </Text>
                 {d.estimate.target_score !== undefined && d.estimate.target_score !== null ? (
                   <Text variant="small">
-                    目标 <Text variant="small" color={colors.peachInk} style={styles.bold}>{d.estimate.target_score}</Text>
+                    目标 <Text variant="small" num={600} color={colors.peachInk}>{d.estimate.target_score}</Text>
                   </Text>
                 ) : null}
               </View>

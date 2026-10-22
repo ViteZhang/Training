@@ -134,25 +134,33 @@ export const designColorMap: Record<string, string> = Object.fromEntries(
   Object.entries(colors).map(([name, hex]) => [hex, name]),
 );
 
-/** 字体族。正文用系统中文字体（不打包）；标题打包思源宋体子集；数字与英文打包 Sora（ADR 0010）。 */
+/** 字体族，与设计稿一致（spec.dc.html「02 字体」：中文 Noto Sans SC、数字 DM Sans）。中文用系统字体不打包；DM Sans 构建时打包（ADR 0010）。 */
 export const fontFamily = {
-  /** 标题：Noto Serif SC（思源宋体）常用字子集 */
-  serifHeavy: 'NotoSerifSC-Heavy',
-  serifBold: 'NotoSerifSC-Bold',
-  /** 数字、分数、倒计时、英文品牌名 */
-  numberSemiBold: 'Sora-SemiBold',
-  numberBold: 'Sora-Bold',
-  /** 正文：系统字体（iOS 苹方、安卓思源黑体），不指定字体名 */
+  /** 数字、分数、倒计时、英文（DM Sans）。安卓上自定义字体不认 fontWeight，按字重分别取名 */
+  numberRegular: 'DMSans-Regular',
+  numberMedium: 'DMSans-Medium',
+  numberSemiBold: 'DMSans-SemiBold',
+  numberBold: 'DMSans-Bold',
+  /** 正文：系统字体（iOS 苹方、安卓思源黑体，与 Noto Sans SC 同字形），不指定字体名 */
   body: undefined as string | undefined,
 } as const;
 
+/** 数字字体按字重取对应的 DM Sans 文件（400 / 500 / 600 / 700）。 */
+export function numberFont(weight: number | string | undefined): string {
+  const w = weight === 'bold' ? 700 : Number(weight) || 400;
+  if (w >= 700) return fontFamily.numberBold;
+  if (w >= 600) return fontFamily.numberSemiBold;
+  if (w >= 500) return fontFamily.numberMedium;
+  return fontFamily.numberRegular;
+}
+
 /**
- * 字号层级（App）。字号与字重按 docs/design/pages 设计稿的实际用法（页面标题 26、卡片标题 17、正文 15、辅助 13、注释 12），
- * 字体族按 VI，颜色按设计稿：界面文字用系统黑体，数字用 Sora，思源宋体只用在品牌标题（display）。lineHeight 单位与 fontSize 相同。
+ * 字号层级（App），按 docs/design 设计稿（页面标题 26、卡片标题 17、正文 15、辅助 13、注释 12、分数 40）。
+ * 界面文字用系统黑体，数字用 DM Sans。lineHeight 单位与 fontSize 相同。
  */
 export const typography = {
-  /** 品牌标题：启动页、报告页大标题（VI 第 05 板 H1） */
-  display: { fontSize: 32, lineHeight: 40, fontFamily: fontFamily.serifHeavy },
+  /** 大标题（备用，设计稿未用到更大的标题） */
+  display: { fontSize: 32, lineHeight: 40, fontWeight: '700' as const },
   /** 页面大标题：「训练」「选择题目文件」 */
   h1: { fontSize: 26, lineHeight: 35, fontWeight: '700' as const },
   /** 弹层标题、结果页标题 */
@@ -164,7 +172,7 @@ export const typography = {
   caption: { fontSize: 13, lineHeight: 19, color: colors.gray },
   small: { fontSize: 12, lineHeight: 17, color: colors.gray },
   /** 倒计时、分数大数字 */
-  score: { fontSize: 40, lineHeight: 46, fontFamily: fontFamily.numberSemiBold, color: colors.ink, letterSpacing: -1 },
+  score: { fontSize: 40, lineHeight: 46, fontFamily: fontFamily.numberSemiBold, color: colors.ink, letterSpacing: -1.5 },
   number: { fontSize: 20, lineHeight: 26, fontFamily: fontFamily.numberSemiBold },
 } as const;
 

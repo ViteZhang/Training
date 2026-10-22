@@ -41,7 +41,7 @@ function Section({ n, initialOpen, subjectId, first }: { n: KnowledgeNode; initi
             {desc.join(' · ')}
           </Text>
         </View>
-        <Text variant="caption" color={n.is_weak ? weakInk : semantic.textPrimary} style={styles.bold}>
+        <Text variant="caption" num={600} color={n.is_weak ? weakInk : semantic.textPrimary}>
           {pct}%
         </Text>
         <View style={open ? styles.up : undefined}>

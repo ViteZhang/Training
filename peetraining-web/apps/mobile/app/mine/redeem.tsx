@@ -1,6 +1,6 @@
 // 6.7 兑换码：输入框，不区分大小写；无效、已使用、已作废、已过期分别提示；说明一码一次、时长叠加到当前会员之后、过期不可用。
 import { ApiError } from '@training/api-client';
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -83,6 +83,6 @@ const styles = StyleSheet.create({
   desc: { fontSize: 14, marginTop: -6, marginBottom: 6 },
   bold: { fontWeight: '700' },
   lh: { lineHeight: 19 },
-  input: { minHeight: 56, paddingHorizontal: 16, borderRadius: radius.xl, borderWidth: 1.5, borderColor: semantic.inputBorder, backgroundColor: semantic.surface, fontSize: 18, letterSpacing: 3, color: semantic.textPrimary },
+  input: { minHeight: 56, paddingHorizontal: 16, borderRadius: radius.xl, borderWidth: 1.5, borderColor: semantic.inputBorder, backgroundColor: semantic.surface, fontSize: 20, fontFamily: fontFamily.numberSemiBold, letterSpacing: 3, color: semantic.textPrimary },
   inputError: { borderColor: semantic.danger },
 });

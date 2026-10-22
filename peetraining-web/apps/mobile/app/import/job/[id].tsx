@@ -45,7 +45,7 @@ function MaterialProgress({ m, first }: { m: JobMaterial; first?: boolean }) {
             <Icon name="check" size={14} color={semantic.mastered} />
           </View>
         ) : m.status === 'running' ? (
-          <Text variant="small">{pct}%</Text>
+          <Text variant="small" num>{pct}%</Text>
         ) : null}
       </View>
       {m.status === 'running' ? (
@@ -96,7 +96,7 @@ function FailedMaterial({ job, m }: { job: ImportJob; m: JobMaterial }) {
     <View style={styles.failed}>
       <View style={styles.failedHead}>
         <View style={styles.badge}>
-          <Text variant="small" color={semantic.danger} style={styles.badgeText}>
+          <Text variant="small" num={600} color={semantic.danger} style={styles.badgeText}>
             {fileBadge(m.file_name)}
           </Text>
         </View>

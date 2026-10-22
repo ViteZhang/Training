@@ -63,7 +63,7 @@ export function MaterialList({ items, subjectId, deletable = true }: { items: Ma
         return (
           <Pressable key={m.id} accessibilityRole="button" accessibilityLabel={m.file_name} onLongPress={deletable ? () => setRemoving(m) : undefined} style={[styles.row, i > 0 && styles.divider]}>
             <View style={[styles.badge, { backgroundColor: badgeTone[m.format].bg }]}>
-              <Text variant="small" color={badgeTone[m.format].fg} style={styles.badgeText}>
+              <Text variant="small" num={600} color={badgeTone[m.format].fg} style={styles.badgeText}>
                 {formatBadge[m.format]}
               </Text>
             </View>

@@ -70,7 +70,7 @@ export function CoverageView({ item, result }: { item: ReciteItem; result: Recor
           关键词覆盖
         </Text>
         <Text variant="score">{result.coverage?.hit ?? 0}</Text>
-        <Text variant="body">/ {result.coverage?.total ?? 0}</Text>
+        <Text variant="body" num>/ {result.coverage?.total ?? 0}</Text>
       </View>
       <Text variant="bodyStrong" color={result.result === 'remembered' ? semantic.mastered : result.result === 'vague' ? semantic.info : semantic.danger}>
         {levelNames[result.result]}

@@ -20,7 +20,7 @@ export function UnderlineTabs<T extends string>({
           <Pressable key={o.key} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onChange(o.key)} style={[styles.tab, on && styles.tabOn]}>
             <Text variant="body" color={on ? semantic.textPrimary : semantic.textSecondary} style={on ? styles.bold : undefined}>
               {o.label}
-              {o.count !== undefined ? <Text variant="small"> {o.count}</Text> : null}
+              {o.count !== undefined ? <Text variant="small" num={on ? 500 : 400}> {o.count}</Text> : null}
             </Text>
           </Pressable>
         );

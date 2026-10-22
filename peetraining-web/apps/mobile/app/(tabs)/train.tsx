@@ -115,7 +115,7 @@ export default function TrainTab() {
                   今日训练
                 </Text>
                 {h.today ? (
-                  <Text variant="caption" color={colors.faint}>
+                  <Text variant="caption" num color={colors.faint}>
                     {h.today.done} / {h.today.total} · 约 {Math.round(h.today.minutes)} 分钟
                   </Text>
                 ) : null}
@@ -187,7 +187,7 @@ export default function TrainTab() {
                     <Text variant="caption" color={colors.ink} style={styles.medium} numberOfLines={1}>
                       {qtypeNames[q.qtype]}
                     </Text>
-                    <Text variant="small" style={styles.tiny}>
+                    <Text variant="small" num style={styles.tiny}>
                       {q.count} 题
                     </Text>
                   </Pressable>

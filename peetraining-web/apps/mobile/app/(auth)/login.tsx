@@ -1,7 +1,7 @@
 // 0.2 手机号登录 / 0.2a 已输入手机号 / 0.2b 未同意协议。
 // 号码满 11 位且以 13–19 开头才可获取验证码；协议默认不勾选；未注册的手机号验证后自动创建账号。
 // 邀请开关打开时可填邀请码（选填，T26）；从邀请链接进入时（?invite=）自动带上。
-import { colors, layout, radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, fontFamily, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { ApiError } from '@training/api-client';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -64,7 +64,7 @@ export default function Login() {
       </View>
 
       <View style={[styles.inputRow, phone.length > 0 && styles.inputFilled, showFormatError && styles.inputError]}>
-        <Text variant="bodyStrong">+86</Text>
+        <Text num={600} style={styles.cc}>+86</Text>
         <View style={styles.divider} />
         <TextInput
           accessibilityLabel="手机号"
@@ -198,7 +198,8 @@ const styles = StyleSheet.create({
   clear: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   clearDot: { width: 32, height: 32, borderRadius: 16, backgroundColor: semantic.fill, alignItems: 'center', justifyContent: 'center' },
   divider: { width: 1, height: 20, backgroundColor: semantic.border, marginHorizontal: spacing.md },
-  input: { flex: 1, minWidth: 0, fontSize: 18, fontWeight: '500', color: semantic.textPrimary, minHeight: layout.minTouch },
+  cc: { fontSize: 16, lineHeight: 22 },
+  input: { flex: 1, minWidth: 0, fontSize: 18, fontFamily: fontFamily.numberMedium, color: semantic.textPrimary, minHeight: layout.minTouch },
   tip: { marginTop: spacing.sm },
   button: { marginTop: 20 },
   agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginTop: spacing.md, padding: spacing.xs, borderRadius: radius.sm },

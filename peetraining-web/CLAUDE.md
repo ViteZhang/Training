@@ -11,7 +11,7 @@
 
 1. docs/prd.md：PRD v3。逐页功能与规则见第 6–10 节，通用状态见第 14 节
 2. docs/design/：设计稿（App 94 页、后台 15 页）。INDEX.md 是页面编号 → 文件；NOTES.md 是每个模块的调整说明；pages/*.dc.html 是视觉稿源码
-3. docs/design/vi/：视觉识别规范 v1.0（Logo、App 图标、启动页、字体）；VI 的夜靛紫等品牌色只用于 Logo、App 图标和启动页，页面颜色一律按设计稿
+3. docs/design/vi/：视觉识别规范 v1.0（Logo、App 图标）；VI 的夜靛紫等品牌色只用于 Logo 和 App 图标，页面（含启动页）的颜色和字体一律按设计稿
 4. docs/dev-spec.md：研发规格（第十一节前端规格、第十二节任务卡）
 5. docs/tasks/：任务卡；docs/open-questions.md：未决问题
 
@@ -31,11 +31,11 @@
   - 基础色：墨黑 #1A1A1A（标题、正文、主按钮、选中）；次级灰 #6E6E6E；弱化灰 #767676（未选中导航、占位）；描边灰 #E6E6E6（输入框、次按钮）；分割线 #EFEFEF（卡片描边、列表分割、进度轨道）；浅底 #F7F7F5；纯白 #FFFFFF（页面底与卡片）
   - 功能分类色（底 / 点 / 字）：复习天蓝 #E5F0FA / #6FA8DC / #1D4C77；查漏蜜桃 #FDEDE4 / #F2956B / #8A3A16（也用于预估分、进度、提分）；背诵薰衣草 #EEEBFB / #8C80E0 / #3E3190；真题薄荷 #E4F4EB / #6CC08E / #1F5C3E；作文奶油 #FBF3D9 / #E3C25A / #6B5207
   - 状态色：正确 #1F7A4D（底 #E4F4EB）；注意 #B26A00（底 #FDF1DC）；错误 #C23B22（底 #FCE9E5）；链接 #2F5FB3
-- VI 品牌色（夜靛 #231F55、琥珀 #FFB547、轨道紫 #3B377A、纸白 #FAF8F3）只用于 Logo、App 图标和启动页，在 ui-tokens 的 brand 里，页面不用
+- VI 品牌色（夜靛 #231F55、琥珀 #FFB547、轨道紫 #3B377A、纸白 #FAF8F3）只用于 Logo 和 App 图标，在 ui-tokens 的 brand 里，页面不用
 - 页面里不写死色值，一律从 ui-tokens 的 colors / semantic 取；设计稿出现新颜色时先加进 ui-tokens
-- 字号按设计稿实际用法（ui-tokens typography）：页面标题 26 Bold、弹层标题 20、卡片标题 17、正文 15、辅助 13、注释 12、倒计时与分数 40；VI 的 H1 32/40 思源宋体 Heavy 只用于品牌标题（display）
-- 字体：正文用系统中文字体（不打包）；标题打包 Noto Serif SC 常用 3500 字子集；数字与英文打包 Sora；不在运行时加载 Google Fonts
-- 启动页与 App 图标按 VI 第 03、06 板
+- 字号按设计稿实际用法（ui-tokens typography）：页面标题 26 Bold、弹层标题 20、卡片标题 17、正文 15、辅助 13、注释 12、倒计时与分数 40
+- 字体按设计稿：中文用系统字体（与 Noto Sans SC 同字形，不打包）；数字、分数、时间、英文用 DM Sans（打包 400–700 四个字重），写 `<Text num>` 或 `num={600}`；不在运行时加载 Google Fonts（ADR 0010）
+- 启动页按设计稿 m0_splash（白底、VI Logo、「考研Training」）；App 图标按 VI 第 06 板
 
 ## 常用命令
 

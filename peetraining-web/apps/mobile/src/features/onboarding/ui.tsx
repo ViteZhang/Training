@@ -15,7 +15,7 @@ export function StepHeader({ step, title, desc, onBack }: { step: number; title:
             <View key={i} style={[styles.bar, i <= step && styles.barOn]} />
           ))}
         </View>
-        <Text variant="caption">{step} / 5</Text>
+        <Text variant="caption" num>{step} / 5</Text>
       </View>
       <Text variant="h1" style={styles.title}>
         {title}
@@ -91,7 +91,7 @@ export function Stepper({ value, min, max, step = 5, onChange, suffix }: { value
         <Text variant="score" color={colors.ink}>
           {value}
         </Text>
-        {suffix ? <Text variant="caption"> {suffix}</Text> : null}
+        {suffix ? <Text variant="caption" num style={styles.suffix}> {suffix}</Text> : null}
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel="增加" disabled={value >= max} onPress={() => onChange(Math.min(max, value + step))} style={[styles.stepBtn, value >= max && styles.dim]}>
         <Text variant="h2" style={styles.stepSign}>+</Text>
@@ -127,6 +127,7 @@ const styles = StyleSheet.create({
   stepBtn: { width: layout.minTouch, height: layout.minTouch, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: semantic.fill },
   stepSign: { fontWeight: '400' },
   dim: { opacity: 0.35 },
+  suffix: { fontSize: 14 },
   stepValue: { flex: 1, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center' },
   footer: { paddingVertical: spacing.lg, gap: spacing.sm },
 });

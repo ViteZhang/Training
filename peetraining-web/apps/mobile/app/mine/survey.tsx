@@ -1,7 +1,7 @@
 // 6.14 考后回访：初试后推送；每门专业课填实际成绩，旁边显示考前预估（没有时显示「考前没有预估分」）；复试结果（进复试 / 没进 / 还不知道）；
 // 录取结果（已录取 / 调剂 / 未录取 / 待定，可稍后补）；可选同意作为匿名上岸案例；提交后赠送 30 天会员（每人一次）。
 import type { Schemas } from '@training/api-client';
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
   scroll: { gap: spacing.md, paddingBottom: spacing.xl },
   flex: { flex: 1 },
   subject: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  score: { width: 88, minHeight: 44, textAlign: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface, fontSize: 18 },
+  score: { width: 88, minHeight: 44, textAlign: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface, fontSize: 18, fontFamily: fontFamily.numberSemiBold },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   choice: { minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: semantic.border },
   choiceOn: { backgroundColor: semantic.primary, borderColor: semantic.primary },

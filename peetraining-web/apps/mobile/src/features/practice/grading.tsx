@@ -109,7 +109,7 @@ export function SubjectiveInput({
       <View style={styles.row}>
         {voice ? <Tool icon="mic" label="语音" onPress={() => toast('语音作答马上上线')} /> : null}
         <Tool icon="camera" label="拍手写稿" onPress={onPhoto} />
-        <Text variant="small" style={[styles.flex, styles.right]}>
+        <Text variant="small" num style={[styles.flex, styles.right]}>
           {wordHint(q.qtype, n)}
         </Text>
       </View>
@@ -188,7 +188,7 @@ export function GradingResultView({
         <Text variant="score" color={colors.ink} style={styles.score}>
           {g.score ?? '—'}
         </Text>
-        <Text variant="caption" style={styles.of}>
+        <Text variant="caption" num style={styles.of}>
           / {g.full_score} 分
         </Text>
         <View style={[styles.flex, styles.gap2]}>
@@ -250,7 +250,7 @@ export function GradingResultView({
             <View key={l.type} style={[styles.row, styles.lossRow]}>
               <View style={styles.flex}>
                 <Text variant="caption" color={colors.ink} style={styles.bold}>
-                  {lossNames[l.type]} <Text variant="caption" color={semantic.danger} style={styles.bold}>−{l.points}</Text>
+                  {lossNames[l.type]} <Text variant="caption" num color={semantic.danger}>−{l.points}</Text>
                 </Text>
                 {l.reason ? <Text variant="small">{l.reason}</Text> : null}
               </View>

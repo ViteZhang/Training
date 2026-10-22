@@ -52,11 +52,11 @@ export default function EssayBookPage() {
                   const last = i === b.trend.length - 1;
                   return (
                     <View key={t.essay_id} style={styles.col} accessibilityLabel={`${day(t.date)} ${t.score} 分`}>
-                      <Text variant="small" color={last ? colors.ink : undefined} style={last ? styles.bold : undefined}>
+                      <Text variant="small" num={600} color={last ? colors.ink : undefined}>
                         {fmtScore(t.score)}
                       </Text>
                       <View style={[styles.bar, { height: Math.max((t.score / top) * 110, 4) }, last && styles.barLast]} />
-                      <Text variant="small" style={styles.tiny}>
+                      <Text variant="small" num style={styles.tiny}>
                         {new Date(t.date).getMonth() + 1}/{new Date(t.date).getDate()}
                       </Text>
                     </View>

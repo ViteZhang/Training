@@ -181,7 +181,7 @@ export default function QuestionScreen() {
                     <View style={[styles.flex, styles.gap2]}>
                       <Text variant="caption" color={semantic.textPrimary}>
                         {shortDate(a.answered_at)}
-                        <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+                        <Text variant="caption" num={600} color={semantic.textPrimary}>
                           {a.score !== undefined ? ` · ${a.score}${a.full_score !== undefined ? ` / ${a.full_score}` : ''} 分` : a.is_correct !== undefined ? (a.is_correct ? ' · 答对' : ' · 答错') : ''}
                         </Text>
                       </Text>

@@ -91,7 +91,7 @@ export default function Code() {
         输入验证码
       </Text>
       <Text variant="caption" style={styles.sub}>
-        6 位验证码已发送至 <Text variant="caption" color={semantic.textPrimary}>+86 {formatPhone(phone)}</Text>
+        6 位验证码已发送至 <Text variant="caption" num color={semantic.textPrimary}>+86 {formatPhone(phone)}</Text>
       </Text>
 
       <Pressable onPress={() => input.current?.focus()} style={styles.boxes} accessibilityLabel="验证码输入框">
