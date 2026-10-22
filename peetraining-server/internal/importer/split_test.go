@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"peetraining-server/internal/ai"
+	"peetraining-server/internal/dbq"
 )
 
 func TestSplitExamPaper(t *testing.T) {
@@ -83,5 +84,18 @@ func TestChunk(t *testing.T) {
 	}
 	if Chunk(nil, 100) != nil {
 		t.Fatal("空")
+	}
+}
+
+func TestGiveUpReason(t *testing.T) {
+	cases := map[dbq.ImportJobMaterialsStep]string{
+		dbq.ImportJobMaterialsStepExtract:   "文件读取或文字识别服务",
+		dbq.ImportJobMaterialsStepModerate:  "内容安全审核服务",
+		dbq.ImportJobMaterialsStepStructure: "AI 解析服务",
+	}
+	for step, want := range cases {
+		if got := giveUpReason(step); !strings.HasPrefix(got, want) || !strings.Contains(got, "没扣额度") {
+			t.Errorf("%s：%q", step, got)
+		}
 	}
 }

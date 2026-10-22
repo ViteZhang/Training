@@ -12,6 +12,7 @@ import (
 	openapiutil "github.com/alibabacloud-go/darabonba-openapi/v2/utils"
 	green "github.com/alibabacloud-go/green-20220302/v2/client"
 	"github.com/alibabacloud-go/tea/dara"
+	"github.com/alibabacloud-go/tea/tea"
 )
 
 // 默认值：内容安全增强版（green 2022-03-02），华北 2。
@@ -185,6 +186,11 @@ func apiError(what string, b *green.TextModerationPlusResponseBody) error {
 
 // sdkError 只保留错误码与说明：SDK 错误里可能带请求参数（送审原文），不能进日志（CLAUDE.md 第 11 条）。
 func sdkError(what string, err error) error {
+	// SDK 默认把错误转换成 tea.SDKError（DisableSDKError 未设置时），两种都要认。
+	var te *tea.SDKError
+	if errors.As(err, &te) {
+		return fmt.Errorf("阿里云%s失败：code=%s message=%s", what, tea.StringValue(te.Code), tea.StringValue(te.Message))
+	}
 	var se *dara.SDKError
 	if errors.As(err, &se) {
 		return fmt.Errorf("阿里云%s失败：code=%s message=%s", what, dara.StringValue(se.Code), dara.StringValue(se.Message))
