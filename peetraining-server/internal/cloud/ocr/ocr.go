@@ -67,9 +67,15 @@ type PDFPage struct {
 	Scanned bool
 }
 
-// PDFParser 解析 PDF：有文字层的页直接取文字，没有的逐页 OCR。选哪家服务见 ADR 0007。
+// PDFOptions 是解析选项。
+type PDFOptions struct {
+	// OCRScanned 为 true 时扫描页逐页 OCR；为 false 时扫描页只标 Scanned、不识别（扫描版功能开关关闭时不花识别费用）。
+	OCRScanned bool
+}
+
+// PDFParser 解析 PDF：有文字层的页直接取文字，没有的逐页 OCR。选型见 ADR 0007。
 type PDFParser interface {
-	ParsePDF(ctx context.Context, data []byte) ([]PDFPage, error)
+	ParsePDF(ctx context.Context, data []byte, opt PDFOptions) ([]PDFPage, error)
 }
 
 // MockScannedMark 出现在 mock PDF 某页开头时，这一页按扫描页处理。
@@ -77,7 +83,7 @@ const MockScannedMark = "[扫描]"
 
 // ParsePDF 的 mock 把字节当作 UTF-8 文本，按换页符 \f 分页；以 MockScannedMark 开头的页记为扫描页，
 // 其余规则同 Recognize（【】内为低置信度）。
-func (m Mock) ParsePDF(ctx context.Context, data []byte) ([]PDFPage, error) {
+func (m Mock) ParsePDF(ctx context.Context, data []byte, _ PDFOptions) ([]PDFPage, error) {
 	var pages []PDFPage
 	for _, raw := range strings.Split(string(data), "\f") {
 		scanned := strings.HasPrefix(raw, MockScannedMark)
