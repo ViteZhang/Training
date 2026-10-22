@@ -156,11 +156,29 @@ func (s *Service) RequestUploads(ctx context.Context, userID, subjectID uint64, 
 
 	out := make([]Target, len(files))
 	now := s.now().UTC()
+	// handled 是本次请求已经给过上传地址的资料，同一请求里再遇到相同文件按重复处理。
+	handled := map[uint64]bool{}
 	for i, f := range files {
 		out[i].Index = i
 		if existing, err := s.q.GetMaterialBySha(ctx, dbq.GetMaterialByShaParams{OwnerUserID: userID, Sha256: f.SHA256}); err == nil {
-			out[i].MaterialID, out[i].Duplicate = existing.ID, true
-			continue
+			if existing.Status != dbq.MaterialsStatusUploading || handled[existing.ID] {
+				out[i].MaterialID, out[i].Duplicate = existing.ID, true
+				continue
+			}
+			// 上次申请了上传却没传完（网络中断、当时文件存储不可用）：这条记录从没有内容，
+			// 当成重复会让 App 跳过上传、开始解析时报「还没有上传完成」。同一门课的重新给上传地址，别的课的删掉重建。
+			if existing.BankID == b.ID && existing.ObjectKey.Valid {
+				p, err := s.oss.PresignPut(ctx, existing.ObjectKey.String, contentType(f), f.Size, uploadTTL)
+				if err != nil {
+					return nil, err
+				}
+				handled[existing.ID] = true
+				out[i].MaterialID, out[i].Upload = existing.ID, &p
+				continue
+			}
+			if err := s.discardUnfinished(ctx, userID, existing); err != nil {
+				return nil, err
+			}
 		} else if !errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
@@ -194,9 +212,23 @@ func (s *Service) RequestUploads(ctx context.Context, userID, subjectID uint64, 
 		if err != nil {
 			return nil, err
 		}
+		handled[mid] = true
 		out[i].MaterialID, out[i].Upload = mid, &p
 	}
 	return out, nil
+}
+
+// discardUnfinished 删除一条没传完的资料记录（没有页面、题目，也不在任何导入任务里：开始解析要求已上传），
+// 以及可能传了一半的原件。
+func (s *Service) discardUnfinished(ctx context.Context, userID uint64, m dbq.Material) error {
+	if _, err := s.q.DeleteMaterial(ctx, dbq.DeleteMaterialParams{ID: m.ID, OwnerUserID: userID}); err != nil {
+		return err
+	}
+	if m.ObjectKey.Valid {
+		// 原件删除失败只影响存储空间，由注销或巡检任务兜底。
+		_ = s.oss.Delete(ctx, m.ObjectKey.String)
+	}
+	return nil
 }
 
 // Material 是资料及统计。
