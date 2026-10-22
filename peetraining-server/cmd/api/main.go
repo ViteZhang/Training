@@ -5,16 +5,22 @@
 //	api migrate new <name>   在 db/migrations 下新建顺序编号的迁移文件（本地开发用）
 //	api import-template <path>  生成 Excel 导入模板（App 1.5 提供下载，放到 peetraining-web 的静态资源里）
 //	api create-admin <账号> <显示名> <手机号> <角色,角色>  新建后台账号；初始密码读环境变量 ADMIN_INITIAL_PASSWORD，首次登录须修改
+//	api healthcheck         检查 API、MySQL 与 Redis 是否正常
+//
+// healthcheck 供 Docker Compose 在 API 容器内检查服务健康状态。
 package main
 
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/pressly/goose/v3"
 
@@ -31,6 +37,10 @@ func main() {
 }
 
 func run(args []string) error {
+	if len(args) == 1 && args[0] == "healthcheck" {
+		return healthcheck()
+	}
+
 	if len(args) >= 2 && args[0] == "migrate" && args[1] == "new" {
 		if len(args) != 3 {
 			return fmt.Errorf("用法：api migrate new <name>")
@@ -67,6 +77,38 @@ func run(args []string) error {
 		// 初始密码不从命令行参数读，避免留在 shell 历史里。
 		return app.CreateAdmin(ctx, cfg, log, args[1], args[2], args[3], strings.Split(args[4], ","), os.Getenv("ADMIN_INITIAL_PASSWORD"))
 	default:
-		return fmt.Errorf("未知命令 %q（可用：serve、migrate up|status|new、import-template、create-admin）", args)
+		return fmt.Errorf("未知命令 %q（可用：serve、healthcheck、migrate up|status|new、import-template、create-admin）", args)
 	}
+}
+
+func healthcheck() error {
+	addr := strings.TrimSpace(os.Getenv("HTTP_ADDR"))
+	if addr == "" {
+		addr = ":8080"
+	}
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil || port == "" {
+		return fmt.Errorf("HTTP_ADDR %q 必须包含端口", addr)
+	}
+
+	target := "http://" + net.JoinHostPort("127.0.0.1", port) + "/api/v1/health"
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return checkHealthEndpoint(ctx, &http.Client{Timeout: 3 * time.Second}, target)
+}
+
+func checkHealthEndpoint(ctx context.Context, client *http.Client, target string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("health endpoint returned %s", resp.Status)
+	}
+	return nil
 }

@@ -62,7 +62,7 @@ func paymentFx(t *testing.T, f *fx) (*payment.Service, *pay.Mock) {
 	ps := params.New(q)
 	m := pay.NewMock("test")
 	return payment.New(payment.Deps{DB: f.db, Params: ps, Quota: quota.New(q, ps, func() time.Time { return f.clock }), Flags: flags.New(q), Gateway: m,
-		NotifyBaseURL: "https://x/api/v1", AppleBundleID: "cn.dreamerlab.training", Log: logx.New(io.Discard, slog.LevelInfo), Now: func() time.Time { return f.clock }}), m
+		NotifyBaseURL: "https://x/api/v1", AppleBundleID: "cn.dreamelab.training", Log: logx.New(io.Discard, slog.LevelInfo), Now: func() time.Time { return f.clock }}), m
 }
 
 func mockNotify(m *pay.Mock, orderNo, txn string, cents int64) (http.Header, []byte) {
@@ -203,12 +203,12 @@ func TestAppleVerify(t *testing.T) {
 	}
 	svc, _ := paymentFx(t, f)
 	o, err := svc.CreateOrder(ctx, uid, "sprint", pay.ChannelApple, "")
-	if err != nil || len(o.AppAccountToken) != 36 || o.AppleProductID != "cn.dreamerlab.training.sprint" {
+	if err != nil || len(o.AppAccountToken) != 36 || o.AppleProductID != "cn.dreamelab.training.sprint" {
 		t.Fatalf("内购下单返回商品与 appAccountToken：%+v %v", o, err)
 	}
 	cases := map[string]string{
-		"cn.dreamerlab.training.monthly|" + o.AppAccountToken + "|1":           "product_mismatch",
-		"cn.dreamerlab.training.sprint|00000000-0000-4000-8000-000000000000|1": "token_mismatch",
+		"cn.dreamelab.training.monthly|" + o.AppAccountToken + "|1":           "product_mismatch",
+		"cn.dreamelab.training.sprint|00000000-0000-4000-8000-000000000000|1": "token_mismatch",
 		"bad": "transaction_not_found",
 	}
 	for txn, want := range cases {
@@ -216,7 +216,7 @@ func TestAppleVerify(t *testing.T) {
 			t.Errorf("%s 应提示 %s：%v", txn, want, err)
 		}
 	}
-	txn := "cn.dreamerlab.training.sprint|" + o.AppAccountToken + "|1"
+	txn := "cn.dreamelab.training.sprint|" + o.AppAccountToken + "|1"
 	if _, err := svc.AppleVerify(ctx, other, o.OrderNo, txn); kind(err) != apperr.NotFound {
 		t.Errorf("别人的订单 404：%v", err)
 	}

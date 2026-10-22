@@ -18,7 +18,7 @@
 
 ## 技术栈
 
-- Go 1.27；Gin；接口代码由 oapi-codegen 按 api/openapi.yaml 生成
+- Go 1.25.3；Gin；接口代码由 oapi-codegen 按 api/openapi.yaml 生成
 - MySQL 8（InnoDB，utf8mb4）；sqlc + go-sql-driver/mysql；迁移 goose
 - Asynq + Redis：队列、定时任务、重试；Redis 同时用于验证码与限频
 - 登录：手机号 + 短信验证码（阿里云短信）；golang-jwt 短效访问令牌，刷新令牌按设备存 MySQL
@@ -39,13 +39,14 @@
 - internal/jobs/：Asynq 任务定义、处理器与定时任务
 - db/migrations/：goose SQL 迁移；db/queries/：sqlc 查询；sqlc.yaml
 - evals/：AI 评测数据集（JSONL）与门槛配置；真实样本放 evals/private/，不提交到仓库
-- deploy/：docker-compose.app.yml、docker-compose.db.yml、nginx 配置、备份脚本
+- deploy/：接入现有 dreamer-net 的应用 Compose 与云效构建脚本
 
 ## 常用命令
 
-- make dev：docker compose 起本地 MySQL 与 Redis，再启动 API 与 Worker
+- make dev：直连 `.env.local` 配置的 ECS MySQL 与 Redis，只启动本地 API；`make dev-worker` 会消费共享 Redis 队列
+- 本地不安装 Docker：先手动执行 `db/init.sql` 初始化 `training_dev`，再按 `.env.local.example` 配置直连启动 API
 - make gen：按 openapi.yaml 与 db/queries 重新生成代码（改契约或 SQL 后必须执行）
-- make migrate-new name=xxx / make migrate-up
+- make migrate-new name=xxx / make migrate-up / make migrate-status（后两者连接 `.env.local` 中的数据库）
 - make test / make lint
 - make eval cap=import|grading|essay|kp|ocr：跑某项 AI 能力的评测，输出指标与是否达标
 - make api-tag v=api-v0.3：给契约打版本标签，供前端拉取
@@ -61,7 +62,7 @@
 7. 掌握度、预估分、额度、会员、兑换码只由服务端写；扣额度与写结果放在同一个事务里；批改失败、复核、改采分点重批不扣次数
 8. AI 输出一律按 JSON Schema 校验；批改再校验分值上限、总分、引用必须是考生原话；知识点原文必须能在资料文本里逐字找到；改 internal/ai 或提示词后必须跑 make eval，低于门槛不得合并
 9. 功能开关：在线支付、官方题库、口述背诵、语音作答、扫描版 PDF、邀请默认关闭；开关支持「全部 / 指定用户」；关闭时相关接口返回 404 而不是报错
-10. 密钥只从环境变量读取，不写入仓库、文档、日志和提交信息；不在开发会话里使用生产密钥或生产数据
+10. 密钥只从环境变量读取，不写入仓库、文档、日志和提交信息；本地 `.env.local` 可由开发者明确配置生产连接，但不得在开发会话中读取、回显或提交其中的密钥；本地 API 的写请求会影响生产数据
 11. 日志不记录手机号明文、作答原文、资料原文；对外文案不承诺分数
 12. 写接口支持 idempotency_key；模拟考试以服务端 deadline_at 为准；Asynq 任务必须可重复执行，入队在事务提交之后，任务状态同时记在 MySQL
 13. 数据库时间存 UTC（DATETIME(3)）；业务日期（每日计划、额度重置）按 Asia/Shanghai
@@ -89,8 +90,8 @@ PAY_PROVIDER、PAY_NOTIFY_BASE_URL、WECHAT_PAY_*、ALIPAY_*、APPLE_IAP_*、ALE
 ## 部署
 
 - 只有一个生产环境：https://training.dreamerlab.cn，API 在 /api/v1/，管理后台在 /admin/
-- 应用机（4 核 16G）：nginx、api、worker、asynqmon（仅内网）；数据库机：mysql、redis，只对应用机开放内网端口
-- 云效流水线：测试 → 构建镜像 → 推送 ACR → 备份数据库 → 执行迁移 → docker compose pull 与 up；回滚把镜像版本改回上一个
+- ECS 现有 `dreamer-nginx`、`dreamer-mysql`、`dreamer-redis`；项目只部署 api、worker、asynqmon，并全部加入外部 Docker 网络 `dreamer-net`
+- 云效流水线：云效 Go 1.25.3 构建 → 构建镜像 → 推送 ACR 的 `latest` → 应用机执行 `docker compose up -d`；Compose 自动拉取镜像，数据库迁移在发布前单独完成
 - 没有测试环境：新功能先用功能开关只对自己的账号打开
 
 ## 完成一张卡前自检

@@ -23,6 +23,9 @@ const (
 // ProviderMock 是所有云服务的本地默认实现。
 const ProviderMock = "mock"
 
+// ProviderDisabled 显式关闭尚未接入或暂不开放的云服务，调用时返回不可用。
+const ProviderDisabled = "disabled"
+
 // ProviderAliyun 表示使用阿里云的真实服务。
 const ProviderAliyun = "aliyun"
 
@@ -204,7 +207,7 @@ func load(getenv func(string) string) (*Config, error) {
 			AppleIssuerID:           get("APPLE_IAP_ISSUER_ID", ""),
 			AppleKeyID:              get("APPLE_IAP_KEY_ID", ""),
 			ApplePrivateKey:         get("APPLE_IAP_PRIVATE_KEY", ""),
-			AppleBundleID:           get("APPLE_IAP_BUNDLE_ID", "cn.dreamerlab.training"),
+			AppleBundleID:           get("APPLE_IAP_BUNDLE_ID", "cn.dreamelab.training"),
 		},
 
 		AlertWebhookURL:       get("ALERT_WEBHOOK_URL", ""),
@@ -254,8 +257,10 @@ func load(getenv func(string) string) (*Config, error) {
 				errs = append(errs, fmt.Errorf("SMS_PROVIDER=aliyun 需要设置 %s", kv[0]))
 			}
 		}
+	case ProviderDisabled:
+		// 显式关闭短信：发验证码时返回不可用（cloud.disabledService）。
 	default:
-		errs = append(errs, fmt.Errorf("SMS_PROVIDER 只能是 %s 或 %s，当前为 %q", ProviderMock, ProviderAliyun, cfg.SMS.Provider))
+		errs = append(errs, fmt.Errorf("SMS_PROVIDER 只能是 %s、%s 或 %s，当前为 %q", ProviderMock, ProviderAliyun, ProviderDisabled, cfg.SMS.Provider))
 	}
 
 	if cfg.AppEnv == EnvProduction {

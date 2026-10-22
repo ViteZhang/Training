@@ -1,0 +1,56 @@
+# 应用服务：api、worker、asynqmon。
+# /opt/dreamer/project/training/docker-compose.yml 与 .env 只需首次准备；日常发布执行 cd /opt/dreamer/project/training && docker compose up -d。
+# Docker Compose v2 每次 up 都会先拉取 latest，再按镜像摘要更新容器。
+name: training
+
+x-app: &app
+  image: ${IMAGE:?需要在 /opt/dreamer/project/training/.env 里设置 IMAGE}:latest
+  pull_policy: always
+  env_file: .env
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "50m", max-file: "5" }
+  networks:
+    - dreamer-net
+
+services:
+  api:
+    <<: *app
+    command: ["/app/api"]
+    expose: ["8080"]
+    container_name: training-api
+    networks:
+      dreamer-net:
+        aliases: [training-api]
+    stop_grace_period: 40s
+    healthcheck:
+      test: ["CMD", "/app/api", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  worker:
+    <<: *app
+    command: ["/app/worker"]
+    stop_grace_period: 40s
+    container_name: training-worker
+    # 调度器全局只能有一个实例：worker 只部署一个，不要 scale。
+    deploy:
+      replicas: 1
+
+  asynqmon:
+    image: ${ASYNQMON_IMAGE:-hibiken/asynqmon:latest}
+    restart: unless-stopped
+    command: ["--redis-addr=${REDIS_ADDR}", "--redis-password=${REDIS_PASSWORD}", "--redis-db=${REDIS_DB:-0}"]
+    container_name: training-asynqmon
+    # 只绑定应用机回环地址，通过 SSH 隧道访问，不对公网开放。
+    ports: ["127.0.0.1:8081:8080"]
+    networks:
+      - dreamer-net
+
+networks:
+  dreamer-net:
+    external: true
+    name: dreamer-net
