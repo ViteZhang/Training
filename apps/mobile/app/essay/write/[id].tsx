@@ -2,7 +2,7 @@
 // 工具栏：素材（5.3 素材弹层：来自写作笔记、按主题分组、AI 补充单独标、插入到光标处、去素材库看更多）、拍照上传（5.4）。
 import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -155,7 +155,7 @@ function Writer({ e }: { e: Essay }) {
           <Button title={timed ? '关闭计时' : '开启计时'} kind="text" size="sm" style={styles.exit} onPress={() => setTimed((v) => !v)} />
         </View>
         <View style={styles.topic}>
-          <Text variant="caption" color="#7A4E00" style={styles.lh}>
+          <Text variant="caption" color={colors.creamInk} style={styles.lh}>
             {e.topic}
           </Text>
         </View>
@@ -182,8 +182,8 @@ function Writer({ e }: { e: Essay }) {
       </ScrollView>
       <View style={styles.toolbar}>
         <Pressable accessibilityRole="button" accessibilityLabel="素材" onPress={() => setMaterials(true)} style={[styles.tool, styles.toolAmber]}>
-          <Icon name="book" size={15} color="#7A4E00" />
-          <Text variant="caption" color="#7A4E00">
+          <Icon name="book" size={15} color={colors.creamInk} />
+          <Text variant="caption" color={colors.creamInk}>
             素材
           </Text>
         </Pressable>
@@ -264,11 +264,11 @@ const styles = StyleSheet.create({
   exit: { paddingHorizontal: 0 },
   clock: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   clockText: { fontWeight: '700' },
-  topic: { padding: 14, borderRadius: radius.lg, backgroundColor: semantic.amberSoft },
+  topic: { padding: 14, borderRadius: radius.lg, backgroundColor: colors.creamSoft },
   editor: { minHeight: 360, paddingVertical: 4, fontSize: 16, lineHeight: 30, color: semantic.textPrimary },
   toolbar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, borderTopWidth: 1, borderTopColor: semantic.border },
   tool: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: semantic.fill },
-  toolAmber: { backgroundColor: semantic.amberSoft },
+  toolAmber: { backgroundColor: colors.creamSoft },
   count: { alignItems: 'flex-end' },
   sheetList: { maxHeight: 320 },
   material: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 12, borderTopWidth: 1, borderTopColor: semantic.border },

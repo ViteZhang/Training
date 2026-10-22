@@ -18,7 +18,7 @@ function Tile({ value, unit, label }: { value: number | string; unit?: string; l
   );
 }
 
-const lossColors = [colors.amber, colors.blue, '#8C80E0'];
+const lossColors = [colors.peach, colors.blue, colors.lavender];
 
 export default function TodaySummaryPage() {
   const q = useTodaySummary();
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
   tile: { flex: 1, gap: 2, paddingVertical: 14, paddingHorizontal: 14, borderRadius: radius.xl, backgroundColor: semantic.fill },
   tileNum: { fontFamily: fontFamily.numberSemiBold, fontSize: 28, lineHeight: 34, color: colors.ink },
   estimate: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  range: { fontFamily: fontFamily.numberSemiBold, fontSize: 22, lineHeight: 28, color: colors.indigo },
+  range: { fontFamily: fontFamily.numberSemiBold, fontSize: 22, lineHeight: 28, color: colors.ink },
   change: { fontFamily: fontFamily.numberSemiBold, fontSize: 20 },
   section: { gap: 10 },
   row: { flexDirection: 'row', alignItems: 'center' },

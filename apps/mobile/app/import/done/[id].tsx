@@ -23,7 +23,7 @@ function Stat({ n, label, warn }: { n: string; label: string; warn?: boolean }) 
   );
 }
 
-const warnInk = '#8A4B12';
+const warnInk = colors.peachInk;
 
 export default function DoneScreen() {
   const p = useLocalSearchParams<{ id: string; questions?: string; kps?: string; review?: string; papers?: string; without?: string }>();
@@ -111,10 +111,10 @@ const styles = StyleSheet.create({
   bold: { fontWeight: '700' },
   stats: { flexDirection: 'row', gap: 8 },
   stat: { flex: 1, gap: 2, padding: 14, borderRadius: radius.xl, backgroundColor: semantic.fill },
-  statWarn: { backgroundColor: semantic.amberSoft },
+  statWarn: { backgroundColor: semantic.peachSoft },
   statNum: { fontFamily: fontFamily.numberSemiBold, fontSize: 28, lineHeight: 34, color: colors.ink },
   warnText: { color: warnInk },
   placement: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: radius.xl, backgroundColor: semantic.fill },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.amber },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.peach },
   flex: { flex: 1 },
 });

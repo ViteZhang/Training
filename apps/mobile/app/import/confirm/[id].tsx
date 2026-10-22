@@ -1,7 +1,7 @@
 // 1.7 确认导入结果：汇总「N 份文件 · 识别出 N 题 · N 处需要核对」；筛选全部 / 需核对 / 主观题 / 客观题；
 // 每条显示题型、分值、状态与说明；需核对的题也可以先入库并带标记；「确认入库 N 题」。
 import { ApiError, type Schemas } from '@training/api-client';
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -33,8 +33,8 @@ function kindLabel(it: ImportItem) {
   return essayTypeNames[it.item_type] ?? '作文资料';
 }
 
-const warnInk = '#9A5B00';
-const statusInk: Record<string, string> = { mastered: '#1F7A4D', danger: warnInk, progress: warnInk, info: warnInk, neutral: '#1B1A17' };
+const warnInk = colors.orange;
+const statusInk: Record<string, string> = { mastered: colors.green, danger: warnInk, progress: warnInk, info: warnInk, neutral: colors.ink };
 
 export function ItemRow({ it, onPress }: { it: ImportItem; onPress: () => void }) {
   const st = itemStatus(it);
@@ -57,7 +57,7 @@ export function ItemRow({ it, onPress }: { it: ImportItem; onPress: () => void }
         {title(it)}
       </Text>
       {note ? (
-        <Text variant="small" color={check ? '#6B4A12' : undefined}>
+        <Text variant="small" color={check ? colors.orangeInk : undefined}>
           {note}
         </Text>
       ) : null}
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   summary: { fontSize: 14, lineHeight: 21, marginTop: -8 },
   list: { paddingBottom: spacing.xl, gap: 10 },
   item: { gap: 8, paddingVertical: 14, paddingHorizontal: 16, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
-  itemCheck: { borderColor: '#F3DDB3', backgroundColor: semantic.amberSoft },
+  itemCheck: { borderColor: colors.orangeLine, backgroundColor: semantic.peachSoft },
   itemHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   kind: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: semantic.fill },
   kindCheck: { backgroundColor: semantic.surface },

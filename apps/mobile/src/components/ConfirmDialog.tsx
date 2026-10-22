@@ -40,7 +40,7 @@ export function ConfirmDialog({ visible, title, message, confirmText = '确定',
 }
 
 const styles = StyleSheet.create({
-  mask: { flex: 1, backgroundColor: 'rgba(27,26,23,0.45)', justifyContent: 'center', paddingHorizontal: 40 },
+  mask: { flex: 1, backgroundColor: semantic.scrim, justifyContent: 'center', paddingHorizontal: 40 },
   box: { backgroundColor: semantic.surface, borderRadius: radius.card, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 20 },
   title: { fontSize: 18, lineHeight: 26, textAlign: 'center' },
   message: { marginTop: spacing.sm, textAlign: 'center', lineHeight: 21 },

@@ -1,7 +1,7 @@
 // 0.4 用户协议与隐私政策：两个 Tab；显示版本号、更新日期、生效日期；正文由后台按版本配置。
 // 从 6.5 会员中心进入时（kind=membership）只显示会员服务协议。
 import type { Schemas } from '@training/api-client';
-import { spacing } from '@training/ui-tokens';
+import { colors, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -56,5 +56,5 @@ const styles = StyleSheet.create({
   tabs: { marginTop: spacing.sm, marginBottom: spacing.md },
   body: { paddingBottom: spacing.xxxl },
   heading: { marginTop: 18, fontWeight: '700' },
-  para: { marginTop: 6, lineHeight: 23, color: '#4A4740' },
+  para: { marginTop: 6, lineHeight: 23, color: colors.inkSoft },
 });

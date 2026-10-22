@@ -124,7 +124,7 @@ function Result({ e }: { e: Essay }) {
           <View style={styles.right}>
             {e.prev_delta !== undefined ? (
               <View style={[styles.deltaPill, { backgroundColor: e.prev_delta >= 0 ? semantic.masteredSoft : semantic.dangerSoft }]}>
-                <Text variant="small" color={e.prev_delta >= 0 ? '#1F6B4A' : semantic.danger}>
+                <Text variant="small" color={e.prev_delta >= 0 ? colors.green : semantic.danger}>
                   较上篇 {e.prev_delta >= 0 ? `+${e.prev_delta}` : e.prev_delta}
                 </Text>
               </View>
@@ -150,7 +150,7 @@ function Result({ e }: { e: Essay }) {
                   {d.name}
                 </Text>
                 <View style={styles.bar}>
-                  <View style={[styles.fill, { width: `${(d.max ? d.score / d.max : 0) * 100}%`, backgroundColor: weak ? colors.amber : colors.indigo }]} />
+                  <View style={[styles.fill, { width: `${(d.max ? d.score / d.max : 0) * 100}%`, backgroundColor: weak ? colors.peach : colors.ink }]} />
                 </View>
                 <Text variant="small" style={styles.frac}>
                   {fmtScore(d.score)}/{fmtScore(d.max)}
@@ -159,7 +159,7 @@ function Result({ e }: { e: Essay }) {
             );
           })}
           {e.weakest_dimension ? (
-            <Text variant="small" color="#8A4B12">
+            <Text variant="small" color={colors.peachInk}>
               失分主项：{e.weakest_dimension}
             </Text>
           ) : null}
@@ -206,7 +206,7 @@ function Result({ e }: { e: Essay }) {
               <Text variant="caption">{e.topic_source === 'exam' ? '这道题还没有你导入的范文' : '只有真题题目会对照你导入的同题范文'}</Text>
             ) : (
               <>
-                <Text variant="caption" color="#7A4E00" style={styles.bold}>
+                <Text variant="caption" color={colors.creamInk} style={styles.bold}>
                   你导入的同题范文 · {models.length} 篇
                 </Text>
                 {models.map((m) => (
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   frac: { width: 44, textAlign: 'right' },
   fb: { flexDirection: 'row', gap: 10 },
   fbLabel: { fontWeight: '700', width: 30, lineHeight: 22 },
-  models: { gap: 8, padding: 16, borderRadius: radius.xl, backgroundColor: semantic.amberSoft },
+  models: { gap: 8, padding: 16, borderRadius: radius.xl, backgroundColor: colors.creamSoft },
   model: { gap: 2, paddingTop: 6 },
   nav: { flexDirection: 'row', gap: 10, paddingVertical: spacing.md },
   para: { gap: spacing.xs, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: semantic.border },

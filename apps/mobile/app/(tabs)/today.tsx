@@ -133,7 +133,7 @@ export default function TodayTab() {
             </Text>
             <Tip color={colors.green} title="历年真题卷最合适" desc="有题有答案，导入就能刷；做完一套整卷还能算出预估分" />
             <Tip color={colors.blue} title="只有讲义或笔记" desc="AI 会拆出知识点和采分点，再按知识点出题" />
-            <Tip color="#8C80E0" title="纸质习题册" desc="直接拍照，一张拍一页" />
+            <Tip color={colors.lavender} title="纸质习题册" desc="直接拍照，一张拍一页" />
           </Card>
           <BanksCard banks={h.banks} />
         </ScrollView>
@@ -161,8 +161,8 @@ export default function TodayTab() {
           <Card tone="fill" style={styles.card}>
             <View style={styles.dots} accessibilityElementsHidden>
               <View style={[styles.dot, { backgroundColor: colors.ink }]} />
-              <View style={[styles.dot, { backgroundColor: '#8C877D' }]} />
-              <View style={[styles.dot, { backgroundColor: '#CFCAC0' }]} />
+              <View style={[styles.dot, { backgroundColor: colors.dim }]} />
+              <View style={[styles.dot, { backgroundColor: colors.placeholder }]} />
             </View>
             <Text variant="h3">{!j || isRunning(j) ? '正在整理你的题库' : '题库整理好了，等你核对'}</Text>
             {j ? <ProgressBar value={j.materials.length ? done / j.materials.length : 0} height={4} color={colors.ink} /> : null}
@@ -229,6 +229,6 @@ const styles = StyleSheet.create({
   tip: { flexDirection: 'row', gap: 10 },
   dot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
   dots: { flexDirection: 'row', gap: 6 },
-  dashed: { gap: 4, paddingVertical: 16, paddingHorizontal: 18, borderRadius: radius.card, borderWidth: 1, borderStyle: 'dashed', borderColor: '#D6D2C8' },
+  dashed: { gap: 4, paddingVertical: 16, paddingHorizontal: 18, borderRadius: radius.card, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outline },
   notice: { flexDirection: 'row', gap: 10, padding: 14, borderRadius: radius.xl, backgroundColor: semantic.infoSoft },
 });

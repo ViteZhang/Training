@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
   stat: { flex: 1, gap: 2 },
   statNum: { fontFamily: fontFamily.numberSemiBold, fontSize: 26, lineHeight: 32, color: colors.ink },
   dotRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.amber },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.peach },
   card: { gap: 4, paddingVertical: 14 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 4 },
   flex: { flex: 1 },

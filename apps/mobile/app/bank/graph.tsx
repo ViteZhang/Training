@@ -15,11 +15,11 @@ import { PageHeader, Segments } from '@/features/import/ui';
 import { api, unwrap } from '@/lib/api';
 
 type Filter = 'all' | 'weak' | 'exam';
-// 设计稿 3.9：已掌握墨色、待巩固琥珀、学习中浅灰、未学习白底描边
+// 设计稿 3.9：已掌握墨色、待巩固蜜桃、学习中浅灰、未学习白底描边
 const stateColor: Record<Schemas['MasteryState'], string> = {
-  mastered: colors.indigo,
-  consolidating: colors.amber,
-  learning: '#CFCAC0',
+  mastered: colors.ink,
+  consolidating: colors.peach,
+  learning: colors.placeholder,
   unlearned: colors.white,
 };
 const SIZE = 800;
@@ -114,7 +114,7 @@ export default function GraphScreen() {
                     y1={a.y}
                     x2={b.x}
                     y2={b.y}
-                    stroke={picked && (e.source_id === picked || e.target_id === picked) ? colors.ink : e.relation_type === 'contrast' ? semantic.danger : '#CFCAC0'}
+                    stroke={picked && (e.source_id === picked || e.target_id === picked) ? colors.ink : e.relation_type === 'contrast' ? semantic.danger : colors.placeholder}
                     strokeDasharray={e.relation_type === 'sibling' ? '4 4' : undefined}
                     strokeWidth={picked && (e.source_id === picked || e.target_id === picked) ? 2.5 : 1}
                   />
@@ -130,7 +130,7 @@ export default function GraphScreen() {
                       cy={p.y}
                       r={p.r}
                       fill={stateColor[n.state]}
-                      stroke={n.id === picked ? colors.ink : n.state === 'unlearned' ? '#BDB8AD' : colors.white}
+                      stroke={n.id === picked ? colors.ink : n.state === 'unlearned' ? colors.faint : colors.white}
                       strokeWidth={n.id === picked ? 3 : 1.5}
                       strokeDasharray={n.id === picked ? '4 3' : undefined}
                     />
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   legend: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 2 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendDot: { width: 9, height: 9, borderRadius: 5 },
-  legendLine: { borderWidth: 1, borderColor: '#BDB8AD' },
+  legendLine: { borderWidth: 1, borderColor: colors.faint },
   footer: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.sm },
   flex: { flex: 1 },
   rel: { flexDirection: 'row', alignItems: 'center' },

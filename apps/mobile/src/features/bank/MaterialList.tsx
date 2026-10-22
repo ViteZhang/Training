@@ -1,6 +1,6 @@
 // 3.1c 资料、6.3 我的资料共用：每份资料的类型、页数、识别出的题数、导入日期；识别不完整时提醒；删除前说明连带影响（3.1d）。
 import { ApiError } from '@training/api-client';
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -48,8 +48,8 @@ function DeleteSheet({ m, subjectId, onClose }: { m: Material; subjectId: number
 
 const badgeTone: Record<Material['format'], { bg: string; fg: string }> = {
   pdf: { bg: semantic.dangerSoft, fg: semantic.danger },
-  docx: { bg: semantic.infoSoft, fg: '#1D4C77' },
-  xlsx: { bg: semantic.masteredSoft, fg: '#1F6B4A' },
+  docx: { bg: semantic.infoSoft, fg: colors.blueInk },
+  xlsx: { bg: semantic.masteredSoft, fg: colors.green },
   image: { bg: semantic.fill, fg: semantic.textPrimary },
   text: { bg: semantic.fill, fg: semantic.textPrimary },
 };
@@ -71,7 +71,7 @@ export function MaterialList({ items, subjectId, deletable = true }: { items: Ma
               <Text variant="body" numberOfLines={1}>
                 {m.file_name}
               </Text>
-              <Text variant="small" color={warn ? '#9A5B00' : semantic.textSecondary}>
+              <Text variant="small" color={warn ? colors.orange : semantic.textSecondary}>
                 {materialMeta(m)}
                 {warn ? '' : ` · ${shortDate(m.created_at)}`}
               </Text>

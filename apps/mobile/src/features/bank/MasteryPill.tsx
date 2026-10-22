@@ -5,13 +5,13 @@ import { Text } from '@/components';
 import { stateNames } from './api';
 
 const tones: Record<Schemas['MasteryState'], { bg: string; fg: string; border?: string }> = {
-  unlearned: { bg: 'transparent', fg: colors.gray, border: semantic.border },
-  learning: { bg: semantic.fill, fg: colors.gray },
-  consolidating: { bg: semantic.amberSoft, fg: '#8A4B12' },
-  mastered: { bg: colors.indigo, fg: colors.white },
+  unlearned: { bg: 'transparent', fg: colors.gray, border: colors.outline },
+  learning: { bg: colors.chip, fg: colors.inkSoft },
+  consolidating: { bg: semantic.peachSoft, fg: colors.peachInk },
+  mastered: { bg: colors.ink, fg: colors.white },
 };
 
-/** 掌握状态胶囊（设计稿 3.1、2.2）：未学习描边、学习中浅底、待巩固琥珀、已掌握夜靛实底。 */
+/** 掌握状态胶囊（设计稿 3.1、2.2）：未学习描边、学习中浅底、待巩固蜜桃、已掌握墨黑实底。 */
 export function MasteryPill({ state, suffix }: { state: Schemas['MasteryState']; suffix?: string }) {
   const t = tones[state];
   return (

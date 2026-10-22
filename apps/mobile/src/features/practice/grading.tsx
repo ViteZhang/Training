@@ -305,7 +305,7 @@ export function GradingResultView({
   );
 }
 
-const verdictColor = { hit: colors.green, partial: '#B26A00', miss: colors.red } as const;
+const verdictColor = { hit: colors.green, partial: colors.orange, miss: colors.red } as const;
 
 const reasons: { key: Schemas['DisputeRequest']['reason']; text: string }[] = [
   { key: 'hit_missed', text: '我其实答到了某个采分点' },
@@ -352,17 +352,17 @@ export function DisputeSheet({ g, visible, onClose, onDone }: { g: GradingResult
             }}
             style={styles.info}
           >
-            <Text variant="small" color="#1D4C77" style={styles.flex}>
+            <Text variant="small" color={colors.blueInk} style={styles.flex}>
               采分点{g.rubric_ref ? `来自你的资料「${g.rubric_ref.file_name}」` : '来自你的资料'}，可以直接改，改完这道题按新采分点重批，不消耗批改次数
             </Text>
-            <Text variant="caption" color="#1D4C77" style={styles.bold}>
+            <Text variant="caption" color={colors.blueInk} style={styles.bold}>
               去修改 ›
             </Text>
           </Pressable>
         ) : (
           <>
             <Text variant="small">补充说明（选填）</Text>
-            <TextInput accessibilityLabel="补充说明" value={note} onChangeText={setNote} multiline placeholder="比如：我写的「言外之意」就是韵味无穷的意思" placeholderTextColor="#A8A399" style={styles.note} textAlignVertical="top" />
+            <TextInput accessibilityLabel="补充说明" value={note} onChangeText={setNote} multiline placeholder="比如：我写的「言外之意」就是韵味无穷的意思" placeholderTextColor={colors.faint} style={styles.note} textAlignVertical="top" />
             <Checkbox checked={allow} onChange={setAllow} label="允许后台查看这道题和我的答案，用于排查批改问题" />
             <Text variant="small">提交后会重新批改一次，不消耗批改次数。</Text>
             <Button title="提交" disabled={!reason} loading={submit.isPending} onPress={() => submit.mutate()} />

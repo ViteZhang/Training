@@ -343,5 +343,5 @@ const styles = StyleSheet.create({
   note: { padding: 10, borderRadius: radius.md, backgroundColor: semantic.infoSoft },
   menu: { gap: spacing.xs },
   cancel: { marginTop: spacing.md },
-  input: { minHeight: 44, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 16, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  input: { minHeight: 44, borderWidth: 1, borderColor: semantic.inputBorder, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 16, color: semantic.textPrimary, backgroundColor: semantic.surface },
 });

@@ -1,6 +1,6 @@
 // 3.1 知识点：板块 → 章节 → 知识点三级，板块默认折叠，显示知识点数、待巩固数、平均掌握度，低于 40% 标「短板」；
 // 知识点行显示真题出现次数和掌握状态。
-import { radius, semantic } from '@training/ui-tokens';
+import { colors, radius, semantic } from '@training/ui-tokens';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -68,7 +68,7 @@ function Section({ n, initialOpen, subjectId, first }: { n: KnowledgeNode; initi
   );
 }
 
-const weakInk = '#9A5B00';
+const weakInk = colors.orange;
 
 export function KnowledgeTree({ sections, expandAll, subjectId }: { sections: KnowledgeNode[]; expandAll: boolean; subjectId: number }) {
   return (
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   point: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48 },
   noBorder: {},
   pointName: { flexShrink: 1 },
-  reviewDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#B26A00' },
+  reviewDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.orange },
   flex: { flex: 1 },
   gap2: { gap: 2 },
   medium: { fontWeight: '500' },

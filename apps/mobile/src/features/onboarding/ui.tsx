@@ -29,7 +29,7 @@ export function StepHeader({ step, title, desc, onBack }: { step: number; title:
   );
 }
 
-/** 可选卡片（单选）：左侧可放图标块，右侧单选圈；选中时 1.5px 夜靛描边（设计稿 1.3、1.4）。 */
+/** 可选卡片（单选）：左侧可放图标块，右侧单选圈；选中时 1.5px 墨黑描边（设计稿 1.3、1.4）。 */
 export function OptionCard({
   selected,
   onPress,
@@ -70,7 +70,7 @@ export function Chips<T extends string | number>({ options, value, onChange, for
         const on = o === value;
         return (
           <Pressable key={String(o)} accessibilityRole="radio" accessibilityState={{ selected: on }} onPress={() => onChange(o)} style={[styles.chip, on && styles.chipOn]}>
-            <Text variant="caption" color={on ? '#FFFFFF' : semantic.textPrimary}>
+            <Text variant="caption" color={on ? colors.white : semantic.textPrimary}>
               {format ? format(o) : String(o)}
             </Text>
           </Pressable>
@@ -108,21 +108,21 @@ const styles = StyleSheet.create({
   header: { marginTop: spacing.sm, marginBottom: spacing.xl, gap: spacing.sm },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   back: { width: 32 },
-  bars: { flex: 1, flexDirection: 'row', gap: 4 },
-  bar: { flex: 1, height: 3, borderRadius: 2, backgroundColor: semantic.border },
+  bars: { flex: 1, flexDirection: 'row', gap: 6 },
+  bar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: semantic.progressTrack },
   barOn: { backgroundColor: colors.ink },
   title: { marginTop: spacing.lg },
   desc: { fontSize: 14, lineHeight: 21 },
   option: { flexDirection: 'row', gap: 14, alignItems: 'flex-start', padding: 16, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface, minHeight: layout.minTouch },
-  optionOn: { borderColor: colors.indigo, borderWidth: 1.5, padding: 15.5 },
+  optionOn: { borderColor: colors.ink, borderWidth: 1.5, padding: 15.5 },
   optionIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  radio: { width: 20, height: 20, marginTop: 2, borderRadius: 10, borderWidth: 1.5, borderColor: '#BDB8AD', alignItems: 'center', justifyContent: 'center' },
-  radioOn: { borderColor: colors.indigo },
-  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.indigo },
+  radio: { width: 20, height: 20, marginTop: 2, borderRadius: 10, borderWidth: 1.5, borderColor: colors.faint, alignItems: 'center', justifyContent: 'center' },
+  radioOn: { borderColor: colors.ink },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.ink },
   flex: { flex: 1 },
   chips: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   chip: { minHeight: 40, minWidth: 64, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: semantic.fill, alignItems: 'center', justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.indigo },
+  chipOn: { backgroundColor: colors.ink },
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   stepBtn: { width: layout.minTouch, height: layout.minTouch, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: semantic.fill },
   stepSign: { fontWeight: '400' },

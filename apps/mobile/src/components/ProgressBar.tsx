@@ -4,16 +4,16 @@ import { StyleSheet, View } from 'react-native';
 export interface ProgressBarProps {
   /** 0–1 */
   value: number;
-  /** 深色底（夜靛卡片）上用轨道紫做轨道 */
+  /** 深色底（墨黑卡片）上用深灰轨道 */
   onBrand?: boolean;
   height?: number;
   /** 目标点位置 0–1（预估分卡上的目标分），不传不显示 */
   target?: number;
-  /** 填充色，默认琥珀（进度、提分）；解析进度等中性进度用墨色 */
+  /** 填充色，默认蜜桃（进度、提分）；解析进度等中性进度用墨色 */
   color?: string;
 }
 
-/** 进度条：琥珀只用于进度与提分（VI）。 */
+/** 进度条：蜜桃色用于进度与提分（设计稿）。 */
 export function ProgressBar({ value, onBrand, height = 6, target, color }: ProgressBarProps) {
   const pct = Math.max(0, Math.min(1, value));
   return (

@@ -83,6 +83,6 @@ const styles = StyleSheet.create({
   desc: { fontSize: 14, marginTop: -6, marginBottom: 6 },
   bold: { fontWeight: '700' },
   lh: { lineHeight: 19 },
-  input: { minHeight: 56, paddingHorizontal: 16, borderRadius: radius.xl, borderWidth: 1.5, borderColor: semantic.border, backgroundColor: semantic.surface, fontSize: 18, letterSpacing: 3, color: semantic.textPrimary },
+  input: { minHeight: 56, paddingHorizontal: 16, borderRadius: radius.xl, borderWidth: 1.5, borderColor: semantic.inputBorder, backgroundColor: semantic.surface, fontSize: 18, letterSpacing: 3, color: semantic.textPrimary },
   inputError: { borderColor: semantic.danger },
 });

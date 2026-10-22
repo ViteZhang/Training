@@ -49,7 +49,7 @@ export default function PaperReportPage() {
             <View style={styles.right}>
               {r.prev_delta !== undefined ? (
                 <View style={[styles.delta, { backgroundColor: r.prev_delta >= 0 ? semantic.masteredSoft : semantic.dangerSoft }]}>
-                  <Text variant="small" color={r.prev_delta >= 0 ? '#1F6B4A' : semantic.danger}>
+                  <Text variant="small" color={r.prev_delta >= 0 ? colors.green : semantic.danger}>
                     较上次 {r.prev_delta >= 0 ? `+${r.prev_delta}` : r.prev_delta}
                   </Text>
                 </View>
@@ -78,7 +78,7 @@ export default function PaperReportPage() {
                   {qtypeNames[q.qtype]}
                 </Text>
                 <View style={styles.bar}>
-                  <View style={[styles.fill, { width: `${rate * 100}%`, backgroundColor: q.qtype === r.weakest_qtype ? colors.amber : colors.indigo }]} />
+                  <View style={[styles.fill, { width: `${rate * 100}%`, backgroundColor: q.qtype === r.weakest_qtype ? colors.peach : colors.ink }]} />
                 </View>
                 <Text variant="small" style={styles.frac}>
                   {q.got}/{q.full}
@@ -112,16 +112,16 @@ export default function PaperReportPage() {
             onPress={() => router.push({ pathname: '/paper/time/[id]', params: { id: String(sid) } })}
             style={styles.timeEntry}
           >
-            <Icon name="clock" size={20} color="#1F6B4A" />
+            <Icon name="clock" size={20} color={colors.green} />
             <View style={styles.flex}>
-              <Text variant="caption" color="#1F6B4A" style={styles.bold}>
+              <Text variant="caption" color={colors.green} style={styles.bold}>
                 时间分析报告
               </Text>
-              <Text variant="small" color="#1F6B4A">
+              <Text variant="small" color={colors.green}>
                 {r.time.conclusion}
               </Text>
             </View>
-            <Icon name="chevron" size={16} color="#1F6B4A" />
+            <Icon name="chevron" size={16} color={colors.green} />
           </Pressable>
         ) : null}
       </ScrollView>
@@ -145,8 +145,8 @@ export default function PaperReportPage() {
   );
 }
 
-const lossColor = [colors.amber, '#B26A00', colors.ink];
-const lossInk = ['#8A4B12', '#9A5B00', colors.ink];
+const lossColor = [colors.peach, colors.orange, colors.ink];
+const lossInk = [colors.peachInk, colors.orange, colors.ink];
 
 const styles = StyleSheet.create({
   scroll: { gap: 12, paddingBottom: spacing.xl },
