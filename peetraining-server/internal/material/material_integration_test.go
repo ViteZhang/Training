@@ -143,6 +143,58 @@ func TestUploadFlowAndDuplicate(t *testing.T) {
 	}
 }
 
+// 上次申请了上传却没传完的文件，再选同一份时要重新给上传地址，不能当成重复跳过上传。
+func TestUploadUnfinishedRetry(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	uid, sid, _ := f.user(t)
+
+	first, err := f.svc.RequestUploads(ctx, uid, sid, "", []material.File{pdf("真题.pdf", "u", 3, 100)}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 没传就重试（同一请求里还选了一份相同的文件）。
+	again, err := f.svc.RequestUploads(ctx, uid, sid, "", []material.File{pdf("真题.pdf", "u", 3, 100), pdf("真题副本.pdf", "u", 3, 100)}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again[0].Duplicate || again[0].Upload == nil || again[0].MaterialID != first[0].MaterialID {
+		t.Fatalf("没传完的应重新给上传地址：%+v", again[0])
+	}
+	if !again[1].Duplicate || again[1].MaterialID != first[0].MaterialID {
+		t.Fatalf("同一请求里的相同文件只传一次：%+v", again[1])
+	}
+	m, _ := f.svc.Get(ctx, uid, first[0].MaterialID)
+	f.oss.Seed(m.ObjectKey.String, make([]byte, 100))
+	if m, err = f.svc.ConfirmUploaded(ctx, uid, m.ID); err != nil || m.Status != dbq.MaterialsStatusUploaded {
+		t.Fatalf("确认上传：%v %+v", err, m)
+	}
+
+	// 别的专业课里没传完的：删掉重建到当前专业课。
+	s2, err := f.prof.CreateSubject(ctx, uid, profile.SubjectInput{Name: "外国文学史", FullScore: 150})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sid2 := s2.ID
+	stale, err := f.svc.RequestUploads(ctx, uid, sid, "", []material.File{pdf("讲义.pdf", "v", 1, 10)}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	moved, err := f.svc.RequestUploads(ctx, uid, sid2, "", []material.File{pdf("讲义.pdf", "v", 1, 10)}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if moved[0].Duplicate || moved[0].Upload == nil || moved[0].MaterialID == stale[0].MaterialID {
+		t.Fatalf("应在当前专业课重建：%+v", moved[0])
+	}
+	if _, err := f.svc.Get(ctx, uid, stale[0].MaterialID); kind(err) != apperr.NotFound {
+		t.Fatalf("旧记录应删除：%v", err)
+	}
+	if m, err := f.svc.Get(ctx, uid, moved[0].MaterialID); err != nil || uint64(m.SubjectID.Int64) != sid2 {
+		t.Fatalf("新记录应属于当前专业课：%v %+v", err, m)
+	}
+}
+
 func TestUploadLimits(t *testing.T) {
 	f := setup(t)
 	ctx := context.Background()

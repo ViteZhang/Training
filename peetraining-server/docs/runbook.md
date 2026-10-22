@@ -199,13 +199,32 @@ PAY_PROVIDER=disabled
 
    OSS 默认复用 `ALIYUN_ACCESS_KEY_*`，要用单独的 AccessKey 时填 `OSS_ACCESS_KEY_ID` / `SECRET`。`OSS_ENDPOINT` 误填成内网地址时，程序会自动把给 App 的地址换成公网地址。
    改完在 `/opt/dreamer/project/training` 执行 `docker compose up -d`。
-5. 验证：App 里选一份 Word 或文字版 PDF 导入，应能看到「上传 → 解析中 → 识别出的题目」；再拍一张印刷体题目照片导入。失败时：
+5. 自检：在 `/opt/dreamer/project/training` 执行
+
+   ```bash
+   docker compose exec api /app/api cloudcheck        # 加 --ocr 再试一次文字识别（按次计费）
+   ```
+
+   逐项试调 OSS（服务端读写 + 按 App 的方式预签名直传）、内容安全、PDF 解析、百炼，每项打印「正常 / 失败 / 跳过」和失败原因；全部正常才能导入。
+   读的是容器里的 `.env`，改完 `.env` 要先 `docker compose up -d` 再自检。
+6. 验证：App 里选一份 Word 或文字版 PDF 导入，应能看到「上传 → 解析中 → 识别出的题目」；再拍一张印刷体题目照片导入。失败时：
 
    ```bash
    docker compose logs --since 10m api worker | grep -iE "oss|ocr|pdfium|moderation|内容安全|文字识别"
    ```
 
    常见原因：`AccessDenied`（RAM 没授权该服务或该桶）、`InvalidAccessKeyId`（密钥填错）、App 上传返回 403（`OSS_ENDPOINT` 地域与桶不一致，或手机时间偏差过大）。
+
+   导入失败时 App 显示的原因与对应排查：
+
+   | App 显示 | 卡在哪一步 | 先看 |
+   | --- | --- | --- |
+   | 「还没有上传完成」 | 直传 OSS 没成功 | cloudcheck 的 OSS 项；App 上传是否报 403 |
+   | 「文件读取或文字识别服务暂时不可用」 | 取文字（读 OSS 原件、PDF、OCR） | cloudcheck 的 OSS、PDF、`--ocr` 项 |
+   | 「内容安全审核服务暂时不可用」 | 内容安全 | cloudcheck 的内容安全项；`MODERATION_PROVIDER` 是否为 aliyun、是否开通增强版并授权 |
+   | 「AI 解析服务暂时不可用」 | 百炼结构化 | cloudcheck 的 AI 项；`BAILIAN_API_KEY`、模型名、后台 7.8 是否把能力改到了不存在的模型 |
+
+   这几种失败都不扣额度，服务恢复后在 App 里点「重试」即可。Worker 日志里 `task failed` 那一行是具体错误。
 
 扫描版 PDF 受功能开关 `scanned_pdf` 控制，默认关闭：关闭时扫描页不送识别、不花识别费用，资料提示改用拍照导入。
 
