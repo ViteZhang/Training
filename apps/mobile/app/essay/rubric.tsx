@@ -37,7 +37,7 @@ function RubricMain({ r, subjectLabel }: { r: Rubric; subjectLabel?: string }) {
               <Text variant="body">{d.name}</Text>
               {d.description ? <Text variant="small">{d.description}</Text> : null}
             </View>
-            <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+            <Text variant="caption" num={600} color={semantic.textPrimary} style={styles.score15}>
               {fmtScore(d.score)}
             </Text>
           </View>
@@ -52,7 +52,7 @@ function RubricMain({ r, subjectLabel }: { r: Rubric; subjectLabel?: string }) {
             {bands.map((bd, i) => (
               <View key={i} style={styles.band}>
                 <Text variant="small">{bd.description}</Text>
-                <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+                <Text variant="caption" num={600} color={semantic.textPrimary} style={styles.score14}>
                   {bd.range}
                 </Text>
               </View>
@@ -169,6 +169,8 @@ export default function EssayRubricPage() {
 }
 
 const styles = StyleSheet.create({
+  score15: { fontSize: 15 },
+  score14: { fontSize: 14 },
   scroll: { gap: 14, paddingBottom: spacing.xl },
   gap: { gap: 10 },
   gap2: { gap: 2 },

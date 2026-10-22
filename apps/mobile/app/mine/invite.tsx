@@ -71,7 +71,7 @@ export default function InvitePage() {
         <Card style={styles.gap}>
           <View style={styles.row}>
             <Text variant="h3" style={styles.flex}>邀请记录</Text>
-            <Text variant="bodyStrong" color={semantic.progress}>已获得 {d.earned_days} 天</Text>
+            <Text variant="caption" num color={semantic.progress}>已获得 {d.earned_days} 天</Text>
           </View>
           {d.records.length === 0 ? <Text variant="caption">还没有好友用你的邀请码注册</Text> : null}
           {d.records.map((r, i) => (

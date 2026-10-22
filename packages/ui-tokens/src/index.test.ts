@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { brand, colors, designColorMap, semantic, typography } from './index';
+import { brand, colors, designColorMap, fontFamily, semantic, typography } from './index';
 
 describe('ui-tokens', () => {
   it('页面颜色与设计稿一致：白底、墨黑主按钮', () => {
@@ -24,8 +24,12 @@ describe('ui-tokens', () => {
     expect(semantic.inputBorder).toBe('#E6E6E6');
   });
 
-  it('字号层级与设计稿一致，品牌标题沿用 VI H1', () => {
-    expect([typography.display.fontSize, typography.display.lineHeight]).toEqual([32, 40]);
+  it('数字字体用设计稿的 DM Sans', () => {
+    expect(fontFamily.numberSemiBold).toBe('DMSans-SemiBold');
+    expect(typography.score.fontFamily).toBe('DMSans-SemiBold');
+  });
+
+  it('字号层级与设计稿一致', () => {
     expect(typography.h1.fontSize).toBe(26);
     expect(typography.h3.fontSize).toBe(17);
     expect(typography.body.fontSize).toBe(15);

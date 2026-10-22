@@ -20,7 +20,7 @@ function MixRow({ name, mix, strong }: { name: string; mix: Record<string, numbe
         <Text variant="small" color={strong ? colors.ink : undefined} style={[styles.flex, strong && styles.bold]}>
           {name}
         </Text>
-        <Text variant="small" color={strong ? colors.ink : undefined} style={strong ? styles.bold : undefined}>
+        <Text variant="small" num={strong ? 600 : 400} color={strong ? colors.ink : undefined}>
           {pct(mix)}
         </Text>
       </View>

@@ -145,11 +145,11 @@ export default function DashboardPage() {
               <View style={styles.bar}>
                 <View style={[styles.fill, { width: `${Math.min(100, s.mastery)}%`, backgroundColor: s.mastery < 40 ? colors.peach : colors.ink }]} />
               </View>
-              <Text variant="small" color={s.mastery < 40 ? colors.peachInk : semantic.textPrimary} style={[styles.pct, styles.bold]}>
+              <Text variant="small" num={600} color={s.mastery < 40 ? colors.peachInk : semantic.textPrimary} style={styles.pct}>
                 {Math.round(s.mastery)}%
               </Text>
               {d.sections_ready ? (
-                <Text variant="small" style={styles.share}>
+                <Text variant="small" num style={styles.share}>
                   占{Math.round(s.share * 100)}%
                 </Text>
               ) : null}

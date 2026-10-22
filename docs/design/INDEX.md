@@ -1,6 +1,6 @@
 # 设计稿索引
 
-页面编号 → 视觉稿文件。编号与 docs/prd.md 一致。pages/ 下的 .dc.html 是布局、颜色、文案和交互的依据，页面颜色一比一还原；vi/ 只管 Logo、App 图标、启动页和字体（见 CLAUDE.md「视觉规则」）。
+页面编号 → 视觉稿文件。编号与 docs/prd.md 一致。pages/ 下的 .dc.html 是布局、颜色、文案和交互的依据，页面颜色一比一还原；vi/ 只管 Logo 和 App 图标（见 CLAUDE.md「视觉规则」）。
 
 在线预览（含交互与画布）：https://claude.ai/code/artifact/0fb1b154-6abd-41dd-bc16-0d03ee1a908c
 
@@ -10,7 +10,7 @@
 
 | 页面 | 文件 |
 | --- | --- |
-| 0.1 启动页（按 VI 竖版组合重做，旧版仅作布局参考） | pages/m0_splash.dc.html |
+| 0.1 启动页（白底按设计稿，Logo 用 VI） | pages/m0_splash.dc.html |
 | 0.2 手机号登录（可交互） | pages/m0_login.dc.html |
 | 0.2a 已输入手机号 | pages/m0_login_filled.dc.html |
 | 0.2b 未同意协议 | pages/m0_login_agree.dc.html |

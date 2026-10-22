@@ -1,7 +1,7 @@
 // 4.20 练习模式作答、4.21 模拟考试作答、4.22 答题卡、4.23 交卷确认；交卷后显示批改进度与得分。
 // 倒计时以服务端 deadline_at 为准（按 server_now 校准本机时钟）；草稿每 5 秒存 MMKV 并同步到服务端；
 // 模拟考试被系统中断（杀掉 App、来电）后，10 分钟内可恢复一次并补回中断时长（PRD 11.9）。
-import { colors, radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -56,7 +56,7 @@ function ResultView({ s }: { s: PaperSession }) {
               <Text variant="caption">得分</Text>
               <Text variant="score">
                 {s.score ?? '-'}
-                <Text variant="caption"> / {s.full_score}</Text>
+                <Text variant="caption" num> / {s.full_score}</Text>
               </Text>
               <Text variant="caption">{s.counts_for_estimate ? '这套真题卷会用来更新预估分' : 'AI 组卷的成绩只作参考，不计入预估分'}</Text>
             </>
@@ -78,7 +78,7 @@ function ResultView({ s }: { s: PaperSession }) {
               <Text variant="caption" style={styles.flex}>
                 {qtypeNames[it.qtype]} · {it.answered ? '已答' : '未答'}
               </Text>
-              <Text variant="bodyStrong">{it.got !== undefined ? `${it.got} / ${it.score}` : grading ? '批改中' : `- / ${it.score}`}</Text>
+              <Text variant="bodyStrong" num={600}>{it.got !== undefined ? `${it.got} / ${it.score}` : grading ? '批改中' : `- / ${it.score}`}</Text>
             </Pressable>
           ))}
         </Card>
@@ -128,7 +128,7 @@ function AnswerCard({ s, drafts, seq, onPick }: { s: PaperSession; drafts: Recor
                   onPress={() => onPick(it.seq)}
                   style={[styles.cell, done && styles.cellDone, it.seq === seq && styles.cellOn]}
                 >
-                  <Text variant="bodyStrong" color={done ? semantic.surface : undefined}>
+                  <Text variant="bodyStrong" num={600} color={done ? semantic.surface : undefined}>
                     {it.seq}
                   </Text>
                   {it.marked ? <View style={styles.flag} /> : null}
@@ -327,7 +327,7 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.qHead}>
             <Text variant="small" style={styles.flex}>
-              第 <Text variant="small" color={semantic.textPrimary} style={styles.bold}>{seq}</Text> / {s.items.length} 题 · {qtypeNames[item.qtype]} · {item.score} 分
+              第 <Text variant="small" num={600} color={semantic.textPrimary}>{seq}</Text> / {s.items.length} 题 · {qtypeNames[item.qtype]} · {item.score} 分
             </Text>
             {item.origin_tags?.includes('ai_generated') ? <Tag label="AI 变式题" tone="ai" /> : null}
             <Pressable accessibilityRole="button" accessibilityLabel={item.marked ? '已标记' : '标记'} onPress={() => mark.mutate(!item.marked)} style={[styles.mark, item.marked && styles.markOn]}>
@@ -377,12 +377,12 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
                 style={styles.answer}
                 textAlignVertical="top"
               />
-              <Text variant="small">
+              <Text variant="small" num>
                 {chars(text)} 字{item.required_words ? ` · 建议 ${item.required_words} 字左右` : ''}
               </Text>
             </>
           )}
-          <Text variant="small">本题已用 {clock(item.time_spent_seconds)}</Text>
+          <Text variant="small" num>本题已用 {clock(item.time_spent_seconds)}</Text>
         </ScrollView>
       )}
       {!paused ? (
@@ -503,5 +503,5 @@ const styles = StyleSheet.create({
   cellOn: { borderWidth: 2, borderColor: semantic.textPrimary },
   flag: { position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.peach },
   resultRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, borderTopWidth: 1, borderTopColor: semantic.border },
-  seq: { width: 28 },
+  seq: { width: 28, fontFamily: fontFamily.numberSemiBold },
 });

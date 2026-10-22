@@ -44,7 +44,7 @@ export default function PaperReportPage() {
               <Text variant="score" color={colors.ink} style={styles.big}>
                 {r.score}
               </Text>
-              <Text variant="caption"> / {r.full_score}</Text>
+              <Text variant="caption" num style={styles.of}> / {r.full_score}</Text>
             </View>
             <View style={styles.right}>
               {r.prev_delta !== undefined ? (
@@ -80,7 +80,7 @@ export default function PaperReportPage() {
                 <View style={styles.bar}>
                   <View style={[styles.fill, { width: `${rate * 100}%`, backgroundColor: q.qtype === r.weakest_qtype ? colors.peach : colors.ink }]} />
                 </View>
-                <Text variant="small" style={styles.frac}>
+                <Text variant="small" num style={styles.frac}>
                   {q.got}/{q.full}
                 </Text>
               </View>
@@ -149,6 +149,7 @@ const lossColor = [colors.peach, colors.orange, colors.ink];
 const lossInk = [colors.peachInk, colors.orange, colors.ink];
 
 const styles = StyleSheet.create({
+  of: { fontSize: 16 },
   scroll: { gap: 12, paddingBottom: spacing.xl },
   gap: { gap: 10 },
   flex: { flex: 1 },

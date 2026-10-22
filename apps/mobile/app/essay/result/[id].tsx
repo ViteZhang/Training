@@ -119,7 +119,7 @@ function Result({ e }: { e: Essay }) {
             <Text variant="score" color={semantic.textPrimary} style={styles.big}>
               {fmtScore(e.score)}
             </Text>
-            <Text variant="caption"> / {fmtScore(e.full_score)}</Text>
+            <Text variant="caption" num style={styles.of}> / {fmtScore(e.full_score)}</Text>
           </View>
           <View style={styles.right}>
             {e.prev_delta !== undefined ? (
@@ -152,7 +152,7 @@ function Result({ e }: { e: Essay }) {
                 <View style={styles.bar}>
                   <View style={[styles.fill, { width: `${(d.max ? d.score / d.max : 0) * 100}%`, backgroundColor: weak ? colors.peach : colors.ink }]} />
                 </View>
-                <Text variant="small" style={styles.frac}>
+                <Text variant="small" num style={styles.frac}>
                   {fmtScore(d.score)}/{fmtScore(d.max)}
                 </Text>
               </View>
@@ -283,6 +283,7 @@ export default function EssayResultPage() {
 }
 
 const styles = StyleSheet.create({
+  of: { fontSize: 15 },
   scroll: { gap: 12, paddingBottom: spacing.xl },
   gap: { gap: 12 },
   gapSm: { gap: 10 },

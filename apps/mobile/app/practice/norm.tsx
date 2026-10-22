@@ -45,7 +45,7 @@ function NormBody({ n }: { n: Schemas['AnswerNorm'] }) {
         {n.elements.map((e, i) => (
           <View key={e.name} style={styles.element}>
             <View style={styles.num}>
-              <Text variant="small" color={semantic.textOnBrand} style={styles.bold}>
+              <Text variant="small" num={600} color={semantic.textOnBrand}>
                 {i + 1}
               </Text>
             </View>

@@ -29,7 +29,7 @@ export function RubricLine({ index, content, score }: { index: number; content: 
       <Text variant="body" style={[styles.flex, styles.text]}>
         {content}
       </Text>
-      {score !== undefined ? <Text variant="small">{score} 分</Text> : null}
+      {score !== undefined ? <Text variant="small" num>{score} 分</Text> : null}
     </View>
   );
 }

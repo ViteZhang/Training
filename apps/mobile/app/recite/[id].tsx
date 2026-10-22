@@ -72,7 +72,7 @@ export default function RecitePage() {
         title={s.title}
         left={<BackButton icon="close" label="退出背诵" onPress={() => setExiting(true)} />}
         right={
-          <Text variant="small">
+          <Text variant="caption" num>
             {index + 1} / {s.items.length}
           </Text>
         }

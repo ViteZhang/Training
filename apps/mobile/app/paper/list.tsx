@@ -43,7 +43,7 @@ function PaperRow({ p, first }: { p: Brief; first?: boolean }) {
       {p.last?.score !== undefined && !p.session ? (
         <Text style={styles.score}>
           {p.last.score}
-          <Text variant="small"> / {p.last.full_score}</Text>
+          <Text variant="small" num> / {p.last.full_score}</Text>
         </Text>
       ) : (
         <View style={[styles.pill, p.session && styles.pillInk]}>

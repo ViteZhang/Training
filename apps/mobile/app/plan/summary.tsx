@@ -37,7 +37,7 @@ export default function TodaySummaryPage() {
         <View style={styles.gap4}>
           <Text variant="h1">今日训练完成</Text>
           <Text variant="caption">
-            已连续打卡 <Text variant="caption" color={colors.ink} style={styles.bold}>{s.streak_days}</Text> 天
+            已连续打卡 <Text variant="caption" num={600} color={colors.ink}>{s.streak_days}</Text> 天
           </Text>
         </View>
         <View style={styles.tiles}>
@@ -101,7 +101,7 @@ export default function TodaySummaryPage() {
               <View style={styles.lossLegend}>
                 {losses.map((k) => (
                   <Text key={k} variant="small">
-                    {lossNames[k]} <Text variant="small" color={colors.ink}>{Math.round((s.loss_shares[k] ?? 0) * 100)}%</Text>
+                    {lossNames[k]} <Text variant="small" num color={colors.ink}>{Math.round((s.loss_shares[k] ?? 0) * 100)}%</Text>
                   </Text>
                 ))}
               </View>

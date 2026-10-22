@@ -1,6 +1,6 @@
-// 0.1 启动页：按 VI 竖版组合（夜靛底、琥珀「考研」、白色 Training），约 1.5 秒。
+// 0.1 启动页：按设计稿 m0_splash（白底、VI Logo、「考研Training」、一句说明），约 1.5 秒。
 // 分流：有强制更新 → 0.6b；协议有新版本 → 0.4b；未登录 → 0.2；已登录未完成引导 → 中断的步骤；完成引导 → 2.1。
-import { brand, colors, fontFamily, spacing } from '@training/ui-tokens';
+import { fontFamily, semantic } from '@training/ui-tokens';
 import type { Schemas } from '@training/api-client';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -68,16 +68,17 @@ export default function Splash() {
 
   return (
     <View style={styles.root}>
-      <Logo size={96} />
-      <View style={styles.wordmark}>
-        <Text style={styles.cn}>考研</Text>
-        <Text style={styles.en}>Training</Text>
+      <View style={styles.center}>
+        <Logo size={84} />
+        <Text style={styles.wordmark}>
+          考研<Text style={styles.en}>Training</Text>
+        </Text>
+        <Text variant="body" color={semantic.textSecondary} style={styles.slogan}>
+          把你的专业课资料，变成能刷、能批改的题库
+        </Text>
       </View>
-      <Text variant="body" color="#C4C0E0" style={styles.slogan}>
-        把你的专业课资料，变成能刷、能批改的题库
-      </Text>
-      <Text variant="caption" color="#8F8BBF" style={styles.footer}>
-        文科专业课 · {appConfig.variant === 'production' ? '' : '内测版'}
+      <Text variant="small" color={semantic.textTertiary} style={styles.footer}>
+        {appConfig.variant === 'production' ? '文科专业课' : '文科专业课 · 内测版'}
       </Text>
       {pending?.kind === 'update' ? (
         <UpdateDialog
@@ -107,10 +108,10 @@ export default function Splash() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: brand.indigo, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xxl },
-  wordmark: { flexDirection: 'row', alignItems: 'baseline', marginTop: spacing.xl, gap: spacing.xs },
-  cn: { fontFamily: fontFamily.serifHeavy, fontSize: 32, lineHeight: 40, color: brand.amber },
-  en: { fontFamily: fontFamily.numberBold, fontSize: 30, lineHeight: 40, color: colors.white },
-  slogan: { marginTop: spacing.md, textAlign: 'center' },
-  footer: { position: 'absolute', bottom: 48 },
+  root: { flex: 1, backgroundColor: semantic.background },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 18, paddingHorizontal: 22 },
+  wordmark: { fontSize: 26, lineHeight: 35, fontWeight: '700', letterSpacing: 1, color: semantic.textPrimary },
+  en: { fontFamily: fontFamily.numberSemiBold, letterSpacing: 0 },
+  slogan: { fontSize: 14, textAlign: 'center' },
+  footer: { textAlign: 'center', paddingBottom: 40 },
 });

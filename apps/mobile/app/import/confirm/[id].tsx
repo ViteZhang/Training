@@ -129,7 +129,7 @@ export default function ConfirmScreen() {
               <PageHeader title="确认导入结果" large onBack={() => router.back()} />
             )}
             <Text variant="caption" style={styles.summary}>
-              {files} 份文件 · 识别出 <Text variant="caption" color={semantic.textPrimary}>{counts ? counts.questions + counts.knowledge_points + (counts.essay_items ?? 0) : 0}</Text> {unit}
+              {files} 份文件 · 识别出 <Text variant="caption" num color={semantic.textPrimary}>{counts ? counts.questions + counts.knowledge_points + (counts.essay_items ?? 0) : 0}</Text> {unit}
               {counts?.needs_review ? <Text variant="caption" color={warnInk}> · {counts.needs_review} 处需要核对</Text> : null}
             </Text>
             <Segments<Filter>

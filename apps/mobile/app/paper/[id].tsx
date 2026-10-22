@@ -53,9 +53,9 @@ export default function PaperModePage() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <PageHeader title={p.title} onBack={() => router.back()} />
         <View style={styles.facts}>
-          <Text variant="caption">{p.question_count} 题</Text>
-          <Text variant="caption">{p.full_score} 分</Text>
-          <Text variant="caption">{p.duration_minutes} 分钟</Text>
+          <Text variant="caption" num>{p.question_count} 题</Text>
+          <Text variant="caption" num>{p.full_score} 分</Text>
+          <Text variant="caption" num>{p.duration_minutes} 分钟</Text>
         </View>
         {p.missing_note ? <Text variant="caption" color={semantic.info}>{p.missing_note}</Text> : null}
         {!p.counts_for_estimate ? <Text variant="caption">AI 组卷的成绩只作参考，不计入预估分</Text> : null}

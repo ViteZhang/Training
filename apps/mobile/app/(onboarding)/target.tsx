@@ -81,7 +81,7 @@ export default function TargetStep() {
                       style={[styles.full, d.full === full && styles.fullOn]}
                       hitSlop={6}
                     >
-                      <Text variant="small" color={d.full === full ? colors.ink : semantic.textSecondary} style={d.full === full ? styles.bold : undefined}>
+                      <Text variant="small" num={600} color={d.full === full ? colors.ink : semantic.textSecondary}>
                         {full}
                       </Text>
                     </Pressable>

@@ -138,7 +138,7 @@ function Writer({ e }: { e: Essay }) {
         {timed ? (
           <View style={styles.clock}>
             <Icon name="clock" size={16} color={left <= 0 ? semantic.danger : semantic.textPrimary} />
-            <Text variant="bodyStrong" style={styles.clockText} color={left <= 0 ? semantic.danger : semantic.textPrimary} accessibilityLabel="剩余时间">
+            <Text variant="bodyStrong" num={600} style={styles.clockText} color={left <= 0 ? semantic.danger : semantic.textPrimary} accessibilityLabel="剩余时间">
               {left > 0 ? clock(left) : '时间到'}
             </Text>
           </View>
@@ -196,7 +196,7 @@ function Writer({ e }: { e: Essay }) {
         <View style={styles.flex} />
         <View style={styles.count}>
           <Text variant="small" color={semantic.textPrimary}>
-            <Text variant="small" color={semantic.textPrimary} style={styles.bold}>
+            <Text variant="small" num={600} color={semantic.textPrimary}>
               {words}
             </Text>
             {e.required_words ? ` / ${e.required_words}` : ''} 字

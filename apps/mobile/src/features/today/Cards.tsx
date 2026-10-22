@@ -88,7 +88,7 @@ export function EstimateLine({ e, target }: { e: Schemas['EstimateCard']; target
         <Text style={styles.range} accessibilityLabel={`预估分 ${e.low} 到 ${e.high}`}>
           {e.low}–{e.high}
         </Text>
-        <Text variant="caption">
+        <Text variant="caption" num>
           {' '}/ {e.full_score}
         </Text>
       </View>
@@ -103,7 +103,7 @@ export function EstimateLine({ e, target }: { e: Schemas['EstimateCard']; target
           <Text variant="small" style={styles.flex}>
             {e.today_change ? (
               <Text variant="small">
-                今天 <Text variant="small" color={e.today_change > 0 ? colors.green : colors.red}>{e.today_change > 0 ? `+${e.today_change}` : e.today_change} 分</Text>
+                今天 <Text variant="small" num color={e.today_change > 0 ? colors.green : colors.red}>{e.today_change > 0 ? `+${e.today_change}` : e.today_change} 分</Text>
                 {gap || main ? ' · ' : ''}
               </Text>
             ) : null}
@@ -135,7 +135,7 @@ export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) 
           <Text variant="h3" style={[styles.flex, styles.h16]}>
             先练起来
           </Text>
-          <Text variant="caption">约 {minutes(plan.total_minutes)} 分钟</Text>
+          <Text variant="caption" num>约 {minutes(plan.total_minutes)} 分钟</Text>
         </View>
         <Text variant="caption" style={styles.lh}>
           从已识别的题里挑了 {count} 道，先熟悉一下怎么刷、怎么批改
@@ -150,7 +150,7 @@ export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) 
         <Text variant="h3" style={[styles.flex, styles.h16]}>
           今日训练
         </Text>
-        <Text variant="caption">
+        <Text variant="caption" num>
           {doneGroups} / {plan.groups.length} · 约 {minutes(plan.total_minutes)} 分钟
         </Text>
       </View>
@@ -355,7 +355,7 @@ export function DoneCard({ home, summary }: { home: Home; summary?: Schemas['Tod
           <View style={[styles.flex, styles.gap2]}>
             <Text variant="h3">今天的训练完成了</Text>
             <Text variant="caption">
-              已连续打卡 <Text variant="caption" color={colors.ink} style={styles.num}>{home.streak_days}</Text> 天
+              已连续打卡 <Text variant="caption" num={600} color={colors.ink}>{home.streak_days}</Text> 天
             </Text>
           </View>
         </View>

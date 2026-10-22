@@ -53,7 +53,7 @@ export function FileRow({ file, onRemove }: { file: Picked; onRemove?: () => voi
   return (
     <View style={styles.file} accessibilityLabel={file.name}>
       <View style={[styles.badge, { backgroundColor: badgeTone[file.format].bg }]}>
-        <Text variant="small" color={badgeTone[file.format].fg} style={styles.badgeText}>
+        <Text variant="small" num={600} color={badgeTone[file.format].fg} style={styles.badgeText}>
           {formatLabel[file.format]}
         </Text>
       </View>
@@ -64,7 +64,7 @@ export function FileRow({ file, onRemove }: { file: Picked; onRemove?: () => voi
         {file.status === 'uploading' || file.status === 'hashing' ? (
           <View style={styles.progress}>
             <ProgressBar value={file.progress} />
-            <Text variant="caption">{file.status === 'hashing' ? '准备中' : `${Math.round(file.progress * 100)}%`}</Text>
+            <Text variant="caption" num={file.status !== 'hashing'}>{file.status === 'hashing' ? '准备中' : `${Math.round(file.progress * 100)}%`}</Text>
           </View>
         ) : file.status === 'failed' ? (
           <Text variant="caption" color={semantic.danger}>
