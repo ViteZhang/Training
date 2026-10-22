@@ -1,7 +1,7 @@
 // 3.3 题目详情：题型、分值、来源；所属知识点；参考答案与出处（可查看原文）；采分点与状态；我的每次作答（日期、得分、遗漏的采分点、
 // 失分类型）；「移出错题本」「再练这道题」；右上角编辑（题干、答案、分值、采分点，合计须等于分值）、删除。
 import { ApiError, type Schemas } from '@training/api-client';
-import { layout, radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -110,7 +110,7 @@ export default function QuestionScreen() {
                 <Tag label="AI 出题" tone="ai" />
               ) : (
                 <View style={[styles.pill, q.source === 'exam' && styles.pillGreen]}>
-                  <Text variant="small" color={q.source === 'exam' ? '#1F5C3E' : semantic.textPrimary}>
+                  <Text variant="small" color={q.source === 'exam' ? colors.mintInk : semantic.textPrimary}>
                     {sourceLabel(q.source, q.exam_year)}
                   </Text>
                 </View>
@@ -159,7 +159,7 @@ export default function QuestionScreen() {
               <InfoCard
                 label="采分点 · 批改依据"
                 right={
-                  <Text variant="small" color={q.rubric_points.every((r) => r.origin === 'user_confirmed') ? semantic.mastered : '#9A5B00'}>
+                  <Text variant="small" color={q.rubric_points.every((r) => r.origin === 'user_confirmed') ? semantic.mastered : colors.orange}>
                     {q.rubric_points.every((r) => r.origin === 'user_confirmed') ? '已确认' : '待确认'} · 合计 {rubricTotal(q.rubric_points)} 分
                   </Text>
                 }
@@ -181,12 +181,12 @@ export default function QuestionScreen() {
                     <View style={[styles.flex, styles.gap2]}>
                       <Text variant="caption" color={semantic.textPrimary}>
                         {shortDate(a.answered_at)}
-                        <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+                        <Text variant="caption" num={600} color={semantic.textPrimary}>
                           {a.score !== undefined ? ` · ${a.score}${a.full_score !== undefined ? ` / ${a.full_score}` : ''} 分` : a.is_correct !== undefined ? (a.is_correct ? ' · 答对' : ' · 答错') : ''}
                         </Text>
                       </Text>
                       {a.missed_points?.length || a.loss_types?.length ? (
-                        <Text variant="small" color="#9A4A1C">
+                        <Text variant="small" color={colors.peachInk}>
                           {[a.missed_points?.length ? `遗漏${a.missed_points.map((m) => `「${m}」`).join('')}` : '', ...(a.loss_types ?? []).map((t) => lossNames[t])].filter(Boolean).join(' · ')}
                         </Text>
                       ) : null}
@@ -240,6 +240,6 @@ const styles = StyleSheet.create({
   divider: { borderTopWidth: 1, borderTopColor: semantic.border },
   footer: { paddingVertical: spacing.md },
   actions: { flexDirection: 'row', gap: spacing.sm },
-  input: { minHeight: 44, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, fontSize: 15, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  input: { minHeight: 44, borderWidth: 1, borderColor: semantic.inputBorder, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, fontSize: 15, color: semantic.textPrimary, backgroundColor: semantic.surface },
   multi: { minHeight: 96, textAlignVertical: 'top' },
 });

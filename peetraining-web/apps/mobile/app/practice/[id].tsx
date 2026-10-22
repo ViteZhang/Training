@@ -144,7 +144,7 @@ export default function PracticeRunner() {
       <NavBar
         title={`${s.title} · ${index + 1} / ${s.questions.length}`}
         left={<BackButton icon="close" label="退出训练" onPress={() => setExiting(true)} />}
-        right={<Text variant="small">{clock(elapsed)}</Text>}
+        right={<Text variant="caption" num>{clock(elapsed)}</Text>}
       />
       <View style={styles.progress} accessibilityElementsHidden>
         <View style={[styles.progressFill, { width: `${((index + (result ? 1 : 0)) / Math.max(1, s.questions.length)) * 100}%` }]} />

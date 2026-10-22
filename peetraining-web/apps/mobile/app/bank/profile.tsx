@@ -41,7 +41,7 @@ export default function ExamProfileScreen() {
   const years = [...p.years].sort((a, b) => a - b);
   const span = years.length ? `${years[0]}–${years[years.length - 1]}` : '';
   const used = p.structure.reduce((s, x) => s + x.suggested_minutes, 0);
-  const qColors = [colors.blue, '#8C80E0', colors.amber, colors.green, colors.indigo];
+  const qColors = [colors.blue, colors.lavender, colors.peach, colors.green, colors.ink];
   const totalScore = p.structure.reduce((n, x) => n + x.total, 0) || 1;
   return (
     <Screen>
@@ -75,13 +75,13 @@ export default function ExamProfileScreen() {
               <Text variant="caption" color={colors.ink} style={styles.qname}>
                 {qtypeNames[x.qtype]}
               </Text>
-              <Text variant="small" style={styles.flex}>
+              <Text variant="small" num style={styles.flex}>
                 {x.count} 题 × {x.score_each} 分
               </Text>
-              <Text variant="caption" color={colors.ink} style={[styles.num, styles.bold]}>
+              <Text variant="caption" num={600} color={colors.ink} style={styles.num}>
                 {x.total} 分
               </Text>
-              <Text variant="small" style={styles.num}>
+              <Text variant="small" num style={styles.num}>
                 {x.suggested_minutes}′
               </Text>
             </View>
@@ -106,10 +106,10 @@ export default function ExamProfileScreen() {
               <View style={styles.bar}>
                 <View style={[styles.barFill, { width: `${Math.min(1, x.share) * 100}%` }]} />
               </View>
-              <Text variant="small" color={colors.ink} style={[styles.pct, styles.bold]}>
+              <Text variant="small" num={600} color={colors.ink} style={styles.pct}>
                 {pct(x.share)}
               </Text>
-              <Text variant="small" color={x.mastery < 40 ? weakInk : undefined} style={styles.pct}>
+              <Text variant="small" num color={x.mastery < 40 ? weakInk : undefined} style={styles.pct}>
                 {Math.round(x.mastery)}%
               </Text>
             </View>
@@ -117,7 +117,7 @@ export default function ExamProfileScreen() {
           {p.missing_sections.map((x) => (
             <View key={x.id} style={styles.missing}>
               <View style={styles.dot} />
-              <Text variant="small" color="#8A3A16" style={styles.flex}>
+              <Text variant="small" color={colors.peachInk} style={styles.flex}>
                 {x.name}占 {pct(x.share)} 分值，你的资料里只有 {x.kp_count} 个知识点、掌握度 {Math.round(x.mastery)}%。可以补一份{x.name}的讲义或笔记
               </Text>
             </View>
@@ -172,7 +172,7 @@ export default function ExamProfileScreen() {
   );
 }
 
-const weakInk = '#9A4A1C';
+const weakInk = colors.peachInk;
 
 const styles = StyleSheet.create({
   scroll: { paddingBottom: spacing.xl, gap: 12 },
@@ -190,10 +190,10 @@ const styles = StyleSheet.create({
   secRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 26 },
   secName: { width: 96 },
   bar: { flex: 1, height: 6, borderRadius: 3, backgroundColor: semantic.border, overflow: 'hidden' },
-  barFill: { height: 6, borderRadius: 3, backgroundColor: colors.indigo },
+  barFill: { height: 6, borderRadius: 3, backgroundColor: colors.ink },
   pct: { width: 36, textAlign: 'right' },
   missing: { flexDirection: 'row', gap: 10, padding: 14, borderRadius: 14, backgroundColor: semantic.dangerSoft },
-  dot: { width: 7, height: 7, borderRadius: 4, marginTop: 5, backgroundColor: colors.amber },
+  dot: { width: 7, height: 7, borderRadius: 4, marginTop: 5, backgroundColor: colors.peach },
   hf: { minHeight: 48, borderTopWidth: 1, borderTopColor: semantic.border, paddingTop: 6 },
   rank: { width: 16, fontFamily: fontFamily.numberSemiBold },
   tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },

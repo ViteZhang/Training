@@ -152,6 +152,6 @@ const styles = StyleSheet.create({
   types: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   type: { minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: semantic.border },
   typeOn: { backgroundColor: semantic.primary, borderColor: semantic.primary },
-  input: { minHeight: 140, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface, fontSize: 16, lineHeight: 24 },
+  input: { minHeight: 140, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: semantic.inputBorder, backgroundColor: semantic.surface, fontSize: 16, lineHeight: 24 },
   thumb: { width: 64, height: 64, borderRadius: radius.md },
 });

@@ -24,7 +24,7 @@ export default function SourcePage() {
   const d = q.data;
   return (
     <Screen>
-      <PageHeader title={d.file_name} onBack={() => router.back()} right={<Text variant="small">{`${d.page_no}/${d.page_count}`}</Text>} />
+      <PageHeader title={d.file_name} onBack={() => router.back()} right={<Text variant="small" num>{`${d.page_no}/${d.page_count}`}</Text>} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Card tone="fill" style={styles.paper}>
           <Marked text={d.text} highlights={d.highlights} low={d.low_confidence} />

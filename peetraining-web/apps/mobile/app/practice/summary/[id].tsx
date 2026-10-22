@@ -54,9 +54,9 @@ export default function PracticeSummaryPage() {
                     {qtypeNames[t.qtype]}
                   </Text>
                   <View style={styles.bar}>
-                    <View style={[styles.fill, { width: `${rate * 100}%`, backgroundColor: rate < 0.7 ? colors.amber : colors.indigo }]} />
+                    <View style={[styles.fill, { width: `${rate * 100}%`, backgroundColor: rate < 0.7 ? colors.peach : colors.ink }]} />
                   </View>
-                  <Text variant="small" style={styles.frac}>
+                  <Text variant="small" num style={styles.frac}>
                     {t.correct}/{t.total}
                   </Text>
                 </View>

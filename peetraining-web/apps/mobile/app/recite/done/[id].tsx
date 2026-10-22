@@ -48,7 +48,7 @@ export default function ReciteDonePage() {
               <Text variant="body" style={styles.flex}>
                 {label}
               </Text>
-              <Text variant="bodyStrong">{n} 条</Text>
+              <Text variant="bodyStrong" num={600} style={styles.days}>{n} 条</Text>
             </View>
           ))}
           <Text variant="caption">按遗忘规律安排：越熟悉的内容，间隔越长。到期后会自动出现在今日训练里。</Text>
@@ -63,6 +63,7 @@ export default function ReciteDonePage() {
 }
 
 const styles = StyleSheet.create({
+  days: { fontSize: 14 },
   scroll: { gap: spacing.md, paddingTop: spacing.xl, paddingBottom: spacing.xl },
   stats: { flexDirection: 'row', gap: spacing.sm },
   card: { gap: spacing.sm },

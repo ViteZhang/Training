@@ -52,11 +52,11 @@ export default function EssayBookPage() {
                   const last = i === b.trend.length - 1;
                   return (
                     <View key={t.essay_id} style={styles.col} accessibilityLabel={`${day(t.date)} ${t.score} 分`}>
-                      <Text variant="small" color={last ? colors.ink : undefined} style={last ? styles.bold : undefined}>
+                      <Text variant="small" num={600} color={last ? colors.ink : undefined}>
                         {fmtScore(t.score)}
                       </Text>
                       <View style={[styles.bar, { height: Math.max((t.score / top) * 110, 4) }, last && styles.barLast]} />
-                      <Text variant="small" style={styles.tiny}>
+                      <Text variant="small" num style={styles.tiny}>
                         {new Date(t.date).getMonth() + 1}/{new Date(t.date).getDate()}
                       </Text>
                     </View>
@@ -119,8 +119,8 @@ const styles = StyleSheet.create({
   statNum: { fontFamily: fontFamily.numberSemiBold, fontSize: 26, lineHeight: 32, color: colors.ink },
   chart: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, minHeight: 160 },
   col: { flex: 1, alignItems: 'center', gap: 6 },
-  bar: { width: 28, borderRadius: 8, backgroundColor: '#DCD8CF' },
-  barLast: { backgroundColor: colors.indigo },
+  bar: { width: 28, borderRadius: 8, backgroundColor: colors.line },
+  barLast: { backgroundColor: colors.ink },
   weak: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingLeft: 16, paddingRight: 6, minHeight: 48, borderRadius: radius.xl, backgroundColor: semantic.fill },
   list: { marginTop: 4 },
   item: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 60, borderTopWidth: 1, borderTopColor: semantic.border },

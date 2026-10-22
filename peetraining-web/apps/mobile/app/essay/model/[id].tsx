@@ -56,6 +56,6 @@ export default function ModelEssayPage() {
 const styles = StyleSheet.create({
   scroll: { gap: spacing.md, paddingBottom: spacing.xl },
   tags: { gap: spacing.sm },
-  note: { gap: 2, padding: spacing.sm, borderRadius: radius.md, backgroundColor: semantic.amberSoft, borderLeftWidth: 3, borderLeftColor: colors.amber },
+  note: { gap: 2, padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.creamSoft, borderLeftWidth: 3, borderLeftColor: colors.cream },
   para: { lineHeight: 28 },
 });

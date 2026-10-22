@@ -1,6 +1,6 @@
 // 6.12 注销账号：列出将删除的内容；勾选确认后申请；7 天冷静期，期间重新登录即撤销。
 import { ApiError } from '@training/api-client';
-import { semantic, spacing } from '@training/ui-tokens';
+import { colors, semantic, spacing } from '@training/ui-tokens';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -56,7 +56,7 @@ export default function DeleteAccount() {
         </Text>
       </Card>
       <Pressable accessibilityRole="checkbox" accessibilityState={{ checked }} onPress={() => setChecked(!checked)} style={styles.check}>
-        <View style={[styles.box, checked && styles.boxOn]}>{checked ? <Icon name="check" size={14} color="#FFFFFF" /> : null}</View>
+        <View style={[styles.box, checked && styles.boxOn]}>{checked ? <Icon name="check" size={14} color={colors.white} /> : null}</View>
         <Text variant="body">我已了解以上内容，确认注销</Text>
       </Pressable>
       <Button title="申请注销" kind="danger" disabled={!checked} loading={busy} onPress={() => setConfirm(true)} />

@@ -1,7 +1,7 @@
 // 3.1b 题目：按题型筛选（显示各题型题数）、按来源筛选、按章节或最近排序；每题显示得分或状态、所属板块章节、做过几次；
 // AI 出题注明由哪个知识点生成。
 import type { Schemas } from '@training/api-client';
-import { radius, semantic } from '@training/ui-tokens';
+import { colors, radius, semantic } from '@training/ui-tokens';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -32,7 +32,7 @@ function QuestionRow({ q }: { q: Schemas['QuestionSummary'] }) {
         </View>
         {q.source === 'ai_generated' ? <Tag label="AI 出题" tone="ai" /> : <Text variant="small">{sourceLabel(q.source, q.exam_year)}</Text>}
         <View style={styles.flex} />
-        <Text variant="small" color={bad ? '#9A5B00' : q.status_tag === 'mastered' ? semantic.mastered : semantic.textPrimary} style={styles.medium}>
+        <Text variant="small" color={bad ? colors.orange : q.status_tag === 'mastered' ? semantic.mastered : semantic.textPrimary} style={styles.medium}>
           {state}
         </Text>
       </View>

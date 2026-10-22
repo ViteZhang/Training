@@ -50,8 +50,8 @@ function Knowledge({ kb, subjectId }: { kb: KB; subjectId: number }) {
       ) : null}
       <Card style={styles.section}>
         <View style={styles.head}>
-          <View style={[styles.badge, { backgroundColor: semantic.amberSoft }]}>
-            <Icon name="pen" size={18} color="#8A4B12" />
+          <View style={[styles.badge, { backgroundColor: colors.creamSoft }]}>
+            <Icon name="pen" size={18} color={colors.creamInk} />
           </View>
           <Text variant="h3" style={styles.flex}>
             写作方法
@@ -111,7 +111,7 @@ function Knowledge({ kb, subjectId }: { kb: KB; subjectId: number }) {
                     <View key={m.id} style={styles.row}>
                       <Text variant="caption" color={colors.ink} style={[styles.flex, styles.lh]}>
                         {m.content}
-                        {m.origin === 'ai_generated' ? <Text variant="small" color="#3E3190"> AI 补充</Text> : null}
+                        {m.origin === 'ai_generated' ? <Text variant="small" color={colors.lavenderInk}> AI 补充</Text> : null}
                       </Text>
                       <Button title={m.favorite ? '已收藏' : '收藏'} kind="text" size="sm" color={m.favorite ? colors.ink : undefined} onPress={() => void toggle(m.id, !m.favorite)} />
                     </View>
@@ -163,7 +163,7 @@ function Knowledge({ kb, subjectId }: { kb: KB; subjectId: number }) {
   );
 }
 
-const modelInk = '#7A4E00';
+const modelInk = colors.creamInk;
 
 export function EssayKnowledgeBase({ subjectId, label }: { subjectId: number; label: string }) {
   const [tab, setTab] = useState<Tab>('kb');
@@ -239,6 +239,6 @@ const styles = StyleSheet.create({
   badge: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   item: { gap: 8, paddingHorizontal: 18, paddingVertical: 12, borderTopWidth: 1, borderTopColor: semantic.border },
   first: { borderTopWidth: 0 },
-  models: { gap: 6, padding: 16, borderRadius: radius.xl, backgroundColor: semantic.amberSoft },
+  models: { gap: 6, padding: 16, borderRadius: radius.xl, backgroundColor: colors.creamSoft },
   model: { gap: 4, paddingTop: 8 },
 });

@@ -82,3 +82,33 @@ describe('本地存储', () => {
     expect(getJSON('missing')).toBeUndefined();
   });
 });
+
+describe('Text 数字字体', () => {
+  const styleOf = (el: ReturnType<typeof screen.getByText>) => el.props.style as { fontFamily?: string; fontWeight?: string };
+
+  it('num 按字重取对应的 DM Sans 文件，字重置为 normal（安卓自定义字体不认 fontWeight）', async () => {
+    await render(
+      <>
+        <Text num>12</Text>
+        <Text num={600}>34</Text>
+        <Text variant="bodyStrong" num>56</Text>
+        <Text style={{ fontWeight: '700' }} num>78</Text>
+      </>,
+    );
+    expect(styleOf(screen.getByText('12'))).toMatchObject({ fontFamily: 'DMSans-Regular', fontWeight: 'normal' });
+    expect(styleOf(screen.getByText('34'))).toMatchObject({ fontFamily: 'DMSans-SemiBold', fontWeight: 'normal' });
+    expect(styleOf(screen.getByText('56'))).toMatchObject({ fontFamily: 'DMSans-Medium', fontWeight: 'normal' });
+    expect(styleOf(screen.getByText('78'))).toMatchObject({ fontFamily: 'DMSans-Bold', fontWeight: 'normal' });
+  });
+
+  it('分数样式默认用 DM Sans SemiBold；中文正文不指定字体', async () => {
+    await render(
+      <>
+        <Text variant="score">98</Text>
+        <Text>正文</Text>
+      </>,
+    );
+    expect(styleOf(screen.getByText('98')).fontFamily).toBe('DMSans-SemiBold');
+    expect(styleOf(screen.getByText('正文')).fontFamily).toBeUndefined();
+  });
+});

@@ -20,7 +20,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
-  backgroundColor: '#FAF8F3',
+  backgroundColor: '#FFFFFF',
   ios: {
     bundleIdentifier: variant === 'production' ? appId : `${appId}.${variant}`,
     supportsTablet: false,
@@ -45,7 +45,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-router',
     [
       'expo-splash-screen',
-      { image: './assets/splash-icon.png', imageWidth: 120, backgroundColor: '#231F55' },
+      { image: './assets/splash-icon.png', imageWidth: 84, backgroundColor: '#FFFFFF' },
     ],
     'expo-font',
     [

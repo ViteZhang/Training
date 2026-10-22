@@ -1,6 +1,6 @@
 // 4.14 背诵：挖空 / 默写 / 口述三种模式切换（口述受功能开关控制）；标原文出处；
 // 挖空自评没记住 / 模糊 / 记住了；默写与口述显示关键词覆盖（4.15）。背完进入 4.17。
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -72,7 +72,7 @@ export default function RecitePage() {
         title={s.title}
         left={<BackButton icon="close" label="退出背诵" onPress={() => setExiting(true)} />}
         right={
-          <Text variant="small">
+          <Text variant="caption" num>
             {index + 1} / {s.items.length}
           </Text>
         }
@@ -92,7 +92,7 @@ export default function RecitePage() {
         <Card style={styles.card}>
           {item.path.length > 0 ? (
             <View style={styles.path}>
-              <Text variant="small" color="#3E3190">
+              <Text variant="small" color={colors.lavenderInk}>
                 {item.path.join(' · ')}
               </Text>
             </View>
@@ -143,9 +143,9 @@ export default function RecitePage() {
 
 const styles = StyleSheet.create({
   progress: { height: 3, borderRadius: 2, backgroundColor: semantic.border, marginTop: 4, marginBottom: spacing.md },
-  progressFill: { height: 3, borderRadius: 2, backgroundColor: '#8C80E0' },
+  progressFill: { height: 3, borderRadius: 2, backgroundColor: colors.lavender },
   card: { gap: 8 },
-  path: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: '#EEEBFB' },
+  path: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.lavenderSoft },
   center: { textAlign: 'center' },
   flex: { flex: 1 },
   row: { flexDirection: 'row', gap: spacing.sm },

@@ -87,7 +87,7 @@ export default function MessagesPage() {
                       </Text>
                       {r.m.read ? null : <View style={styles.dot} />}
                     </View>
-                    <Text variant="small">{messageTime(r.m.created_at)}</Text>
+                    <Text variant="small" num>{messageTime(r.m.created_at)}</Text>
                   </View>
                   <Text variant="caption" style={styles.lh}>
                     {r.m.body}

@@ -1,4 +1,4 @@
-import { colors, logo } from '@training/ui-tokens';
+import { brand, colors, logo } from '@training/ui-tokens';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 /**
@@ -8,9 +8,9 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 export function Logo({ size = 64, plate = true }: { size?: number; plate?: boolean }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100" accessibilityLabel="考研Training">
-      {plate ? <Rect width={100} height={100} rx={logo.cornerRadius} fill={colors.indigo} /> : null}
-      <Circle cx={50} cy={50} r={logo.ringRadius} fill="none" stroke={colors.track} strokeWidth={logo.ringWidth} />
-      <Path d="M50 20 A30 30 0 1 1 21.47 59.27" fill="none" stroke={colors.amber} strokeWidth={logo.ringWidth} strokeLinecap="round" />
+      {plate ? <Rect width={100} height={100} rx={logo.cornerRadius} fill={brand.indigo} /> : null}
+      <Circle cx={50} cy={50} r={logo.ringRadius} fill="none" stroke={brand.track} strokeWidth={logo.ringWidth} />
+      <Path d="M50 20 A30 30 0 1 1 21.47 59.27" fill="none" stroke={brand.amber} strokeWidth={logo.ringWidth} strokeLinecap="round" />
       <Circle cx={25.73} cy={32.37} r={logo.targetDiameter / 2} fill={colors.white} />
       <Rect x={38} y={38} width={logo.tBar.width} height={logo.tBar.height} rx={logo.tRadius} fill={colors.white} />
       <Rect x={46.75} y={38} width={logo.tStem.width} height={logo.tStem.height} rx={logo.tRadius} fill={colors.white} />

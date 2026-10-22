@@ -1,4 +1,4 @@
-import { radius, spacing, timing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing, timing } from '@training/ui-tokens';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,7 +34,7 @@ export function ToastHost() {
   return (
     <View pointerEvents="none" style={[styles.wrap, { bottom: insets.bottom + 96 }]}>
       <View style={styles.toast} accessibilityLiveRegion="polite">
-        <Text variant="body" color="#FFFFFF">
+        <Text variant="body" color={colors.white}>
           {message}
         </Text>
       </View>
@@ -44,5 +44,5 @@ export function ToastHost() {
 
 const styles = StyleSheet.create({
   wrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  toast: { backgroundColor: 'rgba(27,26,23,0.88)', paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.md },
+  toast: { backgroundColor: semantic.toast, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.md },
 });
