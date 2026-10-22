@@ -133,7 +133,10 @@ func TestPayProduction(t *testing.T) {
 	cfg.AliyunAccessKeyID, cfg.AliyunAccessKeySecret = "id", "secret"
 	cfg.Pay.Provider = config.ProviderMock
 	c, err := New(cfg)
-	if err == nil && c.Pay != nil {
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Pay != nil {
 		t.Error("生产环境不使用 mock 支付")
 	}
 	cfg = mockConfig()

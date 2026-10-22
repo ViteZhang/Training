@@ -83,6 +83,8 @@ type Deps struct {
 	DevMockPay bool
 	// DevOSS 不为空时注册本地 mock OSS 的直传入口 PUT /dev/oss/*key（只在非生产环境）。
 	DevOSS *oss.Mock
+	// DevDocs 仅在本地环境开放 Swagger UI 和 OpenAPI 文档，供研发调试接口。
+	DevDocs bool
 	// Tokens 校验访问令牌；为空时用 Auth（测试里可以换成假的）。
 	Tokens TokenParser
 }
@@ -108,6 +110,11 @@ func NewRouter(deps Deps) (*gin.Engine, error) {
 	r.NoRoute(func(c *gin.Context) { _ = c.Error(ErrNotFound()) })
 	r.NoMethod(func(c *gin.Context) { _ = c.Error(ErrNotFound()) })
 	r.HandleMethodNotAllowed = false
+	if deps.DevDocs {
+		if err := registerDevDocs(r); err != nil {
+			return nil, err
+		}
+	}
 
 	if deps.DevOSS != nil {
 		r.PUT("/dev/oss/*key", devOSSUpload(deps.DevOSS))

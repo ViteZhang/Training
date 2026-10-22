@@ -95,6 +95,11 @@ func TestLoadSMS(t *testing.T) {
 		t.Errorf("未知短信服务商应报错：%v", err)
 	}
 
+	// 显式关闭短信是允许的。
+	if _, err := load(envFrom(map[string]string{"SMS_PROVIDER": "disabled"})); err != nil {
+		t.Errorf("SMS_PROVIDER=disabled 应能加载：%v", err)
+	}
+
 	// 本地也可以接真实短信（自定义变量名与地址）。
 	cfg, err := load(envFrom(map[string]string{
 		"SMS_PROVIDER": "aliyun", "SMS_SIGN_NAME": "签名", "SMS_TEMPLATE_CODE": "SMS_1",

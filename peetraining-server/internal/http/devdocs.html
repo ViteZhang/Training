@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>考研Training API · 本地接口调试</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui.css">
+  <style>
+    body { margin: 0; background: #fafafa; }
+    .guide { padding: 16px 24px; font: 14px/1.6 sans-serif; background: white; }
+    .guide a { color: #175cd3; }
+  </style>
+</head>
+<body>
+  <div class="guide">
+    本地接口调试：先展开 GET /health，点击 Try it out → Execute。
+    查看数据配置可调用 GET /bootstrap，填写 platform=ios、app_version=1.0.0。
+    需登录的接口通过 Authorize 填写访问令牌。
+    <a href="/openapi.json">下载 OpenAPI JSON</a>
+    <span id="load-error" hidden>Swagger UI 资源未加载，请检查 CDN 网络，或在 GoLand 中打开 api/local.http 调用接口。</span>
+  </div>
+  <div id="swagger-ui"></div>
+  <!-- 固定版本；浏览器需要能访问此 CDN，本地 API 调用仍发往当前服务。 -->
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"
+          onerror="document.getElementById('load-error').hidden = false"></script>
+  <script>
+    if (window.SwaggerUIBundle) {
+      SwaggerUIBundle({
+        url: '/openapi.json',
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        docExpansion: 'none',
+        validatorUrl: null,
+        persistAuthorization: false
+      });
+    }
+  </script>
+</body>
+</html>

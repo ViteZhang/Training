@@ -9,7 +9,7 @@
 
 ## 决定
 
-- 后端用 Go 1.27 + Gin；API 与 Worker 是同一套代码的两个入口（cmd/api、cmd/worker），打进同一个镜像
+- 后端用 Go 1.25.3 + Gin；API 与 Worker 是同一套代码的两个入口（cmd/api、cmd/worker），打进同一个镜像
 - 接口由 oapi-codegen 按 api/openapi.yaml 生成 Gin 接口与类型，处理器只写实现
 - 前后端分为 peetraining-server、peetraining-web 两个云效仓库，只通过 openapi.yaml 对接（open-questions D9）
 - 开发工具（oapi-codegen、golangci-lint）用 go.mod 的 tool 指令锁定版本，`go tool` 运行

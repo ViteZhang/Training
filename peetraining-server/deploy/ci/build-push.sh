@@ -1,19 +1,35 @@
 #!/usr/bin/env bash
-# 云效流水线「构建镜像」阶段：构建并推送到容器镜像服务 ACR，版本号取 git 标签或提交号。
-# 需要的流水线变量（在云效里配置为私密变量，不进仓库）：
-#   ACR_REGISTRY   如 registry.cn-beijing.aliyuncs.com
+# 云效流水线的脚本替代方案：用云效已安装的 Go 编译产物后构建并推送到 ACR。
+# 需要的流水线变量：
+#   ACR_REGISTRY   ACR 实例地址，如 crpi-xxx.cn-beijing.personal.cr.aliyuncs.com
 #   ACR_NAMESPACE  命名空间
-#   ACR_USERNAME / ACR_PASSWORD
-#   GO_IMAGE / RUNTIME_IMAGE（可选）ACR 里同步的基础镜像，国内拉不到 docker.io、gcr.io 时设置
+#   ACR_USERNAME / ACR_PASSWORD（密码设为私密变量）
+#   FONT_IMAGE / RUNTIME_IMAGE（必填）ACR 里的 PDF 字体资源、distroless 运行镜像
+# 镜像固定使用 latest tag，流水线不需要维护 VERSION 变量。
 set -euo pipefail
-VERSION=${VERSION:-$(git describe --tags --always)}
+for name in ACR_REGISTRY ACR_NAMESPACE ACR_USERNAME ACR_PASSWORD FONT_IMAGE RUNTIME_IMAGE; do
+  if [[ -z "${!name:-}" ]]; then
+    printf '缺少云效流水线变量：%s\n' "$name" >&2
+    exit 2
+  fi
+done
+
+export GOPROXY=${GOPROXY:-https://goproxy.cn,direct}
+export GOTOOLCHAIN=local
+case "$(go env GOVERSION)" in
+  go1.25.*) ;;
+  *) printf '构建机不是 Go 1.25：%s\n' "$(go env GOVERSION)" >&2; exit 2 ;;
+esac
+export GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+
 IMAGE="${ACR_REGISTRY}/${ACR_NAMESPACE}/peetraining-server"
 
 echo "${ACR_PASSWORD}" | docker login --username "${ACR_USERNAME}" --password-stdin "${ACR_REGISTRY}"
-args=(--build-arg "VERSION=${VERSION}")
-[ -n "${GO_IMAGE:-}" ] && args+=(--build-arg "GO_IMAGE=${GO_IMAGE}")
-[ -n "${RUNTIME_IMAGE:-}" ] && args+=(--build-arg "RUNTIME_IMAGE=${RUNTIME_IMAGE}")
-docker build "${args[@]}" -t "${IMAGE}:${VERSION}" .
-docker push "${IMAGE}:${VERSION}"
-echo "VERSION=${VERSION}" > .release-version
-echo "已推送 ${IMAGE}:${VERSION}"
+make build
+
+docker build \
+  --build-arg "FONT_IMAGE=${FONT_IMAGE}" \
+  --build-arg "RUNTIME_IMAGE=${RUNTIME_IMAGE}" \
+  -t "${IMAGE}:latest" .
+docker push "${IMAGE}:latest"
+echo "已推送 ${IMAGE}:latest"
