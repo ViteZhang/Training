@@ -1,7 +1,7 @@
 // 4.18 整卷列表：真题卷按年份（进行中 / 已完成 / 未开始；缺题卷说明按多少分计分）；AI 组卷（标准卷、针对卷）与已做的 AI 组卷；
 // 「AI 组卷成绩只作参考，不计入预估分」。
 import type { Schemas } from '@training/api-client';
-import { fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -35,7 +35,7 @@ function PaperRow({ p, first }: { p: Brief; first?: boolean }) {
         </View>
         <Text variant="small">{desc}</Text>
         {p.missing_note ? (
-          <Text variant="small" color="#9A5B00">
+          <Text variant="small" color={colors.orange}>
             {p.missing_note}
           </Text>
         ) : null}
@@ -43,7 +43,7 @@ function PaperRow({ p, first }: { p: Brief; first?: boolean }) {
       {p.last?.score !== undefined && !p.session ? (
         <Text style={styles.score}>
           {p.last.score}
-          <Text variant="small"> / {p.last.full_score}</Text>
+          <Text variant="small" num> / {p.last.full_score}</Text>
         </Text>
       ) : (
         <View style={[styles.pill, p.session && styles.pillInk]}>

@@ -1,5 +1,5 @@
 import type { Schemas } from '@training/api-client';
-import { layout, radius, semantic, spacing } from '@training/ui-tokens';
+import { fontFamily, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Icon, Text } from '@/components';
 import { rubricTotal } from './api';
@@ -78,6 +78,6 @@ const styles = StyleSheet.create({
   add: { minHeight: 48 },
   flex: { flex: 1 },
   input: { minHeight: 44, paddingVertical: spacing.xs, fontSize: 14, color: semantic.textPrimary },
-  score: { width: 36, textAlign: 'right', fontWeight: '600' },
+  score: { width: 36, textAlign: 'right', fontFamily: fontFamily.numberSemiBold },
   remove: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
 });

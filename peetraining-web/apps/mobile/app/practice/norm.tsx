@@ -45,7 +45,7 @@ function NormBody({ n }: { n: Schemas['AnswerNorm'] }) {
         {n.elements.map((e, i) => (
           <View key={e.name} style={styles.element}>
             <View style={styles.num}>
-              <Text variant="small" color={semantic.textOnBrand} style={styles.bold}>
+              <Text variant="small" num={600} color={semantic.textOnBrand}>
                 {i + 1}
               </Text>
             </View>
@@ -69,10 +69,10 @@ function NormBody({ n }: { n: Schemas['AnswerNorm'] }) {
       {n.example ? (
         <View style={[styles.tinted, styles.good]}>
           <View style={styles.row}>
-            <Text variant="caption" color="#1F6B4A" style={[styles.bold, styles.flex]}>
+            <Text variant="caption" color={colors.green} style={[styles.bold, styles.flex]}>
               高分写法
             </Text>
-            <Text variant="small" color="#1F6B4A">
+            <Text variant="small" color={colors.green}>
               用你资料里的原文和采分点 · {n.example.stem}
             </Text>
           </View>
@@ -190,5 +190,5 @@ const styles = StyleSheet.create({
   good: { backgroundColor: semantic.masteredSoft },
   bad: { backgroundColor: semantic.dangerSoft },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
-  input: { minHeight: 160, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.xl, padding: 14, fontSize: 15, lineHeight: 26, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  input: { minHeight: 160, borderWidth: 1, borderColor: semantic.inputBorder, borderRadius: radius.xl, padding: 14, fontSize: 15, lineHeight: 26, color: semantic.textPrimary, backgroundColor: semantic.surface },
 });

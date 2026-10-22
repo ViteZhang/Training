@@ -1,6 +1,6 @@
 // 4.3 答题：选项、判分结果、解析、出处与知识点入口。主观题在 T18 接通打字作答与 AI 批改，这里先提供「看参考答案」自评。
 import type { Schemas } from '@training/api-client';
-import { radius, semantic } from '@training/ui-tokens';
+import { fontFamily, radius, semantic } from '@training/ui-tokens';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Button, Tag, Text } from '@/components';
@@ -132,12 +132,12 @@ const styles = StyleSheet.create({
   letterOn: { backgroundColor: semantic.primary },
   letterRight: { backgroundColor: semantic.mastered },
   letterWrong: { backgroundColor: semantic.danger },
-  letterText: { fontWeight: '600' },
+  letterText: { fontFamily: fontFamily.numberSemiBold },
   flex: { flex: 1 },
   bold: { fontWeight: '700' },
   lh: { lineHeight: 22 },
   link: { paddingHorizontal: 0 },
-  input: { minHeight: 52, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.xl, paddingHorizontal: 14, fontSize: 15, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  input: { minHeight: 52, borderWidth: 1, borderColor: semantic.inputBorder, borderRadius: radius.xl, paddingHorizontal: 14, fontSize: 15, color: semantic.textPrimary, backgroundColor: semantic.surface },
   result: { gap: 8, padding: 16, borderRadius: radius.xl, backgroundColor: semantic.fill },
   links: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
 });

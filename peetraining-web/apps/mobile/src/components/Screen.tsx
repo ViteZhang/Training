@@ -8,7 +8,7 @@ export interface ScreenProps extends ViewProps {
   padded?: boolean;
 }
 
-/** 页面容器：纸白底、安全区、默认 20 页边距。 */
+/** 页面容器：白底、安全区、默认 20 页边距。 */
 export function Screen({ scroll, edges = ['top'], padded = true, style, children, ...rest }: ScreenProps) {
   const inner = [padded && styles.padded, style];
   return (

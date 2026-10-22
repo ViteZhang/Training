@@ -55,7 +55,7 @@ export function BottomSheet({ visible, onClose, title, children, dismissible = t
 }
 
 const styles = StyleSheet.create({
-  mask: { flex: 1, backgroundColor: 'rgba(27,26,23,0.45)' },
+  mask: { flex: 1, backgroundColor: semantic.scrim },
   sheet: {
     backgroundColor: semantic.surface,
     borderTopLeftRadius: radius.card,
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
   },
   handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: semantic.border, marginBottom: 14 },
   title: { marginBottom: 6 },
-  center: { flex: 1, justifyContent: 'center', paddingHorizontal: 36, backgroundColor: 'rgba(27,26,23,0.45)' },
+  center: { flex: 1, justifyContent: 'center', paddingHorizontal: 36, backgroundColor: semantic.scrim },
   dialog: { backgroundColor: semantic.surface, borderRadius: radius.card, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 20 },
   icon: { alignSelf: 'center', marginBottom: 12 },
   dialogTitle: { fontSize: 18, lineHeight: 26, marginBottom: 8 },

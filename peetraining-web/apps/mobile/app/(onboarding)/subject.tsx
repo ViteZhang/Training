@@ -1,7 +1,7 @@
 // 1.1 你考哪门专业课：选考试年份；添加专业课（名称必填、代码选填），最多 4 门，至少 1 门才能下一步；
 // 免费版最多 3 门，第 4 门提示开通会员；目标院校专业选填。
 import { ApiError, type Schemas } from '@training/api-client';
-import { fontFamily, layout, radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, fontFamily, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -131,7 +131,7 @@ export default function SubjectStep() {
                 <TextInput
                   accessibilityLabel="添加专业课"
                   placeholder="代码 + 名称，如 654 语言文学基础"
-                  placeholderTextColor="#A8A399"
+                  placeholderTextColor={colors.faint}
                   value={name}
                   onChangeText={setName}
                   onSubmitEditing={() => void add()}

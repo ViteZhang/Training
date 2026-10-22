@@ -88,7 +88,7 @@ export function EstimateLine({ e, target }: { e: Schemas['EstimateCard']; target
         <Text style={styles.range} accessibilityLabel={`预估分 ${e.low} 到 ${e.high}`}>
           {e.low}–{e.high}
         </Text>
-        <Text variant="caption">
+        <Text variant="caption" num>
           {' '}/ {e.full_score}
         </Text>
       </View>
@@ -103,7 +103,7 @@ export function EstimateLine({ e, target }: { e: Schemas['EstimateCard']; target
           <Text variant="small" style={styles.flex}>
             {e.today_change ? (
               <Text variant="small">
-                今天 <Text variant="small" color={e.today_change > 0 ? colors.green : colors.red}>{e.today_change > 0 ? `+${e.today_change}` : e.today_change} 分</Text>
+                今天 <Text variant="small" num color={e.today_change > 0 ? colors.green : colors.red}>{e.today_change > 0 ? `+${e.today_change}` : e.today_change} 分</Text>
                 {gap || main ? ' · ' : ''}
               </Text>
             ) : null}
@@ -120,7 +120,7 @@ export function EstimateLine({ e, target }: { e: Schemas['EstimateCard']; target
   );
 }
 
-const groupDot: Record<string, string> = { new: colors.indigo, review: colors.blue, weak: colors.amber, recite: '#8C80E0' };
+const groupDot: Record<string, string> = { new: colors.ink, review: colors.blue, weak: colors.peach, recite: colors.lavender };
 
 /** 今日训练：分组题数与预计用时，「开始训练」进入训练（T17）。 */
 export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) {
@@ -135,7 +135,7 @@ export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) 
           <Text variant="h3" style={[styles.flex, styles.h16]}>
             先练起来
           </Text>
-          <Text variant="caption">约 {minutes(plan.total_minutes)} 分钟</Text>
+          <Text variant="caption" num>约 {minutes(plan.total_minutes)} 分钟</Text>
         </View>
         <Text variant="caption" style={styles.lh}>
           从已识别的题里挑了 {count} 道，先熟悉一下怎么刷、怎么批改
@@ -150,7 +150,7 @@ export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) 
         <Text variant="h3" style={[styles.flex, styles.h16]}>
           今日训练
         </Text>
-        <Text variant="caption">
+        <Text variant="caption" num>
           {doneGroups} / {plan.groups.length} · 约 {minutes(plan.total_minutes)} 分钟
         </Text>
       </View>
@@ -185,7 +185,7 @@ export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) 
   );
 }
 
-/** 阶段主推：基础期新知识点进度、强化期本周题型专项、冲刺期本周整卷、考前期模拟考试。设计稿为浅琥珀底整条可点。 */
+/** 阶段主推：基础期新知识点进度、强化期本周题型专项、冲刺期本周整卷、考前期模拟考试。设计稿为浅蜜桃底整条可点。 */
 export function PushCard({ push }: { push: NonNullable<Home['stage_push']> }) {
   const title = push.qtype ? `${push.title} · ${qtypeNames[push.qtype]}` : push.title;
   const action = push.kind !== 'new_kp_progress';
@@ -217,12 +217,12 @@ export function PushCard({ push }: { push: NonNullable<Home['stage_push']> }) {
   );
 }
 
-const pushInk = '#8A4B12';
+const pushInk = colors.peachInk;
 
 const dist: { key: keyof Home['banks'][number]['mastery_distribution']; name: string; color: string; text?: string }[] = [
-  { key: 'mastered', name: '已掌握', color: colors.indigo },
-  { key: 'consolidating', name: '待巩固', color: colors.amber, text: pushInk },
-  { key: 'learning', name: '学习中', color: '#CFCAC0' },
+  { key: 'mastered', name: '已掌握', color: colors.ink },
+  { key: 'consolidating', name: '待巩固', color: colors.peach, text: pushInk },
+  { key: 'learning', name: '学习中', color: colors.placeholder },
   { key: 'unlearned', name: '未学习', color: semantic.border },
 ];
 
@@ -318,12 +318,12 @@ export function EntryGrid({ items }: { items: { icon: IconName; title: string; d
 }
 
 export const entryTones = {
-  recite: { bg: '#EEEBFB', fg: '#3E3190' },
+  recite: { bg: colors.lavenderSoft, fg: colors.lavenderInk },
   wrong: { bg: semantic.dangerSoft, fg: colors.red },
-  paper: { bg: semantic.masteredSoft, fg: '#1F6B4A' },
+  paper: { bg: colors.mintSoft, fg: colors.mintInk },
   neutral: { bg: semantic.fill, fg: colors.ink },
   info: { bg: semantic.infoSoft, fg: colors.blue },
-  amber: { bg: semantic.amberSoft, fg: pushInk },
+  amber: { bg: semantic.peachSoft, fg: pushInk },
 };
 
 /** 以为会了：自评掌握但实测偏低，为 0 时隐藏。 */
@@ -355,7 +355,7 @@ export function DoneCard({ home, summary }: { home: Home; summary?: Schemas['Tod
           <View style={[styles.flex, styles.gap2]}>
             <Text variant="h3">今天的训练完成了</Text>
             <Text variant="caption">
-              已连续打卡 <Text variant="caption" color={colors.ink} style={styles.num}>{home.streak_days}</Text> 天
+              已连续打卡 <Text variant="caption" num={600} color={colors.ink}>{home.streak_days}</Text> 天
             </Text>
           </View>
         </View>
@@ -419,11 +419,11 @@ const styles = StyleSheet.create({
   estimate: { gap: 4 },
   estimateBody: { gap: 8 },
   rowBase: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap' },
-  range: { fontFamily: fontFamily.numberSemiBold, fontSize: 28, lineHeight: 34, letterSpacing: -1, color: colors.indigo },
+  range: { fontFamily: fontFamily.numberSemiBold, fontSize: 28, lineHeight: 34, letterSpacing: -1, color: colors.ink },
   rangeBar: { height: 22, justifyContent: 'center' },
   rangeTrack: { position: 'absolute', left: 0, right: 0, top: 8, height: 6, borderRadius: 3, backgroundColor: semantic.border },
-  rangeFill: { position: 'absolute', top: 8, height: 6, borderRadius: 3, backgroundColor: colors.indigo },
-  targetLine: { position: 'absolute', top: 2, width: 2, height: 18, marginLeft: -1, backgroundColor: colors.amber },
+  rangeFill: { position: 'absolute', top: 8, height: 6, borderRadius: 3, backgroundColor: colors.ink },
+  targetLine: { position: 'absolute', top: 2, width: 2, height: 18, marginLeft: -1, backgroundColor: colors.peach },
   dotRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   basis: { fontSize: 11, lineHeight: 16 },
@@ -432,7 +432,7 @@ const styles = StyleSheet.create({
   groups: { flexDirection: 'row', gap: spacing.sm },
   group: { flex: 1, gap: 4 },
   groupNum: { fontFamily: fontFamily.numberSemiBold, fontSize: 24, lineHeight: 30, color: colors.ink },
-  push: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.amberSoft },
+  push: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.peachSoft },
   pushBtn: { minHeight: 32, paddingHorizontal: 12, borderRadius: 16, backgroundColor: semantic.surface, justifyContent: 'center' },
   bar: { flexDirection: 'row', height: 6, borderRadius: 3, overflow: 'hidden', gap: 2, backgroundColor: semantic.border },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },

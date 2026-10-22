@@ -1,7 +1,7 @@
 // 6.10 设置：账号与安全；通知（每日训练提醒及时间、复习到期提醒、资料解析和批改完成）；资料与隐私（我的资料、导出题库、协议与政策）；
 // 清除缓存（显示大小，不删草稿）；意见反馈；关于（版本号）；退出登录。
 import type { Schemas } from '@training/api-client';
-import { semantic, spacing } from '@training/ui-tokens';
+import { colors, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Directory, Paths } from 'expo-file-system';
 import { router } from 'expo-router';
@@ -96,15 +96,15 @@ export default function SettingsPage() {
             title="每日训练提醒"
             desc={p.notify_daily ? `每天 ${time}` : undefined}
             onPress={p.notify_daily ? () => setTimeSheet(true) : undefined}
-            right={<Switch accessibilityLabel="每日训练提醒开关" value={p.notify_daily} onValueChange={(v) => save.mutate({ notify_daily: v })} trackColor={{ true: semantic.primary, false: semantic.border }} thumbColor="#FFFFFF" />}
+            right={<Switch accessibilityLabel="每日训练提醒开关" value={p.notify_daily} onValueChange={(v) => save.mutate({ notify_daily: v })} trackColor={{ true: semantic.primary, false: semantic.border }} thumbColor={colors.white} />}
           />
           <Row
             title="复习到期提醒"
-            right={<Switch accessibilityLabel="复习到期提醒开关" value={p.notify_review_due} onValueChange={(v) => save.mutate({ notify_review_due: v })} trackColor={{ true: semantic.primary, false: semantic.border }} thumbColor="#FFFFFF" />}
+            right={<Switch accessibilityLabel="复习到期提醒开关" value={p.notify_review_due} onValueChange={(v) => save.mutate({ notify_review_due: v })} trackColor={{ true: semantic.primary, false: semantic.border }} thumbColor={colors.white} />}
           />
           <Row
             title="资料解析和批改完成"
-            right={<Switch accessibilityLabel="资料解析和批改完成提醒开关" value={p.notify_task_done} onValueChange={(v) => save.mutate({ notify_task_done: v })} trackColor={{ true: semantic.primary, false: semantic.border }} thumbColor="#FFFFFF" />}
+            right={<Switch accessibilityLabel="资料解析和批改完成提醒开关" value={p.notify_task_done} onValueChange={(v) => save.mutate({ notify_task_done: v })} trackColor={{ true: semantic.primary, false: semantic.border }} thumbColor={colors.white} />}
           />
         </ListCard>
 

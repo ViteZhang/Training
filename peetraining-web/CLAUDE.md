@@ -11,7 +11,7 @@
 
 1. docs/prd.md：PRD v3。逐页功能与规则见第 6–10 节，通用状态见第 14 节
 2. docs/design/：设计稿（App 94 页、后台 15 页）。INDEX.md 是页面编号 → 文件；NOTES.md 是每个模块的调整说明；pages/*.dc.html 是视觉稿源码
-3. docs/design/vi/：视觉识别规范 v1.0（颜色、字体、字号、Logo、图标）；颜色与字体以 VI 为准，覆盖设计稿里的旧配色
+3. docs/design/vi/：视觉识别规范 v1.0（Logo、App 图标）；VI 的夜靛紫等品牌色只用于 Logo 和 App 图标，页面（含启动页）的颜色和字体一律按设计稿
 4. docs/dev-spec.md：研发规格（第十一节前端规格、第十二节任务卡）
 5. docs/tasks/：任务卡；docs/open-questions.md：未决问题
 
@@ -23,15 +23,19 @@
 - apps/mobile：Expo SDK 57 + TypeScript + Expo Router；TanStack Query + Zustand；MMKV 本地存储；development build，不依赖 Expo Go
 - apps/admin：React + Vite + TypeScript + React Router + TanStack Query + Ant Design
 - packages/api-client：由 openapi.yaml 生成的类型与请求函数，禁止手改
-- packages/ui-tokens：颜色、字号、间距、圆角，取自 docs/design/vi/
+- packages/ui-tokens：颜色、字号、间距、圆角；页面颜色取自设计稿，品牌色（brand）取自 docs/design/vi/
 
 ## 视觉规则（ui-tokens 的来源）
 
-- 颜色：夜靛 #231F55（主按钮、选中、品牌）；琥珀 #FFB547（只用于预估分、进度、提分）；轨道紫 #3B377A；纸白 #FAF8F3（页面底，卡片仍为白）；墨 #1B1A17（正文）；灰 #6B675F（辅助文字）；线 #E4DFD4（描边、分隔）；绿 #2F9E6E（已掌握）；蓝 #3E6FD8（提示、链接、到期复习）；红 #D6453D（薄弱、错误、删除）
-- 设计稿旧色替换：#1A1A1A → 夜靛（按钮）或墨（正文）；#6E6E6E → 灰；#EFEFEF → 线；#F2956B → 琥珀；#6FA8DC → 蓝；#C23B22 → 红
-- 字号按设计稿实际用法（ui-tokens typography）：页面标题 26 Bold、弹层标题 20、卡片标题 17、正文 15、辅助 13、注释 12、倒计时与分数 40 Sora；VI 的 H1 32/40 思源宋体 Heavy 只用于品牌标题（display）
-- 字体：正文用系统中文字体（不打包）；标题打包 Noto Serif SC 常用 3500 字子集；数字与英文打包 Sora；不在运行时加载 Google Fonts
-- 启动页与 App 图标按 VI 第 03、06 板
+- 页面颜色一比一按设计稿（docs/design/spec.dc.html「01 颜色」与 pages/*.dc.html），不再用 VI 色替换：
+  - 基础色：墨黑 #1A1A1A（标题、正文、主按钮、选中）；次级灰 #6E6E6E；弱化灰 #767676（未选中导航、占位）；描边灰 #E6E6E6（输入框、次按钮）；分割线 #EFEFEF（卡片描边、列表分割、进度轨道）；浅底 #F7F7F5；纯白 #FFFFFF（页面底与卡片）
+  - 功能分类色（底 / 点 / 字）：复习天蓝 #E5F0FA / #6FA8DC / #1D4C77；查漏蜜桃 #FDEDE4 / #F2956B / #8A3A16（也用于预估分、进度、提分）；背诵薰衣草 #EEEBFB / #8C80E0 / #3E3190；真题薄荷 #E4F4EB / #6CC08E / #1F5C3E；作文奶油 #FBF3D9 / #E3C25A / #6B5207
+  - 状态色：正确 #1F7A4D（底 #E4F4EB）；注意 #B26A00（底 #FDF1DC）；错误 #C23B22（底 #FCE9E5）；链接 #2F5FB3
+- VI 品牌色（夜靛 #231F55、琥珀 #FFB547、轨道紫 #3B377A、纸白 #FAF8F3）只用于 Logo 和 App 图标，在 ui-tokens 的 brand 里，页面不用
+- 页面里不写死色值，一律从 ui-tokens 的 colors / semantic 取；设计稿出现新颜色时先加进 ui-tokens
+- 字号按设计稿实际用法（ui-tokens typography）：页面标题 26 Bold、弹层标题 20、卡片标题 17、正文 15、辅助 13、注释 12、倒计时与分数 40
+- 字体按设计稿：中文用系统字体（与 Noto Sans SC 同字形，不打包）；数字、分数、时间、英文用 DM Sans（打包 400–700 四个字重），写 `<Text num>` 或 `num={600}`；不在运行时加载 Google Fonts（ADR 0010）
+- 启动页按设计稿 m0_splash（白底、VI Logo、「考研Training」）；App 图标按 VI 第 06 板
 
 ## 常用命令
 
@@ -47,7 +51,7 @@
 1. 一次只做一张任务卡；先输出实现计划等确认；不改卡片范围外的代码
 2. 接口只经 packages/api-client 调用，不手写请求类型；契约里没有需要的字段，就记到 docs/open-questions.md 并停下来
 3. 掌握度、预估分、今日计划、额度、会员不在前端计算，只展示服务端结果；唯一例外是客观题离线判分，联网后由服务端复核
-4. 读 .dc.html 获取布局、文案和交互，用 ui-tokens 和基础组件重写，不照搬 HTML；颜色字体按上面的视觉规则替换
+4. 读 .dc.html 获取布局、颜色、文案和交互，用 ui-tokens 和基础组件重写，不照搬 HTML；颜色与设计稿一致
 5. 基准尺寸 390×844；可点区域不小于 44×44；系统字体放大到 1.3 倍不破版
 6. 每个页面处理五种状态：加载中（超过 300 毫秒才出骨架屏）、空、网络错误、AI 生成中、额度不足
 7. 主观题、作文、整卷作答每 5 秒存草稿到 MMKV；写请求带 idempotency_key；模拟考试倒计时以服务端 deadline_at 为准

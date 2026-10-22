@@ -10,7 +10,7 @@ import { mixOrder, stageDesc, useAnswerStagePrompt, useSetTarget } from './api';
 
 const pct = (m: Record<string, number>) => mixOrder.map((g) => Math.round((m[g.key] ?? 0) * 100)).join(' · ');
 
-const mixColors: Record<string, string> = { new: colors.indigo, review: colors.blue, weak: colors.amber, recite: '#8C80E0' };
+const mixColors: Record<string, string> = { new: colors.ink, review: colors.blue, weak: colors.peach, recite: colors.lavender };
 
 /** 构成对比的一行：阶段名 + 百分比 + 分段条。 */
 function MixRow({ name, mix, strong }: { name: string; mix: Record<string, number>; strong?: boolean }) {
@@ -20,7 +20,7 @@ function MixRow({ name, mix, strong }: { name: string; mix: Record<string, numbe
         <Text variant="small" color={strong ? colors.ink : undefined} style={[styles.flex, strong && styles.bold]}>
           {name}
         </Text>
-        <Text variant="small" color={strong ? colors.ink : undefined} style={strong ? styles.bold : undefined}>
+        <Text variant="small" num={strong ? 600 : 400} color={strong ? colors.ink : undefined}>
           {pct(mix)}
         </Text>
       </View>

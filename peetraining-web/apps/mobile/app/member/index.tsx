@@ -62,7 +62,7 @@ export default function MemberCenter() {
             <Text variant="h2" color={colors.white}>
               {`${c.membership.tier ? tierNames[c.membership.tier] : '会员'}生效中`}
             </Text>
-            <Text variant="small" color="#C4C0E0">
+            <Text variant="small" color={colors.faint}>
               {c.membership.ends_at ? `有效期至 ${ymd(c.membership.ends_at)}，续费时长叠加` : ''}
             </Text>
           </View>
@@ -81,8 +81,8 @@ export default function MemberCenter() {
           {c.benefits.map((b) => (
             <View key={b.quota_type} style={[styles.tableRow, styles.divider]} accessibilityLabel={`${b.name} 免费版 ${ruleText(b.quota_type, b.free)} 会员 ${ruleText(b.quota_type, b.member)}`}>
               <Text variant="caption" color={semantic.textPrimary} style={styles.cellName}>{b.name}</Text>
-              <Text variant="small" style={styles.cell}>{ruleText(b.quota_type, b.free)}</Text>
-              <Text variant="caption" color={semantic.textPrimary} style={[styles.cell, styles.bold]}>{ruleText(b.quota_type, b.member)}</Text>
+              <Text variant="small" num style={styles.cell}>{ruleText(b.quota_type, b.free)}</Text>
+              <Text variant="caption" num={700} color={semantic.textPrimary} style={styles.cell}>{ruleText(b.quota_type, b.member)}</Text>
             </View>
           ))}
         </Card>

@@ -1,5 +1,5 @@
 // 1.4 选择导入方式：手里的是「题目」还是「资料」，放进哪门专业课。作文课不用事先声明，由 AI 按资料判断（PRD 11.12）。
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -18,8 +18,8 @@ export const modes: { key: ImportMode; name: string; eg: string; what: string }[
 ];
 
 const modeIcons: Partial<Record<ImportMode, { name: 'paper' | 'book'; bg: string; fg: string }>> = {
-  question: { name: 'paper', bg: semantic.masteredSoft, fg: '#1F6B4A' },
-  reference: { name: 'book', bg: semantic.infoSoft, fg: '#1D4C77' },
+  question: { name: 'paper', bg: colors.mintSoft, fg: colors.mintInk },
+  reference: { name: 'book', bg: semantic.infoSoft, fg: colors.blueInk },
 };
 
 export function ModeStep({ onboarding, subjectId: initialSubject }: { onboarding: boolean; subjectId?: number }) {

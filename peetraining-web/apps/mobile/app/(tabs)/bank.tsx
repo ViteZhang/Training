@@ -1,5 +1,5 @@
 // 3.1 题库：大标题 + 考情分析 / 图谱 / 导入 +「添加官方题库」（official_bank 开关，T30）+ 专业课切换 + 知识点 / 题目 / 资料三个分栏。作文课的作文知识库（3.10）在 T14。
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -42,13 +42,13 @@ function KnowledgeTab({ subjectId }: { subjectId: number }) {
       {data.needs_review_count > 0 && filter !== 'needs_review' ? (
         <Pressable accessibilityRole="button" onPress={() => setFilter('needs_review')} style={styles.banner}>
           <View style={styles.dot} />
-          <Text variant="caption" color="#6B4A12" style={styles.flex}>
-            <Text variant="caption" color="#6B4A12" style={styles.bold}>
+          <Text variant="caption" color={colors.orangeInk} style={styles.flex}>
+            <Text variant="caption" color={colors.orangeInk} style={styles.bold}>
               {data.needs_review_count} 处待核对
             </Text>{' '}
             · 采分点核对后批改更准
           </Text>
-          <Icon name="chevron" size={16} color="#6B4A12" />
+          <Icon name="chevron" size={16} color={colors.orangeInk} />
         </Pressable>
       ) : null}
       {data.sections.length === 0 ? (
@@ -104,7 +104,7 @@ export default function BankTab() {
             题库
           </Text>
           <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/bank/profile', params: { subjectId: String(subject.id) } })} style={[styles.chip, styles.chipGreen]}>
-            <Text variant="caption" color="#1F5C3E" style={styles.medium}>
+            <Text variant="caption" color={colors.mintInk} style={styles.medium}>
               考情分析
             </Text>
           </Pressable>
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   chipInk: { backgroundColor: semantic.primary },
   search: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 16, borderRadius: radius.lg, backgroundColor: semantic.fill },
   official: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.lg, backgroundColor: semantic.primarySoft },
-  banner: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.amberSoft },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#B26A00' },
-  append: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radius.lg, borderWidth: 1, borderStyle: 'dashed', borderColor: '#D6D2C8' },
+  banner: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.peachSoft },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.orange },
+  append: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radius.lg, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outline },
 });

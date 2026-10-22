@@ -143,13 +143,13 @@ export default function DashboardPage() {
                 {s.name}
               </Text>
               <View style={styles.bar}>
-                <View style={[styles.fill, { width: `${Math.min(100, s.mastery)}%`, backgroundColor: s.mastery < 40 ? colors.amber : colors.indigo }]} />
+                <View style={[styles.fill, { width: `${Math.min(100, s.mastery)}%`, backgroundColor: s.mastery < 40 ? colors.peach : colors.ink }]} />
               </View>
-              <Text variant="small" color={s.mastery < 40 ? '#9A4A1C' : semantic.textPrimary} style={[styles.pct, styles.bold]}>
+              <Text variant="small" num={600} color={s.mastery < 40 ? colors.peachInk : semantic.textPrimary} style={styles.pct}>
                 {Math.round(s.mastery)}%
               </Text>
               {d.sections_ready ? (
-                <Text variant="small" style={styles.share}>
+                <Text variant="small" num style={styles.share}>
                   占{Math.round(s.share * 100)}%
                 </Text>
               ) : null}
@@ -225,8 +225,8 @@ export default function DashboardPage() {
   );
 }
 
-const lossColor = [colors.amber, '#B26A00', colors.ink];
-const lossInk = ['#8A4B12', '#9A5B00', colors.ink];
+const lossColor = [colors.peach, colors.orange, colors.ink];
+const lossInk = [colors.peachInk, colors.orange, colors.ink];
 
 const styles = StyleSheet.create({
   bold: { fontWeight: '700' },
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   pct: { width: 38, textAlign: 'right' },
   share: { width: 38, textAlign: 'right', fontSize: 11 },
   falseRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.fill },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.amber },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.peach },
   scroll: { gap: spacing.md, paddingBottom: spacing.xl },
   gap: { gap: spacing.sm },
   flex: { flex: 1 },
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
   tabOn: { backgroundColor: semantic.primary, borderColor: semantic.primary },
   chart: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginTop: spacing.sm },
   col: { flex: 1, height: '100%' },
-  range: { position: 'absolute', left: '25%', right: '25%', borderRadius: 4, backgroundColor: colors.amber },
+  range: { position: 'absolute', left: '25%', right: '25%', borderRadius: 4, backgroundColor: colors.peach },
   targetLine: { position: 'absolute', left: 0, right: 0, borderTopWidth: 1, borderStyle: 'dashed', borderTopColor: semantic.primary },
   targetLabel: { position: 'absolute', right: 0, top: -16 },
   cols: { flexDirection: 'row', gap: spacing.sm },

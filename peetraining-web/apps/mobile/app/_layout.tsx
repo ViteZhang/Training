@@ -11,12 +11,12 @@ import { queryClient } from '@/lib/queryClient';
 
 void SplashScreen.preventAutoHideAsync();
 
-/** 标题用思源宋体子集、数字用 Sora，构建时打包，不在运行时加载 Google Fonts（ADR 0010）。 */
+/** 数字用 DM Sans（与设计稿一致），构建时打包，不在运行时加载 Google Fonts（ADR 0010）。中文用系统字体。 */
 const fonts = {
-  'NotoSerifSC-Heavy': require('../assets/fonts/NotoSerifSC-Heavy.ttf'),
-  'NotoSerifSC-Bold': require('../assets/fonts/NotoSerifSC-Bold.ttf'),
-  'Sora-SemiBold': require('../assets/fonts/Sora-SemiBold.ttf'),
-  'Sora-Bold': require('../assets/fonts/Sora-Bold.ttf'),
+  'DMSans-Regular': require('../assets/fonts/DMSans-Regular.ttf'),
+  'DMSans-Medium': require('../assets/fonts/DMSans-Medium.ttf'),
+  'DMSans-SemiBold': require('../assets/fonts/DMSans-SemiBold.ttf'),
+  'DMSans-Bold': require('../assets/fonts/DMSans-Bold.ttf'),
 };
 
 export default function RootLayout() {
