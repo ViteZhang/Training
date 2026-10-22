@@ -108,6 +108,8 @@ func (s *Service) sendCode(ctx context.Context, phone string, purpose Purpose, i
 		// 没发出去：撤销本次计数与冷却，用户可以马上重试。
 		s.rdb.Del(ctx, key, cooldownKey(phone))
 		s.rdb.Decr(ctx, dk)
+		// 返回给用户的是 400，错误中间件不记 4xx；这里单独记一条，方便按阿里云错误码排查（不含手机号）。
+		logx.From(ctx).Error("sms send failed", "purpose", string(purpose), "err", err)
 		return SendResult{}, apperr.New(apperr.BadRequest, "验证码发送失败，请稍后再试").Wrap(err)
 	}
 	if s.logCodes {

@@ -185,6 +185,38 @@ unset ADMIN_INITIAL_PASSWORD
 4. 越权访问：`make test` 里的 TestIntegrationIDOR 会用另一个用户的 ID 调全部 App 接口，必须全部 404；新增接口自动纳入。
 5. 发版前跑一遍 `make eval-all`（真实样本），都达标才发。
 
+### 11. 阿里云短信（登录验证码）
+
+1. 阿里云「短信服务」控制台 → 国内消息：
+   - 申请签名（如「考研Training」），等审核通过
+   - 申请模板，类型选「验证码」，内容示例：`您的验证码为：${code}，5分钟内有效，请勿泄露于他人。`，等审核通过，记下模板 CODE（如 `SMS_123456789`）
+   - 模板变量名不是 `code` 时，在 .env 里设置 `SMS_TEMPLATE_PARAM=<变量名>`
+2. RAM 子账号 `training-app` 授权 `AliyunDysmsFullAccess`（或只含 `dysms:SendSms` 的自定义策略）。
+3. 应用机 `/opt/training/.env`：
+
+   ```
+   SMS_PROVIDER=aliyun
+   SMS_SIGN_NAME=<签名>
+   SMS_TEMPLATE_CODE=<模板 CODE>
+   ALIYUN_ACCESS_KEY_ID=<training-app 的 AccessKey ID>
+   ALIYUN_ACCESS_KEY_SECRET=<training-app 的 AccessKey Secret>
+   ```
+
+   缺任何一项，api 与 worker 启动时会直接报错并写明缺哪个变量（`docker compose logs api`）。
+   生产环境不允许 `SMS_PROVIDER=mock`（mock 不真正发短信）。
+4. 改完 `.env` 后：`docker compose -f docker-compose.app.yml --env-file .env up -d api worker`（只 restart 不会重新读取 .env）。
+
+验证：
+
+```bash
+docker compose -f docker-compose.app.yml ps            # api、worker 为 running，不在反复重启
+curl -s https://training.dreamerlab.cn/api/v1/health   # 健康检查正常
+curl -s -X POST https://training.dreamerlab.cn/api/v1/auth/sms-codes \
+  -H 'Content-Type: application/json' \
+  -d '{"phone":"<你的手机号>","purpose":"login","agree":true}'
+# 返回 200 且手机收到短信；失败时看 docker compose logs --since 10m api | grep "sms send failed"
+```
+
 ## 二、日常发布与回滚
 
 - 发布：合并到 main 自动触发流水线。发布脚本先备份数据库，迁移失败时不会切换版本；健康检查 60 秒内不通过会自动回滚。
@@ -226,6 +258,8 @@ docker exec restore-test mysql -uroot -ptest training -e 'SELECT COUNT(*) FROM u
 | 队列积压 | asynqmon 各队列 pending 数 | 看 worker 日志里失败最多的任务类型；AI 服务异常时在后台 7.8 回滚提示词版本或模型 |
 | AI 成本异常 | 后台 7.8 成本统计 | 下调免费额度（7.8）或暂时关闭对应功能开关 |
 | 用户付了钱没开通会员 | api 日志搜订单号：「支付回调验签失败」「支付回调开通失败」「订单重复支付」；订单表 status | 验签失败多为平台公钥或 APIv3 密钥配错；金额不符、重复支付需人工核对后在后台 7.3 处理（ADR 0011）；渠道会按自身策略重发回调，修好配置后通常自动补开通 |
+| App 登录提示「网络错误」 | `docker compose ps` 里 api 是否在反复重启；`docker compose logs --tail 50 api` | 多为 api 启动失败（Nginx 返回 502）。日志出现「未知或尚未实现的服务商」：对应的 *_PROVIDER 填了还没实现的值（目前 SMS 支持 aliyun，OCR / ASR / MODERATION 只支持 mock）；出现「SMS_PROVIDER=aliyun 需要设置 …」：按第一节第 11 步补齐短信配置 |
+| 获取验证码提示「验证码发送失败」 | `docker compose logs --since 10m api \| grep "sms send failed"`，看阿里云错误码 | `isv.SMS_SIGNATURE_ILLEGAL` / `isv.SMS_TEMPLATE_ILLEGAL`：签名或模板没审核通过或填错；`isv.TEMPLATE_MISSING_PARAMETERS`：SMS_TEMPLATE_PARAM 与模板变量名不一致；`InvalidAccessKeyId.NotFound` / `SignatureDoesNotMatch`：AccessKey 填错；`Forbidden.RAM`：子账号缺短信权限；`isv.AMOUNT_NOT_ENOUGH`：账户余额不足；`isv.BUSINESS_LIMIT_CONTROL`：同一号码触发阿里云流控，稍后再试 |
 | 证书过期 | 浏览器提示 | 续期并替换 certs 下的文件，`nginx -s reload` |
 
 日志：容器日志 `docker compose logs --since 1h api`；SLS 采集应用机 `/var/lib/docker/containers/*/*-json.log`（T32 配置告警）。

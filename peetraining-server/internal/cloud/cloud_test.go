@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"peetraining-server/internal/cloud/ai"
@@ -69,6 +70,23 @@ func TestNewProductionRejectsMockSMS(t *testing.T) {
 	}
 }
 
+func TestNewAliyunSMS(t *testing.T) {
+	cfg := mockConfig()
+	cfg.AppEnv = config.EnvProduction
+	cfg.SMS = config.SMSConfig{Provider: config.ProviderAliyun, SignName: "签名", TemplateCode: "SMS_1"}
+	if _, err := New(cfg); err == nil || !strings.Contains(err.Error(), "ALIYUN_ACCESS_KEY_ID") {
+		t.Fatalf("缺凭证应报错：%v", err)
+	}
+	cfg.AliyunAccessKeyID, cfg.AliyunAccessKeySecret = "id", "secret"
+	c, err := New(cfg)
+	if err != nil {
+		t.Fatalf("生产环境 aliyun 短信应能创建：%v", err)
+	}
+	if _, ok := c.SMS.(*sms.Aliyun); !ok {
+		t.Fatalf("应使用阿里云短信：%T", c.SMS)
+	}
+}
+
 func TestMocks(t *testing.T) {
 	ctx := context.Background()
 
@@ -111,7 +129,8 @@ func TestMocks(t *testing.T) {
 func TestPayProduction(t *testing.T) {
 	cfg := mockConfig()
 	cfg.AppEnv = config.EnvProduction
-	cfg.SMS.Provider = "aliyun"
+	cfg.SMS = config.SMSConfig{Provider: config.ProviderAliyun, SignName: "签名", TemplateCode: "SMS_1"}
+	cfg.AliyunAccessKeyID, cfg.AliyunAccessKeySecret = "id", "secret"
 	cfg.Pay.Provider = config.ProviderMock
 	c, err := New(cfg)
 	if err == nil && c.Pay != nil {
