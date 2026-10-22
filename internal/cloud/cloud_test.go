@@ -214,3 +214,32 @@ func TestMocksRespectCanceledContext(t *testing.T) {
 		t.Error("pay")
 	}
 }
+
+func TestCheck(t *testing.T) {
+	cfg := mockConfig()
+	cfg.OCR.PDFProvider = config.ProviderPDFium
+	c, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := Check(context.Background(), cfg, c, false)
+	got := map[string]CheckResult{}
+	for _, r := range res {
+		got[r.Name] = r
+	}
+	for _, name := range []string{"文件存储 OSS", "内容安全", "文字识别 OCR", "AI 主用平台"} {
+		if !got[name].Skipped {
+			t.Errorf("%s 是 mock，应跳过：%+v", name, got[name])
+		}
+	}
+	if r := got["PDF 解析"]; r.Skipped || r.Err != nil {
+		t.Errorf("PDFium 应能解析自检用的空白 PDF：%+v", r)
+	}
+}
+
+func TestOSSErrorCode(t *testing.T) {
+	body := []byte(`<?xml version="1.0"?><Error><Code>SignatureDoesNotMatch</Code><Message>The request signature we calculated does not match</Message><StringToSign>secret</StringToSign></Error>`)
+	if got := ossErrorCode(body); got != "SignatureDoesNotMatch The request signature we calculated does not match" {
+		t.Errorf("%q", got)
+	}
+}

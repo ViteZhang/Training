@@ -373,7 +373,21 @@ func (s *Service) GiveUp(ctx context.Context, userID, jobID, materialID uint64) 
 	if err != nil {
 		return err
 	}
-	return s.fail(ctx, jm, "识别服务暂时不可用，没扣额度，请稍后点「重试」")
+	return s.fail(ctx, jm, giveUpReason(jm.Step))
+}
+
+// giveUpReason 按卡住的步骤说明是哪项服务不可用，方便用户反馈、运维对照 `api cloudcheck` 排查。
+func giveUpReason(step dbq.ImportJobMaterialsStep) string {
+	what := "识别服务"
+	switch step {
+	case dbq.ImportJobMaterialsStepQueued, dbq.ImportJobMaterialsStepExtract:
+		what = "文件读取或文字识别服务"
+	case dbq.ImportJobMaterialsStepModerate:
+		what = "内容安全审核服务"
+	case dbq.ImportJobMaterialsStepStructure:
+		what = "AI 解析服务"
+	}
+	return what + "暂时不可用，没扣额度，请稍后点「重试」"
 }
 
 // finishFile 文件处理完：按计费页数结算额度，资料标为已解析（部分失败标 partial 并写原因）。

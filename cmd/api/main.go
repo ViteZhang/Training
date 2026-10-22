@@ -6,6 +6,7 @@
 //	api import-template <path>  生成 Excel 导入模板（App 1.5 提供下载，放到 peetraining-web 的静态资源里）
 //	api create-admin <账号> <显示名> <手机号> <角色,角色>  新建后台账号；初始密码读环境变量 ADMIN_INITIAL_PASSWORD，首次登录须修改
 //	api healthcheck         检查 API、MySQL 与 Redis 是否正常
+//	api cloudcheck [--ocr]   逐项试调 OSS、内容安全、PDF 解析、AI（加 --ocr 再试文字识别），打印每项是否可用与失败原因
 //
 // healthcheck 供 Docker Compose 在 API 容器内检查服务健康状态。
 package main
@@ -25,6 +26,7 @@ import (
 	"github.com/pressly/goose/v3"
 
 	"peetraining-server/internal/app"
+	"peetraining-server/internal/cloud"
 	"peetraining-server/internal/config"
 	"peetraining-server/internal/extract"
 )
@@ -69,6 +71,8 @@ func run(args []string) error {
 	defer stop()
 
 	switch {
+	case len(args) >= 1 && args[0] == "cloudcheck":
+		return cloudcheck(ctx, cfg, len(args) == 2 && args[1] == "--ocr")
 	case len(args) == 0 || args[0] == "serve":
 		return app.RunAPI(ctx, cfg, log)
 	case args[0] == "migrate" && len(args) == 2:
@@ -77,7 +81,7 @@ func run(args []string) error {
 		// 初始密码不从命令行参数读，避免留在 shell 历史里。
 		return app.CreateAdmin(ctx, cfg, log, args[1], args[2], args[3], strings.Split(args[4], ","), os.Getenv("ADMIN_INITIAL_PASSWORD"))
 	default:
-		return fmt.Errorf("未知命令 %q（可用：serve、healthcheck、migrate up|status|new、import-template、create-admin）", args)
+		return fmt.Errorf("未知命令 %q（可用：serve、healthcheck、cloudcheck、migrate up|status|new、import-template、create-admin）", args)
 	}
 }
 
@@ -109,6 +113,30 @@ func checkHealthEndpoint(ctx context.Context, client *http.Client, target string
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health endpoint returned %s", resp.Status)
+	}
+	return nil
+}
+
+// cloudcheck 在服务器上执行：docker compose exec api /app/api cloudcheck。读的是容器里的环境变量，与 API、Worker 一致。
+func cloudcheck(ctx context.Context, cfg *config.Config, withOCR bool) error {
+	clients, err := cloud.New(cfg)
+	if err != nil {
+		return fmt.Errorf("云服务配置有误，API 与 Worker 都无法启动：%w", err)
+	}
+	failed := 0
+	for _, r := range cloud.Check(ctx, cfg, clients, withOCR) {
+		switch {
+		case r.Skipped:
+			fmt.Printf("[跳过] %s（%s）：%s\n", r.Name, r.Provider, r.Note)
+		case r.Err != nil:
+			failed++
+			fmt.Printf("[失败] %s（%s）：%v\n", r.Name, r.Provider, r.Err)
+		default:
+			fmt.Printf("[正常] %s（%s）：%s\n", r.Name, r.Provider, r.Note)
+		}
+	}
+	if failed > 0 {
+		return fmt.Errorf("%d 项不可用", failed)
 	}
 	return nil
 }

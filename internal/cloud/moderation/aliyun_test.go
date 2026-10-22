@@ -10,6 +10,7 @@ import (
 
 	green "github.com/alibabacloud-go/green-20220302/v2/client"
 	"github.com/alibabacloud-go/tea/dara"
+	"github.com/alibabacloud-go/tea/tea"
 )
 
 type fakeGreen struct {
@@ -101,5 +102,12 @@ func TestAliyunImage(t *testing.T) {
 func TestAliyunRejectLevel(t *testing.T) {
 	if _, err := newAliyunWithAPI(&fakeGreen{}, AliyunConfig{RejectLevel: "none"}); err == nil {
 		t.Error("none 不是合法的拦截等级")
+	}
+}
+
+func TestSDKErrorDropsDetail(t *testing.T) {
+	err := sdkError("文本审核", &tea.SDKError{Code: tea.String("InvalidAccessKeyId.NotFound"), Message: tea.String("Specified access key is not found."), Data: tea.String(`{"content":"考生原文"}`)})
+	if got := err.Error(); got != "阿里云文本审核失败：code=InvalidAccessKeyId.NotFound message=Specified access key is not found." {
+		t.Errorf("%q", got)
 	}
 }
