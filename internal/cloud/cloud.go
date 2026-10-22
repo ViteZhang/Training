@@ -1,6 +1,6 @@
 // Package cloud 封装短信、AI、OCR、语音、内容安全、支付等外部服务。
 //
-// 每个子包定义接口与 mock 实现；真实实现在对应任务卡里加（短信 T06、OCR T09、AI T10、
+// 每个子包定义接口与 mock 实现；真实实现在对应任务卡里加（短信已接阿里云、OCR T09、AI T10、
 // 内容安全 T08、语音 T20、支付 T25）。按 *_PROVIDER 环境变量切换，本地默认 mock，
 // 不需要任何真实密钥就能启动（T01 验收）。
 package cloud
@@ -56,7 +56,23 @@ func New(cfg *config.Config) (*Clients, error) {
 			errs = append(errs, fmt.Errorf("%s_PROVIDER=%q：%w", name, provider, ErrUnknownProvider))
 		}
 	}
-	pick("SMS", cfg.SMS.Provider, func() { c.SMS = sms.NewMock() }, func() { c.SMS = disabledService("短信") })
+	switch cfg.SMS.Provider {
+	case config.ProviderAliyun:
+		s, err := sms.NewAliyun(sms.AliyunConfig{
+			AccessKeyID:     cfg.AliyunAccessKeyID,
+			AccessKeySecret: cfg.AliyunAccessKeySecret,
+			SignName:        cfg.SMS.SignName,
+			TemplateCode:    cfg.SMS.TemplateCode,
+			TemplateParam:   cfg.SMS.TemplateParam,
+			Endpoint:        cfg.SMS.Endpoint,
+		})
+		if err != nil {
+			errs = append(errs, err)
+		}
+		c.SMS = s
+	default:
+		pick("SMS", cfg.SMS.Provider, func() { c.SMS = sms.NewMock() }, func() { c.SMS = disabledService("短信") })
+	}
 	hasBailian := cfg.AI.BailianBaseURL != "" && cfg.AI.BailianAPIKey != ""
 	switch cfg.AI.Provider {
 	case "bailian":

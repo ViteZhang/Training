@@ -26,6 +26,9 @@ const ProviderMock = "mock"
 // ProviderDisabled 显式关闭尚未接入或暂不开放的云服务，调用时返回不可用。
 const ProviderDisabled = "disabled"
 
+// ProviderAliyun 表示使用阿里云的真实服务。
+const ProviderAliyun = "aliyun"
+
 type Config struct {
 	AppEnv   string
 	HTTPAddr string
@@ -97,10 +100,15 @@ type PayConfig struct {
 	AppleBundleID   string
 }
 
+// SMSConfig 是短信配置。SMS_PROVIDER=aliyun 时凭证复用 ALIYUN_ACCESS_KEY_ID / SECRET。
 type SMSConfig struct {
 	Provider     string
 	SignName     string
 	TemplateCode string
+	// TemplateParam 是验证码模板里的变量名（模板写 ${code} 时为 code）。
+	TemplateParam string
+	// Endpoint 是短信接口地址，默认国内短信 dysmsapi.aliyuncs.com。
+	Endpoint string
 }
 
 type AIConfig struct {
@@ -159,9 +167,11 @@ func load(getenv func(string) string) (*Config, error) {
 			MockBaseURL:     get("OSS_MOCK_BASE_URL", ""),
 		},
 		SMS: SMSConfig{
-			Provider:     get("SMS_PROVIDER", ProviderMock),
-			SignName:     get("SMS_SIGN_NAME", ""),
-			TemplateCode: get("SMS_TEMPLATE_CODE", ""),
+			Provider:      get("SMS_PROVIDER", ProviderMock),
+			SignName:      get("SMS_SIGN_NAME", ""),
+			TemplateCode:  get("SMS_TEMPLATE_CODE", ""),
+			TemplateParam: get("SMS_TEMPLATE_PARAM", "code"),
+			Endpoint:      get("SMS_ENDPOINT", "dysmsapi.aliyuncs.com"),
 		},
 		AI: AIConfig{
 			Provider:       get("AI_PROVIDER", ProviderMock),
@@ -227,6 +237,30 @@ func load(getenv func(string) string) (*Config, error) {
 	case EnvLocal, EnvTest, EnvProduction:
 	default:
 		errs = append(errs, fmt.Errorf("APP_ENV 只能是 %s、%s 或 %s，当前为 %q", EnvLocal, EnvTest, EnvProduction, cfg.AppEnv))
+	}
+
+	switch cfg.SMS.Provider {
+	case ProviderMock:
+		if cfg.AppEnv == EnvProduction {
+			// mock 不真正发短信，生产用它会让用户收不到验证码。
+			errs = append(errs, errors.New("生产环境不能使用 SMS_PROVIDER=mock，请设置为 aliyun"))
+		}
+	case ProviderAliyun:
+		// 缺一项都发不出短信：启动时就报出来，而不是等用户登录时才失败。
+		for _, kv := range [][2]string{
+			{"ALIYUN_ACCESS_KEY_ID", cfg.AliyunAccessKeyID},
+			{"ALIYUN_ACCESS_KEY_SECRET", cfg.AliyunAccessKeySecret},
+			{"SMS_SIGN_NAME", cfg.SMS.SignName},
+			{"SMS_TEMPLATE_CODE", cfg.SMS.TemplateCode},
+		} {
+			if kv[1] == "" {
+				errs = append(errs, fmt.Errorf("SMS_PROVIDER=aliyun 需要设置 %s", kv[0]))
+			}
+		}
+	case ProviderDisabled:
+		// 显式关闭短信：发验证码时返回不可用（cloud.disabledService）。
+	default:
+		errs = append(errs, fmt.Errorf("SMS_PROVIDER 只能是 %s、%s 或 %s，当前为 %q", ProviderMock, ProviderAliyun, ProviderDisabled, cfg.SMS.Provider))
 	}
 
 	if cfg.AppEnv == EnvProduction {

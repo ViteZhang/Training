@@ -101,7 +101,7 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
 | `REDIS_ADDR` / `REDIS_PASSWORD` / `REDIS_DB` | Redis 容器名、密码及未被其他业务占用的库号 | 必填；无密码时密码留空，模板使用 DB 1 |
 | `JWT_SECRET` | 在安全终端运行 `openssl rand -hex 32` 生成 | 必填；不要重复使用本地开发值 |
 | `BAILIAN_API_KEY` | 百炼 API Key | 使用 AI 时必填；模板默认选择已接入的百炼客户端 |
-| `SMS_*` | 当前使用 `SMS_PROVIDER=disabled` | 关闭时无法短信登录；接入真实短信实现后再填写签名与模板 |
+| `SMS_*` | `SMS_PROVIDER=aliyun`，审核通过的 `SMS_SIGN_NAME`、`SMS_TEMPLATE_CODE`；模板变量不是 `code` 时设 `SMS_TEMPLATE_PARAM` | 必填（短信登录）；凭证用 `ALIYUN_ACCESS_KEY_ID` / `SECRET`，见下方「阿里云短信」 |
 | `OSS_*`、`OCR_*`、`ASR_*`、`MODERATION_*` | 当前各 provider 使用 `disabled` | 关闭时相关业务不可用；不能仅靠填 Key 或改成 aliyun 启用 |
 | `WECHAT_PAY_*`、`ALIPAY_*`、`APPLE_IAP_*` | 已开通支付渠道的完整凭据 | 只在开放对应支付渠道时填写，并将 `PAY_PROVIDER=real` |
 
@@ -111,7 +111,7 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
 
 应用实际连接的是 Docker 网络内的容器名，不是 ECS 公网 IP。执行 `docker ps` 确认 MySQL、Redis 容器名；再用 `docker network inspect dreamer-net` 确认这些容器和本项目都在同一个网络。数据库密码建议使用 `openssl rand -hex 24`，避免 DSN 分隔符影响解析。
 
-**当前可以部署验证健康接口，但未具备完整业务能力。** 短信、OSS、OCR、ASR、内容安全使用 `disabled` 时，API 和 Worker 可以初始化，相关调用会返回不可用；不会发送短信或放行内容审核，因此后台与用户短信登录、文件上传及依赖审核的 AI 功能仍不可用。生产禁止 mock 短信，`aliyun` 仍表示尚未实现的 provider，不会自动降级。接入真实服务并验证后再开放业务。数据库迁移需要在发布前单独完成，Compose 不会自动执行迁移。
+**短信已接入阿里云（`SMS_PROVIDER=aliyun`）。** OSS、OCR、ASR、内容安全使用 `disabled` 时，API 和 Worker 可以初始化，相关调用会返回不可用；不会发送短信或放行内容审核，因此文件上传及依赖审核的 AI 功能仍不可用。生产禁止 mock 短信；OSS、OCR、ASR、内容安全的 `aliyun` 仍表示尚未实现的 provider，填了会启动失败，不会自动降级。接入真实服务并验证后再开放业务。数据库迁移需要在发布前单独完成，Compose 不会自动执行迁移。
 
 若启动日志出现 `微信支付商户私钥：不是合法的 PEM`，表示 `PAY_PROVIDER=real` 已启用微信渠道，但 `WECHAT_PAY_PRIVATE_KEY` 不是有效商户 API 私钥。暂不开通支付时设置 `PAY_PROVIDER=disabled`；已开通其他支付渠道且暂不使用微信时，将全部 `WECHAT_PAY_*` 清空，并保持其他渠道完整配置。需要启用微信时填写真实商户 API 私钥内容（不是文件路径、Nginx HTTPS 私钥或证书），单引号内可用字面量 `\n` 保存 PEM 换行；程序会还原后校验，不能用占位值跳过。
 
@@ -119,7 +119,7 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
 
 ```dotenv
 APP_ENV=production
-SMS_PROVIDER=disabled
+SMS_PROVIDER=aliyun
 OSS_PROVIDER=disabled
 OCR_PROVIDER=disabled
 ASR_PROVIDER=disabled
@@ -133,7 +133,7 @@ PAY_PROVIDER=disabled
 
 | 能力 | 当前业务调用位置 | 暂时关闭的影响 |
 | --- | --- | --- |
-| 短信 | 用户登录验证码、后台登录二次验证 | 无法完成短信登录；阿里云开通后仍需后端真实 provider 接入 |
+| 短信 | 用户登录验证码、后台登录二次验证 | 已接入阿里云；设为 `disabled` 时无法完成短信登录 |
 | OSS | 上传原件、头像、手写照片、录音、导出文件及下载 | 文件相关能力不可用；阿里云开通后仍需后端真实 provider 接入 |
 | OCR / PDF | 照片资料识别、手写答案识别、PDF 解析 | 相关导入/识别入口不可用；当前 PDF 也通过 OCR 配置对应的解析接口 |
 | ASR | 当前用于口述背诵录音转文字 | 口述背诵不可用；文本背诵无需语音识别 |
@@ -142,6 +142,34 @@ PAY_PROVIDER=disabled
 现有 `dreamer-nginx` 负责 80/443、证书和前端静态文件。它需要加入 `dreamer-net`，并把新域名的请求反向代理到 `http://training-api:8080`。配置片段见 [deploy/nginx/training.conf](../deploy/nginx/training.conf)，DNS、证书挂载、配置合并与验证步骤见 [Nginx HTTPS 接入](nginx-https.md)。片段追加到现有 `http` 块内；本项目不重新占用宿主机 80/443/8080。`/admin/` 静态页面按前端部署方案另外配置。
 
 验证：`dig training.dreamerlab.cn` 解析到应用机；证书文件存在且权限 600。
+
+#### 阿里云短信（登录验证码）
+
+1. 阿里云「短信服务」控制台 → 国内消息：签名（如「考研Training」）与「验证码」类型模板都审核通过，记下模板 CODE（如 `SMS_123456789`）。模板示例：`您的验证码为：${code}，5分钟内有效，请勿泄露于他人。`
+2. RAM 子账号 `training-app` 授权 `AliyunDysmsFullAccess`（或只含 `dysms:SendSms` 的自定义策略）。
+3. 服务器 `.env`：
+
+   ```dotenv
+   SMS_PROVIDER=aliyun
+   SMS_SIGN_NAME=<签名>
+   SMS_TEMPLATE_CODE=<模板 CODE>
+   # 模板变量名不是 code 时才需要
+   # SMS_TEMPLATE_PARAM=code
+   ALIYUN_ACCESS_KEY_ID=<training-app 的 AccessKey ID>
+   ALIYUN_ACCESS_KEY_SECRET=<training-app 的 AccessKey Secret>
+   ```
+
+   缺任何一项，api 与 worker 启动时直接报错并写明缺哪个变量。改完在 `/opt/dreamer/project/training` 执行 `docker compose up -d`。
+4. 验证：
+
+   ```bash
+   docker compose ps                                       # api healthy，worker running
+   curl -s https://training.dreamerlab.cn/api/v1/health
+   curl -s -X POST https://training.dreamerlab.cn/api/v1/auth/sms-codes \
+     -H 'Content-Type: application/json' \
+     -d '{"phone":"<你的手机号>","purpose":"login","agree":true}'
+   # 返回 200 且手机收到短信；失败时：docker compose logs --since 10m api | grep "sms send failed"
+   ```
 
 ### 5. 云效流水线
 
@@ -282,6 +310,8 @@ unset ADMIN_INITIAL_PASSWORD
 | 队列积压 | asynqmon 各队列 pending 数 | 看 worker 日志里失败最多的任务类型；AI 服务异常时在后台 7.8 回滚提示词版本或模型 |
 | AI 成本异常 | 后台 7.8 成本统计 | 下调免费额度（7.8）或暂时关闭对应功能开关 |
 | 用户付了钱没开通会员 | api 日志搜订单号：「支付回调验签失败」「支付回调开通失败」「订单重复支付」；订单表 status | 验签失败多为平台公钥或 APIv3 密钥配错；金额不符、重复支付需人工核对后在后台 7.3 处理（ADR 0011）；渠道会按自身策略重发回调，修好配置后通常自动补开通 |
+| App 登录提示「网络错误」 | `docker compose ps` 里 api 是否在反复重启；`docker compose logs --tail 50 api` | 多为 api 启动失败（Nginx 返回 502）。日志出现「未知或尚未实现的服务商」：对应的 *_PROVIDER 填了还没实现的值（SMS 支持 aliyun；OSS / OCR / ASR / MODERATION 只支持 mock、disabled）；出现「SMS_PROVIDER=aliyun 需要设置 …」：按「阿里云短信」补齐配置 |
+| 获取验证码提示「验证码发送失败」 | `docker compose logs --since 10m api \| grep "sms send failed"`，看阿里云错误码 | `isv.SMS_SIGNATURE_ILLEGAL` / `isv.SMS_TEMPLATE_ILLEGAL`：签名或模板未审核通过或填错；`isv.TEMPLATE_MISSING_PARAMETERS`：SMS_TEMPLATE_PARAM 与模板变量名不一致；`InvalidAccessKeyId.NotFound` / `SignatureDoesNotMatch`：AccessKey 填错；`Forbidden.RAM`：子账号缺短信权限；`isv.AMOUNT_NOT_ENOUGH`：余额不足；`isv.BUSINESS_LIMIT_CONTROL`：触发阿里云流控 |
 | 证书过期 | 浏览器提示 | 续期并替换 certs 下的文件，`nginx -s reload` |
 
 日志：容器日志 `docker compose logs --since 1h api`；SLS 采集应用机 `/var/lib/docker/containers/*/*-json.log`（T32 配置告警）。

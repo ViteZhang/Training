@@ -3,6 +3,10 @@ module peetraining-server
 go 1.25.0
 
 require (
+	github.com/alibabacloud-go/darabonba-openapi/v2 v2.2.4
+	github.com/alibabacloud-go/dysmsapi-20170525/v4 v4.1.3
+	github.com/alibabacloud-go/tea v1.5.2
+	github.com/alibabacloud-go/tea-utils/v2 v2.0.9
 	github.com/getkin/kin-openapi v0.149.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-sql-driver/mysql v1.10.1
@@ -18,6 +22,18 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/mysql v0.44.0
 	github.com/testcontainers/testcontainers-go/modules/redis v0.44.0
 	github.com/xuri/excelize/v2 v2.11.0
+)
+
+require (
+	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.5 // indirect
+	github.com/alibabacloud-go/debug v1.0.1 // indirect
+	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect
+	github.com/alibabacloud-go/openapi-util v0.1.1 // indirect
+	github.com/aliyun/credentials-go v1.4.5 // indirect
+	github.com/clbanning/mxj/v2 v2.7.0 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/tjfoc/gmsm v1.4.1 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
 )
 
 require (
