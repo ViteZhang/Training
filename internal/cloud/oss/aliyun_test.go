@@ -49,3 +49,21 @@ func TestAliyunPresign(t *testing.T) {
 		t.Error("空前缀不能删除")
 	}
 }
+
+func TestAliyunEndpointWithBucketAndScheme(t *testing.T) {
+	// 生产 .env 里填的是控制台复制的访问域名。
+	a, err := NewAliyun(AliyunConfig{Endpoint: "https://dreamer-lab.oss-cn-beijing.aliyuncs.com/", Bucket: "dreamer-lab", AccessKeyID: "id", AccessKeySecret: "s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := a.PresignPut(context.Background(), "u/1/a.pdf", "application/pdf", 1, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(p.URL, "https://dreamer-lab.oss-cn-beijing.aliyuncs.com/u/1/a.pdf?") {
+		t.Errorf("地址不应重复桶名：%s", p.URL)
+	}
+	if got := normalizeEndpoint(" http://b.oss-cn-beijing-internal.aliyuncs.com ", "b"); got != "oss-cn-beijing-internal.aliyuncs.com" {
+		t.Errorf("%q", got)
+	}
+}

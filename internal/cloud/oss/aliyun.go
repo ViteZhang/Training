@@ -56,6 +56,10 @@ func NewAliyun(cfg AliyunConfig) (*Aliyun, error) {
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("OSS_PROVIDER=aliyun 缺少配置：%s", strings.Join(missing, "、"))
 	}
+	// 控制台里复制的常是「https://<桶名>.oss-cn-beijing.aliyuncs.com」这样的访问域名：去掉协议与桶名，
+	// 否则 SDK 会再拼一次桶名，地址变成 <桶名>.<桶名>.oss-…，上传与读写全部失败。
+	cfg.Endpoint = normalizeEndpoint(cfg.Endpoint, cfg.Bucket)
+	cfg.InternalEndpoint = normalizeEndpoint(cfg.InternalEndpoint, cfg.Bucket)
 	if strings.Contains(cfg.Endpoint, "-internal.") {
 		// 填了内网地址：App 在公网上访问不到，预签名改用对应的公网地址，服务端读写仍走内网。
 		if cfg.InternalEndpoint == "" {
@@ -85,6 +89,16 @@ func NewAliyun(cfg AliyunConfig) (*Aliyun, error) {
 		a.internal = newClient(cfg.InternalEndpoint)
 	}
 	return a, nil
+}
+
+func normalizeEndpoint(e, bucket string) string {
+	e = strings.TrimSpace(e)
+	e = strings.TrimPrefix(strings.TrimPrefix(e, "https://"), "http://")
+	e = strings.TrimRight(e, "/")
+	if bucket != "" {
+		e = strings.TrimPrefix(e, bucket+".")
+	}
+	return e
 }
 
 func (a *Aliyun) PresignPut(ctx context.Context, key, contentType string, _ int64, ttl time.Duration) (Presigned, error) {
