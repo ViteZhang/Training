@@ -154,5 +154,5 @@ const styles = StyleSheet.create({
   thumb: { width: 96, height: 128, borderRadius: radius.md, backgroundColor: semantic.border },
   box: { gap: spacing.xs, padding: spacing.md, borderRadius: radius.md, backgroundColor: semantic.dangerSoft },
   low: { textDecorationLine: 'underline' },
-  input: { minHeight: 160, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, padding: spacing.md, fontSize: 16, lineHeight: 24, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  input: { minHeight: 160, borderWidth: 1, borderColor: semantic.inputBorder, borderRadius: radius.md, padding: spacing.md, fontSize: 16, lineHeight: 24, color: semantic.textPrimary, backgroundColor: semantic.surface },
 });

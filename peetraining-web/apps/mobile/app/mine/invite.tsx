@@ -52,7 +52,7 @@ export default function InvitePage() {
       <ScrollView contentContainerStyle={styles.body}>
         <View style={styles.hero}>
           <Text variant="h2" color={colors.white}>邀请研友一起备考</Text>
-          <Text variant="h3" color={colors.amber}>双方各得 {d.reward_days} 天会员</Text>
+          <Text variant="h3" color={colors.peach}>双方各得 {d.reward_days} 天会员</Text>
           <Text variant="caption" color={colors.white}>好友用你的邀请码注册，并导入第一份资料后生效</Text>
         </View>
         <Card style={styles.codeCard}>
@@ -93,7 +93,7 @@ export default function InvitePage() {
           <Text variant="h2" color={colors.white}>{appConfig.appName}</Text>
           <Text variant="body" color={colors.white}>导入你的专业课资料，AI 按采分点批改主观题</Text>
           <Text variant="caption" color={colors.white}>注册时填写邀请码</Text>
-          <Text variant="number" color={colors.amber} style={styles.code}>{d.code}</Text>
+          <Text variant="number" color={colors.peach} style={styles.code}>{d.code}</Text>
           <Text variant="caption" color={colors.white}>导入第一份资料后，我们各得 {d.reward_days} 天会员</Text>
         </View>
         <Button title="分享海报" block onPress={() => void sharePoster()} />

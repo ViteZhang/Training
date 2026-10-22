@@ -20,7 +20,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
-  backgroundColor: '#FAF8F3',
+  backgroundColor: '#FFFFFF',
   ios: {
     bundleIdentifier: variant === 'production' ? appId : `${appId}.${variant}`,
     supportsTablet: false,

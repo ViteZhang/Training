@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   bold: { fontWeight: '700' },
   lh: { lineHeight: 22 },
   link: { paddingHorizontal: 0 },
-  input: { minHeight: 52, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.xl, paddingHorizontal: 14, fontSize: 15, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  input: { minHeight: 52, borderWidth: 1, borderColor: semantic.inputBorder, borderRadius: radius.xl, paddingHorizontal: 14, fontSize: 15, color: semantic.textPrimary, backgroundColor: semantic.surface },
   result: { gap: 8, padding: 16, borderRadius: radius.xl, backgroundColor: semantic.fill },
   links: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
 });

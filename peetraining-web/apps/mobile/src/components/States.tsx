@@ -1,4 +1,4 @@
-import { radius, semantic, spacing, timing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing, timing } from '@training/ui-tokens';
 import { ApiError } from '@training/api-client';
 import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -100,8 +100,8 @@ export function AIGenerating({ steps, current, eta, title, desc, onLeave }: AIGe
     <View style={styles.ai} accessibilityLiveRegion="polite">
       <View style={styles.dots} accessibilityElementsHidden>
         <View style={[styles.aiDot, { backgroundColor: semantic.textPrimary }]} />
-        <View style={[styles.aiDot, { backgroundColor: '#8C877D' }]} />
-        <View style={[styles.aiDot, { backgroundColor: '#CFCAC0' }]} />
+        <View style={[styles.aiDot, { backgroundColor: colors.dim }]} />
+        <View style={[styles.aiDot, { backgroundColor: colors.placeholder }]} />
       </View>
       {title ? <Text variant="h2">{title}</Text> : null}
       {sub ? <Text variant="caption">{sub}</Text> : null}
@@ -109,7 +109,7 @@ export function AIGenerating({ steps, current, eta, title, desc, onLeave }: AIGe
         {steps.map((st, i) => (
           <View key={st} style={styles.step}>
             <View style={[styles.dot, i < current && styles.dotDone, i === current && styles.dotActive]}>
-              {i < current ? <Icon name="check" size={12} color="#FFFFFF" /> : null}
+              {i < current ? <Icon name="check" size={12} color={colors.white} /> : null}
             </View>
             <Text variant="body" color={i > current ? semantic.textSecondary : undefined}>
               {st}
@@ -166,7 +166,7 @@ export function QuotaSheet({ visible, onClose, title, desc, freeOptions, onUpgra
 
 const styles = StyleSheet.create({
   skeleton: { gap: spacing.md, paddingVertical: spacing.lg },
-  bone: { height: 14, borderRadius: radius.sm, backgroundColor: '#EEEAE1' },
+  bone: { height: 14, borderRadius: radius.sm, backgroundColor: colors.line },
   boneTitle: { height: 22, width: '50%' },
   block: { alignItems: 'center', paddingVertical: spacing.xxxl, paddingHorizontal: spacing.xl, gap: spacing.sm },
   blockTitle: { marginTop: spacing.sm },
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
   aiDot: { width: 8, height: 8, borderRadius: 4 },
   steps: { gap: 14, marginTop: spacing.lg },
   step: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  dot: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#BDB8AD', alignItems: 'center', justifyContent: 'center' },
+  dot: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.faint, alignItems: 'center', justifyContent: 'center' },
   dotActive: { borderColor: semantic.textPrimary },
   dotDone: { backgroundColor: semantic.textPrimary, borderColor: semantic.textPrimary, borderStyle: 'solid' },
   leave: { alignSelf: 'flex-start', paddingHorizontal: 0, marginTop: spacing.md },

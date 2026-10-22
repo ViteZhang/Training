@@ -62,7 +62,7 @@ export default function MemberCenter() {
             <Text variant="h2" color={colors.white}>
               {`${c.membership.tier ? tierNames[c.membership.tier] : '会员'}生效中`}
             </Text>
-            <Text variant="small" color="#C4C0E0">
+            <Text variant="small" color={colors.faint}>
               {c.membership.ends_at ? `有效期至 ${ymd(c.membership.ends_at)}，续费时长叠加` : ''}
             </Text>
           </View>

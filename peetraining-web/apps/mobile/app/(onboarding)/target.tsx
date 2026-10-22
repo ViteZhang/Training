@@ -90,13 +90,16 @@ export default function TargetStep() {
                 {d.target !== null ? (
                   <>
                     <Stepper value={d.target} min={0} max={d.full} onChange={(v) => set(s.id, { ...d, target: v })} suffix={`/ ${d.full}`} />
-                    <View style={styles.track}>
+                    <View style={styles.slider}>
+                      <View style={styles.track} />
                       <View style={[styles.marker, { left: `${(d.target / d.full) * 100}%` }]} />
                     </View>
                     <Button title="先不设这门" kind="text" size="sm" onPress={() => set(s.id, { ...d, target: null })} />
                   </>
                 ) : (
-                  <Button title="设个目标分" kind="soft" size="sm" style={styles.start} onPress={() => set(s.id, { ...d, target: defaultTarget(d.full) })} />
+                  <Pressable accessibilityRole="button" onPress={() => set(s.id, { ...d, target: defaultTarget(d.full) })} style={styles.start}>
+                    <Text variant="body">设个目标分</Text>
+                  </Pressable>
                 )}
               </Card>
             );
@@ -127,9 +130,11 @@ const styles = StyleSheet.create({
   code: { fontFamily: fontFamily.numberSemiBold },
   full: { minWidth: 40, minHeight: 28, paddingHorizontal: 8, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   fullOn: { backgroundColor: semantic.fill },
-  track: { height: 4, borderRadius: 2, backgroundColor: semantic.border },
-  marker: { position: 'absolute', top: -6, width: 2, height: 16, marginLeft: -1, backgroundColor: colors.amber },
-  start: { alignSelf: 'flex-start' },
-  hint: { flexDirection: 'row', gap: 10, marginTop: spacing.md, padding: 16, borderRadius: radius.xl, backgroundColor: semantic.fill },
-  dot: { width: 8, height: 8, borderRadius: 4, marginTop: 5, backgroundColor: colors.amber },
+  // 设计稿：22 高的区域里 6 高的轨道，目标位置一根 2×18 的蜜桃色竖线
+  slider: { height: 22 },
+  track: { position: 'absolute', left: 0, right: 0, top: 8, height: 6, borderRadius: 3, backgroundColor: semantic.progressTrack },
+  marker: { position: 'absolute', top: 2, width: 2, height: 18, marginLeft: -1, backgroundColor: colors.peach },
+  start: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outline, backgroundColor: semantic.surface },
+  hint: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: spacing.md, paddingVertical: 14, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.fill },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.peach },
 });

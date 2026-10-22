@@ -1,4 +1,4 @@
-import { layout, radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon, NavBar, ProgressBar, Tag, Text } from '@/components';
@@ -39,8 +39,8 @@ export function Checkbox({ checked, onChange, label }: { checked: boolean; onCha
 
 const badgeTone: Record<Picked['format'], { bg: string; fg: string }> = {
   pdf: { bg: semantic.dangerSoft, fg: semantic.danger },
-  docx: { bg: semantic.infoSoft, fg: '#1D4C77' },
-  xlsx: { bg: semantic.masteredSoft, fg: '#1F6B4A' },
+  docx: { bg: semantic.infoSoft, fg: colors.blueInk },
+  xlsx: { bg: semantic.masteredSoft, fg: colors.green },
   image: { bg: semantic.fill, fg: semantic.textPrimary },
   text: { bg: semantic.fill, fg: semantic.textPrimary },
 };
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
   title: { marginTop: spacing.lg },
   desc: { fontSize: 14, lineHeight: 21 },
   check: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44 },
-  box: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: '#BDB8AD', alignItems: 'center', justifyContent: 'center' },
+  box: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: colors.faint, alignItems: 'center', justifyContent: 'center' },
   boxOn: { backgroundColor: semantic.textPrimary, borderColor: semantic.textPrimary },
   flex: { flex: 1 },
   file: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: semantic.border },

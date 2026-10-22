@@ -1,6 +1,6 @@
 // 0.1 启动页：按 VI 竖版组合（夜靛底、琥珀「考研」、白色 Training），约 1.5 秒。
 // 分流：有强制更新 → 0.6b；协议有新版本 → 0.4b；未登录 → 0.2；已登录未完成引导 → 中断的步骤；完成引导 → 2.1。
-import { colors, fontFamily, spacing } from '@training/ui-tokens';
+import { brand, colors, fontFamily, spacing } from '@training/ui-tokens';
 import type { Schemas } from '@training/api-client';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -107,9 +107,9 @@ export default function Splash() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.indigo, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xxl },
+  root: { flex: 1, backgroundColor: brand.indigo, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xxl },
   wordmark: { flexDirection: 'row', alignItems: 'baseline', marginTop: spacing.xl, gap: spacing.xs },
-  cn: { fontFamily: fontFamily.serifHeavy, fontSize: 32, lineHeight: 40, color: colors.amber },
+  cn: { fontFamily: fontFamily.serifHeavy, fontSize: 32, lineHeight: 40, color: brand.amber },
   en: { fontFamily: fontFamily.numberBold, fontSize: 30, lineHeight: 40, color: colors.white },
   slogan: { marginTop: spacing.md, textAlign: 'center' },
   footer: { position: 'absolute', bottom: 48 },

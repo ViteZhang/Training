@@ -1,6 +1,6 @@
 // 6.1 我的：头像与昵称，专业课代码 + 阶段 + 距初试天数（→ 6.9）；会员条（免费版显示开通入口）；提分看板卡片（预估分、目标、失分归因占比）；
 // 我的资料、错题本、作文本、导出题库、备考设置、邀请研友、兑换码、意见反馈；考后回访开放时显示入口。
-import { colors, fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, fontFamily, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
@@ -79,13 +79,13 @@ export default function MeTab() {
             <Text variant="bodyStrong" color={colors.white} style={styles.bold}>
               {m.membership.is_member ? (m.membership.tier ? tierNames[m.membership.tier] : '会员') : '免费版'}
             </Text>
-            <Text variant="small" color="#C4C0E0">
+            <Text variant="small" color={colors.outline}>
               {m.membership.is_member && m.membership.ends_at ? `有效期至 ${ymd(m.membership.ends_at)}` : '开通会员：批改、整卷、资料解析不限'}
             </Text>
           </View>
           {!m.membership.is_member ? (
             <View style={styles.open}>
-              <Text variant="caption" color={colors.indigo} style={styles.bold}>
+              <Text variant="caption" color={colors.ink} style={styles.bold}>
                 开通
               </Text>
             </View>
@@ -112,7 +112,7 @@ export default function MeTab() {
                 </Text>
                 {d.estimate.target_score !== undefined && d.estimate.target_score !== null ? (
                   <Text variant="small">
-                    目标 <Text variant="small" color="#8A4B12" style={styles.bold}>{d.estimate.target_score}</Text>
+                    目标 <Text variant="small" color={colors.peachInk} style={styles.bold}>{d.estimate.target_score}</Text>
                   </Text>
                 ) : null}
               </View>
@@ -122,8 +122,8 @@ export default function MeTab() {
             {shares && lossTotal > 0 ? (
               <>
                 <View style={styles.stack}>
-                  <View style={{ flex: shares.knowledge, backgroundColor: colors.amber }} />
-                  <View style={{ flex: shares.norm, backgroundColor: '#B26A00' }} />
+                  <View style={{ flex: shares.knowledge, backgroundColor: colors.peach }} />
+                  <View style={{ flex: shares.norm, backgroundColor: colors.orange }} />
                   <View style={{ flex: shares.time, backgroundColor: colors.ink }} />
                 </View>
                 <Text variant="small">
@@ -189,13 +189,13 @@ const styles = StyleSheet.create({
   headMain: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   gear: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -10 },
   avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: semantic.primary },
-  member: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 66, paddingVertical: 14, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.primary },
+  member: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 66, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 20, backgroundColor: semantic.primary },
   open: { minHeight: 32, paddingHorizontal: 14, borderRadius: 16, justifyContent: 'center', backgroundColor: colors.white },
   rowInline: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   rowBase: { flexDirection: 'row', alignItems: 'baseline' },
-  range: { fontFamily: fontFamily.numberSemiBold, fontSize: 22, lineHeight: 28, color: colors.indigo },
+  range: { fontFamily: fontFamily.numberSemiBold, fontSize: 22, lineHeight: 28, color: colors.ink },
   stack: { flexDirection: 'row', gap: 2, height: 6, borderRadius: 3, overflow: 'hidden' },
-  survey: { backgroundColor: semantic.amberSoft },
+  survey: { backgroundColor: semantic.peachSoft },
   list: { paddingVertical: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, paddingVertical: 8 },
   divider: { borderTopWidth: 1, borderTopColor: semantic.border },

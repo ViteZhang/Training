@@ -185,6 +185,6 @@ const styles = StyleSheet.create({
   band: { flexBasis: '22%', flexGrow: 1, gap: 2, padding: 10, borderRadius: 14, backgroundColor: semantic.fill },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, borderTopWidth: 1, borderBottomWidth: 1, borderColor: semantic.border },
   editRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  input: { minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface, fontSize: 16 },
+  input: { minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: semantic.inputBorder, backgroundColor: semantic.surface, fontSize: 16 },
   score: { width: 72, textAlign: 'center' },
 });

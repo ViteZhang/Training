@@ -2,7 +2,7 @@
 // 缺答案时可让 AI 生成参考答案（标「AI 生成」，计入 AI 出题次数）；可改知识点归属；「稍后再看」或「确认」。
 // 知识点与作文资料条目可以确认或删除。
 import { ApiError, type Schemas } from '@training/api-client';
-import { layout, radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -234,11 +234,11 @@ const styles = StyleSheet.create({
   meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: spacing.sm },
   pill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: semantic.fill },
   medium: { fontWeight: '500' },
-  input: { minHeight: 48, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.xl, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, lineHeight: 24, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  input: { minHeight: 48, borderWidth: 1, borderColor: semantic.inputBorder, borderRadius: radius.xl, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, lineHeight: 24, color: semantic.textPrimary, backgroundColor: semantic.surface },
   stem: { fontSize: 20, lineHeight: 28, fontWeight: '700', color: semantic.textPrimary, padding: 0 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
   section: { marginTop: spacing.sm },
-  missing: { gap: spacing.sm, backgroundColor: semantic.amberSoft, borderColor: '#F3DDB3' },
+  missing: { gap: spacing.sm, backgroundColor: semantic.peachSoft, borderColor: colors.orangeLine },
   actions: { flexDirection: 'row', gap: 10 },
   flex: { flex: 1 },
   flex2: { flex: 1.6 },
