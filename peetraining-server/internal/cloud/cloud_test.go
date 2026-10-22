@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"peetraining-server/internal/cloud/ai"
 	"peetraining-server/internal/cloud/moderation"
 	"peetraining-server/internal/cloud/ocr"
+	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/cloud/pay"
 	"peetraining-server/internal/cloud/sms"
 	"peetraining-server/internal/config"
@@ -21,7 +23,8 @@ func mockConfig() *config.Config {
 		AppEnv: config.EnvLocal,
 		SMS:    config.SMSConfig{Provider: config.ProviderMock},
 		AI:     config.AIConfig{Provider: config.ProviderMock},
-		OCR:    p, ASR: p, Moderation: p, Pay: config.PayConfig{Provider: config.ProviderMock},
+		OCR:    config.OCRConfig{Provider: config.ProviderMock}, ASR: p,
+		Moderation: config.ModerationConfig{Provider: config.ProviderMock}, Pay: config.PayConfig{Provider: config.ProviderMock},
 		OSS: config.OSSConfig{Provider: config.ProviderMock},
 	}
 }
@@ -84,6 +87,50 @@ func TestNewAliyunSMS(t *testing.T) {
 	}
 	if _, ok := c.SMS.(*sms.Aliyun); !ok {
 		t.Fatalf("应使用阿里云短信：%T", c.SMS)
+	}
+}
+
+func TestNewAliyunStorageOCRModeration(t *testing.T) {
+	cfg := mockConfig()
+	cfg.OSS = config.OSSConfig{Provider: config.ProviderAliyun}
+	cfg.OCR = config.OCRConfig{Provider: config.ProviderAliyun}
+	cfg.Moderation = config.ModerationConfig{Provider: config.ProviderAliyun}
+	_, err := New(cfg)
+	for _, want := range []string{"OSS_ENDPOINT", "OSS_BUCKET", "OCR_PROVIDER=aliyun", "MODERATION_PROVIDER=aliyun"} {
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("缺配置时错误应提到 %s：%v", want, err)
+		}
+	}
+	cfg.OSS = config.OSSConfig{Provider: config.ProviderAliyun, Endpoint: "oss-cn-beijing.aliyuncs.com", Bucket: "training-prod", AccessKeyID: "id", AccessKeySecret: "s"}
+	cfg.AliyunAccessKeyID, cfg.AliyunAccessKeySecret = "id", "secret"
+	c, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := c.OSS.(*oss.Aliyun); !ok {
+		t.Errorf("OSS 应为阿里云：%T", c.OSS)
+	}
+	if _, ok := c.OCR.(*ocr.Aliyun); !ok {
+		t.Errorf("OCR 应为阿里云：%T", c.OCR)
+	}
+	if _, ok := c.PDF.(*ocr.PDFium); !ok {
+		t.Errorf("OCR_PROVIDER=aliyun 时 PDF 默认用 PDFium：%T", c.PDF)
+	}
+	if _, ok := c.Moderation.(*moderation.Aliyun); !ok {
+		t.Errorf("内容安全应为阿里云：%T", c.Moderation)
+	}
+	p, err := c.OSS.PresignPut(context.Background(), "u/1/b/2/m/3.pdf", "application/pdf", 10, time.Minute)
+	if err != nil || !strings.HasPrefix(p.URL, "https://training-prod.oss-cn-beijing.aliyuncs.com/u/1/b/2/m/3.pdf?") || p.Headers["Content-Type"] != "application/pdf" {
+		t.Errorf("预签名上传地址不对：%+v %v", p, err)
+	}
+
+	// 只开 PDF 文字层解析、不开 OCR。
+	cfg = mockConfig()
+	cfg.OCR = config.OCRConfig{Provider: config.ProviderDisabled, PDFProvider: config.ProviderPDFium}
+	if c, err := New(cfg); err != nil {
+		t.Fatal(err)
+	} else if _, ok := c.PDF.(*ocr.PDFium); !ok {
+		t.Errorf("PDF_PROVIDER=pdfium：%T", c.PDF)
 	}
 }
 

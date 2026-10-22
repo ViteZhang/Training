@@ -354,6 +354,9 @@ func (s *Service) Recognize(ctx context.Context, userID uint64, keys []string) (
 			return Handwriting{}, err
 		}
 		r, err := s.ocr.Recognize(ctx, ocrImage(k, data))
+		if errors.Is(err, ocr.ErrBadImage) {
+			return Handwriting{}, apperr.New(apperr.BadRequest, "第 "+strconv.Itoa(i+1)+" 张照片无法识别，请用 JPG 或 PNG 格式重拍，保持光线充足、字迹清晰").With("reason", "bad_image")
+		}
 		if err != nil {
 			return Handwriting{}, err
 		}

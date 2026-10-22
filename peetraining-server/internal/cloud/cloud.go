@@ -1,13 +1,15 @@
 // Package cloud 封装短信、AI、OCR、语音、内容安全、支付等外部服务。
 //
-// 每个子包定义接口与 mock 实现；真实实现在对应任务卡里加（短信已接阿里云、OCR T09、AI T10、
-// 内容安全 T08、语音 T20、支付 T25）。按 *_PROVIDER 环境变量切换，本地默认 mock，
+// 每个子包定义接口与 mock 实现；已接入的真实服务：短信、OSS、文字识别、内容安全（阿里云），PDF 解析（内嵌 PDFium），
+// AI（百炼 / 中转），支付（T25）；语音（T20）待接入。按 *_PROVIDER 环境变量切换，本地默认 mock，
 // 不需要任何真实密钥就能启动（T01 验收）。
 package cloud
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"peetraining-server/internal/cloud/ai"
 	"peetraining-server/internal/cloud/asr"
@@ -97,11 +99,7 @@ func New(cfg *config.Config) (*Clients, error) {
 		// 对照平台：评测与故障时备用。
 		c.AIAlt = ai.NewOpenAI(cfg.AI.AltBaseURL, cfg.AI.AltAPIKey)
 	}
-	pick("OCR", cfg.OCR.Provider, func() { c.OCR, c.PDF = ocr.NewMock(), ocr.NewMock() }, func() {
-		c.OCR, c.PDF = disabledService("文字识别"), disabledService("PDF 解析")
-	})
 	pick("ASR", cfg.ASR.Provider, func() { c.ASR = asr.NewMock() }, func() { c.ASR = disabledService("语音识别") })
-	pick("MODERATION", cfg.Moderation.Provider, func() { c.Moderation = moderation.NewMock() }, func() { c.Moderation = disabledService("内容审核") })
 	switch cfg.Pay.Provider {
 	case "real":
 		r, err := newRealPay(cfg.Pay)
@@ -117,13 +115,65 @@ func New(cfg *config.Config) (*Clients, error) {
 			}
 		}, func() { c.Pay = nil })
 	}
-	pick("OSS", cfg.OSS.Provider, func() {
-		m := oss.NewMock()
-		if cfg.OSS.MockBaseURL != "" {
-			m.BaseURL = cfg.OSS.MockBaseURL
+	switch cfg.OSS.Provider {
+	case config.ProviderAliyun:
+		o, err := oss.NewAliyun(oss.AliyunConfig{
+			Region: cfg.OSS.Region, Endpoint: cfg.OSS.Endpoint, InternalEndpoint: cfg.OSS.InternalEndpoint,
+			Bucket: cfg.OSS.Bucket, AccessKeyID: cfg.OSS.AccessKeyID, AccessKeySecret: cfg.OSS.AccessKeySecret,
+		})
+		if err != nil {
+			errs = append(errs, err)
 		}
-		c.OSS = m
-	}, func() { c.OSS = disabledService("文件存储") })
+		c.OSS = o
+	default:
+		pick("OSS", cfg.OSS.Provider, func() {
+			m := oss.NewMock()
+			if cfg.OSS.MockBaseURL != "" {
+				m.BaseURL = cfg.OSS.MockBaseURL
+			}
+			c.OSS = m
+		}, func() { c.OSS = disabledService("文件存储") })
+	}
+
+	switch cfg.OCR.Provider {
+	case config.ProviderAliyun:
+		r, err := ocr.NewAliyun(ocr.AliyunConfig{AccessKeyID: cfg.AliyunAccessKeyID, AccessKeySecret: cfg.AliyunAccessKeySecret, Endpoint: cfg.OCR.Endpoint})
+		if err != nil {
+			errs = append(errs, err)
+		}
+		c.OCR = r
+	default:
+		pick("OCR", cfg.OCR.Provider, func() { c.OCR = ocr.NewMock() }, func() { c.OCR = disabledService("文字识别") })
+	}
+	switch cfg.OCR.PDF() {
+	case config.ProviderPDFium:
+		// 文字版 PDF 在本机解析，不需要识别服务；扫描页交给 OCR（OCR 关闭时扫描页报不可用）。
+		c.PDF = ocr.NewPDFium(c.OCR)
+	default:
+		pick("PDF", cfg.OCR.PDF(), func() { c.PDF = ocr.NewMock() }, func() { c.PDF = disabledService("PDF 解析") })
+	}
+
+	switch cfg.Moderation.Provider {
+	case config.ProviderAliyun:
+		store := c.OSS
+		m, err := moderation.NewAliyun(moderation.AliyunConfig{
+			AccessKeyID: cfg.AliyunAccessKeyID, AccessKeySecret: cfg.AliyunAccessKeySecret, Endpoint: cfg.Moderation.Endpoint,
+			TextService: cfg.Moderation.TextService, ImageService: cfg.Moderation.ImageService, RejectLevel: cfg.Moderation.RejectLevel,
+			SignURL: func(ctx context.Context, key string, ttl time.Duration) (string, error) {
+				if store == nil {
+					return "", errors.New("文件存储不可用")
+				}
+				p, err := store.PresignGet(ctx, key, "", ttl)
+				return p.URL, err
+			},
+		})
+		if err != nil {
+			errs = append(errs, err)
+		}
+		c.Moderation = m
+	default:
+		pick("MODERATION", cfg.Moderation.Provider, func() { c.Moderation = moderation.NewMock() }, func() { c.Moderation = disabledService("内容审核") })
+	}
 
 	if cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock {
 		errs = append(errs, errors.New("生产环境不能使用 mock 短信"))

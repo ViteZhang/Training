@@ -29,6 +29,9 @@ const ProviderDisabled = "disabled"
 // ProviderAliyun 表示使用阿里云的真实服务。
 const ProviderAliyun = "aliyun"
 
+// ProviderPDFium 是 PDF 解析用内嵌 PDFium（PDF_PROVIDER）。
+const ProviderPDFium = "pdfium"
+
 type Config struct {
 	AppEnv   string
 	HTTPAddr string
@@ -46,9 +49,9 @@ type Config struct {
 
 	SMS        SMSConfig
 	AI         AIConfig
-	OCR        ProviderConfig
+	OCR        OCRConfig
 	ASR        ProviderConfig
-	Moderation ProviderConfig
+	Moderation ModerationConfig
 	Pay        PayConfig
 
 	// ExportFontPath / ExportLatinFontPath 是导出 PDF 用的中文与西文字体（TrueType）；镜像里放在 /app/fonts。
@@ -68,12 +71,46 @@ type OSSConfig struct {
 	Bucket          string
 	AccessKeyID     string
 	AccessKeySecret string
+	// Region 如 cn-beijing；为空时从 Endpoint 推断。
+	Region string
+	// InternalEndpoint 是服务端读写用的内网地址（同地域 ECS 上填，如 oss-cn-beijing-internal.aliyuncs.com）；预签名地址仍用 Endpoint。
+	InternalEndpoint string
 	// MockBaseURL 是本地 mock 预签名地址的前缀（真机调试填本机局域网地址），只在 OSS_PROVIDER=mock 时用。
 	MockBaseURL string
 }
 
 type ProviderConfig struct {
 	Provider string
+}
+
+// OCRConfig 是文字识别与 PDF 解析配置。
+type OCRConfig struct {
+	Provider string
+	Endpoint string
+	// PDFProvider 是 PDF 解析：mock、pdfium（内嵌 PDFium 取文字层，扫描页交给 OCR）或 disabled；
+	// 不设置时跟随 OCR_PROVIDER（mock→mock、disabled→disabled、aliyun→pdfium）。
+	PDFProvider string
+}
+
+// PDF 返回实际使用的 PDF 解析方式：没设置 PDF_PROVIDER 时跟随 OCR_PROVIDER。
+func (o OCRConfig) PDF() string {
+	switch {
+	case o.PDFProvider != "":
+		return o.PDFProvider
+	case o.Provider == ProviderAliyun:
+		return ProviderPDFium
+	}
+	return o.Provider
+}
+
+// ModerationConfig 是内容安全配置。
+type ModerationConfig struct {
+	Provider     string
+	Endpoint     string
+	TextService  string
+	ImageService string
+	// RejectLevel 是判为不通过的最低风险等级：high（默认）、medium、low。
+	RejectLevel string
 }
 
 // PayConfig 是支付配置（T25，ADR 0011）。PAY_PROVIDER=real 时按各渠道是否配置决定可用渠道；mock 只用于本地与测试。
@@ -159,12 +196,14 @@ func load(getenv func(string) string) (*Config, error) {
 		ExportLatinFontPath: get("EXPORT_LATIN_FONT_PATH", "/app/fonts/DejaVuSans.ttf"),
 
 		OSS: OSSConfig{
-			Provider:        get("OSS_PROVIDER", ProviderMock),
-			Endpoint:        get("OSS_ENDPOINT", ""),
-			Bucket:          get("OSS_BUCKET", ""),
-			AccessKeyID:     get("OSS_ACCESS_KEY_ID", ""),
-			AccessKeySecret: get("OSS_ACCESS_KEY_SECRET", ""),
-			MockBaseURL:     get("OSS_MOCK_BASE_URL", ""),
+			Provider:         get("OSS_PROVIDER", ProviderMock),
+			Endpoint:         get("OSS_ENDPOINT", ""),
+			Bucket:           get("OSS_BUCKET", ""),
+			AccessKeyID:      get("OSS_ACCESS_KEY_ID", ""),
+			AccessKeySecret:  get("OSS_ACCESS_KEY_SECRET", ""),
+			MockBaseURL:      get("OSS_MOCK_BASE_URL", ""),
+			Region:           get("OSS_REGION", ""),
+			InternalEndpoint: get("OSS_INTERNAL_ENDPOINT", ""),
 		},
 		SMS: SMSConfig{
 			Provider:      get("SMS_PROVIDER", ProviderMock),
@@ -188,9 +227,19 @@ func load(getenv func(string) string) (*Config, error) {
 			RelayModelStrong: get("AI_RELAY_MODEL_STRONG", "gpt-5.5"),
 			RelayModelCheap:  get("AI_RELAY_MODEL_CHEAP", "gpt-5.5"),
 		},
-		OCR:        ProviderConfig{Provider: get("OCR_PROVIDER", ProviderMock)},
-		ASR:        ProviderConfig{Provider: get("ASR_PROVIDER", ProviderMock)},
-		Moderation: ProviderConfig{Provider: get("MODERATION_PROVIDER", ProviderMock)},
+		OCR: OCRConfig{
+			Provider:    get("OCR_PROVIDER", ProviderMock),
+			Endpoint:    get("OCR_ENDPOINT", ""),
+			PDFProvider: get("PDF_PROVIDER", ""),
+		},
+		ASR: ProviderConfig{Provider: get("ASR_PROVIDER", ProviderMock)},
+		Moderation: ModerationConfig{
+			Provider:     get("MODERATION_PROVIDER", ProviderMock),
+			Endpoint:     get("MODERATION_ENDPOINT", ""),
+			TextService:  get("MODERATION_TEXT_SERVICE", ""),
+			ImageService: get("MODERATION_IMAGE_SERVICE", ""),
+			RejectLevel:  get("MODERATION_REJECT_LEVEL", ""),
+		},
 		Pay: PayConfig{
 			Provider:                get("PAY_PROVIDER", ProviderMock),
 			NotifyBaseURL:           get("PAY_NOTIFY_BASE_URL", "https://training.dreamerlab.cn/api/v1"),
@@ -213,6 +262,11 @@ func load(getenv func(string) string) (*Config, error) {
 		AlertWebhookURL:       get("ALERT_WEBHOOK_URL", ""),
 		AliyunAccessKeyID:     get("ALIYUN_ACCESS_KEY_ID", ""),
 		AliyunAccessKeySecret: get("ALIYUN_ACCESS_KEY_SECRET", ""),
+	}
+
+	// OSS 可以用单独的 AccessKey；不设置时复用 ALIYUN_ACCESS_KEY_ID / SECRET。
+	if cfg.OSS.AccessKeyID == "" && cfg.OSS.AccessKeySecret == "" {
+		cfg.OSS.AccessKeyID, cfg.OSS.AccessKeySecret = cfg.AliyunAccessKeyID, cfg.AliyunAccessKeySecret
 	}
 
 	var errs []error

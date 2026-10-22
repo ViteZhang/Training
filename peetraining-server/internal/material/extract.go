@@ -98,6 +98,9 @@ func (s *Service) extract(ctx context.Context, userID uint64, m Material, l Limi
 		return extract.Xlsx(data, l.RowsPerPage)
 	case dbq.MaterialsFormatImage:
 		r, err := s.ocr.Recognize(ctx, ocr.Image{ObjectKey: m.ObjectKey.String, Data: data})
+		if errors.Is(err, ocr.ErrBadImage) {
+			return extract.Result{}, &extract.UserError{Msg: "这张照片无法识别。请用 JPG 或 PNG 格式重新拍照，保持光线充足、字迹清晰"}
+		}
 		if err != nil {
 			return extract.Result{}, err
 		}
@@ -112,8 +115,20 @@ func (s *Service) extract(ctx context.Context, userID uint64, m Material, l Limi
 }
 
 func (s *Service) extractPDF(ctx context.Context, userID uint64, data []byte, l Limits) (extract.Result, error) {
-	pages, err := s.pdf.ParsePDF(ctx, data)
+	// 先查扫描版开关：关闭时扫描页不送识别，不花识别费用。
+	scanOn, err := s.flags.Enabled(ctx, FlagScannedPDF, userID)
 	if err != nil {
+		return extract.Result{}, err
+	}
+	pages, err := s.pdf.ParsePDF(ctx, data, ocr.PDFOptions{OCRScanned: scanOn})
+	switch {
+	case errors.Is(err, ocr.ErrPDFEncrypted):
+		return extract.Result{}, &extract.UserError{Msg: "这份 PDF 设置了密码，请去掉密码后再上传"}
+	case errors.Is(err, ocr.ErrPDFBroken):
+		return extract.Result{}, &extract.UserError{Msg: "这份 PDF 无法打开，可能已损坏，请检查文件后重新上传"}
+	case errors.Is(err, ocr.ErrBadImage):
+		return extract.Result{}, &extract.UserError{Msg: "PDF 里有扫描页无法识别，请检查文件是否清晰"}
+	case err != nil:
 		return extract.Result{}, err
 	}
 	if len(pages) > l.MaxPagesPerFile {
@@ -125,11 +140,7 @@ func (s *Service) extractPDF(ctx context.Context, userID uint64, data []byte, l 
 		empty = empty && p.Text == ""
 	}
 	if scanned {
-		on, err := s.flags.Enabled(ctx, FlagScannedPDF, userID)
-		if err != nil {
-			return extract.Result{}, err
-		}
-		if !on {
+		if !scanOn {
 			return extract.Result{}, &extract.UserError{Msg: "这是扫描版 PDF（由图片做成），暂时还不支持。可以把纸质资料直接拍照导入，或上传文字版 PDF、Word"}
 		}
 	}
