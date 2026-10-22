@@ -35,13 +35,15 @@ peetraining-web/               前端仓库（Expo App + React 管理后台）
 ## 仓库与同步（10 月 1 日已定）
 
 - 正式代码库是云效上的 peetraining-server、peetraining-web 两个仓库，流水线用云效（D9、D10，见两边的 docs/open-questions.md）
-- 本 GitHub 仓库是启动包和开发暂存：开发期先在一个分支上做（D14），两个目录各自同步到云效，例如：
+- 本 GitHub 仓库的两个目录与云效两个仓库用 git subtree 关联（10 月 22 日接上历史），三端（Claude 会话、GitHub、云效）保持一致，用 `scripts/sync-codeup.sh` 同步，规则见根目录 CLAUDE.md：
 
 ```
-git subtree split --prefix=peetraining-server -b sync-server
-git push <云效 peetraining-server 地址> sync-server:main
-git subtree split --prefix=peetraining-web -b sync-web
-git push <云效 peetraining-web 地址> sync-web:main
+scripts/sync-codeup.sh status          # 看两边是否一致
+scripts/sync-codeup.sh pull            # 云效的新提交合并进当前分支
+scripts/sync-codeup.sh push server     # 推到云效 peetraining-server main（会发布生产）
+scripts/sync-codeup.sh push web
 ```
+
+- GitHub 上的 PR 用「Create a merge commit」合并，不要 Squash 或 Rebase；不要强推任何一端的 main
 
 - 两个目录里的 prd.md、dev-spec.md、tech-plan.md、open-questions.md、adr/README.md、tasks/README.md 以及 S + W 任务卡是同一份内容，拆成两个仓库后各自需要；修改时两边一起改
