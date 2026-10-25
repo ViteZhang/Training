@@ -31,6 +31,13 @@ func (s *Service) GetMe(ctx context.Context, userID uint64) (Me, error) {
 	if err != nil {
 		return Me{}, notFound(err)
 	}
+	if u.Nickname == "" {
+		// 老账号注册时没有默认昵称：补一个随机的上岸、鼓励类昵称。
+		u.Nickname = RandomNickname()
+		if err := s.q.UpdateUserNickname(ctx, dbq.UpdateUserNicknameParams{Nickname: u.Nickname, ID: userID}); err != nil {
+			return Me{}, err
+		}
+	}
 	m, err := s.membership(ctx, userID)
 	if err != nil {
 		return Me{}, err

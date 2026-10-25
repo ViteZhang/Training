@@ -180,6 +180,10 @@ func createUser(ctx context.Context, q *dbq.Queries, phone string) (uint64, erro
 		}
 		id, err := q.CreateUser(ctx, dbq.CreateUserParams{Phone: phone, InviteCode: code})
 		if err == nil {
+			// 新用户给一个随机的上岸、鼓励类昵称。
+			if err := q.UpdateUserNickname(ctx, dbq.UpdateUserNicknameParams{Nickname: RandomNickname(), ID: uint64(id)}); err != nil {
+				return 0, err
+			}
 			return uint64(id), nil
 		}
 		if !isDuplicate(err) {
