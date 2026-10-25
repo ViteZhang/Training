@@ -80,6 +80,55 @@ describe('3.8 考情分析', () => {
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/import', params: { subjectId: '7' } });
   });
 
+  const notReady = { ready: false, paper_count: 0, min_papers: 2, years: [], excluded_count: 0, structure: [], sections: [], high_freq: [], missing_sections: [], style_tags: [], basis: [] };
+
+  it('有题还没确认入库时先去核对页', async () => {
+    mockParams = { subjectId: '7' };
+    mockResponses['GET /subjects'] = () => ({ status: 200, data: { items: [], max_subjects: 3, can_add: true } });
+    mockResponses['GET /subjects/{subjectId}/exam-profile'] = () => ({ status: 200, data: { ...notReady, pending_questions: 48, pending_job_id: 12, repair_candidates: 0 } });
+    await wrap(<ExamProfileScreen />);
+    expect(await screen.findByText('有 48 道题还没确认入库')).toBeTruthy();
+    await fireEvent.press(screen.getByText('去确认入库'));
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/import/confirm/[id]', params: { id: '12' } });
+  });
+
+  it('导入的题缺年份时可按原文重新识别，补全后显示统计', async () => {
+    mockParams = { subjectId: '7' };
+    let repaired = false;
+    mockResponses['GET /subjects'] = () => ({ status: 200, data: { items: [], max_subjects: 3, can_add: true } });
+    mockResponses['GET /subjects/{subjectId}/exam-profile'] = () =>
+      repaired
+        ? {
+            status: 200,
+            data: {
+              ...notReady,
+              ready: true,
+              paper_count: 2,
+              years: [2025, 2024],
+              structure: [{ qtype: 'discussion', count: 2, score_each: 35, total: 70, suggested_minutes: 90 }],
+              stable_years: 2,
+              changed_years: [],
+              check_minutes: 15,
+              group_note: '论述题按专业分组，还没选报考方向，暂按「第一组」统计；导入真题时在核对页选报考方向后按你的方向统计',
+              basis: [{ material_id: 3, file_name: '2024 真题.pdf' }],
+              repair_candidates: 0,
+              pending_questions: 0,
+            },
+          }
+        : { status: 200, data: { ...notReady, repair_candidates: 48, pending_questions: 0 } };
+    mockResponses['POST /subjects/{subjectId}/exam-profile/repair'] = () => {
+      repaired = true;
+      return { status: 200, data: { questions: 48, years: [2024, 2025], papers: 2 } };
+    };
+    await wrap(<ExamProfileScreen />);
+    expect(await screen.findByText('还没统计到真题')).toBeTruthy();
+    expect(screen.getByText(/题库里有 48 道题缺年份或分值/)).toBeTruthy();
+    await fireEvent.press(screen.getByText('重新识别年份和分值'));
+    await waitFor(() => expect(mockCalls.some((c) => c.method === 'POST' && c.path === '/subjects/{subjectId}/exam-profile/repair')).toBe(true));
+    expect(await screen.findByText(/暂按「第一组」统计/)).toBeTruthy();
+    expect(screen.getByText('2 题 × 35 分')).toBeTruthy();
+  });
+
   it('显示结构与用时、板块占比、缺资料提醒、高频考点和风格', async () => {
     mockParams = { subjectId: '7' };
     mockResponses['GET /subjects'] = () => ({ status: 200, data: { items: [{ id: 7, name: '语言文学基础', code: '654', full_score: 150, is_essay: false, bank_id: 1, question_count: 0, kp_count: 0, material_count: 0 }], max_subjects: 3, can_add: true } });

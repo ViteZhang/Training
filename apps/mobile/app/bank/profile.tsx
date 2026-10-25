@@ -1,10 +1,13 @@
 // 3.8 考情分析：标「AI 统计」并写明依据（哪份资料、哪些年份、几套）；题型结构与建议用时；板块分值占比与「你的掌握度」对照；
 // 缺资料提醒；高频考点（可「刷一组高频考点」）；出题风格标签；回忆版等不完整的题不计入并注明数量（PRD 11.11）。
+// 真题不够时说清原因：有题还没确认入库 → 去核对页；导入的题缺年份、分值（早先没认出试卷标题）→ 按原文重新识别补全。
+import { ApiError, type Schemas } from '@training/api-client';
 import { colors, fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, EmptyState, ErrorState, Loading, Screen, Tag, Text, toast } from '@/components';
+import { Button, Card, EmptyState, ErrorState, Icon, Loading, Screen, Tag, Text, toast } from '@/components';
 import { MasteryPill } from '@/features/bank/MasteryPill';
 import { qtypeNames } from '@/features/import/api';
 import { PageHeader } from '@/features/import/ui';
@@ -18,7 +21,7 @@ export default function ExamProfileScreen() {
   const subject = subjects.data?.items.find((s) => s.id === subjectId);
   const q = useQuery({
     queryKey: ['bank', subjectId, 'exam-profile'],
-    queryFn: () => unwrap(api.GET('/subjects/{subjectId}/exam-profile', { params: { path: { subjectId } } })),
+    queryFn: () => loadProfile(subjectId),
   });
   if (q.isLoading) return <Screen><Loading rows={8} /></Screen>;
   if (q.isError || !q.data) return <Screen><ErrorState error={q.error} onRetry={() => void q.refetch()} /></Screen>;
@@ -29,12 +32,7 @@ export default function ExamProfileScreen() {
     return (
       <Screen>
         <PageHeader title="考情分析" onBack={() => router.back()} />
-        <EmptyState
-          title={p.paper_count === 0 ? '还没有导入真题' : `目前只有 ${p.paper_count} 套真题`}
-          desc={`至少 ${p.min_papers} 套不同年份的真题卷才能统计这门课怎么考。导入更多年份的真题后会自动更新`}
-          actionText="导入真题"
-          onAction={() => router.push({ pathname: '/import', params: { subjectId: String(subjectId) } })}
-        />
+        <NotReady subjectId={subjectId} profile={p} />
       </Screen>
     );
   }
@@ -89,6 +87,7 @@ export default function ExamProfileScreen() {
           <Text variant="small">
             建议用时按分值折算，另留 {p.check_minutes} 分钟检查 · 合计 {used + (p.check_minutes ?? 0)} 分钟
           </Text>
+          {p.group_note ? <Text variant="small">{p.group_note}</Text> : null}
         </Card>
 
         <Card style={styles.gap}>
@@ -172,6 +171,76 @@ export default function ExamProfileScreen() {
   );
 }
 
+const loadProfile = (subjectId: number) => unwrap(api.GET('/subjects/{subjectId}/exam-profile', { params: { path: { subjectId } } }));
+
+/** 真题不够 2 套：按原因给出下一步（先确认入库 → 补全缺年份的题 → 导入更多年份）。 */
+function NotReady({ subjectId, profile: p }: { subjectId: number; profile: Schemas['ExamProfile'] }) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const importMore = () => router.push({ pathname: '/import', params: { subjectId: String(subjectId) } });
+  const pending = p.pending_questions ?? 0;
+  const repairable = p.repair_candidates ?? 0;
+
+  if (pending > 0 && p.pending_job_id) {
+    return (
+      <EmptyState
+        title={`有 ${pending} 道题还没确认入库`}
+        desc="导入的题确认入库后才计入考情分析。去核对页看一眼，点「确认入库」就好"
+        actionText="去确认入库"
+        onAction={() => router.push({ pathname: '/import/confirm/[id]', params: { id: String(p.pending_job_id) } })}
+      />
+    );
+  }
+
+  const repair = async () => {
+    setBusy(true);
+    try {
+      const r = await unwrap(api.POST('/subjects/{subjectId}/exam-profile/repair', { params: { path: { subjectId } } }));
+      if (r.questions > 0) {
+        toast(`已补全 ${r.questions} 道题${r.years.length ? `（${r.years.join('、')} 年）` : ''}`);
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: ['bank', subjectId] }),
+          qc.invalidateQueries({ queryKey: ['papers'] }),
+          qc.invalidateQueries({ queryKey: ['today'] }),
+        ]);
+      } else {
+        toast('资料原文里没找到年份。可以在题目详情里补上年份和分值');
+      }
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : '没成功，请重试');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (repairable > 0) {
+    return (
+      <View style={styles.notReady}>
+        <Icon name="empty" size={40} color={semantic.textSecondary} />
+        <Text variant="bodyStrong" style={styles.center}>
+          {p.paper_count === 0 ? '还没统计到真题' : `目前只统计到 ${p.paper_count} 套真题`}
+        </Text>
+        <Text variant="caption" style={styles.center}>
+          题库里有 {repairable} 道题缺年份或分值，所以没算作真题。多半是更新前导入的真题，当时没认出试卷标题里的年份。按资料原文重新识别一次就能补上，不扣额度
+        </Text>
+        <View style={styles.actions}>
+          <Button title="重新识别年份和分值" loading={busy} onPress={() => void repair()} />
+          <Button title="导入更多真题" kind="text" onPress={importMore} />
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <EmptyState
+      title={p.paper_count === 0 ? '还没有导入真题' : `目前只有 ${p.paper_count} 套真题`}
+      desc={`至少 ${p.min_papers} 套不同年份的真题卷才能统计这门课怎么考。导入更多年份的真题后会自动更新`}
+      actionText="导入真题"
+      onAction={importMore}
+    />
+  );
+}
+
 const weakInk = colors.peachInk;
 
 const styles = StyleSheet.create({
@@ -198,4 +267,6 @@ const styles = StyleSheet.create({
   rank: { width: 16, fontFamily: fontFamily.numberSemiBold },
   tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   styleTag: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: semantic.fill },
+  notReady: { alignItems: 'center', gap: 10, paddingHorizontal: spacing.lg, paddingTop: 48 },
+  actions: { alignSelf: 'stretch', gap: 4, marginTop: spacing.sm },
 });

@@ -972,11 +972,37 @@ export interface paths {
         /**
          * 考情分析（3.8，PRD 11.11）
          * @description 只统计来源为真题、有年份、有分值的题；至少 2 套真题卷（不同年份）才有统计，否则 ready=false 并提示再导入。
+         *     论述题按专业分组（回答非报考专业不得分）时每年只统计一组，选法与真题卷相同：与报考方向匹配的组，没设方向时取第一组，并在 group_note 写明。
+         *     ready=false 时用 pending_questions（还没确认入库）与 repair_candidates（缺年份、分值、能按资料原文补全）说明原因。
          *     出题风格标签由 AI 生成并缓存，真题变化后重新生成；生成失败时为空，不影响其他统计。
          */
         get: operations["getExamProfile"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/exam-profile/repair": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 按资料原文补全真题的年份与分值（3.8）
+         * @description 早先导入时切题规则没认出试卷标题（如「## 2024 北师大 808 中国语言文学真题」），这些真题入库后没有年份、分值，按练习题处理，考情分析统计不到。
+         *     这里按现在的规则重新识别资料原文（不调用模型、不扣额度），只补空着的年份（补上后来源改为真题）、分值、专业分组与共用材料，
+         *     用户改过的题型、题干、答案不动；与题库里已有的同年同题真题重复的不补。补完后重新组真题卷、重算知识点的真题次数。可重复调用。
+         */
+        post: operations["repairExamProfile"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5961,6 +5987,17 @@ export interface components {
             }[];
             /** @description 出题风格（AI 统计） */
             style_tags: string[];
+            /** @description 论述题按专业分组时只统计一组，写明是哪一组（没有分组时不返回） */
+            group_note?: string;
+            /** @description 按资料原文重新识别能补上年份或分值的题数（多是早先没认出试卷标题导入的真题；只在 ready=false 时计算，否则为 0），大于 0 时可调用 repair 补全 */
+            repair_candidates?: number;
+            /** @description 还没确认入库的题数 */
+            pending_questions?: number;
+            /**
+             * Format: int64
+             * @description 有没确认入库的题时，最近一个导入任务的 ID（去核对页）
+             */
+            pending_job_id?: number;
             /** @description 依据的资料 */
             basis: {
                 /** Format: int64 */
@@ -8656,6 +8693,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExamProfile"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    repairExamProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description 补全了的题数 */
+                        questions: number;
+                        /** @description 涉及的真题年份 */
+                        years: number[];
+                        /** @description 重新组好的真题卷数 */
+                        papers: number;
+                    };
                 };
             };
             404: components["responses"]["NotFound"];
