@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
 	"peetraining-server/internal/apperr"
@@ -67,7 +68,12 @@ var onboardingSteps = []string{"1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", 
 // UpdateMe 修改昵称或引导进度。
 func (s *Service) UpdateMe(ctx context.Context, userID uint64, nickname, onboardingStep *string) (Me, error) {
 	if nickname != nil {
-		if err := s.q.UpdateUserNickname(ctx, dbq.UpdateUserNicknameParams{Nickname: truncate(*nickname, 16), ID: userID}); err != nil {
+		// 去掉首尾空白；传空昵称表示「随机换一个」（App 修改昵称弹层的按钮），给一个新的随机昵称。
+		name := truncate(strings.TrimSpace(*nickname), 16)
+		if name == "" {
+			name = RandomNickname()
+		}
+		if err := s.q.UpdateUserNickname(ctx, dbq.UpdateUserNicknameParams{Nickname: name, ID: userID}); err != nil {
 			return Me{}, err
 		}
 	}
