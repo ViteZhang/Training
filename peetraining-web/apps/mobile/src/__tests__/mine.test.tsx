@@ -126,6 +126,22 @@ describe('6.1 我的', () => {
     expect(screen.queryByText('开通')).toBeNull();
     await r.unmount();
   });
+
+  it('点昵称修改：自己填写保存，或随机换一个', async () => {
+    mockResponses['PATCH /me'] = () => ({ status: 200, data: me({ nickname: '一战上岸的锦鲤' }) });
+    const r = await wrap(<MeTab />);
+    await fireEvent.press(await screen.findByLabelText('修改昵称'));
+    await fireEvent.press(screen.getByText('随机换一个'));
+    await waitFor(() => expect(screen.getByLabelText('昵称').props.value).toBe('一战上岸的锦鲤'));
+    expect(mockCalls.find((c) => c.method === 'PATCH')?.init).toEqual({ body: { nickname: '' } });
+    mockResponses['PATCH /me'] = () => ({ status: 200, data: me({ nickname: '小林' }) });
+    await fireEvent.changeText(screen.getByLabelText('昵称'), '  小林  ');
+    await fireEvent.press(screen.getByText('保存'));
+    await waitFor(() => expect(screen.queryByLabelText('昵称')).toBeNull());
+    expect(mockCalls.filter((c) => c.method === 'PATCH').at(-1)?.init).toEqual({ body: { nickname: '小林' } });
+    expect(await screen.findByText('小林')).toBeTruthy();
+    await r.unmount();
+  });
 });
 
 describe('6.7 兑换码', () => {
