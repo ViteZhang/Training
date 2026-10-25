@@ -62,6 +62,10 @@ ON DUPLICATE KEY UPDATE
 -- name: ListJobItems :many
 SELECT * FROM import_items WHERE job_id = ? AND owner_user_id = ? AND status <> 'deleted' ORDER BY seq, id;
 
+-- name: ListJobItemsWithDeleted :many
+-- 1.7 选报考方向：要能恢复之前因选组删掉的条目。
+SELECT * FROM import_items WHERE job_id = ? AND owner_user_id = ? ORDER BY seq, id;
+
 -- name: ListImportItemsPage :many
 SELECT * FROM import_items
 WHERE job_id = sqlc.arg(job_id) AND owner_user_id = sqlc.arg(owner_user_id) AND status <> 'deleted' AND id > sqlc.arg(after_id)

@@ -17,6 +17,7 @@ import (
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/dbtypes"
+	"peetraining-server/internal/importer"
 	"peetraining-server/internal/jobs"
 	"peetraining-server/internal/logx"
 	"peetraining-server/internal/notify"
@@ -439,6 +440,8 @@ type PaperItem struct {
 	RequiredWords *int
 	Got           *float64
 	GradingID     uint64
+	// 专业分组与共用材料（迁移 00020）：组名、适用专业、材料原文与归组键
+	GroupLabel, GroupMajors, Passage, PassageKey string
 }
 
 // PaperReminder 是模拟考试的题型用时提醒（PRD 11.9：每种题型的累计建议用时到达时提醒一次）。
@@ -622,7 +625,8 @@ func (s *Service) PaperSession(ctx context.Context, userID, id uint64) (PaperSes
 	var secs []rules.SectionCount
 	for _, it := range items {
 		pi := PaperItem{Seq: int(it.Seq), Section: it.Section, QType: it.Qtype, Score: dec(it.ScoreMax), Stem: it.Stem.String, Draft: it.DraftText.String,
-			Marked: it.Marked, TimeSpent: int(it.TimeSpentSeconds), AIGenerated: it.Source.QuestionsSource == dbq.QuestionsSourceAiGenerated, GradingID: uint64(it.GradingID)}
+			Marked: it.Marked, TimeSpent: int(it.TimeSpentSeconds), AIGenerated: it.Source.QuestionsSource == dbq.QuestionsSourceAiGenerated, GradingID: uint64(it.GradingID),
+			GroupLabel: it.GroupLabel.String, GroupMajors: it.GroupMajors.String, Passage: it.Passage.String, PassageKey: it.PassageKey.String}
 		if it.QuestionID.Valid {
 			pi.QuestionID = uint64(it.QuestionID.Int64)
 		}
@@ -719,7 +723,8 @@ func (s *Service) UpdatePaperItem(ctx context.Context, userID, sessionID uint64,
 		return PaperItem{}, err
 	}
 	return PaperItem{Seq: seq, Section: cur.Section, QType: cur.Qtype, Score: dec(cur.ScoreMax), QuestionID: uint64(cur.QuestionID.Int64), Stem: cur.Stem.String,
-		Draft: draft.String, Marked: marked, Answered: strings.TrimSpace(draft.String) != "", TimeSpent: int(cur.TimeSpentSeconds + delta)}, nil
+		Draft: draft.String, Marked: marked, Answered: strings.TrimSpace(draft.String) != "", TimeSpent: int(cur.TimeSpentSeconds + delta),
+		GroupLabel: cur.GroupLabel.String, GroupMajors: cur.GroupMajors.String, Passage: cur.Passage.String, PassageKey: cur.PassageKey.String}, nil
 }
 
 // PausePaper 暂停（只有练习模式可以）。
@@ -1029,7 +1034,7 @@ func (s *Service) GradePaper(ctx context.Context, userID, sessionID uint64) erro
 		if err != nil {
 			return err
 		}
-		out, meta, err := ai.Grade.Run(ctx, s.ai, userID, ai.GradeIn{Subject: subject, QType: string(qr.Qtype), Stem: qr.Stem, Reference: snap.Reference, Points: snap.Points, Answer: answer})
+		out, meta, err := ai.Grade.Run(ctx, s.ai, userID, ai.GradeIn{Subject: subject, QType: string(qr.Qtype), Stem: importer.FullStem(qr.Stem, qr.Passage.String), Reference: snap.Reference, Points: snap.Points, Answer: answer})
 		if err != nil {
 			return err // 交给任务重试；已批改的题下次跳过
 		}

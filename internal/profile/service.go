@@ -341,6 +341,9 @@ type SubjectPatch struct {
 	TargetScore *int
 	ClearTarget bool
 	IsEssay     *bool
+	// MyMajors 是报考方向（按专业分组的真题只保留匹配的组）；ClearMajors 表示不区分方向。
+	MyMajors    *string
+	ClearMajors bool
 }
 
 // UpdateSubject 修改专业课；改目标分立即生效（2.1f）；用户纠正作文课判断后不再自动改（D13）。
@@ -385,6 +388,17 @@ func (s *Service) UpdateSubject(ctx context.Context, userID, id uint64, in Subje
 	err = store.WithTx(ctx, s.db, func(q *dbq.Queries) error {
 		if err := q.UpdateSubject(ctx, p); err != nil {
 			return err
+		}
+		if in.ClearMajors || in.MyMajors != nil {
+			v := sql.NullString{}
+			if !in.ClearMajors {
+				if m := strings.TrimSpace(*in.MyMajors); m != "" {
+					v = sql.NullString{String: m, Valid: true}
+				}
+			}
+			if err := q.SetSubjectMajors(ctx, dbq.SetSubjectMajorsParams{MyMajors: v, ID: id, OwnerUserID: userID}); err != nil {
+				return err
+			}
 		}
 		return q.UpdateBankForSubject(ctx, dbq.UpdateBankForSubjectParams{
 			Title: p.Name, SubjectCode: p.Code, SubjectID: sql.NullInt64{Int64: int64(id), Valid: true},

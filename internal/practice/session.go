@@ -47,6 +47,8 @@ type Question struct {
 	KPs        []KPRef
 	RubricN    int
 	Answered   *Answered
+	// 专业分组与共用材料（迁移 00020）：组名、适用专业、材料原文与归组键
+	GroupLabel, GroupMajors, Passage, PassageKey string
 }
 
 // Session 是练习会话。
@@ -143,7 +145,8 @@ func (s *Service) Get(ctx context.Context, userID, id uint64) (Session, error) {
 }
 
 func (s *Service) question(ctx context.Context, userID uint64, qr dbq.GetQuestionFullRow, files map[uint64]string) (Question, error) {
-	qu := Question{ID: qr.ID, QType: string(qr.Qtype), Stem: qr.Stem, Answer: qr.Answer.String, Analysis: qr.Analysis.String, Source: string(qr.Source)}
+	qu := Question{ID: qr.ID, QType: string(qr.Qtype), Stem: qr.Stem, Answer: qr.Answer.String, Analysis: qr.Analysis.String, Source: string(qr.Source),
+		GroupLabel: qr.GroupLabel.String, GroupMajors: qr.GroupMajors.String, Passage: qr.Passage.String, PassageKey: qr.PassageKey.String}
 	if qr.Options != nil {
 		_ = json.Unmarshal(qr.Options, &qu.Options)
 	}

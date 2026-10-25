@@ -249,6 +249,12 @@ func (s *Service) structureQuestions(ctx context.Context, job dbq.GetImportJobRo
 	if err != nil {
 		return 0, 0, err
 	}
+	blocks := map[int]ai.Block{}
+	for _, c := range chunks {
+		for _, b := range c {
+			blocks[b.ID] = b
+		}
+	}
 	for i, r := range results {
 		if errs[i] != nil {
 			failed++
@@ -256,7 +262,7 @@ func (s *Service) structureQuestions(ctx context.Context, job dbq.GetImportJobRo
 		}
 		s.notePrompt(ctx, job, ai.Structure.Name, r.meta)
 		for _, it := range r.out.Items {
-			if err := s.saveStructured(ctx, job, materialID, it); err != nil {
+			if err := s.saveStructured(ctx, job, materialID, it, blocks[it.Block]); err != nil {
 				return n, failed, err
 			}
 			n++ // 题目与「只有答案」的条目都算识别出的内容（答案文件里只有答案）
@@ -265,7 +271,8 @@ func (s *Service) structureQuestions(ctx context.Context, job dbq.GetImportJobRo
 	return n, failed, nil
 }
 
-func (s *Service) saveStructured(ctx context.Context, job dbq.GetImportJobRow, materialID uint64, it ai.QItem) error {
+// saveStructured 写一条结构化结果；分组与共用材料取自切题规则识别的块（不经过模型）。
+func (s *Service) saveStructured(ctx context.Context, job dbq.GetImportJobRow, materialID uint64, it ai.QItem, blk ai.Block) error {
 	userID := job.OwnerUserID
 	if it.Kind == "answer" {
 		year := sql.NullInt16{}
@@ -284,6 +291,12 @@ func (s *Service) saveStructured(ctx context.Context, job dbq.GetImportJobRow, m
 	}
 	if q.Answer != "" {
 		q.AnswerOrigin = "imported"
+	}
+	if blk.Group != "" {
+		q.Group = &GroupInfo{Label: blk.Group, Majors: blk.GroupMajors}
+	}
+	if blk.Passage != "" {
+		q.Passage = &PassageInfo{Key: PassageKey(blk.Passage), Text: blk.Passage}
 	}
 	var keep []string
 	if it.Confidence < LowConfidence {

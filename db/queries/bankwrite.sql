@@ -2,8 +2,9 @@
 
 -- name: InsertQuestion :execlastid
 INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, score, difficulty,
-  source, exam_year, question_no, is_recollection, source_material_id, source_page, content_hash, needs_review, review_reasons)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  source, exam_year, question_no, is_recollection, source_material_id, source_page, content_hash, needs_review, review_reasons,
+  passage, passage_key, group_label, group_majors)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: InsertRubricPoint :exec
 INSERT INTO rubric_points (owner_user_id, question_id, kp_id, seq, content, keywords, score, origin)
@@ -37,7 +38,7 @@ INSERT INTO paper_questions (paper_id, seq, question_id, section, score) VALUES 
 
 -- name: ListExamQuestionsByYear :many
 -- 组真题卷：某年份的真题（回忆版不计入，PRD 3.8），按题型、原题号排序。
-SELECT id, qtype, question_no, score, source_material_id FROM questions
+SELECT id, qtype, question_no, score, source_material_id, group_label, group_majors FROM questions
 WHERE bank_id = ? AND owner_user_id = ? AND source = 'exam' AND exam_year = ? AND status = 'active' AND is_recollection = 0
 ORDER BY CAST(question_no AS UNSIGNED), id;
 

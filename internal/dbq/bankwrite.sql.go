@@ -243,8 +243,9 @@ func (q *Queries) InsertPaperQuestion(ctx context.Context, arg InsertPaperQuesti
 const insertQuestion = `-- name: InsertQuestion :execlastid
 
 INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, score, difficulty,
-  source, exam_year, question_no, is_recollection, source_material_id, source_page, content_hash, needs_review, review_reasons)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  source, exam_year, question_no, is_recollection, source_material_id, source_page, content_hash, needs_review, review_reasons,
+  passage, passage_key, group_label, group_majors)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertQuestionParams struct {
@@ -267,6 +268,10 @@ type InsertQuestionParams struct {
 	ContentHash      string
 	NeedsReview      bool
 	ReviewReasons    dbtypes.NullJSON
+	Passage          sql.NullString
+	PassageKey       sql.NullString
+	GroupLabel       sql.NullString
+	GroupMajors      sql.NullString
 }
 
 // 确认导入后写入题库（T10）。每条都带 owner_user_id。
@@ -291,6 +296,10 @@ func (q *Queries) InsertQuestion(ctx context.Context, arg InsertQuestionParams) 
 		arg.ContentHash,
 		arg.NeedsReview,
 		arg.ReviewReasons,
+		arg.Passage,
+		arg.PassageKey,
+		arg.GroupLabel,
+		arg.GroupMajors,
 	)
 	if err != nil {
 		return 0, err
@@ -350,7 +359,7 @@ func (q *Queries) InsertRubricPoint(ctx context.Context, arg InsertRubricPointPa
 }
 
 const listExamQuestionsByYear = `-- name: ListExamQuestionsByYear :many
-SELECT id, qtype, question_no, score, source_material_id FROM questions
+SELECT id, qtype, question_no, score, source_material_id, group_label, group_majors FROM questions
 WHERE bank_id = ? AND owner_user_id = ? AND source = 'exam' AND exam_year = ? AND status = 'active' AND is_recollection = 0
 ORDER BY CAST(question_no AS UNSIGNED), id
 `
@@ -367,6 +376,8 @@ type ListExamQuestionsByYearRow struct {
 	QuestionNo       sql.NullString
 	Score            sql.NullString
 	SourceMaterialID sql.NullInt64
+	GroupLabel       sql.NullString
+	GroupMajors      sql.NullString
 }
 
 // 组真题卷：某年份的真题（回忆版不计入，PRD 3.8），按题型、原题号排序。
@@ -385,6 +396,8 @@ func (q *Queries) ListExamQuestionsByYear(ctx context.Context, arg ListExamQuest
 			&i.QuestionNo,
 			&i.Score,
 			&i.SourceMaterialID,
+			&i.GroupLabel,
+			&i.GroupMajors,
 		); err != nil {
 			return nil, err
 		}

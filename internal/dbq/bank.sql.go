@@ -298,7 +298,7 @@ func (q *Queries) GetMaterialPage(ctx context.Context, arg GetMaterialPageParams
 }
 
 const getQuestionFull = `-- name: GetQuestionFull :one
-SELECT q.id, q.owner_user_id, q.bank_id, q.qtype, q.stem, q.options, q.answer, q.answer_origin, q.analysis, q.score, q.difficulty, q.source, q.exam_year, q.question_no, q.is_recollection, q.source_material_id, q.source_page, q.generated_from_kp_id, q.content_hash, q.rubric_version, q.status, q.needs_review, q.review_reasons, q.report_count, q.official_question_id, q.created_at, q.updated_at, q.required_words, q.official_hash, b.subject_id FROM questions q JOIN banks b ON b.id = q.bank_id
+SELECT q.id, q.owner_user_id, q.bank_id, q.qtype, q.stem, q.options, q.answer, q.answer_origin, q.analysis, q.score, q.difficulty, q.source, q.exam_year, q.question_no, q.is_recollection, q.source_material_id, q.source_page, q.generated_from_kp_id, q.content_hash, q.rubric_version, q.status, q.needs_review, q.review_reasons, q.report_count, q.official_question_id, q.created_at, q.updated_at, q.required_words, q.official_hash, q.passage, q.passage_key, q.group_label, q.group_majors, b.subject_id FROM questions q JOIN banks b ON b.id = q.bank_id
 WHERE q.id = ? AND q.owner_user_id = ?
 `
 
@@ -337,6 +337,10 @@ type GetQuestionFullRow struct {
 	UpdatedAt          time.Time
 	RequiredWords      sql.NullInt16
 	OfficialHash       sql.NullString
+	Passage            sql.NullString
+	PassageKey         sql.NullString
+	GroupLabel         sql.NullString
+	GroupMajors        sql.NullString
 	SubjectID          sql.NullInt64
 }
 
@@ -373,6 +377,10 @@ func (q *Queries) GetQuestionFull(ctx context.Context, arg GetQuestionFullParams
 		&i.UpdatedAt,
 		&i.RequiredWords,
 		&i.OfficialHash,
+		&i.Passage,
+		&i.PassageKey,
+		&i.GroupLabel,
+		&i.GroupMajors,
 		&i.SubjectID,
 	)
 	return i, err
@@ -518,6 +526,7 @@ func (q *Queries) ListBankKPsFull(ctx context.Context, arg ListBankKPsFullParams
 
 const listBankQuestionsFull = `-- name: ListBankQuestionsFull :many
 SELECT q.id, q.qtype, LEFT(q.stem, 120) AS stem, q.score, q.source, q.exam_year, q.needs_review, q.generated_from_kp_id, q.created_at,
+  q.group_label, q.group_majors, q.passage_key,
   CAST(COALESCE((SELECT qk.kp_id FROM question_kps qk WHERE qk.question_id = q.id ORDER BY qk.is_primary DESC, qk.kp_id LIMIT 1), 0) AS UNSIGNED) AS primary_kp_id,
   (SELECT COUNT(*) FROM attempts a WHERE a.question_id = q.id AND a.owner_user_id = ?) AS attempt_count,
   (SELECT a.score FROM attempts a WHERE a.question_id = q.id AND a.owner_user_id = ? ORDER BY a.answered_at DESC, a.id DESC LIMIT 1) AS last_score,
@@ -544,6 +553,9 @@ type ListBankQuestionsFullRow struct {
 	NeedsReview       bool
 	GeneratedFromKpID sql.NullInt64
 	CreatedAt         time.Time
+	GroupLabel        sql.NullString
+	GroupMajors       sql.NullString
+	PassageKey        sql.NullString
 	PrimaryKpID       int64
 	AttemptCount      int64
 	LastScore         sql.NullString
@@ -578,6 +590,9 @@ func (q *Queries) ListBankQuestionsFull(ctx context.Context, arg ListBankQuestio
 			&i.NeedsReview,
 			&i.GeneratedFromKpID,
 			&i.CreatedAt,
+			&i.GroupLabel,
+			&i.GroupMajors,
+			&i.PassageKey,
 			&i.PrimaryKpID,
 			&i.AttemptCount,
 			&i.LastScore,

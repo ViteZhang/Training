@@ -46,6 +46,8 @@ type QuestionSummary struct {
 	AttemptCount    int
 	Path            []string
 	GeneratedFromKP string
+	// 专业分组与共用材料归组键（列表里不带材料原文）
+	GroupLabel, GroupMajors, PassageKey string
 }
 
 // Facets 是各题型、各来源的题数与真题年份（筛选项上显示）。
@@ -161,7 +163,8 @@ func (s *Service) Questions(ctx context.Context, userID, subjectID uint64, f Que
 			continue
 		}
 		q := QuestionSummary{ID: r.ID, QType: string(r.Qtype), Stem: r.Stem, Score: parseScore(r.Score), Source: string(r.Source),
-			ExamYear: year(r.ExamYear), StatusTag: tag, LastScore: parseScore(r.LastScore), AttemptCount: int(r.AttemptCount), Path: pathOf(kp)}
+			ExamYear: year(r.ExamYear), StatusTag: tag, LastScore: parseScore(r.LastScore), AttemptCount: int(r.AttemptCount), Path: pathOf(kp),
+			GroupLabel: r.GroupLabel.String, GroupMajors: r.GroupMajors.String, PassageKey: r.PassageKey.String}
 		if r.GeneratedFromKpID.Valid {
 			q.GeneratedFromKP = byID[uint64(r.GeneratedFromKpID.Int64)].Name
 		}
@@ -236,6 +239,8 @@ type QuestionDetail struct {
 	InWrongBook     bool
 	NeedsReview     bool
 	ReviewReasons   []string
+	// 专业分组与共用材料（迁移 00020）：组名、适用专业、材料原文与归组键
+	GroupLabel, GroupMajors, Passage, PassageKey string
 }
 
 // QuestionKP 是题目关联的知识点。
@@ -261,7 +266,8 @@ func (s *Service) Question(ctx context.Context, userID, id uint64) (QuestionDeta
 	}
 	d := QuestionDetail{ID: q.ID, QType: string(q.Qtype), Stem: q.Stem, Answer: q.Answer.String, Analysis: q.Analysis.String,
 		Score: parseScore(q.Score), Source: string(q.Source), ExamYear: year(q.ExamYear), RubricVersion: int(q.RubricVersion),
-		NeedsReview: q.NeedsReview, OriginTags: []string{}}
+		NeedsReview: q.NeedsReview, OriginTags: []string{},
+		GroupLabel: q.GroupLabel.String, GroupMajors: q.GroupMajors.String, Passage: q.Passage.String, PassageKey: q.PassageKey.String}
 	if q.AnswerOrigin.Valid {
 		d.AnswerOrigin = string(q.AnswerOrigin.QuestionsAnswerOrigin)
 	}

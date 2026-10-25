@@ -6343,6 +6343,14 @@ type Question struct {
 	RequiredWords sql.NullInt16
 	// 用户副本：上次同步时官方内容的哈希
 	OfficialHash sql.NullString
+	// 多题共用的阅读材料原文；同一段材料的题各存一份
+	Passage sql.NullString
+	// 共用材料的归组键（材料原文哈希前 16 位），同一段材料的题相同
+	PassageKey sql.NullString
+	// 专业分组，如「第一组」
+	GroupLabel sql.NullString
+	// 这一组适用的专业，如「文艺学、比较文学与世界文学」
+	GroupMajors sql.NullString
 }
 
 // 题目与知识点多对多
@@ -6594,6 +6602,8 @@ type Subject struct {
 	SortOrder  uint8
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+	// 报考方向：导入按专业分组的真题时默认只保留与它匹配的组
+	MyMajors sql.NullString
 }
 
 // 考后回访（6.14），每人一次

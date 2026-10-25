@@ -10,6 +10,7 @@ import (
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/bank"
 	"peetraining-server/internal/gen"
+	"peetraining-server/internal/importer"
 )
 
 // 模块 3 题库：3.1 知识点树、3.1b 题目、3.2 搜索、3.3 题目详情、3.4–3.6 知识点卡片与编辑、3.7 原文查看（T13）。
@@ -305,7 +306,7 @@ func (h *Handlers) ListQuestions(c *gin.Context, subjectID gen.SubjectId, p gen.
 	for i, q := range items {
 		g := gen.QuestionSummary{Id: int64(q.ID), Qtype: gen.QuestionType(q.QType), Stem: q.Stem, Source: gen.QuestionSource(q.Source),
 			ExamYear: q.ExamYear, StatusTag: gen.QuestionStatusTag(q.StatusTag), AttemptCount: q.AttemptCount, Path: q.Path,
-			Score: f32(q.Score), LastScore: f32(q.LastScore)}
+			Score: f32(q.Score), LastScore: f32(q.LastScore), Group: toGroup(q.GroupLabel, q.GroupMajors), PassageKey: optStr(q.PassageKey)}
 		if g.Path == nil {
 			g.Path = []string{}
 		}
@@ -446,7 +447,8 @@ func (h *Handlers) DeleteQuestions(c *gin.Context) {
 func toQuestionDetail(d bank.QuestionDetail) gen.QuestionDetail {
 	out := gen.QuestionDetail{Id: int64(d.ID), Qtype: gen.QuestionType(d.QType), Stem: d.Stem, Source: gen.QuestionSource(d.Source),
 		ExamYear: d.ExamYear, Score: f32(d.Score), OriginTags: d.OriginTags, RubricPoints: toRubricPoints(d.Rubric), RubricVersion: d.RubricVersion,
-		Attempts: []gen.AttemptHistory{}, InWrongBook: d.InWrongBook, NeedsReview: d.NeedsReview, SourceRef: toSource(d.SourceRef)}
+		Attempts: []gen.AttemptHistory{}, InWrongBook: d.InWrongBook, NeedsReview: d.NeedsReview, SourceRef: toSource(d.SourceRef),
+		Group: toGroup(d.GroupLabel, d.GroupMajors), Passage: toPassage(d.PassageKey, d.Passage)}
 	if d.Answer != "" {
 		out.Answer = &d.Answer
 	}
@@ -579,4 +581,22 @@ func (h *Handlers) SearchBank(c *gin.Context, subjectID gen.SubjectId, p gen.Sea
 		out.MaterialPages[i].FileName, out.MaterialPages[i].Hit, out.MaterialPages[i].MaterialId, out.MaterialPages[i].PageNo = pg.FileName, toHit(pg.Hit), int64(pg.MaterialID), pg.PageNo
 	}
 	c.JSON(http.StatusOK, out)
+}
+
+// toGroup 与 toPassage 输出专业分组与共用材料（迁移 00020）；没有时为空。
+func toGroup(label, majors string) *gen.QuestionGroup {
+	if label == "" {
+		return nil
+	}
+	return &gen.QuestionGroup{Label: label, Majors: optStr(majors)}
+}
+
+func toPassage(key, text string) *gen.QuestionPassage {
+	if text == "" {
+		return nil
+	}
+	if key == "" {
+		key = importer.PassageKey(text)
+	}
+	return &gen.QuestionPassage{Key: key, Text: text}
 }

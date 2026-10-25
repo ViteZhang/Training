@@ -61,7 +61,8 @@ func toGenDetail(d practice.PaperDetail) gen.PaperDetail {
 
 func toGenPaperItem(it practice.PaperItem) gen.PaperItem {
 	out := gen.PaperItem{Seq: it.Seq, Section: it.Section, Qtype: gen.QuestionType(it.QType), Score: float32(it.Score), QuestionId: int64(it.QuestionID), Stem: it.Stem,
-		DraftText: optStr(it.Draft), Marked: it.Marked, Answered: it.Answered, TimeSpentSeconds: it.TimeSpent, RequiredWords: it.RequiredWords, Got: f32p(it.Got)}
+		DraftText: optStr(it.Draft), Marked: it.Marked, Answered: it.Answered, TimeSpentSeconds: it.TimeSpent, RequiredWords: it.RequiredWords, Got: f32p(it.Got),
+		Group: toGroup(it.GroupLabel, it.GroupMajors), Passage: toPassage(it.PassageKey, it.Passage)}
 	if len(it.Options) > 0 {
 		opts := make([]gen.ChoiceOption, len(it.Options))
 		for i, o := range it.Options {

@@ -99,6 +99,12 @@ func (h *Handlers) ListImportItems(c *gin.Context, jobID gen.JobId, p gen.ListIm
 		next := strconv.FormatUint(items[len(items)-1].ID, 10)
 		out.NextCursor = &next
 	}
+	groups, err := h.deps.Importer.Groups(ctx, currentUser(c), uint64(jobID))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	out.Groups = toImportGroups(groups)
 	names := h.fileNames(c)
 	for _, it := range items {
 		out.Items = append(out.Items, toImportItem(dbq.GetImportItemRow{
@@ -324,4 +330,40 @@ func uint64s(in []int64) []uint64 {
 		out[i] = uint64(v)
 	}
 	return out
+}
+
+func (h *Handlers) KeepImportGroups(c *gin.Context, jobID gen.JobId) {
+	var req gen.KeepImportGroupsJSONRequestBody
+	if !bind(c, &req) {
+		return
+	}
+	ctx, user := c.Request.Context(), currentUser(c)
+	d, r, err := h.deps.Importer.KeepGroups(ctx, user, uint64(jobID), req.Labels)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	_, counts, err := h.deps.Importer.Items(ctx, user, uint64(jobID), "all", 0, 1)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	groups, err := h.deps.Importer.Groups(ctx, user, uint64(jobID))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, gen.KeepGroupsResult{Deleted: d, Restored: r, Counts: toCounts(counts), Groups: *toImportGroups(groups)})
+}
+
+func toImportGroups(in []importer.GroupSummary) *[]gen.ImportGroup {
+	out := make([]gen.ImportGroup, len(in))
+	for i, g := range in {
+		out[i] = gen.ImportGroup{Label: g.Label, Total: g.Total, Kept: g.Kept, Matches: g.Matches}
+		if g.Majors != "" {
+			m := g.Majors
+			out[i].Majors = &m
+		}
+	}
+	return &out
 }
