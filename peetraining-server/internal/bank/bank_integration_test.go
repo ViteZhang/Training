@@ -392,6 +392,33 @@ func TestQuestions(t *testing.T) {
 	if n != 0 {
 		t.Fatal("作答记录应删除")
 	}
+
+	// 批量删除：有一道不是自己的就整体 404、全部不删；都是自己的一次删完
+	s1, s2 := "简述意境的特点", "简述典型的特点"
+	a1, err := f.bank.CreateQuestion(ctx, uid, sid, bank.QuestionInput{QType: &qt, Stem: &s1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a2, err := f.bank.CreateQuestion(ctx, uid, sid, bank.QuestionInput{QType: &qt, Stem: &s2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherQ, err := f.bank.CreateQuestion(ctx, other, otherSubject, bank.QuestionInput{QType: &qt, Stem: &s1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.bank.DeleteQuestions(ctx, uid, []uint64{a1.ID, otherQ.ID}); !apperr.IsKind(err, apperr.NotFound) {
+		t.Fatalf("混入别人的题应 404：%v", err)
+	}
+	if _, err := f.bank.Question(ctx, uid, a1.ID); err != nil {
+		t.Fatal("404 时不应删掉任何题")
+	}
+	if n, err := f.bank.DeleteQuestions(ctx, uid, []uint64{a1.ID, a2.ID, a1.ID}); err != nil || n != 2 {
+		t.Fatalf("批量删除：%d %v", n, err)
+	}
+	if _, err := f.bank.Question(ctx, uid, a2.ID); !apperr.IsKind(err, apperr.NotFound) {
+		t.Fatal("批量删除后题目应不存在")
+	}
 }
 
 func TestPageAndSearch(t *testing.T) {
@@ -502,9 +529,10 @@ func TestBankOwnership(t *testing.T) {
 			_, err := f.bank.UpdateQuestion(ctx, other, qid, bank.QuestionInput{Stem: &stem})
 			return err
 		},
-		"delete q": func() error { return f.bank.DeleteQuestion(ctx, other, qid) },
-		"page":     func() error { _, err := f.bank.MaterialPage(ctx, other, mid, 1, ""); return err },
-		"search":   func() error { _, err := f.bank.Search(ctx, other, sid, "意境"); return err },
+		"delete q":  func() error { return f.bank.DeleteQuestion(ctx, other, qid) },
+		"delete qs": func() error { _, err := f.bank.DeleteQuestions(ctx, other, []uint64{qid}); return err },
+		"page":      func() error { _, err := f.bank.MaterialPage(ctx, other, mid, 1, ""); return err },
+		"search":    func() error { _, err := f.bank.Search(ctx, other, sid, "意境"); return err },
 	}
 	for name, fn := range checks {
 		if err := fn(); !apperr.IsKind(err, apperr.NotFound) {

@@ -24,7 +24,8 @@ const example = `一、名词解释（每题 5 分）
 export default function PasteScreen() {
   const { subjectId, mode, add } = useImportFlow();
   const [text, setText] = useState('');
-  const [agreed, setAgreed] = useState(false);
+  // 默认勾选：用户要求不用每次手动点；声明文字保留，取消勾选就不能开始（服务端仍要求 right_confirmed）。
+  const [agreed, setAgreed] = useState(true);
   const [busy, setBusy] = useState(false);
   const count = [...text.trim()].length;
   const over = count > limits.maxPasteChars;
