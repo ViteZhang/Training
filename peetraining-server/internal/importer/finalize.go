@@ -94,7 +94,7 @@ func (s *Service) Finalize(ctx context.Context, userID, jobID uint64) error {
 		if w.q.Score != nil {
 			score = *w.q.Score
 		}
-		out, _, err := ai.ExtractRubric.Run(ctx, s.ai, userID, ai.RubricIn{QType: w.q.QType, Stem: w.q.Stem, Answer: w.q.Answer, Score: score})
+		out, _, err := ai.ExtractRubric.Run(ctx, s.ai, userID, ai.RubricIn{QType: w.q.QType, Stem: w.q.fullStem(), Answer: w.q.Answer, Score: score})
 		if apperr.IsKind(err, apperr.AIFailed) {
 			continue // 没提取出来的，用户可在 1.7b 手动加
 		}

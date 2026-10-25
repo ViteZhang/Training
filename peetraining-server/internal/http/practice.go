@@ -51,7 +51,7 @@ func toGenSession(s practice.Session) gen.PracticeSession {
 	}
 	for _, q := range s.Questions {
 		x := gen.PracticeQuestion{Id: int64(q.ID), Qtype: gen.QuestionType(q.QType), Stem: q.Stem, Source: gen.QuestionSource(q.Source), ExamYear: q.ExamYear,
-			RubricCount: q.RubricN, OriginTags: []string{}}
+			RubricCount: q.RubricN, OriginTags: []string{}, Group: toGroup(q.GroupLabel, q.GroupMajors), Passage: toPassage(q.PassageKey, q.Passage)}
 		if q.Source == "ai_generated" {
 			x.OriginTags = append(x.OriginTags, "ai_generated")
 		}

@@ -683,6 +683,34 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /import-jobs/{jobId}/groups:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    post:
+      tags: [import]
+      operationId: keepImportGroups
+      summary: 选报考方向（1.7）：按专业分组的题只保留选中的组
+      description: |
+        其他组还没入库的题标为删除，选中组之前删掉的题恢复；选中组的适用专业记为这门课的报考方向（Subject.my_majors），
+        之后导入同一门课的分组真题时 groups[].matches 标出匹配的组，真题卷只按这一组计分。labels 为空表示全部保留。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [labels]
+              properties:
+                labels: { type: array, maxItems: 20, items: { type: string, maxLength: 32 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KeepGroupsResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /import-items/{itemId}:
     parameters:
       - $ref: "#/components/parameters/ItemId"
@@ -5658,6 +5686,8 @@ components:
       type: object
       required: [seq, section, qtype, score, question_id, stem, marked, answered, time_spent_seconds]
       properties:
+        group: { $ref: "#/components/schemas/QuestionGroup" }
+        passage: { $ref: "#/components/schemas/QuestionPassage" }
         seq: { type: integer }
         section: { type: string }
         qtype: { $ref: "#/components/schemas/QuestionType" }
@@ -6003,6 +6033,8 @@ components:
       type: object
       required: [id, qtype, stem, source, origin_tags, knowledge_points, rubric_count]
       properties:
+        group: { $ref: "#/components/schemas/QuestionGroup" }
+        passage: { $ref: "#/components/schemas/QuestionPassage" }
         id: { type: integer, format: int64 }
         qtype: { $ref: "#/components/schemas/QuestionType" }
         stem: { type: string }
@@ -8526,6 +8558,7 @@ components:
     SubjectPatch:
       type: object
       properties:
+        my_majors: { type: string, maxLength: 255, nullable: true, description: 报考方向，多个用顿号分隔；空表示不区分 }
         name: { type: string, minLength: 1, maxLength: 64 }
         code: { type: string, maxLength: 16, nullable: true }
         full_score: { type: integer, enum: [100, 150, 300] }
@@ -8535,6 +8568,7 @@ components:
       type: object
       required: [id, name, full_score, is_essay, bank_id, question_count, kp_count, material_count]
       properties:
+        my_majors: { type: string, description: 报考方向（导入按专业分组的真题时默认只保留匹配的组） }
         id: { type: integer, format: int64 }
         name: { type: string }
         code: { type: string }
@@ -8740,6 +8774,8 @@ components:
       description: 待确认题目的内容（import_items.payload）
       required: [qtype, stem]
       properties:
+        group: { $ref: "#/components/schemas/QuestionGroup" }
+        passage: { $ref: "#/components/schemas/QuestionPassage" }
         qtype: { $ref: "#/components/schemas/QuestionType" }
         stem: { type: string }
         options: { type: array, items: { $ref: "#/components/schemas/ChoiceOption" } }
@@ -8795,9 +8831,44 @@ components:
       type: object
       required: [items, counts]
       properties:
+        groups:
+          type: array
+          description: 按专业分组的题（「第一组：请选择××专业的考生作答」）的概况；没有分组时为空数组
+          items: { $ref: "#/components/schemas/ImportGroup" }
         items: { type: array, items: { $ref: "#/components/schemas/ImportItem" } }
         counts: { $ref: "#/components/schemas/ImportCounts" }
         next_cursor: { type: string }
+    QuestionGroup:
+      type: object
+      description: 按专业分组的论述题所在的组，只答报考专业那一组
+      required: [label]
+      properties:
+        label: { type: string, description: 如「第一组」 }
+        majors: { type: string, description: 这一组适用的专业，如「文艺学、比较文学与世界文学」 }
+    QuestionPassage:
+      type: object
+      description: 多题共用的阅读材料
+      required: [key, text]
+      properties:
+        key: { type: string, description: 共用同一段材料的题相同 }
+        text: { type: string }
+    ImportGroup:
+      type: object
+      required: [label, total, kept, matches]
+      properties:
+        label: { type: string }
+        majors: { type: string }
+        total: { type: integer, description: 这一组识别出的题数 }
+        kept: { type: integer, description: 还没删除的题数 }
+        matches: { type: boolean, description: 与专业课上记的报考方向匹配 }
+    KeepGroupsResult:
+      type: object
+      required: [deleted, restored, counts, groups]
+      properties:
+        deleted: { type: integer }
+        restored: { type: integer }
+        counts: { $ref: "#/components/schemas/ImportCounts" }
+        groups: { type: array, items: { $ref: "#/components/schemas/ImportGroup" } }
     IdList:
       type: object
       required: [ids]
@@ -8932,6 +9003,8 @@ components:
       type: object
       required: [id, qtype, stem, source, status_tag, attempt_count, path]
       properties:
+        group: { $ref: "#/components/schemas/QuestionGroup" }
+        passage_key: { type: string, description: 共用材料的归组键，相同的题共用一段材料（列表里不返回材料原文） }
         id: { type: integer, format: int64 }
         qtype: { $ref: "#/components/schemas/QuestionType" }
         stem: { type: string, description: 题干（列表中截断到 120 字） }
@@ -8978,6 +9051,8 @@ components:
       type: object
       required: [id, qtype, stem, source, origin_tags, rubric_points, rubric_version, knowledge_points, attempts, in_wrong_book, needs_review]
       properties:
+        group: { $ref: "#/components/schemas/QuestionGroup" }
+        passage: { $ref: "#/components/schemas/QuestionPassage" }
         id: { type: integer, format: int64 }
         qtype: { $ref: "#/components/schemas/QuestionType" }
         stem: { type: string }

@@ -1,14 +1,16 @@
 // 1.7 确认导入结果：汇总「N 份文件 · 识别出 N 题 · N 处需要核对」；筛选全部 / 需核对 / 主观题 / 客观题；
 // 每条显示题型、分值、状态与说明；需核对的题也可以先入库并带标记；「确认入库 N 题」。
 // 不是自己要的内容（如非报考专业的分组题）可以直接删：每条右侧删除，或「多选」后批量删除。
+// 按专业分组的论述题：顶部卡片选报考方向，只保留那一组；多题共用的材料在这组小题前显示一张材料卡，可整组删除。
 import { ApiError, type Schemas } from '@training/api-client';
 import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
-import { Button, ConfirmDialog, EmptyState, ErrorState, Icon, Loading, QuotaSheet, Screen, Text, toast } from '@/components';
+import { Button, ConfirmDialog, EmptyState, ErrorState, GroupTag, Icon, Loading, PassageCard, QuotaSheet, Screen, Text, toast } from '@/components';
 import { essayTypeNames, importKeys, itemNote, itemStatus, qtypeNames, useImportJob, type ImportItem } from '@/features/import/api';
+import { GroupBanner } from '@/features/import/groups';
 import { PageHeader, Segments } from '@/features/import/ui';
 import { useImportFlow } from '@/features/import/store';
 import { Footer, StepHeader } from '@/features/onboarding/ui';
@@ -66,6 +68,7 @@ export function ItemRow({ it, onPress, selecting, selected, onDelete }: RowProps
             {kindLabel(it)}
           </Text>
         </View>
+        <GroupTag group={it.question?.group} />
         <View style={styles.flex} />
         <Text variant="small" color={statusInk[st.tone]} style={styles.medium}>
           {st.label}
@@ -111,6 +114,15 @@ export default function ConfirmScreen() {
 
   const counts: Schemas['ImportCounts'] | undefined = items.data?.pages[0]?.counts ?? job.data?.counts;
   const list = items.data?.pages.flatMap((p) => p.items) ?? [];
+  const groups = items.data?.pages[0]?.groups ?? [];
+  // 共用同一段材料、在列表里连在一起的小题：第一题前显示材料卡
+  const passageRun = (index: number) => {
+    const key = list[index]?.question?.passage?.key;
+    if (!key || list[index - 1]?.question?.passage?.key === key) return null;
+    const ids: number[] = [];
+    for (let i = index; i < list.length && list[i]?.question?.passage?.key === key; i++) ids.push(list[i]!.id);
+    return { text: list[index]!.question!.passage!.text, ids };
+  };
   const total = counts ? counts.questions + counts.knowledge_points + (counts.essay_items ?? 0) - counts.confirmed : 0;
   const unit = counts && counts.questions === 0 ? '条' : '题';
 
@@ -183,6 +195,7 @@ export default function ConfirmScreen() {
             ) : (
               <PageHeader title="确认导入结果" large onBack={() => router.back()} />
             )}
+            <GroupBanner jobId={jobId} groups={groups} />
             {list.length > 0 ? (
               <View style={styles.selectBar}>
                 <Text variant="small" style={styles.flex}>
@@ -210,15 +223,28 @@ export default function ConfirmScreen() {
             />
           </View>
         }
-        renderItem={({ item }) => (
-          <ItemRow
-            it={item}
-            selecting={selecting}
-            selected={selected.has(item.id)}
-            onPress={() => (selecting ? toggle(item.id) : router.push({ pathname: '/import/item/[id]', params: { id: String(item.id), job: String(jobId) } }))}
-            onDelete={deleting ? undefined : () => void remove([item.id])}
-          />
-        )}
+        renderItem={({ item, index }) => {
+          const run = passageRun(index);
+          const row = (
+            <ItemRow
+              it={item}
+              selecting={selecting}
+              selected={selected.has(item.id)}
+              onPress={() => (selecting ? toggle(item.id) : router.push({ pathname: '/import/item/[id]', params: { id: String(item.id), job: String(jobId) } }))}
+              onDelete={deleting ? undefined : () => void remove([item.id])}
+            />
+          );
+          if (!run) return row;
+          return (
+            <View style={styles.run}>
+              <PassageCard text={run.text} count={run.ids.length} lines={3} />
+              {!selecting ? (
+                <Button title={`删除材料和这 ${run.ids.length} 题`} kind="text" size="sm" color={semantic.textSecondary} style={styles.runDelete} onPress={() => void remove(run.ids)} />
+              ) : null}
+              {row}
+            </View>
+          );
+        }}
         ListEmptyComponent={<EmptyState title={filter === 'all' ? '还没有识别出的内容' : '这一类没有'} desc={filter === 'all' ? '解析还在进行中，稍后再来看看' : undefined} />}
         onEndReached={() => {
           if (items.hasNextPage && !items.isFetchingNextPage) void items.fetchNextPage();
@@ -273,6 +299,8 @@ const styles = StyleSheet.create({
   boxOn: { backgroundColor: semantic.textPrimary, borderColor: semantic.textPrimary },
   trash: { width: 32, height: 32, marginRight: -6, alignItems: 'center', justifyContent: 'center' },
   selectBar: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 32 },
+  run: { gap: 6 },
+  runDelete: { alignSelf: 'flex-end', paddingHorizontal: 0, marginTop: -4 },
   itemHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   kind: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: semantic.fill },
   kindCheck: { backgroundColor: semantic.surface },

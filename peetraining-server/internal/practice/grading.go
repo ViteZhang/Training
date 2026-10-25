@@ -14,6 +14,7 @@ import (
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/dbtypes"
+	"peetraining-server/internal/importer"
 	"peetraining-server/internal/logx"
 	"peetraining-server/internal/quota"
 	"peetraining-server/internal/rules"
@@ -160,7 +161,7 @@ func (s *Service) snapshot(ctx context.Context, q *dbq.Queries, userID uint64, q
 
 // grade 调模型批改（不在事务里，目标 8 秒内）。
 func (s *Service) grade(ctx context.Context, userID uint64, subject string, qr dbq.GetQuestionFullRow, snap rubricSnap, answer string) (ai.GradeOut, ai.Meta, error) {
-	return ai.Grade.Run(ctx, s.ai, userID, ai.GradeIn{Subject: subject, QType: string(qr.Qtype), Stem: qr.Stem, Reference: snap.Reference, Points: snap.Points, Answer: answer})
+	return ai.Grade.Run(ctx, s.ai, userID, ai.GradeIn{Subject: subject, QType: string(qr.Qtype), Stem: importer.FullStem(qr.Stem, qr.Passage.String), Reference: snap.Reference, Points: snap.Points, Answer: answer})
 }
 
 // lossTiming 是判定「时间不够」用的作答情况：只在限时作答与模拟考试中判定（PRD 11.7）。

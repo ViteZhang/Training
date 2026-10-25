@@ -22,6 +22,10 @@ type Block struct {
 	Answer  bool    `json:"is_answer,omitempty"`  // 位于「参考答案」部分
 	Whole   bool    `json:"whole_page,omitempty"` // 规则切不开的整页
 	Text    string  `json:"text"`
+	// 以下由规则识别，直接带到题目上，不交给模型（提示词的输入不变）：
+	Group       string `json:"-"` // 专业分组，如「第一组」
+	GroupMajors string `json:"-"` // 这一组适用的专业，如「文艺学、比较文学与世界文学」
+	Passage     string `json:"-"` // 多题共用的材料原文
 }
 
 // StructureIn 是题目结构化的输入。

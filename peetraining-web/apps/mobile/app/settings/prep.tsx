@@ -233,11 +233,12 @@ export default function PrepSettings() {
 function SubjectSheet({ subject, onClose, onSaved, onDelete }: { subject: Schemas['Subject']; onClose: () => void; onSaved: () => void; onDelete: () => void }) {
   const [full, setFull] = useState<100 | 150 | 300>(subject.full_score as 100 | 150 | 300);
   const [target, setTarget] = useState<number | null>(subject.target_score ?? null);
+  const [majors, setMajors] = useState(subject.my_majors ?? '');
   const [busy, setBusy] = useState(false);
   const save = async () => {
     setBusy(true);
     try {
-      await unwrap(api.PATCH('/subjects/{subjectId}', { params: { path: { subjectId: subject.id } }, body: { full_score: full, target_score: target } }));
+      await unwrap(api.PATCH('/subjects/{subjectId}', { params: { path: { subjectId: subject.id } }, body: { full_score: full, target_score: target, my_majors: majors.trim() || null } }));
       onSaved();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : '保存失败，请重试');
@@ -259,6 +260,19 @@ function SubjectSheet({ subject, onClose, onSaved, onDelete }: { subject: Schema
           <Button title="设个目标分" kind="secondary" onPress={() => setTarget(Math.round((full * 0.7) / 5) * 5)} />
         )}
       </View>
+      <Text variant="caption" style={styles.sheetLabel}>
+        报考方向（选填）
+      </Text>
+      <TextInput
+        accessibilityLabel="报考方向"
+        value={majors}
+        onChangeText={setMajors}
+        placeholder="如：中国古代文学"
+        style={styles.input}
+        maxLength={255}
+        maxFontSizeMultiplier={layout.maxFontScale}
+      />
+      <Text variant="small">真题论述题按专业分组时，导入会默认只保留这个方向的那一组</Text>
       <Button title="保存" loading={busy} onPress={() => void save()} style={styles.sheetButton} />
       <Button title="删除这门专业课" kind="text" onPress={onDelete} />
     </BottomSheet>
@@ -303,4 +317,5 @@ const styles = StyleSheet.create({
   inputGap: { marginTop: spacing.sm },
   sheetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md, flexWrap: 'wrap' },
   sheetButton: { marginTop: spacing.lg },
+  sheetLabel: { marginTop: spacing.lg, marginBottom: spacing.sm },
 });

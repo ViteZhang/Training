@@ -93,6 +93,7 @@ ON DUPLICATE KEY UPDATE
 -- name: ListBankQuestionsFull :many
 -- 题目列表（3.1b）：一次取出题库全部题目及作答概况，在服务端筛选、排序与分页（单个题库通常几百到几千题）。
 SELECT q.id, q.qtype, LEFT(q.stem, 120) AS stem, q.score, q.source, q.exam_year, q.needs_review, q.generated_from_kp_id, q.created_at,
+  q.group_label, q.group_majors, q.passage_key,
   CAST(COALESCE((SELECT qk.kp_id FROM question_kps qk WHERE qk.question_id = q.id ORDER BY qk.is_primary DESC, qk.kp_id LIMIT 1), 0) AS UNSIGNED) AS primary_kp_id,
   (SELECT COUNT(*) FROM attempts a WHERE a.question_id = q.id AND a.owner_user_id = sqlc.arg(user_id)) AS attempt_count,
   (SELECT a.score FROM attempts a WHERE a.question_id = q.id AND a.owner_user_id = sqlc.arg(user_id) ORDER BY a.answered_at DESC, a.id DESC LIMIT 1) AS last_score,

@@ -693,6 +693,56 @@ func (q *Queries) ListJobItems(ctx context.Context, arg ListJobItemsParams) ([]I
 	return items, nil
 }
 
+const listJobItemsWithDeleted = `-- name: ListJobItemsWithDeleted :many
+SELECT id, owner_user_id, job_id, material_id, item_type, seq, payload, confidence, status, needs_review, review_reasons, duplicate_of_question_id, dedupe_key, created_entity_id, created_at, updated_at FROM import_items WHERE job_id = ? AND owner_user_id = ? ORDER BY seq, id
+`
+
+type ListJobItemsWithDeletedParams struct {
+	JobID       uint64
+	OwnerUserID uint64
+}
+
+// 1.7 选报考方向：要能恢复之前因选组删掉的条目。
+func (q *Queries) ListJobItemsWithDeleted(ctx context.Context, arg ListJobItemsWithDeletedParams) ([]ImportItem, error) {
+	rows, err := q.db.QueryContext(ctx, listJobItemsWithDeleted, arg.JobID, arg.OwnerUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ImportItem{}
+	for rows.Next() {
+		var i ImportItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerUserID,
+			&i.JobID,
+			&i.MaterialID,
+			&i.ItemType,
+			&i.Seq,
+			&i.Payload,
+			&i.Confidence,
+			&i.Status,
+			&i.NeedsReview,
+			&i.ReviewReasons,
+			&i.DuplicateOfQuestionID,
+			&i.DedupeKey,
+			&i.CreatedEntityID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setImportItemCreated = `-- name: SetImportItemCreated :exec
 UPDATE import_items SET status = 'confirmed', created_entity_id = ? WHERE id = ? AND owner_user_id = ?
 `

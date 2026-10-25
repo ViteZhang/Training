@@ -48,6 +48,9 @@ INSERT INTO banks (source, owner_user_id, subject_id, title, subject_code) VALUE
 UPDATE subjects SET name = ?, code = ?, full_score = ?, target_score = ?, is_essay = ?, essay_set_by = ?
 WHERE id = ? AND owner_user_id = ?;
 
+-- name: SetSubjectMajors :exec
+UPDATE subjects SET my_majors = ? WHERE id = ? AND owner_user_id = ?;
+
 -- name: UpdateBankForSubject :exec
 UPDATE banks SET title = ?, subject_code = ? WHERE subject_id = ? AND owner_user_id = ?;
 

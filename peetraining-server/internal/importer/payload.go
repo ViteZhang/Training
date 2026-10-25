@@ -31,6 +31,42 @@ type QuestionDraft struct {
 	KPPath         []string         `json:"kp_path,omitempty"`
 	KPID           *int64           `json:"kp_id,omitempty"`
 	SourcePage     int              `json:"source_page,omitempty"`
+	// Group 是专业分组（「第一组」与适用专业），只答报考专业那一组；Passage 是多题共用的材料。都由切题规则识别。
+	Group   *GroupInfo   `json:"group,omitempty"`
+	Passage *PassageInfo `json:"passage,omitempty"`
+}
+
+// GroupInfo 是按专业分组的论述题所在的组。
+type GroupInfo struct {
+	Label  string `json:"label"`
+	Majors string `json:"majors,omitempty"`
+}
+
+// PassageInfo 是多题共用的材料；Key 相同的题共用同一段材料。
+type PassageInfo struct {
+	Key  string `json:"key"`
+	Text string `json:"text"`
+}
+
+// PassageKey 是材料原文的归组键（questions.passage_key）。
+func PassageKey(text string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(text)))
+	return hex.EncodeToString(sum[:])[:16]
+}
+
+// FullStem 是交给模型的题干：有共用材料时把材料放在前面，模型才看得懂「上述句子」「这段材料」指什么。
+func FullStem(stem, passage string) string {
+	if strings.TrimSpace(passage) == "" {
+		return stem
+	}
+	return "【材料】\n" + strings.TrimSpace(passage) + "\n\n【题目】\n" + stem
+}
+
+func (q QuestionDraft) fullStem() string {
+	if q.Passage == nil {
+		return q.Stem
+	}
+	return FullStem(q.Stem, q.Passage.Text)
 }
 
 // KPDraft 是待确认知识点。

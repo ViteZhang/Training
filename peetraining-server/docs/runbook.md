@@ -352,6 +352,22 @@ unset ADMIN_INITIAL_PASSWORD
 
 - 发布：合并到 main 自动触发流水线。数据库迁移需在发布前单独完成；流水线把镜像推送为 `latest`，云效部署节点在 `/opt/dreamer/project/training` 执行 `docker compose up -d`，Compose 自动拉取并更新容器。
 - 手动重新拉取并发布：应用机上执行 `cd /opt/dreamer/project/training && docker compose up -d`。
+- 有新迁移时（db/migrations 新增了文件）：迁移只加列、加表，旧版本代码不受影响，所以**先在生产库执行迁移，再推云效发布**。
+  1. 看生产库已执行到哪个版本：
+     ```bash
+     docker exec -it dreamer-mysql mysql -uroot -p training -e "SELECT version_id FROM goose_db_version ORDER BY id DESC LIMIT 3;"
+     ```
+  2. 按编号从小到大，把还没执行的每个迁移文件里 `-- +goose Up` 与 `-- +goose Down` 之间的 SQL 粘贴执行，每执行完一个就登记版本号，例如 00020：
+     ```sql
+     -- 00020_question_groups_passages.sql 的 Up 部分
+     ALTER TABLE questions
+       ADD COLUMN passage MEDIUMTEXT NULL, ADD COLUMN passage_key CHAR(16) NULL,
+       ADD COLUMN group_label VARCHAR(32) NULL, ADD COLUMN group_majors VARCHAR(255) NULL;
+     ALTER TABLE subjects ADD COLUMN my_majors VARCHAR(255) NULL;
+     INSERT INTO goose_db_version (version_id, is_applied) VALUES (20, 1);
+     ```
+     （以迁移文件为准，上面只是示例；文件里带注释的完整版本直接复制即可）
+  3. 再查一次版本号确认，然后推云效发布。
 - 健康检查失败：查看 `docker compose ps` 和 `docker compose logs api worker`，修复配置或代码后重新运行流水线；Compose 不会执行数据库迁移。
 - 新功能先用功能开关只对自己的账号打开（后台 7.8），在生产上自测后再对全部用户打开。
 - 查看队列：`ssh -L 8081:127.0.0.1:8081 应用机`，浏览器打开 http://localhost:8081（asynqmon 只绑定在本机回环地址）。

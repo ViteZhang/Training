@@ -16,3 +16,4 @@ export { AIFailed, AIGenerating, EmptyState, ErrorState, Loading, QuotaSheet, Sk
 export { Tag } from './Tag';
 export { Text } from './Text';
 export { toast, ToastHost } from './Toast';
+export { GroupNote, GroupTag, PassageCard } from './Passage';

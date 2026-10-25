@@ -570,6 +570,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/import-jobs/{jobId}/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["JobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 选报考方向（1.7）：按专业分组的题只保留选中的组
+         * @description 其他组还没入库的题标为删除，选中组之前删掉的题恢复；选中组的适用专业记为这门课的报考方向（Subject.my_majors），
+         *     之后导入同一门课的分组真题时 groups[].matches 标出匹配的组，真题卷只按这一组计分。labels 为空表示全部保留。
+         */
+        post: operations["keepImportGroups"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/import-items/{itemId}": {
         parameters: {
             query?: never;
@@ -3939,6 +3962,8 @@ export interface components {
             counts_for_estimate: boolean;
         };
         PaperItem: {
+            group?: components["schemas"]["QuestionGroup"];
+            passage?: components["schemas"]["QuestionPassage"];
             seq: number;
             section: string;
             qtype: components["schemas"]["QuestionType"];
@@ -4318,6 +4343,8 @@ export interface components {
             selected?: string[];
         };
         PracticeQuestion: {
+            group?: components["schemas"]["QuestionGroup"];
+            passage?: components["schemas"]["QuestionPassage"];
             /** Format: int64 */
             id: number;
             qtype: components["schemas"]["QuestionType"];
@@ -6292,6 +6319,8 @@ export interface components {
             target_score?: number | null;
         };
         SubjectPatch: {
+            /** @description 报考方向，多个用顿号分隔；空表示不区分 */
+            my_majors?: string | null;
             name?: string;
             code?: string | null;
             /** @enum {integer} */
@@ -6301,6 +6330,8 @@ export interface components {
             is_essay?: boolean;
         };
         Subject: {
+            /** @description 报考方向（导入按专业分组的真题时默认只保留匹配的组） */
+            my_majors?: string;
             /** Format: int64 */
             id: number;
             name: string;
@@ -6509,6 +6540,8 @@ export interface components {
         };
         /** @description 待确认题目的内容（import_items.payload） */
         QuestionDraft: {
+            group?: components["schemas"]["QuestionGroup"];
+            passage?: components["schemas"]["QuestionPassage"];
             qtype: components["schemas"]["QuestionType"];
             stem: string;
             options?: components["schemas"]["ChoiceOption"][];
@@ -6569,9 +6602,40 @@ export interface components {
             };
         };
         ImportItemPage: {
+            /** @description 按专业分组的题（「第一组：请选择××专业的考生作答」）的概况；没有分组时为空数组 */
+            groups?: components["schemas"]["ImportGroup"][];
             items: components["schemas"]["ImportItem"][];
             counts: components["schemas"]["ImportCounts"];
             next_cursor?: string;
+        };
+        /** @description 按专业分组的论述题所在的组，只答报考专业那一组 */
+        QuestionGroup: {
+            /** @description 如「第一组」 */
+            label: string;
+            /** @description 这一组适用的专业，如「文艺学、比较文学与世界文学」 */
+            majors?: string;
+        };
+        /** @description 多题共用的阅读材料 */
+        QuestionPassage: {
+            /** @description 共用同一段材料的题相同 */
+            key: string;
+            text: string;
+        };
+        ImportGroup: {
+            label: string;
+            majors?: string;
+            /** @description 这一组识别出的题数 */
+            total: number;
+            /** @description 还没删除的题数 */
+            kept: number;
+            /** @description 与专业课上记的报考方向匹配 */
+            matches: boolean;
+        };
+        KeepGroupsResult: {
+            deleted: number;
+            restored: number;
+            counts: components["schemas"]["ImportCounts"];
+            groups: components["schemas"]["ImportGroup"][];
         };
         IdList: {
             ids: number[];
@@ -6703,6 +6767,9 @@ export interface components {
          */
         QuestionStatusTag: "mastered" | "wrong" | "needs_review" | "unanswered" | "answered";
         QuestionSummary: {
+            group?: components["schemas"]["QuestionGroup"];
+            /** @description 共用材料的归组键，相同的题共用一段材料（列表里不返回材料原文） */
+            passage_key?: string;
             /** Format: int64 */
             id: number;
             qtype: components["schemas"]["QuestionType"];
@@ -6746,6 +6813,8 @@ export interface components {
             loss_types?: ("knowledge" | "norm" | "time")[];
         };
         QuestionDetail: {
+            group?: components["schemas"]["QuestionGroup"];
+            passage?: components["schemas"]["QuestionPassage"];
             /** Format: int64 */
             id: number;
             qtype: components["schemas"]["QuestionType"];
@@ -7841,6 +7910,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeleteImportItemsResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    keepImportGroups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["JobId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    labels: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeepGroupsResult"];
                 };
             };
             400: components["responses"]["BadRequest"];

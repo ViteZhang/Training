@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { BackButton, BottomSheet, Button, Card, ConfirmDialog, ErrorState, Icon, Loading, Screen, Tag, Text, toast } from '@/components';
+import { BackButton, BottomSheet, Button, Card, ConfirmDialog, ErrorState, GroupNote, Icon, Loading, PassageCard, Screen, Tag, Text, toast } from '@/components';
 import { qtypeNames } from '@/features/import/api';
 import { clearDrafts, clock, lastActive, loadDrafts, markActive, paperKeys, saveDrafts, type PaperItem, type PaperSession } from '@/features/paper/api';
 import { api, unwrap } from '@/lib/api';
@@ -337,6 +337,8 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
               </Text>
             </Pressable>
           </View>
+          <GroupNote group={item.group} />
+          {item.passage ? <PassageCard key={item.seq} text={item.passage.text} lines={6} defaultOpen /> : null}
           <Text variant="h2">{item.qtype === 'term' ? `${qtypeNames.term}：${item.stem}` : item.stem}</Text>
           {objective(item) ? null : (
             <Text variant="small" style={styles.label}>
