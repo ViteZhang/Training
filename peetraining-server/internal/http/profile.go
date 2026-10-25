@@ -116,6 +116,10 @@ func (h *Handlers) UpdateSubject(c *gin.Context, subjectID int64) {
 		in.ClearTarget = req.TargetScore.IsNull()
 		in.TargetScore = nullableInt(req.TargetScore)
 	}
+	if req.MyMajors.IsSpecified() {
+		in.ClearMajors = req.MyMajors.IsNull()
+		in.MyMajors = nullableStr(req.MyMajors)
+	}
 	s, err := h.deps.Profile.UpdateSubject(c.Request.Context(), currentUser(c), uint64(subjectID), in)
 	if err != nil {
 		_ = c.Error(err)
@@ -143,6 +147,9 @@ func toSubject(s profile.Subject) gen.Subject {
 	if s.TargetScore.Valid {
 		t := int(s.TargetScore.Int16)
 		out.TargetScore = &t
+	}
+	if s.MyMajors.Valid {
+		out.MyMajors = &s.MyMajors.String
 	}
 	return out
 }

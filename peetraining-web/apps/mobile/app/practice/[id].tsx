@@ -6,7 +6,7 @@ import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { BackButton, BottomSheet, Button, ConfirmDialog, EmptyState, ErrorState, Loading, NavBar, Screen, Text, toast } from '@/components';
+import { BackButton, BottomSheet, Button, ConfirmDialog, EmptyState, ErrorState, GroupNote, Loading, NavBar, PassageCard, Screen, Text, toast } from '@/components';
 import { practiceKeys, useSession } from '@/features/practice/api';
 import { isObjective, judge } from '@/features/practice/judge';
 import { cacheSession, submitAttempt } from '@/features/practice/offline';
@@ -151,6 +151,8 @@ export default function PracticeRunner() {
       </View>
       <ScrollView contentContainerStyle={styles.scroll}>
         <QuestionHeader q={q} />
+        <GroupNote group={q.group} />
+        {q.passage ? <PassageCard key={q.id} text={q.passage.text} lines={6} defaultOpen /> : null}
         <Text variant="h2" style={styles.stem}>
           {q.qtype === 'term' ? `${qtypeNames.term}：${q.stem}` : q.stem}
         </Text>

@@ -170,6 +170,13 @@ func validateQuestion(q *QuestionDraft, old QuestionDraft) error {
 		return apperr.New(apperr.BadRequest, "题型与题干不能为空")
 	}
 	q.SourcePage = old.SourcePage
+	// 分组与共用材料由切题识别，用户编辑题干时不会改；客户端没带回来时沿用原来的。
+	if q.Group == nil {
+		q.Group = old.Group
+	}
+	if q.Passage == nil {
+		q.Passage = old.Passage
+	}
 	if q.Source == "" {
 		q.Source = old.Source
 	}
@@ -230,7 +237,7 @@ func (s *Service) GenerateAnswer(ctx context.Context, userID, itemID uint64) (It
 	if q.Score != nil {
 		score = *q.Score
 	}
-	out, _, err := ai.GenerateAnswer.Run(ctx, s.ai, userID, ai.GenerateAnswerIn{Subject: job.SubjectName, QType: q.QType, Stem: q.Stem, Score: score})
+	out, _, err := ai.GenerateAnswer.Run(ctx, s.ai, userID, ai.GenerateAnswerIn{Subject: job.SubjectName, QType: q.QType, Stem: q.fullStem(), Score: score})
 	if err != nil {
 		return Item{}, err
 	}
@@ -533,6 +540,14 @@ func (s *Service) insertQuestion(ctx context.Context, q *dbq.Queries, t *tree, j
 	if d.ExamYear != nil {
 		p.ExamYear = sql.NullInt16{Int16: int16(*d.ExamYear), Valid: true}
 	}
+	if d.Passage != nil && strings.TrimSpace(d.Passage.Text) != "" {
+		p.Passage = sql.NullString{String: d.Passage.Text, Valid: true}
+		p.PassageKey = sql.NullString{String: PassageKey(d.Passage.Text), Valid: true}
+	}
+	if d.Group != nil && d.Group.Label != "" {
+		p.GroupLabel = sql.NullString{String: truncate(d.Group.Label, 32), Valid: true}
+		p.GroupMajors = sql.NullString{String: truncate(d.Group.Majors, 255), Valid: d.Group.Majors != ""}
+	}
 	res, err := q.InsertQuestion(ctx, p)
 	if err != nil {
 		return 0, err
@@ -576,13 +591,21 @@ var qtypeOrder = []string{"single_choice", "multi_choice", "true_false", "fill_b
 
 // buildPaper 按年份把真题组成真题卷（PRD 11.6）：满分取专业课满分；收录题目的分值合计小于满分时记缺题说明，成绩按比例换算。
 // 题目没有分值的年份不组卷（无法计分）。返回是否组了卷。
+// 按专业分组的论述题只计一组（回答非报考专业不得分）：取与报考方向匹配的组，没设方向时取收录的第一组并在说明里写明。
 func (s *Service) buildPaper(ctx context.Context, q *dbq.Queries, job dbq.GetImportJobRow, year int) (bool, error) {
 	owner := sql.NullInt64{Int64: int64(job.OwnerUserID), Valid: true}
 	y := sql.NullInt16{Int16: int16(year), Valid: true}
-	qs, err := q.ListExamQuestionsByYear(ctx, dbq.ListExamQuestionsByYearParams{BankID: job.BankID, OwnerUserID: owner, ExamYear: y})
+	all, err := q.ListExamQuestionsByYear(ctx, dbq.ListExamQuestionsByYearParams{BankID: job.BankID, OwnerUserID: owner, ExamYear: y})
 	if err != nil {
 		return false, err
 	}
+	mine := ""
+	if job.SubjectID.Valid {
+		if sub, err := q.GetSubject(ctx, dbq.GetSubjectParams{ID: uint64(job.SubjectID.Int64), OwnerUserID: job.OwnerUserID}); err == nil {
+			mine = sub.MyMajors.String
+		}
+	}
+	qs, groupNote := pickGroup(all, mine)
 	type entry struct {
 		id    uint64
 		qtype string
@@ -629,6 +652,9 @@ func (s *Service) buildPaper(ctx context.Context, q *dbq.Queries, job dbq.GetImp
 	if actual < full {
 		missing = sql.NullString{String: fmt.Sprintf("收录题目共 %s 分，少于整卷 %s 分，成绩按比例换算", fmtScore(actual), fmtScore(full)), Valid: true}
 	}
+	if groupNote != "" {
+		missing = sql.NullString{String: truncate(strings.TrimPrefix(missing.String+"；"+groupNote, "；"), 255), Valid: true}
+	}
 	var paperID uint64
 	p, err := q.GetRealExamPaper(ctx, dbq.GetRealExamPaperParams{BankID: job.BankID, OwnerUserID: owner, ExamYear: y})
 	switch {
@@ -661,4 +687,37 @@ func (s *Service) buildPaper(ctx context.Context, q *dbq.Queries, job dbq.GetImp
 		}
 	}
 	return true, nil
+}
+
+// pickGroup 从某年的真题里去掉不计分的分组：有分组时只留一组。返回留下的题和要写进卷子说明的话（自动选组时）。
+func pickGroup(qs []dbq.ListExamQuestionsByYearRow, mine string) ([]dbq.ListExamQuestionsByYearRow, string) {
+	var labels []string
+	majors := map[string]string{}
+	for _, x := range qs {
+		if l := x.GroupLabel.String; l != "" && !slices.Contains(labels, l) {
+			labels = append(labels, l)
+			majors[l] = x.GroupMajors.String
+		}
+	}
+	if len(labels) <= 1 {
+		return qs, ""
+	}
+	chosen, note := "", ""
+	for _, l := range labels {
+		if mine != "" && MatchMajors(mine, majors[l]) {
+			chosen = l
+			break
+		}
+	}
+	if chosen == "" {
+		chosen = labels[0]
+		note = fmt.Sprintf("论述题按专业分组，这套卷只按「%s」计分", chosen)
+	}
+	out := make([]dbq.ListExamQuestionsByYearRow, 0, len(qs))
+	for _, x := range qs {
+		if x.GroupLabel.String == "" || x.GroupLabel.String == chosen {
+			out = append(out, x)
+		}
+	}
+	return out, note
 }

@@ -14,6 +14,7 @@ import (
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/cloud/ocr"
 	"peetraining-server/internal/dbq"
+	"peetraining-server/internal/importer"
 	"peetraining-server/internal/quota"
 )
 
@@ -203,7 +204,7 @@ func (s *Service) CheckNorm(ctx context.Context, userID, questionID uint64, answ
 	} else if left != nil && *left <= 0 {
 		return NormCheck{}, apperr.New(apperr.QuotaExceeded, "今天的批改次数用完了")
 	}
-	in := ai.NormIn{QType: string(qr.Qtype), Stem: qr.Stem, Answer: answer}
+	in := ai.NormIn{QType: string(qr.Qtype), Stem: importer.FullStem(qr.Stem, qr.Passage.String), Answer: answer}
 	for _, e := range t.Elements {
 		in.Elements = append(in.Elements, ai.NormElement{Name: e.Name, Desc: e.Desc})
 	}

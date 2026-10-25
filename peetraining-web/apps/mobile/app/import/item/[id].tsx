@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { AIGenerating, Button, Card, ConfirmDialog, ErrorState, Loading, QuotaSheet, Screen, Tag, Text, toast } from '@/components';
+import { AIGenerating, Button, Card, ConfirmDialog, ErrorState, GroupNote, Loading, PassageCard, QuotaSheet, Screen, Tag, Text, toast } from '@/components';
 import { essayTypeNames, importKeys, isSubjective, qtypeNames, rubricTotal, sourceText, useImportItem, type ImportItem, type QuestionDraft } from '@/features/import/api';
 import { RubricEditor } from '@/features/import/RubricEditor';
 import { PageHeader } from '@/features/import/ui';
@@ -88,6 +88,8 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
           </View>
           {item.source ? <Text variant="small">{sourceText(item.source)}</Text> : null}
         </View>
+        <GroupNote group={q.group} />
+        {q.passage ? <PassageCard text={q.passage.text} /> : null}
         <TextInput accessibilityLabel="题干" value={q.stem} onChangeText={(v) => setQ({ ...q, stem: v })} multiline style={styles.stem} maxFontSizeMultiplier={layout.maxFontScale} />
         {q.options?.map((o) => (
           <Text key={o.key} variant="body">

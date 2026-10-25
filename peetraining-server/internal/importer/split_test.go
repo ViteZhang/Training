@@ -2,6 +2,7 @@ package importer
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 	"sync/atomic"
@@ -155,5 +156,137 @@ func TestRunBatches(t *testing.T) {
 	}
 	if calls.Load() > aiParallel+1 {
 		t.Errorf("出错后应停止发起新的批：调用了 %d 次", calls.Load())
+	}
+}
+
+// 仿照北师大 808 真题结构自拟：Markdown 标记、题型标题折行、按专业分组、组内共用材料、题内引文。
+const groupedPaper = `## 2024 某某大学 808 中国语言文学真题
+### 一、名词解释（共 12 分，每题 6 分）
+1. 意境
+2. 典型
+### 三、论述题（本题共分三组，请按专业分组答题，每组共 70 分，组内 2 小
+题，每小题 35 分，回答非报考专业不得分）
+**第一组：请选择文艺学、比较文学与世界文学专业的考生作答**
+1. 什么是比较文学形象学？
+2. 谈谈异国形象中「他者」与「自我」的关系。
+**第二组：请选择中国民间文学专业的考生作答**
+1. 请阅读以下材料，评述其中的观点。
+ > "表演存在于表演者对观众承担展示自己交流能力的责任。"
+ >
+ > ——【美】理查德·鲍曼
+2. 如何认识民间文学「传承人」的角色？
+**第三组：请选择学科教学（语文）专业的考生作答**
+夫君子之行，静以修身，俭以养德。非淡泊无以明志，非宁静无以致远。
+1. 请翻译上面这段话。
+2. 请谈谈你对文章主题内涵的理解。`
+
+func TestSplitGroupsAndPassages(t *testing.T) {
+	got := Split([]Page{{No: 1, Text: groupedPaper}})
+	if len(got) != 8 {
+		t.Fatalf("块数 %d：%+v", len(got), got)
+	}
+	// 题型标题去掉 ### 后识别出来，折行的说明接回标题，不当成材料
+	if got[0].QType != "term" || got[0].Score != 6 || got[0].Year != 2024 || got[0].Group != "" || got[0].Passage != "" {
+		t.Errorf("名词解释：%+v", got[0])
+	}
+	if !strings.Contains(got[2].Section, "回答非报考专业不得分") || got[2].Score != 35 || got[2].QType != "discussion" {
+		t.Errorf("折行的题型标题应接回：%+v", got[2])
+	}
+	type want struct{ group, majors, text, passage string }
+	wants := []want{
+		{"第一组", "文艺学、比较文学与世界文学", "1. 什么是比较文学形象学？", ""},
+		{"第一组", "文艺学、比较文学与世界文学", "2. 谈谈异国形象中「他者」与「自我」的关系。", ""},
+		// 题内引文留在题干里（去掉 > 标记），分组标题不能并进上一题
+		{"第二组", "中国民间文学", "1. 请阅读以下材料，评述其中的观点。\n\"表演存在于表演者对观众承担展示自己交流能力的责任。\"\n——【美】理查德·鲍曼", ""},
+		{"第二组", "中国民间文学", "2. 如何认识民间文学「传承人」的角色？", ""},
+		{"第三组", "学科教学（语文）", "1. 请翻译上面这段话。", "夫君子之行，静以修身，俭以养德。非淡泊无以明志，非宁静无以致远。"},
+		{"第三组", "学科教学（语文）", "2. 请谈谈你对文章主题内涵的理解。", "夫君子之行，静以修身，俭以养德。非淡泊无以明志，非宁静无以致远。"},
+	}
+	for i, w := range wants {
+		b := got[i+2]
+		if b.Group != w.group || b.GroupMajors != w.majors || b.Text != w.text || b.Passage != w.passage {
+			t.Errorf("第 %d 块：\n got %q %q %q %q\nwant %q %q %q %q", i+3, b.Group, b.GroupMajors, b.Text, b.Passage, w.group, w.majors, w.text, w.passage)
+		}
+	}
+}
+
+func TestSplitSectionPassage(t *testing.T) {
+	got := Split([]Page{{No: 1, Text: `三、材料分析题（每题 20 分）
+阅读下面的材料，回答问题：「文变染乎世情，兴废系乎时序。」这句话出自《文心雕龙·时序》，讨论文学与时代的关系。
+1. 解释这句话的含义。
+2. 结合文学史举例说明。
+四、论述题
+（本大题共 1 小题）
+3. 论述文学的社会功能。`}})
+	if len(got) != 3 {
+		t.Fatalf("块数 %d：%+v", len(got), got)
+	}
+	if got[0].Passage == "" || got[1].Passage != got[0].Passage || !strings.HasPrefix(got[0].Passage, "阅读下面的材料") {
+		t.Errorf("题型下的长材料应挂到这一题型的题上：%q %q", got[0].Passage, got[1].Passage)
+	}
+	if got[2].Passage != "" {
+		t.Errorf("新题型开始后材料失效，短说明不算材料：%q", got[2].Passage)
+	}
+}
+
+func TestIsGroupHead(t *testing.T) {
+	for line, want := range map[string]bool{
+		"第一组": true,
+		"第二组：请选择古代文学专业的考生作答":      true,
+		"第三组（供学科教学方向考生选答）":        true,
+		"第二组数据表明，城市化进程中出现了大量新词新语": false,
+	} {
+		if got := isGroupHead(line); got != want {
+			t.Errorf("%s：%v", line, got)
+		}
+	}
+	if got := groupMajors("请选择中国现当代文学和儿童文学的考生作答"); got != "中国现当代文学和儿童文学" {
+		t.Errorf("%q", got)
+	}
+}
+
+func TestSplitLongSectionHead(t *testing.T) {
+	got := Split([]Page{{No: 1, Text: `二、简答题（共 20 分，每题 10 分）
+1. 简述得意忘言说
+三、论述题（本题共分七组，请按专业分组答题，每组共 70 分，组内 2 小题，每小题 35 分，回答非报考专业不得分）
+**第一组：请选择文艺学专业的考生作答**
+1. 如何理解梁启超的小说观？`}})
+	if len(got) != 2 || got[1].QType != "discussion" || got[1].Score != 35 || got[1].Group != "第一组" {
+		t.Fatalf("同一行的长题型标题也要识别：%+v", got)
+	}
+}
+
+func TestMatchMajors(t *testing.T) {
+	for _, c := range []struct {
+		mine, group string
+		want        bool
+	}{
+		{"古代文学", "中国古代文学、中国古典文献学", true},
+		{"学科教学（语文）", "学科教学（语文）", true},
+		{"中国现当代文学专业", "中国现当代文学和儿童文学", true},
+		{"语言学及应用语言学", "汉语言文字学", false},
+		{"", "文艺学", false},
+	} {
+		if got := MatchMajors(c.mine, c.group); got != c.want {
+			t.Errorf("%s / %s：%v", c.mine, c.group, got)
+		}
+	}
+}
+
+func TestPickGroup(t *testing.T) {
+	row := func(id uint64, label, majors string) dbq.ListExamQuestionsByYearRow {
+		return dbq.ListExamQuestionsByYearRow{ID: id, GroupLabel: sql.NullString{String: label, Valid: label != ""}, GroupMajors: sql.NullString{String: majors, Valid: majors != ""}}
+	}
+	qs := []dbq.ListExamQuestionsByYearRow{row(1, "", ""), row(2, "第一组", "文艺学"), row(3, "第二组", "中国古代文学"), row(4, "第二组", "中国古代文学")}
+	got, note := pickGroup(qs, "古代文学")
+	if len(got) != 3 || got[1].ID != 3 || note != "" {
+		t.Errorf("按报考方向选组：%+v %q", got, note)
+	}
+	got, note = pickGroup(qs, "")
+	if len(got) != 2 || got[1].ID != 2 || !strings.Contains(note, "第一组") {
+		t.Errorf("没设方向时取第一组并说明：%+v %q", got, note)
+	}
+	if got, _ := pickGroup(qs[:1], ""); len(got) != 1 {
+		t.Error("没有分组时原样返回")
 	}
 }

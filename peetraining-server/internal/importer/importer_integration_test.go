@@ -531,3 +531,105 @@ func TestEssayImport(t *testing.T) {
 		t.Fatal("用户改过的判断不应被自动覆盖")
 	}
 }
+
+// 仿照按专业分组的论述题自拟（北师大 808 的结构）：Markdown 标记、分组、组内共用材料。
+const groupedExam = "## 2024 某某大学 808 中国语言文学真题\n### 一、名词解释（共 12 分，每题 6 分）\n1. 意境\n2. 典型\n" +
+	"### 三、论述题（本题共分三组，请按专业分组答题，每组共 70 分，组内 2 小题，每小题 35 分，回答非报考专业不得分）\n" +
+	"**第一组：请选择文艺学、比较文学与世界文学专业的考生作答**\n1. 什么是比较文学形象学？其基本理论与方法是什么？\n2. 谈谈异国形象中他者与自我的关系。\n" +
+	"**第二组：请选择中国古代文学、中国古典文献学专业的考生作答**\n1. 结合具体作品论述司马迁对屈原的继承。\n2. 汉书艺文志所言七略分别指什么？\n" +
+	"**第三组：请选择学科教学（语文）专业的考生作答**\n夫君子之行，静以修身，俭以养德。非淡泊无以明志，非宁静无以致远。\n" +
+	"1. 请翻译上面这段话并说明主旨。\n2. 请谈谈你对文章主题内涵的理解。"
+
+func TestGroupedExamImport(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	uid, sid := f.user(t)
+	other, _ := f.user(t)
+	m := f.upload(t, uid, sid, "pdf", groupedExam)
+	job, err := f.svc.CreateJob(ctx, uid, sid, "question", []uint64{m})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, counts, err := f.svc.Items(ctx, uid, job.ID, "all", 0, 100)
+	if err != nil || counts.Questions != 8 {
+		t.Fatalf("应识别出 8 题（2 道名词解释 + 3 组各 2 道论述）：%v %+v", err, counts)
+	}
+	withPassage := 0
+	for _, it := range items {
+		var q importer.QuestionDraft
+		_ = json.Unmarshal(it.Payload, &q)
+		if q.QType == "discussion" && (q.Group == nil || q.Score == nil || *q.Score != 35) {
+			t.Errorf("论述题应带分组与分值：%+v", q)
+		}
+		if strings.Contains(q.Stem, "考生作答") || strings.Contains(q.Stem, "**") {
+			t.Errorf("分组标题与排版符号不能并进题干：%q", q.Stem)
+		}
+		if q.Passage != nil {
+			withPassage++
+			if q.Group == nil || q.Group.Label != "第三组" || !strings.HasPrefix(q.Passage.Text, "夫君子之行") {
+				t.Errorf("材料应挂在第三组的题上：%+v", q)
+			}
+		}
+	}
+	if withPassage != 2 {
+		t.Fatalf("第三组两道题共用材料：%d", withPassage)
+	}
+
+	groups, err := f.svc.Groups(ctx, uid, job.ID)
+	if err != nil || len(groups) != 3 || groups[0].Label != "第一组" || groups[2].Majors != "学科教学（语文）" || groups[1].Kept != 2 || groups[0].Matches {
+		t.Fatalf("分组概况：%v %+v", err, groups)
+	}
+	// 拿别人的 ID 访问返回 404
+	if _, err := f.svc.Groups(ctx, other, job.ID); !apperr.IsKind(err, apperr.NotFound) {
+		t.Errorf("别人的任务：%v", err)
+	}
+	if _, _, err := f.svc.KeepGroups(ctx, other, job.ID, []string{"第三组"}); !apperr.IsKind(err, apperr.NotFound) {
+		t.Errorf("别人的任务：%v", err)
+	}
+	if _, _, err := f.svc.KeepGroups(ctx, uid, job.ID, []string{"第九组"}); !apperr.IsKind(err, apperr.BadRequest) {
+		t.Errorf("不存在的分组：%v", err)
+	}
+
+	// 先选错再改：选第一组，再改成第三组，第三组恢复、其余删除
+	if d, _, err := f.svc.KeepGroups(ctx, uid, job.ID, []string{"第一组"}); err != nil || d != 4 {
+		t.Fatalf("只保留第一组：%d %v", d, err)
+	}
+	if d, r, err := f.svc.KeepGroups(ctx, uid, job.ID, []string{"第三组"}); err != nil || d != 2 || r != 2 {
+		t.Fatalf("改成第三组：删 %d 恢复 %d %v", d, r, err)
+	}
+	groups, _ = f.svc.Groups(ctx, uid, job.ID)
+	if groups[0].Kept != 0 || groups[1].Kept != 0 || groups[2].Kept != 2 || !groups[2].Matches {
+		t.Fatalf("选择后：%+v", groups)
+	}
+	var mine sql.NullString
+	_ = f.db.QueryRow("SELECT my_majors FROM subjects WHERE id = ?", sid).Scan(&mine)
+	if mine.String != "学科教学（语文）" {
+		t.Fatalf("报考方向应记在专业课上：%q", mine.String)
+	}
+
+	res, err := f.svc.Confirm(ctx, uid, job.ID, nil)
+	if err != nil || res.Questions != 4 || res.Papers != 1 {
+		t.Fatalf("入库：%v %+v", err, res)
+	}
+	var n int
+	_ = f.db.QueryRow("SELECT COUNT(*) FROM questions WHERE owner_user_id = ? AND group_label = '第三组' AND group_majors = '学科教学（语文）' AND passage LIKE '夫君子之行%' AND passage_key IS NOT NULL", uid).Scan(&n)
+	if n != 2 {
+		t.Fatalf("题目上应存分组与材料：%d", n)
+	}
+	var full, actual string
+	_ = f.db.QueryRow("SELECT full_score, actual_score FROM papers WHERE owner_user_id = ? AND exam_year = 2024", uid).Scan(&full, &actual)
+	if actual != "82.00" {
+		t.Fatalf("真题卷只计一组：名词解释 12 + 论述 70 = 82，实际 %s（满分 %s）", actual, full)
+	}
+
+	// 下一次导入同一门课的分组真题：与报考方向匹配的组标出来
+	m2 := f.upload(t, uid, sid, "pdf", strings.Replace(groupedExam, "2024", "2025", 1))
+	job2, err := f.svc.CreateJob(ctx, uid, sid, "question", []uint64{m2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	groups, _ = f.svc.Groups(ctx, uid, job2.ID)
+	if len(groups) != 3 || groups[0].Matches || !groups[2].Matches {
+		t.Fatalf("应按报考方向标出匹配的组：%+v", groups)
+	}
+}
