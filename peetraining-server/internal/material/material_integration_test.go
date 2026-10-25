@@ -277,6 +277,29 @@ func TestPasteAndModeration(t *testing.T) {
 	}
 }
 
+func TestRename(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	uid, sid, _ := f.user(t)
+	m, err := f.svc.CreatePasted(ctx, uid, sid, "", "", "我的笔记", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := f.svc.Rename(ctx, uid, m.ID, "  2025 真题回忆版  ")
+	if err != nil || got.FileName != "2025 真题回忆版" {
+		t.Fatalf("改名并去掉首尾空格：%q %v", got.FileName, err)
+	}
+	if _, err := f.svc.Rename(ctx, uid, m.ID, "   "); kind(err) != apperr.BadRequest {
+		t.Fatalf("空名称应返回 400：%v", err)
+	}
+	if _, err := f.svc.Rename(ctx, uid, m.ID, strings.Repeat("名", 61)); kind(err) != apperr.BadRequest {
+		t.Fatalf("超过 60 字应返回 400：%v", err)
+	}
+	if _, err := f.svc.Rename(ctx, uid, m.ID, strings.Repeat("名", 60)); err != nil {
+		t.Fatalf("60 字可以：%v", err)
+	}
+}
+
 func TestSplitPages(t *testing.T) {
 	pages := material.SplitPages(strings.Repeat("a", 1400)+"\n"+strings.Repeat("b", 200), 1500)
 	if len(pages) != 2 || len([]rune(pages[0])) != 1401 {
@@ -301,6 +324,7 @@ func TestOwnership(t *testing.T) {
 	_, checks["confirm"] = f.svc.ConfirmUploaded(ctx, other, m.ID)
 	_, checks["impact"] = f.svc.DeletionImpact(ctx, other, m.ID)
 	checks["delete"] = f.svc.Delete(ctx, other, m.ID)
+	_, checks["rename"] = f.svc.Rename(ctx, other, m.ID, "别人的名字")
 	_, checks["moderate"] = f.svc.Moderate(ctx, other, m.ID)
 	_, checks["list"] = f.svc.List(ctx, other, sid)
 	_, checks["upload"] = f.svc.RequestUploads(ctx, other, sid, "", []material.File{pdf("a.pdf", "z", 1, 1)}, true)

@@ -1,5 +1,5 @@
 // 6.3 我的资料：按专业课列出资料（类型、页数、识别结果）、资料解析额度；还没导入的专业课给导入入口。
-// 资料只有自己能看到，不共享、不用于训练模型。删除资料在题库的「资料」里操作（连带规则见 3.1d）。
+// 资料只有自己能看到，不共享、不用于训练模型。可以修改资料名称；删除资料在题库的「资料」里操作（连带规则见 3.1d）。
 import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';

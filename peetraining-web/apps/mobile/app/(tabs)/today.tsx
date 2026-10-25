@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, ErrorState, Icon, Loading, ProgressBar, Screen, Tag, Text } from '@/components';
+import { Button, Card, ErrorState, Icon, Loading, ProgressBar, Screen, Text } from '@/components';
 import { useUnreadCount } from '@/features/messages/api';
 import { isRunning, useActiveImportJobs } from '@/features/import/api';
 import { stageInfo } from '@/features/onboarding/api';
@@ -26,10 +26,17 @@ function Top({ days, stage }: { days?: number; stage?: keyof typeof stageInfo })
         </Text>
         <Text variant="caption">天后初试</Text>
       </View>
+      {/* 阶段胶囊和消息按钮同高、垂直居中对齐，整组与倒计时数字居中 */}
       <View style={styles.topRight}>
-        {stage ? <Tag label={stageInfo[stage].name} tone="outline" size="md" /> : null}
-        <Pressable accessibilityRole="button" accessibilityLabel={unread > 0 ? `消息，${unread} 条未读` : '消息'} onPress={() => router.push('/messages')} style={styles.bell}>
-          <Icon name="bell" />
+        {stage ? (
+          <View style={styles.stage}>
+            <Text variant="small" color={colors.ink} style={styles.stageText}>
+              {stageInfo[stage].name}
+            </Text>
+          </View>
+        ) : null}
+        <Pressable accessibilityRole="button" accessibilityLabel={unread > 0 ? `消息，${unread} 条未读` : '消息'} onPress={() => router.push('/messages')} hitSlop={6} style={styles.bell}>
+          <Icon name="bell" size={20} />
           {unread > 0 ? <View style={styles.badge} /> : null}
         </Pressable>
       </View>
@@ -172,7 +179,7 @@ export default function TodayTab() {
                 {isRunning(j) ? '全部整理好后会重新排今天的计划，并通知你核对。' : ''}
               </Text>
             ) : null}
-            {jobId && j && !isRunning(j) ? (
+            {jobId && j && !isRunning(j) && recognized > 0 ? (
               <Button title="去核对" onPress={() => router.push({ pathname: '/import/confirm/[id]', params: { id: String(jobId) } })} />
             ) : null}
           </Card>
@@ -214,13 +221,15 @@ const styles = StyleSheet.create({
   scroll: { paddingBottom: spacing.xxl, gap: spacing.md },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm },
   countdown: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-  topRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  stage: { height: 36, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  stageText: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
   flex: { flex: 1 },
   bold: { fontWeight: '700' },
   center: { textAlign: 'center', lineHeight: 21 },
   lh: { lineHeight: 21 },
-  bell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -10 },
-  badge: { position: 'absolute', top: 10, right: 11, width: 8, height: 8, borderRadius: 4, backgroundColor: semantic.danger, borderWidth: 2, borderColor: semantic.background },
+  bell: { width: 36, height: 36, borderRadius: 18, backgroundColor: semantic.fill, alignItems: 'center', justifyContent: 'center' },
+  badge: { position: 'absolute', top: 7, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: semantic.danger, borderWidth: 2, borderColor: semantic.background },
   card: { gap: 10 },
   emptyCard: { alignItems: 'center', gap: 10, paddingTop: 26 },
   emptyIcon: { width: 56, height: 56, borderRadius: 18, backgroundColor: semantic.fill, alignItems: 'center', justifyContent: 'center' },

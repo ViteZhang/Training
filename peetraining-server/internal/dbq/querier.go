@@ -555,6 +555,7 @@ type Querier interface {
 	// 模拟考试中断恢复：补回中断时长，只能用一次（PRD 11.9）。
 	RecoverPaperSession(ctx context.Context, arg RecoverPaperSessionParams) error
 	RemoveWrongBook(ctx context.Context, arg RemoveWrongBookParams) (int64, error)
+	RenameMaterial(ctx context.Context, arg RenameMaterialParams) (int64, error)
 	// 客服回复（7.7）：回复写回反馈并发到消息中心。
 	ReplyFeedback(ctx context.Context, arg ReplyFeedbackParams) (int64, error)
 	// 保留下来的知识点（其他资料也有）把「出处」改指到另一份资料，避免指向已删除的资料。
