@@ -11,6 +11,7 @@ import { BottomSheet, Button, ConfirmDialog, ErrorState, Icon, ListCard, Loading
 import { logout } from '@/features/auth/actions';
 import { PageHeader } from '@/features/import/ui';
 import { mineKeys, useMe, useOverview, useProfile } from '@/features/mine/api';
+import { NicknameSheet } from '@/features/mine/NicknameSheet';
 import { api, unwrap } from '@/lib/api';
 import { appConfig } from '@/lib/config';
 
@@ -50,6 +51,7 @@ export default function SettingsPage() {
   const [cache, setCache] = useState(cacheBytes);
   const [timeSheet, setTimeSheet] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [nicknameSheet, setNicknameSheet] = useState(false);
   const save = useMutation({
     mutationFn: (patch: Partial<Schemas['StudyProfileInput']>) => {
       const p = profile.data!;
@@ -87,6 +89,7 @@ export default function SettingsPage() {
         <PageHeader title="设置" onBack={() => router.back()} />
         <Text variant="small" style={styles.section}>账号</Text>
         <ListCard>
+          <Row title="昵称" desc={me.data.nickname} onPress={() => setNicknameSheet(true)} />
           <Row title="账号与安全" desc={me.data.phone_masked} onPress={() => router.push('/settings/account')} />
         </ListCard>
 
@@ -141,6 +144,7 @@ export default function SettingsPage() {
           ))}
         </View>
       </BottomSheet>
+      {nicknameSheet ? <NicknameSheet current={me.data.nickname} onClose={() => setNicknameSheet(false)} /> : null}
       <ConfirmDialog
         visible={confirmLogout}
         title="退出登录？"
