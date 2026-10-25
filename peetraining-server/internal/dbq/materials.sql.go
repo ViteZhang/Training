@@ -468,6 +468,24 @@ func (q *Queries) ListMaterialsByBank(ctx context.Context, arg ListMaterialsByBa
 	return items, nil
 }
 
+const renameMaterial = `-- name: RenameMaterial :execrows
+UPDATE materials SET file_name = ? WHERE id = ? AND owner_user_id = ?
+`
+
+type RenameMaterialParams struct {
+	FileName    string
+	ID          uint64
+	OwnerUserID uint64
+}
+
+func (q *Queries) RenameMaterial(ctx context.Context, arg RenameMaterialParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, renameMaterial, arg.FileName, arg.ID, arg.OwnerUserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const repointKPSources = `-- name: RepointKPSources :exec
 UPDATE knowledge_points k
 JOIN (

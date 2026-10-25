@@ -193,6 +193,20 @@ describe('1.6 解析中与 1.6b 部分失败', () => {
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/import/confirm/[id]', params: { id: '7' } });
   });
 
+  it('已经设过学习提醒的，解析时不再提示设置', async () => {
+    mockParams = { id: '7' };
+    mockResponses['GET /import-jobs/{jobId}'] = () => ({
+      status: 200,
+      data: job('running', [{ material_id: 2, file_name: '讲义.docx', step: 'structure', status: 'running' }]),
+    });
+    mockResponses['GET /profile'] = () => ({ status: 200, data: { exam_year: 2027, stage: 'strengthen', stage_manual: false, daily_minutes: 60, reminder_times: ['20:00'] } });
+    await wrap(<JobScreen />);
+    expect(await screen.findByText('正在整理你的题库')).toBeTruthy();
+    await waitFor(() => expect(mockCalls.some((c) => c.path === '/profile')).toBe(true));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByText('趁这会儿，设置学习提醒')).toBeNull();
+  });
+
   it('失败的文件说明原因，可重新识别', async () => {
     mockParams = { id: '7' };
     const failed = job('reviewing', [

@@ -36,10 +36,10 @@ export function PassageCard({ text, count, lines = 4, defaultOpen = false }: { t
 }
 
 /** 分组标签：列表里只写组名，详情里带上适用专业。 */
-export function GroupTag({ group, full }: { group?: Schemas['QuestionGroup'] | null; full?: boolean }) {
+export function GroupTag({ group, full, size }: { group?: Schemas['QuestionGroup'] | null; full?: boolean; size?: 'sm' | 'md' }) {
   if (!group) return null;
   const label = full && group.majors ? `${group.label} · ${group.majors}` : group.label;
-  return <Tag label={label} tone="info" />;
+  return <Tag label={label} tone="info" size={size} />;
 }
 
 /** 详情页题干上方的一行说明：只有报考这些专业的考生要答这道题。 */

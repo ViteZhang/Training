@@ -612,7 +612,9 @@ func (q *Queries) ListImportJobMaterials(ctx context.Context, arg ListImportJobM
 const listImportJobs = `-- name: ListImportJobs :many
 SELECT j.id FROM import_jobs j
 WHERE j.owner_user_id = ?
-  AND (? = 0 OR j.status IN ('queued', 'running', 'reviewing'))
+  AND (? = 0 OR j.status IN ('queued', 'running')
+    -- 与 ListActiveImportJobs 一致：待核对且还有没入库的条目
+    OR (j.status = 'reviewing' AND EXISTS (SELECT 1 FROM import_items p WHERE p.job_id = j.id AND p.status <> 'deleted' AND p.created_entity_id IS NULL)))
 ORDER BY j.created_at DESC, j.id DESC LIMIT 50
 `
 
