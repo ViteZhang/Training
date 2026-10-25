@@ -84,7 +84,9 @@ const listActiveImportJobs = `-- name: ListActiveImportJobs :many
 SELECT j.id, j.status, b.subject_id,
   (SELECT COUNT(*) FROM import_items i WHERE i.job_id = j.id AND i.status <> 'deleted') AS recognized
 FROM import_jobs j JOIN banks b ON b.id = j.bank_id
-WHERE j.owner_user_id = ? AND j.status IN ('queued', 'running', 'reviewing')
+WHERE j.owner_user_id = ? AND (j.status IN ('queued', 'running')
+  -- 待核对的任务只有还剩没入库、没删掉的条目才算：全部入库、删光或移除了所有文件的不再提示「去核对」
+  OR (j.status = 'reviewing' AND EXISTS (SELECT 1 FROM import_items p WHERE p.job_id = j.id AND p.status <> 'deleted' AND p.created_entity_id IS NULL)))
 ORDER BY j.id DESC
 `
 

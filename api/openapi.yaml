@@ -1106,6 +1106,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Material" }
         "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [bank]
+      operationId: updateMaterial
+      summary: 修改资料名称（3.1c、6.3），方便用户管理资料
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateMaterialRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Material" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
     delete:
       tags: [bank]
       operationId: deleteMaterial
@@ -8474,6 +8491,11 @@ components:
       properties:
         nickname: { type: string, minLength: 1, maxLength: 16 }
         onboarding_step: { type: string, enum: ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", done] }
+    UpdateMaterialRequest:
+      type: object
+      required: [file_name]
+      properties:
+        file_name: { type: string, minLength: 1, maxLength: 60, description: 资料名称，去掉首尾空格后不能为空 }
     Device:
       type: object
       required: [device_id, device_name, platform, last_used_at, current]

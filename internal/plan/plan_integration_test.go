@@ -219,6 +219,32 @@ func TestHomeStatesAndPlanAfterImport(t *testing.T) {
 	if gc["new"]+gc["review"]+gc["weak"]+gc["recite"] != len(p.Items) {
 		t.Errorf("未知分组：%v", gc)
 	}
+
+	// 再导一份：没核对完时首页提示「去核对」；条目删光后任务虽仍是待核对状态，也不应再提示。
+	m, err := f.mat.CreatePasted(ctx, uid, sid, "question", "资料3", exam, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := f.imp.CreateJob(ctx, uid, sid, "question", []uint64{m.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st string
+	if err := f.db.QueryRow("SELECT status FROM import_jobs WHERE id = ?", job.ID).Scan(&st); err != nil || st != "reviewing" {
+		t.Fatalf("新任务应在待核对：%q %v", st, err)
+	}
+	if h, err = f.plan.Home(ctx, uid); err != nil || h.State != "organizing" || h.OrganizingJob != job.ID {
+		t.Fatalf("有待核对条目时应提示核对：%+v %v", h.State, err)
+	}
+	if _, err := f.db.Exec("UPDATE import_items SET status = 'deleted' WHERE job_id = ?", job.ID); err != nil {
+		t.Fatal(err)
+	}
+	if h, err = f.plan.Home(ctx, uid); err != nil || h.State != "normal" || h.OrganizingJob != 0 || h.Banks[0].Organizing {
+		t.Fatalf("没有待核对条目时不应再提示核对：%+v %v", h.State, err)
+	}
+	if active, err := f.imp.List(ctx, uid, true); err != nil || len(active) != 0 {
+		t.Fatalf("进行中的任务列表也不应包含它：%d %v", len(active), err)
+	}
 }
 
 func TestPlanProgressAndSummary(t *testing.T) {

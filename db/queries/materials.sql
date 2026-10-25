@@ -18,6 +18,9 @@ UPDATE materials SET object_key = ? WHERE id = ? AND owner_user_id = ?;
 SELECT m.*, b.subject_id FROM materials m JOIN banks b ON b.id = m.bank_id
 WHERE m.id = ? AND m.owner_user_id = ?;
 
+-- name: RenameMaterial :execrows
+UPDATE materials SET file_name = ? WHERE id = ? AND owner_user_id = ?;
+
 -- name: UpdateMaterialStatus :exec
 UPDATE materials SET status = ?, fail_reason = ? WHERE id = ? AND owner_user_id = ?;
 

@@ -126,6 +126,19 @@ func (h *Handlers) GetMaterial(c *gin.Context, id gen.MaterialId) {
 	c.JSON(http.StatusOK, toMaterial(m))
 }
 
+func (h *Handlers) UpdateMaterial(c *gin.Context, id gen.MaterialId) {
+	var req gen.UpdateMaterialRequest
+	if !bind(c, &req) {
+		return
+	}
+	m, err := h.deps.Material.Rename(c.Request.Context(), currentUser(c), uint64(id), req.FileName)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, toMaterial(m))
+}
+
 func (h *Handlers) GetMaterialDeletionImpact(c *gin.Context, id gen.MaterialId) {
 	im, err := h.deps.Material.DeletionImpact(c.Request.Context(), currentUser(c), uint64(id))
 	if err != nil {

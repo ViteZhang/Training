@@ -243,6 +243,27 @@ func (s *Service) Get(ctx context.Context, userID, id uint64) (Material, error) 
 	return m, err
 }
 
+// maxNameLen 是资料名称的最大字数，与接口契约 UpdateMaterialRequest 一致。
+const maxNameLen = 60
+
+// Rename 修改资料名称（3.1c、6.3）：去掉首尾空格后不能为空，最多 60 个字；不是自己的返回 404。
+func (s *Service) Rename(ctx context.Context, userID, id uint64, name string) (Material, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Material{}, apperr.New(apperr.BadRequest, "请填写资料名称")
+	}
+	if utf8.RuneCountInString(name) > maxNameLen {
+		return Material{}, apperr.New(apperr.BadRequest, "资料名称最多 60 个字")
+	}
+	if _, err := s.Get(ctx, userID, id); err != nil {
+		return Material{}, err
+	}
+	if _, err := s.q.RenameMaterial(ctx, dbq.RenameMaterialParams{FileName: name, ID: id, OwnerUserID: userID}); err != nil {
+		return Material{}, err
+	}
+	return s.Get(ctx, userID, id)
+}
+
 // ConfirmUploaded 客户端直传完成后回调：核对对象存在、大小一致，状态改为已上传。
 func (s *Service) ConfirmUploaded(ctx context.Context, userID, id uint64) (Material, error) {
 	m, err := s.Get(ctx, userID, id)
