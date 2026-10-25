@@ -28,3 +28,16 @@ func TestStructureAcceptsNullOptionals(t *testing.T) {
 		t.Fatalf("年份超出范围应不合格：%v", err)
 	}
 }
+
+// 不开思考的 qwen3 模型会把路径照抄成 [["板块", "章节"]]（实测 qwen3.8-flash），整理成一层后应能通过校验。
+func TestKPPathFlattened(t *testing.T) {
+	in := KPIn{Pages: []KPPage{{No: 1, Text: "一、神话\n神话：远古人民表现对自然及社会现象的认识。"}}}
+	out, err := ExtractKPs.validate(in, `{"points":[{"name":"神话","original_text":"神话：远古人民表现对自然及社会现象的认识。","page":1,
+		"path":[["第一章 先秦文学","一、神话"]],"rubric_points":[{"content":"远古人民","keywords":["远古人民"]}]}]}`)
+	if err != nil {
+		t.Fatalf("嵌套路径应整理后通过：%v", err)
+	}
+	if p := out.Points[0].Path; len(p) != 2 || p[0] != "第一章 先秦文学" || p[1] != "一、神话" {
+		t.Fatalf("路径：%v", p)
+	}
+}

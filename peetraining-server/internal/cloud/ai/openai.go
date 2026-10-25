@@ -25,6 +25,9 @@ type OpenAI struct {
 	IdleTimeout time.Duration
 	// MaxDuration 是单次调用的总时长上限。
 	MaxDuration time.Duration
+	// Thinking 不为空时随请求发 enable_thinking（百炼的 qwen3 系列默认先思考再回答）。
+	// 导入、批改都是按规则输出 JSON，关掉思考快几倍、少一大截 token；只对百炼设置，中转接口不认这个参数。
+	Thinking *bool
 }
 
 // 默认超时：模型开始输出前可能要先思考一段时间，空闲上限给到 90 秒；整段输出最长 10 分钟。
@@ -60,6 +63,7 @@ type chatRequest struct {
 	ResponseFormat *struct {
 		Type string `json:"type"`
 	} `json:"response_format,omitempty"`
+	EnableThinking *bool `json:"enable_thinking,omitempty"`
 }
 
 type chatMessage struct {
@@ -99,7 +103,7 @@ type chatChunk struct {
 }
 
 func (c *OpenAI) Complete(ctx context.Context, req Request) (Response, error) {
-	body := chatRequest{Model: req.Model, Temperature: req.Temperature, Stream: true}
+	body := chatRequest{Model: req.Model, Temperature: req.Temperature, Stream: true, EnableThinking: c.Thinking}
 	body.StreamOptions = &struct {
 		IncludeUsage bool `json:"include_usage"`
 	}{IncludeUsage: true}

@@ -157,6 +157,9 @@ type AIConfig struct {
 	// ModelStrong / ModelCheap 是百炼两档模型的默认名（Q02 定之前的开发值；后台 7.8 可按能力覆盖）。
 	ModelStrong string
 	ModelCheap  string
+	// BailianThinking 对应 AI_BAILIAN_THINKING：百炼 qwen3 系列是否先思考再回答。默认关（导入、批改按规则出 JSON，
+	// 思考只会慢几倍、多花 token）；评测证明某个模型开思考更准时再打开。
+	BailianThinking bool
 	// PreferStrong 为 true 时所有能力都用高阶模型（便宜档也用 ModelStrong / RelayModelStrong）。
 	PreferStrong bool
 	// AI_PROVIDER=relay 时的主用平台（OpenAI 兼容的中转接口）；百炼配置齐全时作为它失败时的备用。
@@ -164,7 +167,7 @@ type AIConfig struct {
 	RelayAPIKey      string
 	RelayModelStrong string
 	RelayModelCheap  string
-	// Prices 是各模型的价格：元 / 百万 token（输入、输出），来自 AI_PRICES，例如 "qwen-max=2.4:9.6,qwen-plus=0.8:2"。
+	// Prices 是各模型的价格：元 / 百万 token（输入、输出），来自 AI_PRICES，例如 "qwen3.8-flash=0.3:3"。
 	// 用于 ai_calls 记成本（7.8 成本看板）和评测的每千次成本；价格以平台当时的公开价为准，不写死在代码里。
 	Prices map[string][2]float64
 }
@@ -213,13 +216,14 @@ func load(getenv func(string) string) (*Config, error) {
 			Endpoint:      get("SMS_ENDPOINT", "dysmsapi.aliyuncs.com"),
 		},
 		AI: AIConfig{
-			Provider:       get("AI_PROVIDER", ProviderMock),
-			BailianBaseURL: get("BAILIAN_BASE_URL", ""),
-			BailianAPIKey:  get("BAILIAN_API_KEY", ""),
-			AltBaseURL:     get("AI_ALT_BASE_URL", ""),
-			AltAPIKey:      get("AI_ALT_API_KEY", ""),
-			ModelStrong:    get("AI_MODEL_STRONG", "qwen-max"),
-			ModelCheap:     get("AI_MODEL_CHEAP", "qwen-plus"),
+			Provider:        get("AI_PROVIDER", ProviderMock),
+			BailianBaseURL:  get("BAILIAN_BASE_URL", ""),
+			BailianAPIKey:   get("BAILIAN_API_KEY", ""),
+			AltBaseURL:      get("AI_ALT_BASE_URL", ""),
+			AltAPIKey:       get("AI_ALT_API_KEY", ""),
+			ModelStrong:     get("AI_MODEL_STRONG", "qwen3.8-flash"),
+			ModelCheap:      get("AI_MODEL_CHEAP", "qwen3.8-flash"),
+			BailianThinking: get("AI_BAILIAN_THINKING", "false") == "true",
 			// 优先用高阶模型（默认开启），省钱时设 AI_PREFER_STRONG=false 让便宜档能力用便宜模型。
 			PreferStrong:     get("AI_PREFER_STRONG", "true") != "false",
 			RelayBaseURL:     get("AI_RELAY_BASE_URL", ""),
