@@ -72,6 +72,8 @@ func Subjective(qtype string) bool {
 	return false
 }
 
+// 可选字段允许 null：块上没有年份、分值时模型常输出 "exam_year": null，按缺省处理，不能因此整批判为不合格
+// （否则认不出试卷标题的资料整份导入失败）。
 var Structure = &Cap[StructureIn, StructureOut]{
 	Def: Def{Name: "import_structure", Version: "v1", Tier: "strong", Temperature: 0.1, Schema: `{
 		"type": "object", "required": ["items"],
@@ -80,16 +82,16 @@ var Structure = &Cap[StructureIn, StructureOut]{
 			"properties": {
 				"block": {"type": "integer"},
 				"kind": {"type": "string", "enum": ["question", "answer"]},
-				"qtype": {"type": "string", "enum": ["single_choice","multi_choice","true_false","fill_blank","term","short_answer","discussion","essay","calculation","other"]},
-				"stem": {"type": "string"},
-				"options": {"type": "array", "items": {"type": "object", "required": ["key","text"], "properties": {"key": {"type": "string"}, "text": {"type": "string"}}}},
-				"answer": {"type": "string"},
-				"score": {"type": "number", "minimum": 0, "maximum": 300},
-				"exam_year": {"type": "integer", "minimum": 1977, "maximum": 2100},
-				"question_no": {"type": "string", "maxLength": 16},
+				"qtype": {"type": "string", "nullable": true, "enum": ["single_choice","multi_choice","true_false","fill_blank","term","short_answer","discussion","essay","calculation","other", null]},
+				"stem": {"type": "string", "nullable": true},
+				"options": {"type": "array", "nullable": true, "items": {"type": "object", "required": ["key","text"], "properties": {"key": {"type": "string"}, "text": {"type": "string"}}}},
+				"answer": {"type": "string", "nullable": true},
+				"score": {"type": "number", "nullable": true, "minimum": 0, "maximum": 300},
+				"exam_year": {"type": "integer", "nullable": true, "minimum": 1977, "maximum": 2100},
+				"question_no": {"type": "string", "nullable": true, "maxLength": 16},
 				"page": {"type": "integer", "minimum": 1},
 				"confidence": {"type": "number", "minimum": 0, "maximum": 1},
-				"is_recollection": {"type": "boolean"}
+				"is_recollection": {"type": "boolean", "nullable": true}
 			}}}}}`},
 	Check: checkStructure,
 	Mock:  mockStructure,

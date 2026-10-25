@@ -7,12 +7,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sort"
 	"strconv"
+	"strings"
 
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
+	"peetraining-server/internal/importer"
 	"peetraining-server/internal/rules"
 )
 
@@ -82,6 +85,11 @@ type ExamProfile struct {
 	Missing        []SectionShare
 	StyleTags      []string
 	Basis          []Source
+	// GroupNote：论述题按专业分组时只统计一组，写明是哪一组。
+	GroupNote string
+	// PendingQuestions 是还没确认入库的题数，PendingJobID 是其中最近的导入任务（跳到核对页）。
+	PendingQuestions int
+	PendingJobID     uint64
 }
 
 // SectionShare 是板块的真题分值占比与掌握度。
@@ -117,7 +125,14 @@ func (s *Service) ExamProfile(ctx context.Context, userID, subjectID uint64) (Ex
 		return ExamProfile{}, err
 	}
 	prof, ix, qs, materials := st.Profile, st.index, st.questions, st.materials
-	out := ExamProfile{ExamProfile: prof, MinPapers: p.ExamProfile.MinPapers, TotalMinutes: p.PaperTime.DefaultTotalMinutes, CheckMinutes: p.PaperTime.CheckMinutes}
+	out := ExamProfile{ExamProfile: prof, MinPapers: p.ExamProfile.MinPapers, TotalMinutes: p.PaperTime.DefaultTotalMinutes, CheckMinutes: p.PaperTime.CheckMinutes,
+		GroupNote: st.GroupNote}
+	// 真题不够时说清为什么：有题还没确认入库（能补全年份的题由 importer.Repairable 另算）。
+	pend, err := s.q.CountPendingImportQuestions(ctx, dbq.CountPendingImportQuestionsParams{BankID: b.BankID, OwnerUserID: userID})
+	if err != nil {
+		return ExamProfile{}, err
+	}
+	out.PendingQuestions, out.PendingJobID = int(pend.N), uint64(max(pend.JobID, 0))
 	for id := range materials {
 		if mt, err := s.q.GetMaterial(ctx, dbq.GetMaterialParams{ID: id, OwnerUserID: userID}); err == nil {
 			out.Basis = append(out.Basis, Source{MaterialID: id, FileName: mt.FileName})
@@ -210,7 +225,9 @@ func (s *Service) Sections(ctx context.Context, userID, subjectID uint64) ([]Sec
 
 // ExamStats 是一门课的真题统计（PRD 11.11），供考情分析与今日计划共用。
 type ExamStats struct {
-	Profile   rules.ExamProfile
+	Profile rules.ExamProfile
+	// GroupNote 不为空时，论述题按专业分组、只统计了一组，界面写明是哪一组。
+	GroupNote string
 	index     kpIndex
 	questions []dbq.ListBankExamQuestionsRow
 	materials map[uint64]bool
@@ -240,10 +257,15 @@ func (s *Service) Stats(ctx context.Context, userID, bankID uint64) (ExamStats, 
 }
 
 func (s *Service) examStats(ctx context.Context, userID, bankID uint64, p rules.Params) (ExamStats, error) {
-	qs, err := s.q.ListBankExamQuestions(ctx, dbq.ListBankExamQuestionsParams{BankID: bankID, OwnerUserID: owner(userID)})
+	all, err := s.q.ListBankExamQuestions(ctx, dbq.ListBankExamQuestionsParams{BankID: bankID, OwnerUserID: owner(userID)})
 	if err != nil {
 		return ExamStats{}, err
 	}
+	mine, err := s.q.GetBankMyMajors(ctx, dbq.GetBankMyMajorsParams{ID: bankID, OwnerUserID: owner(userID), OwnerUserID_2: userID})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return ExamStats{}, err
+	}
+	qs, groupNote := pickExamGroups(all, mine.String)
 	links, err := s.q.ListBankQuestionKPLinks(ctx, dbq.ListBankQuestionKPLinksParams{BankID: bankID, OwnerUserID: owner(userID)})
 	if err != nil {
 		return ExamStats{}, err
@@ -274,7 +296,59 @@ func (s *Service) examStats(ctx context.Context, userID, bankID uint64, p rules.
 			materials[uint64(q.SourceMaterialID.Int64)] = true
 		}
 	}
-	return ExamStats{Profile: rules.BuildExamProfile(in, p.ExamProfile), index: ix, questions: qs, materials: materials}, nil
+	return ExamStats{Profile: rules.BuildExamProfile(in, p.ExamProfile), GroupNote: groupNote, index: ix, questions: qs, materials: materials}, nil
+}
+
+// pickExamGroups 去掉按专业分组的论述题里不计分的组（回答非报考专业不得分）：每年只留一组，
+// 选法与真题卷相同（importer.ChooseGroup），否则七组论述题全算进去，题型结构和总分都会虚高。
+// 返回留下的题和界面上要写明的说明。
+func pickExamGroups(qs []dbq.ListBankExamQuestionsRow, mine string) ([]dbq.ListBankExamQuestionsRow, string) {
+	labels := map[int16][]string{}
+	majors := map[int16]map[string]string{}
+	for _, q := range qs {
+		l := q.GroupLabel.String
+		if l == "" || !q.ExamYear.Valid {
+			continue
+		}
+		y := q.ExamYear.Int16
+		if majors[y] == nil {
+			majors[y] = map[string]string{}
+		}
+		if !slices.Contains(labels[y], l) {
+			labels[y] = append(labels[y], l)
+			majors[y][l] = q.GroupMajors.String
+		}
+	}
+	chosen := map[int16]string{}
+	var picked []string
+	auto := false
+	for y, ls := range labels {
+		c, a := importer.ChooseGroup(ls, majors[y], mine)
+		if c == "" {
+			continue
+		}
+		chosen[y] = c
+		auto = auto || a
+		if !slices.Contains(picked, c) {
+			picked = append(picked, c)
+		}
+	}
+	if len(chosen) == 0 {
+		return qs, ""
+	}
+	out := make([]dbq.ListBankExamQuestionsRow, 0, len(qs))
+	for _, q := range qs {
+		if c, ok := chosen[q.ExamYear.Int16]; ok && q.ExamYear.Valid && q.GroupLabel.String != "" && q.GroupLabel.String != c {
+			continue
+		}
+		out = append(out, q)
+	}
+	sort.Strings(picked)
+	groups := "「" + strings.Join(picked, "」「") + "」"
+	if auto {
+		return out, "论述题按专业分组，还没选报考方向，暂按" + groups + "统计；导入真题时在核对页选报考方向后按你的方向统计"
+	}
+	return out, "论述题按专业分组，只统计你报考方向的" + groups
 }
 
 // examStyle 取出题风格标签：真题没变用缓存，变了重新生成；生成失败返回空，不影响其他统计。
