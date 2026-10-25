@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { Button, Card, ConfirmDialog, ErrorState, InfoCard, Loading, RubricLine, Screen, Tag, Text, toast } from '@/components';
+import { Button, Card, ConfirmDialog, ErrorState, GroupNote, InfoCard, Loading, PassageCard, RubricLine, Screen, Tag, Text, toast } from '@/components';
 import { bankKeys, shortDate, sourceLabel, useQuestion, type QuestionDetail } from '@/features/bank/api';
 import { isSubjective, qtypeNames, rubricTotal } from '@/features/import/api';
 import { RubricEditor } from '@/features/import/RubricEditor';
@@ -124,6 +124,8 @@ export default function QuestionScreen() {
               ) : null}
               {q.needs_review ? <Tag label="待核对" tone="danger" /> : null}
             </View>
+            <GroupNote group={q.group} />
+            {q.passage ? <PassageCard text={q.passage.text} /> : null}
             <Text variant="h1" style={styles.stem}>
               {q.stem}
             </Text>

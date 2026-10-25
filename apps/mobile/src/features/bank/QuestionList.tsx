@@ -6,7 +6,7 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Button, ConfirmDialog, EmptyState, ErrorState, Icon, Loading, Tag, Text, toast } from '@/components';
+import { Button, ConfirmDialog, EmptyState, ErrorState, GroupTag, Icon, Loading, Tag, Text, toast } from '@/components';
 import { qtypeNames } from '@/features/import/api';
 import { Segments } from '@/features/import/ui';
 import { api, unwrap } from '@/lib/api';
@@ -39,6 +39,7 @@ function QuestionRow({ q, selecting, selected, onToggle }: { q: Schemas['Questio
           </Text>
         </View>
         {q.source === 'ai_generated' ? <Tag label="AI 出题" tone="ai" /> : <Text variant="small">{sourceLabel(q.source, q.exam_year)}</Text>}
+        <GroupTag group={q.group} />
         <View style={styles.flex} />
         <Text variant="small" color={bad ? colors.orange : q.status_tag === 'mastered' ? semantic.mastered : semantic.textPrimary} style={styles.medium}>
           {state}

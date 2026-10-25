@@ -253,6 +253,41 @@ describe('1.7 确认导入结果', () => {
     expect(mockCalls.some((c) => c.path === '/import-jobs/{jobId}/confirm')).toBe(false);
   });
 
+  it('按专业分组：按报考方向一键只保留那一组；共用材料的小题前显示材料卡，可整组删除', async () => {
+    mockParams = { id: '7' };
+    const g3 = { label: '第三组', majors: '学科教学（语文）' };
+    const passage = { key: 'p1', text: '夫君子之行，静以修身，俭以养德。' };
+    mockResponses['GET /import-jobs/{jobId}'] = () => ({ status: 200, data: job('reviewing', []) });
+    mockResponses['GET /import-jobs/{jobId}/items'] = () => ({
+      status: 200,
+      data: {
+        counts,
+        groups: [
+          { label: '第一组', majors: '文艺学', total: 2, kept: 2, matches: false },
+          { label: '第二组', majors: '中国古代文学', total: 2, kept: 2, matches: false },
+          { label: '第三组', majors: '学科教学（语文）', total: 2, kept: 2, matches: true },
+        ],
+        items: [
+          item(1),
+          item(5, { question: { qtype: 'discussion', stem: '请翻译这段话', score: 35, group: g3, passage } }),
+          item(6, { question: { qtype: 'discussion', stem: '谈谈文章主题', score: 35, group: g3, passage } }),
+        ],
+      },
+    });
+    mockResponses['POST /import-jobs/{jobId}/groups'] = () => ({ status: 200, data: { deleted: 4, restored: 0, counts, groups: [] } });
+    mockResponses['POST /import-jobs/{jobId}/items/delete'] = () => ({ status: 200, data: { deleted: 2, counts } });
+    await wrap(<ConfirmScreen />);
+    expect(await screen.findByText('论述题按专业分了 3 组')).toBeTruthy();
+    expect(screen.getByText('共用材料 · 2 题')).toBeTruthy();
+    expect(screen.getAllByText('第三组').length).toBe(2);
+
+    await fireEvent.press(screen.getByText('只保留这一组'));
+    await waitFor(() => expect(mockCalls.find((c) => c.path === '/import-jobs/{jobId}/groups')?.init?.body).toEqual({ labels: ['第三组'] }));
+
+    await fireEvent.press(screen.getByText('删除材料和这 2 题'));
+    await waitFor(() => expect(mockCalls.find((c) => c.path === '/import-jobs/{jobId}/items/delete')?.init?.body).toEqual({ ids: [5, 6] }));
+  });
+
   it('题目导入额度不够时弹出开会员', async () => {
     mockParams = { id: '7' };
     mockResponses['GET /import-jobs/{jobId}'] = () => ({ status: 200, data: job('reviewing', []) });
