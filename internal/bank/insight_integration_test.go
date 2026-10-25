@@ -2,6 +2,7 @@ package bank_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"peetraining-server/internal/apperr"
@@ -218,5 +219,125 @@ func TestEssayKnowledgeBase(t *testing.T) {
 	}
 	if err := f.bank.SetEssayMaterialFavorite(ctx, other, kb.Materials[0].ID, false); !apperr.IsKind(err, apperr.NotFound) {
 		t.Fatal("别人的素材 404")
+	}
+}
+
+// 仿照北师大 808 真题自拟两年：Markdown 标题、年份后没有「年」字、论述题按专业分组（每组 2 × 35 分）。
+const groupedYears = `## 2024 某某大学 808 中国语言文学真题
+### 一、名词解释（共 12 分，每题 6 分）
+1. 意境
+2. 典型
+### 三、论述题（本题共分两组，请按专业分组答题，每组共 70 分，组内 2 小题，每小题 35 分，回答非报考专业不得分）
+**第一组：请选择文艺学专业的考生作答**
+1. 什么是比较文学形象学？
+2. 谈谈异国形象中「他者」与「自我」的关系。
+**第二组：请选择学科教学（语文）专业的考生作答**
+夫君子之行，静以修身，俭以养德。非淡泊无以明志，非宁静无以致远。
+1. 请翻译上面这段话。
+2. 请谈谈你对文章主题内涵的理解。
+## 2025 某某大学 808 中国语言文学真题
+### 一、名词解释（共 12 分，每题 6 分）
+1. 复句
+2. 异文
+### 三、论述题（本题共分两组，请按专业分组答题，每组共 70 分，组内 2 小题，每小题 35 分，回答非报考专业不得分）
+**第一组：请选择文艺学专业的考生作答**
+1. 如何理解梁启超的小说观？
+2. 谈一谈比较文学变异学。
+**第二组：请选择学科教学（语文）专业的考生作答**
+1. 翻译孟子的这句话，并分析主旨。
+2. 结合事例，谈一谈对你的启示。`
+
+// 按专业分组的论述题每年只统计一组（与真题卷一致）；早先没认出试卷标题导入的真题（没有年份、分值）可按资料原文补全。
+func TestExamProfileGroupsAndRepair(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	uid, sid := f.user(t)
+	other, _ := f.user(t)
+	f.importText(t, uid, sid, "question", "808 真题", groupedYears)
+
+	check := func(label, group string) {
+		t.Helper()
+		p, err := f.bank.ExamProfile(ctx, uid, sid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !p.Ready || p.PaperCount != 2 || p.PendingQuestions != 0 {
+			t.Fatalf("%s：%+v", label, p)
+		}
+		// 名词解释 2 × 6 = 12，论述只算一组 2 × 35 = 70；不能把两组 4 道论述都算进去
+		if len(p.Structure) != 2 || p.Structure[0].Total != 12 || p.Structure[1].Count != 2 || p.Structure[1].Total != 70 || p.StableYears != 2 {
+			t.Fatalf("%s 结构：%+v", label, p.Structure)
+		}
+		if !strings.Contains(p.GroupNote, group) {
+			t.Fatalf("%s 应写明按哪一组统计：%q", label, p.GroupNote)
+		}
+	}
+	check("没设报考方向", "暂按「第一组」")
+	if _, err := f.db.Exec("UPDATE subjects SET my_majors = '学科教学（语文）' WHERE id = ?", sid); err != nil {
+		t.Fatal(err)
+	}
+	check("按报考方向", "报考方向的「第二组」")
+
+	// 模拟早先的导入：题没有年份、算练习题，名词解释没有分值，也没有分组与材料
+	n, err := f.db.Exec("UPDATE questions SET exam_year = NULL, source = 'exercise', group_label = NULL, group_majors = NULL, passage = NULL, passage_key = NULL, "+
+		"score = IF(qtype = 'term', NULL, score) WHERE owner_user_id = ?", uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := n.RowsAffected()
+	p, err := f.bank.ExamProfile(ctx, uid, sid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Ready || p.PaperCount != 0 || rows != 12 {
+		t.Fatalf("旧导入：%d 题 %+v", rows, p)
+	}
+	if n, err := f.imp.Repairable(ctx, uid, sid); err != nil || n != 12 {
+		t.Fatalf("能补全的题数：%v %d", err, n)
+	}
+	if _, err := f.imp.Repairable(ctx, other, sid); !apperr.IsKind(err, apperr.NotFound) {
+		t.Fatalf("别人的专业课应 404：%v", err)
+	}
+
+	if _, err := f.imp.RepairExamInfo(ctx, other, sid); !apperr.IsKind(err, apperr.NotFound) {
+		t.Fatalf("别人的专业课应 404：%v", err)
+	}
+	r, err := f.imp.RepairExamInfo(ctx, uid, sid)
+	if err != nil || r.Questions != 12 || len(r.Years) != 2 || r.Years[0] != 2024 || r.Papers != 2 {
+		t.Fatalf("补全：%v %+v", err, r)
+	}
+	check("补全后", "报考方向的「第二组」")
+	var withPassage int
+	_ = f.db.QueryRow("SELECT COUNT(*) FROM questions WHERE owner_user_id = ? AND passage LIKE '夫君子之行%' AND group_label = '第二组'", uid).Scan(&withPassage)
+	if withPassage != 2 {
+		t.Fatalf("共用材料与分组也补上：%d", withPassage)
+	}
+	var actual string
+	_ = f.db.QueryRow("SELECT actual_score FROM papers WHERE owner_user_id = ? AND exam_year = 2025", uid).Scan(&actual)
+	if actual != "82.00" {
+		t.Fatalf("重新组卷只计一组：%s", actual)
+	}
+	if r, err := f.imp.RepairExamInfo(ctx, uid, sid); err != nil || r.Questions != 0 {
+		t.Fatalf("再补一次什么也不改：%v %+v", err, r)
+	}
+	// 只导入过习题集（资料里没有年份）：没有能补全的题，不提示「重新识别」
+	uid3, sid3 := f.user(t)
+	f.importText(t, uid3, sid3, "question", "习题集", "一、名词解释（每题 5 分）\n1. 意境\n2. 典型\n二、简答题\n3. 简述唐传奇的艺术成就。")
+	if n, err := f.imp.Repairable(ctx, uid3, sid3); err != nil || n != 0 {
+		t.Fatalf("习题集不当真题：%v %d", err, n)
+	}
+
+	// 还没确认入库的题：给出题数和任务，方便去核对页
+	m, err := f.mat.CreatePasted(ctx, uid, sid, "question", "2023 真题", strings.ReplaceAll(twoYears, "2024", "2022"), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := f.imp.CreateJob(ctx, uid, sid, "question", []uint64{m.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err = f.bank.ExamProfile(ctx, uid, sid)
+	if err != nil || p.PendingQuestions != 6 || p.PendingJobID != job.ID {
+		t.Fatalf("待确认：%v %d %d", err, p.PendingQuestions, p.PendingJobID)
 	}
 }

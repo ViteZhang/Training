@@ -1,7 +1,7 @@
 -- 考情分析、知识图谱、作文知识库（T14）。每条查询都带 owner_user_id。
 
 -- name: ListBankExamQuestions :many
-SELECT id, qtype, score, exam_year, is_recollection, source_material_id, LEFT(stem, 200) AS stem
+SELECT id, qtype, score, exam_year, is_recollection, source_material_id, LEFT(stem, 200) AS stem, group_label, group_majors
 FROM questions WHERE bank_id = ? AND owner_user_id = ? AND source = 'exam' AND status = 'active'
 ORDER BY exam_year, id;
 
@@ -62,3 +62,32 @@ UPDATE essay_materials SET favorite = ? WHERE id = ? AND owner_user_id = ?;
 
 -- name: EssayMaterialExists :one
 SELECT EXISTS (SELECT 1 FROM essay_materials WHERE id = ? AND owner_user_id = ?);
+
+-- name: ListExamRepairCandidates :many
+-- 从资料导入、却缺年份或缺分值的题（多是切题规则认不出试卷标题时导入的真题），按资料原文重新识别补全（3.8）。
+SELECT id, qtype, stem, score, exam_year, source, source_material_id, content_hash, group_label, group_majors, passage
+FROM questions
+WHERE bank_id = ? AND owner_user_id = ? AND status = 'active' AND source IN ('exam', 'exercise') AND source_material_id IS NOT NULL
+  AND (exam_year IS NULL OR score IS NULL)
+ORDER BY source_material_id, id;
+
+-- name: ListBankExamKeys :many
+-- 题库里已有的真题（内容哈希 + 年份），补全时跳过与它们重复的旧题。
+SELECT content_hash, exam_year FROM questions
+WHERE bank_id = ? AND owner_user_id = ? AND status = 'active' AND source = 'exam' AND exam_year IS NOT NULL;
+
+-- name: FillQuestionExamInfo :exec
+UPDATE questions SET source = ?, exam_year = ?, score = ?, group_label = ?, group_majors = ?, passage = ?, passage_key = ?
+WHERE id = ? AND owner_user_id = ?;
+
+-- name: CountPendingImportQuestions :one
+-- 还没确认入库的题（3.8 提示先去确认）：最近一个任务的 ID 用来跳到核对页。
+SELECT COUNT(*) AS n, CAST(COALESCE(MAX(j.id), 0) AS UNSIGNED) AS job_id
+FROM import_items i JOIN import_jobs j ON j.id = i.job_id
+WHERE j.bank_id = ? AND j.owner_user_id = ? AND j.status = 'reviewing'
+  AND i.item_type = 'question' AND i.status <> 'deleted' AND i.created_entity_id IS NULL;
+
+-- name: GetBankMyMajors :one
+-- 这门课记下的报考方向（按专业分组的论述题只计这一组）。
+SELECT s.my_majors FROM banks b JOIN subjects s ON s.id = b.subject_id
+WHERE b.id = ? AND b.owner_user_id = ? AND s.owner_user_id = ?;

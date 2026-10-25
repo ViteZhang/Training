@@ -699,18 +699,12 @@ func pickGroup(qs []dbq.ListExamQuestionsByYearRow, mine string) ([]dbq.ListExam
 			majors[l] = x.GroupMajors.String
 		}
 	}
-	if len(labels) <= 1 {
+	chosen, auto := ChooseGroup(labels, majors, mine)
+	if chosen == "" {
 		return qs, ""
 	}
-	chosen, note := "", ""
-	for _, l := range labels {
-		if mine != "" && MatchMajors(mine, majors[l]) {
-			chosen = l
-			break
-		}
-	}
-	if chosen == "" {
-		chosen = labels[0]
+	note := ""
+	if auto {
 		note = fmt.Sprintf("论述题按专业分组，这套卷只按「%s」计分", chosen)
 	}
 	out := make([]dbq.ListExamQuestionsByYearRow, 0, len(qs))
@@ -720,4 +714,19 @@ func pickGroup(qs []dbq.ListExamQuestionsByYearRow, mine string) ([]dbq.ListExam
 		}
 	}
 	return out, note
+}
+
+// ChooseGroup 在一套卷的专业分组里选计分的那一组（回答非报考专业不得分）：与报考方向匹配的组；
+// 没设方向或都对不上时取卷面上的第一组（auto 为 true，界面要写明）。不到两组时返回空，表示不用筛。
+// 真题卷与考情分析共用，保证两边按同一组计分。
+func ChooseGroup(labels []string, majors map[string]string, mine string) (chosen string, auto bool) {
+	if len(labels) <= 1 {
+		return "", false
+	}
+	for _, l := range labels {
+		if mine != "" && MatchMajors(mine, majors[l]) {
+			return l, false
+		}
+	}
+	return labels[0], true
 }

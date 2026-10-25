@@ -62,7 +62,38 @@ func (h *Handlers) GetExamProfile(c *gin.Context, subjectID gen.SubjectId) {
 		out.StableYears, out.ChangedYears, out.HighFreqTotal = &p.StableYears, &p.ChangedYears, &p.HighFreqTotal
 		out.TotalMinutes, out.CheckMinutes = &p.TotalMinutes, &p.CheckMinutes
 	}
+	if p.GroupNote != "" {
+		out.GroupNote = &p.GroupNote
+	}
+	out.PendingQuestions = &p.PendingQuestions
+	repairable := 0
+	if !p.Ready {
+		// 真题不够时才算：按资料原文重新切一遍，看有几道缺年份、分值的题能补上（不写库）。
+		if repairable, err = h.deps.Importer.Repairable(c.Request.Context(), currentUser(c), uint64(subjectID)); err != nil {
+			_ = c.Error(err)
+			return
+		}
+	}
+	out.RepairCandidates = &repairable
+	if p.PendingJobID > 0 {
+		id := int64(p.PendingJobID)
+		out.PendingJobId = &id
+	}
 	c.JSON(http.StatusOK, out)
+}
+
+// RepairExamProfile 按资料原文补全真题的年份与分值（3.8），之后考情分析重新统计。
+func (h *Handlers) RepairExamProfile(c *gin.Context, subjectID gen.SubjectId) {
+	r, err := h.deps.Importer.RepairExamInfo(c.Request.Context(), currentUser(c), uint64(subjectID))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	years := r.Years
+	if years == nil {
+		years = []int{}
+	}
+	c.JSON(http.StatusOK, gin.H{"questions": r.Questions, "years": years, "papers": r.Papers})
 }
 
 func toGenRelation(r bank.Relation) gen.KnowledgeRelation {

@@ -105,6 +105,8 @@ type Querier interface {
 	// 删除资料前说明连带影响（3.1d）。调用前已用 GetMaterial 核对资料属于当前用户，下面按资料 ID 统计。
 	CountMaterialImpact(ctx context.Context, arg CountMaterialImpactParams) (CountMaterialImpactRow, error)
 	CountMyInvites(ctx context.Context, inviterID uint64) (int64, error)
+	// 还没确认入库的题（3.8 提示先去确认）：最近一个任务的 ID 用来跳到核对页。
+	CountPendingImportQuestions(ctx context.Context, arg CountPendingImportQuestionsParams) (CountPendingImportQuestionsRow, error)
 	// 待背诵：有原文表述可背的知识点，从没背过或背诵复习日已到（与 4.14 背诵队列一致）。
 	CountReciteDue(ctx context.Context, arg CountReciteDueParams) (int64, error)
 	CountSessionsSince(ctx context.Context, arg CountSessionsSinceParams) (int64, error)
@@ -185,6 +187,7 @@ type Querier interface {
 	ExportWrongBook(ctx context.Context, arg ExportWrongBookParams) ([]ExportWrongBookRow, error)
 	FailEssayGrading(ctx context.Context, arg FailEssayGradingParams) error
 	FailExportJob(ctx context.Context, arg FailExportJobParams) error
+	FillQuestionExamInfo(ctx context.Context, arg FillQuestionExamInfoParams) error
 	// 按「父节点 + 层级 + 名称」找已有知识点，导入时同名节点复用，树不重复（parent_id 可空，用 <=> 比较）。
 	FindKPByName(ctx context.Context, arg FindKPByNameParams) (uint64, error)
 	FinishEssayGrading(ctx context.Context, arg FinishEssayGradingParams) error
@@ -208,6 +211,8 @@ type Querier interface {
 	GetBankForSubject(ctx context.Context, arg GetBankForSubjectParams) (Bank, error)
 	GetBankInsight(ctx context.Context, arg GetBankInsightParams) (GetBankInsightRow, error)
 	GetBankKP(ctx context.Context, arg GetBankKPParams) (KnowledgePoint, error)
+	// 这门课记下的报考方向（按专业分组的论述题只计这一组）。
+	GetBankMyMajors(ctx context.Context, arg GetBankMyMajorsParams) (sql.NullString, error)
 	// 覆盖此刻、未收回的会员时段。
 	GetCurrentMembership(ctx context.Context, arg GetCurrentMembershipParams) (Membership, error)
 	GetDailyPlan(ctx context.Context, arg GetDailyPlanParams) (DailyPlan, error)
@@ -388,6 +393,8 @@ type Querier interface {
 	ListAttemptedSince(ctx context.Context, arg ListAttemptedSinceParams) ([]uint64, error)
 	ListAttemptsSince(ctx context.Context, arg ListAttemptsSinceParams) ([]ListAttemptsSinceRow, error)
 	ListBankEssayTopics(ctx context.Context, arg ListBankEssayTopicsParams) ([]ListBankEssayTopicsRow, error)
+	// 题库里已有的真题（内容哈希 + 年份），补全时跳过与它们重复的旧题。
+	ListBankExamKeys(ctx context.Context, arg ListBankExamKeysParams) ([]ListBankExamKeysRow, error)
 	// 考情分析、知识图谱、作文知识库（T14）。每条查询都带 owner_user_id。
 	ListBankExamQuestions(ctx context.Context, arg ListBankExamQuestionsParams) ([]ListBankExamQuestionsRow, error)
 	ListBankKPs(ctx context.Context, arg ListBankKPsParams) ([]ListBankKPsRow, error)
@@ -413,6 +420,8 @@ type Querier interface {
 	ListExamEndsFrom(ctx context.Context, firstExamEnd time.Time) ([]ExamDate, error)
 	// 组真题卷：某年份的真题（回忆版不计入，PRD 3.8），按题型、原题号排序。
 	ListExamQuestionsByYear(ctx context.Context, arg ListExamQuestionsByYearParams) ([]ListExamQuestionsByYearRow, error)
+	// 从资料导入、却缺年份或缺分值的题（多是切题规则认不出试卷标题时导入的真题），按资料原文重新识别补全（3.8）。
+	ListExamRepairCandidates(ctx context.Context, arg ListExamRepairCandidatesParams) ([]ListExamRepairCandidatesRow, error)
 	// 24 小时后删除 OSS 对象（定时任务）。
 	ListExpiredExports(ctx context.Context, expiresAt sql.NullTime) ([]ListExpiredExportsRow, error)
 	ListFeatureFlags(ctx context.Context) ([]ListFeatureFlagsRow, error)

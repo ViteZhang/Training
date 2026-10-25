@@ -14,6 +14,31 @@ import (
 	"peetraining-server/internal/dbtypes"
 )
 
+const countPendingImportQuestions = `-- name: CountPendingImportQuestions :one
+SELECT COUNT(*) AS n, CAST(COALESCE(MAX(j.id), 0) AS UNSIGNED) AS job_id
+FROM import_items i JOIN import_jobs j ON j.id = i.job_id
+WHERE j.bank_id = ? AND j.owner_user_id = ? AND j.status = 'reviewing'
+  AND i.item_type = 'question' AND i.status <> 'deleted' AND i.created_entity_id IS NULL
+`
+
+type CountPendingImportQuestionsParams struct {
+	BankID      uint64
+	OwnerUserID uint64
+}
+
+type CountPendingImportQuestionsRow struct {
+	N     int64
+	JobID int64
+}
+
+// 还没确认入库的题（3.8 提示先去确认）：最近一个任务的 ID 用来跳到核对页。
+func (q *Queries) CountPendingImportQuestions(ctx context.Context, arg CountPendingImportQuestionsParams) (CountPendingImportQuestionsRow, error) {
+	row := q.db.QueryRowContext(ctx, countPendingImportQuestions, arg.BankID, arg.OwnerUserID)
+	var i CountPendingImportQuestionsRow
+	err := row.Scan(&i.N, &i.JobID)
+	return i, err
+}
+
 const deleteKPRelation = `-- name: DeleteKPRelation :execrows
 DELETE FROM kp_relations WHERE id = ? AND owner_user_id = ?
 `
@@ -45,6 +70,38 @@ func (q *Queries) EssayMaterialExists(ctx context.Context, arg EssayMaterialExis
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const fillQuestionExamInfo = `-- name: FillQuestionExamInfo :exec
+UPDATE questions SET source = ?, exam_year = ?, score = ?, group_label = ?, group_majors = ?, passage = ?, passage_key = ?
+WHERE id = ? AND owner_user_id = ?
+`
+
+type FillQuestionExamInfoParams struct {
+	Source      QuestionsSource
+	ExamYear    sql.NullInt16
+	Score       sql.NullString
+	GroupLabel  sql.NullString
+	GroupMajors sql.NullString
+	Passage     sql.NullString
+	PassageKey  sql.NullString
+	ID          uint64
+	OwnerUserID sql.NullInt64
+}
+
+func (q *Queries) FillQuestionExamInfo(ctx context.Context, arg FillQuestionExamInfoParams) error {
+	_, err := q.db.ExecContext(ctx, fillQuestionExamInfo,
+		arg.Source,
+		arg.ExamYear,
+		arg.Score,
+		arg.GroupLabel,
+		arg.GroupMajors,
+		arg.Passage,
+		arg.PassageKey,
+		arg.ID,
+		arg.OwnerUserID,
+	)
+	return err
 }
 
 const getActiveEssayRubric = `-- name: GetActiveEssayRubric :one
@@ -120,6 +177,25 @@ func (q *Queries) GetBankInsight(ctx context.Context, arg GetBankInsightParams) 
 	return i, err
 }
 
+const getBankMyMajors = `-- name: GetBankMyMajors :one
+SELECT s.my_majors FROM banks b JOIN subjects s ON s.id = b.subject_id
+WHERE b.id = ? AND b.owner_user_id = ? AND s.owner_user_id = ?
+`
+
+type GetBankMyMajorsParams struct {
+	ID            uint64
+	OwnerUserID   sql.NullInt64
+	OwnerUserID_2 uint64
+}
+
+// 这门课记下的报考方向（按专业分组的论述题只计这一组）。
+func (q *Queries) GetBankMyMajors(ctx context.Context, arg GetBankMyMajorsParams) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getBankMyMajors, arg.ID, arg.OwnerUserID, arg.OwnerUserID_2)
+	var my_majors sql.NullString
+	err := row.Scan(&my_majors)
+	return my_majors, err
+}
+
 const getKPRelation = `-- name: GetKPRelation :one
 SELECT id, owner_user_id, bank_id, kp_a_id, kp_b_id, relation_type, origin, created_at FROM kp_relations WHERE id = ? AND owner_user_id = ?
 `
@@ -175,9 +251,48 @@ func (q *Queries) InsertKPRelation(ctx context.Context, arg InsertKPRelationPara
 	return result.LastInsertId()
 }
 
+const listBankExamKeys = `-- name: ListBankExamKeys :many
+SELECT content_hash, exam_year FROM questions
+WHERE bank_id = ? AND owner_user_id = ? AND status = 'active' AND source = 'exam' AND exam_year IS NOT NULL
+`
+
+type ListBankExamKeysParams struct {
+	BankID      uint64
+	OwnerUserID sql.NullInt64
+}
+
+type ListBankExamKeysRow struct {
+	ContentHash string
+	ExamYear    sql.NullInt16
+}
+
+// 题库里已有的真题（内容哈希 + 年份），补全时跳过与它们重复的旧题。
+func (q *Queries) ListBankExamKeys(ctx context.Context, arg ListBankExamKeysParams) ([]ListBankExamKeysRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBankExamKeys, arg.BankID, arg.OwnerUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBankExamKeysRow{}
+	for rows.Next() {
+		var i ListBankExamKeysRow
+		if err := rows.Scan(&i.ContentHash, &i.ExamYear); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBankExamQuestions = `-- name: ListBankExamQuestions :many
 
-SELECT id, qtype, score, exam_year, is_recollection, source_material_id, LEFT(stem, 200) AS stem
+SELECT id, qtype, score, exam_year, is_recollection, source_material_id, LEFT(stem, 200) AS stem, group_label, group_majors
 FROM questions WHERE bank_id = ? AND owner_user_id = ? AND source = 'exam' AND status = 'active'
 ORDER BY exam_year, id
 `
@@ -195,6 +310,8 @@ type ListBankExamQuestionsRow struct {
 	IsRecollection   bool
 	SourceMaterialID sql.NullInt64
 	Stem             string
+	GroupLabel       sql.NullString
+	GroupMajors      sql.NullString
 }
 
 // 考情分析、知识图谱、作文知识库（T14）。每条查询都带 owner_user_id。
@@ -215,6 +332,8 @@ func (q *Queries) ListBankExamQuestions(ctx context.Context, arg ListBankExamQue
 			&i.IsRecollection,
 			&i.SourceMaterialID,
 			&i.Stem,
+			&i.GroupLabel,
+			&i.GroupMajors,
 		); err != nil {
 			return nil, err
 		}
@@ -363,6 +482,69 @@ func (q *Queries) ListEssayTopicsKB(ctx context.Context, arg ListEssayTopicsKBPa
 			&i.ExamYear,
 			&i.RequiredWords,
 			&i.ModelEssayCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExamRepairCandidates = `-- name: ListExamRepairCandidates :many
+SELECT id, qtype, stem, score, exam_year, source, source_material_id, content_hash, group_label, group_majors, passage
+FROM questions
+WHERE bank_id = ? AND owner_user_id = ? AND status = 'active' AND source IN ('exam', 'exercise') AND source_material_id IS NOT NULL
+  AND (exam_year IS NULL OR score IS NULL)
+ORDER BY source_material_id, id
+`
+
+type ListExamRepairCandidatesParams struct {
+	BankID      uint64
+	OwnerUserID sql.NullInt64
+}
+
+type ListExamRepairCandidatesRow struct {
+	ID               uint64
+	Qtype            QuestionsQtype
+	Stem             string
+	Score            sql.NullString
+	ExamYear         sql.NullInt16
+	Source           QuestionsSource
+	SourceMaterialID sql.NullInt64
+	ContentHash      string
+	GroupLabel       sql.NullString
+	GroupMajors      sql.NullString
+	Passage          sql.NullString
+}
+
+// 从资料导入、却缺年份或缺分值的题（多是切题规则认不出试卷标题时导入的真题），按资料原文重新识别补全（3.8）。
+func (q *Queries) ListExamRepairCandidates(ctx context.Context, arg ListExamRepairCandidatesParams) ([]ListExamRepairCandidatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listExamRepairCandidates, arg.BankID, arg.OwnerUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListExamRepairCandidatesRow{}
+	for rows.Next() {
+		var i ListExamRepairCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Qtype,
+			&i.Stem,
+			&i.Score,
+			&i.ExamYear,
+			&i.Source,
+			&i.SourceMaterialID,
+			&i.ContentHash,
+			&i.GroupLabel,
+			&i.GroupMajors,
+			&i.Passage,
 		); err != nil {
 			return nil, err
 		}
