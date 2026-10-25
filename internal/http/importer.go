@@ -304,3 +304,24 @@ func toImportItem(it dbq.GetImportItemRow, fileName func(uint64) string) gen.Imp
 	}
 	return out
 }
+
+func (h *Handlers) DeleteImportItems(c *gin.Context, jobID gen.JobId) {
+	var req gen.IdList
+	if !bind(c, &req) {
+		return
+	}
+	n, counts, err := h.deps.Importer.DeleteItems(c.Request.Context(), currentUser(c), uint64(jobID), uint64s(req.Ids))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, gen.DeleteImportItemsResult{Deleted: n, Counts: toCounts(counts)})
+}
+
+func uint64s(in []int64) []uint64 {
+	out := make([]uint64, len(in))
+	for i, v := range in {
+		out[i] = uint64(v)
+	}
+	return out
+}

@@ -430,6 +430,19 @@ func (h *Handlers) DeleteQuestion(c *gin.Context, id gen.QuestionId) {
 	c.Status(http.StatusNoContent)
 }
 
+func (h *Handlers) DeleteQuestions(c *gin.Context) {
+	var req gen.IdList
+	if !bind(c, &req) {
+		return
+	}
+	n, err := h.deps.Bank.DeleteQuestions(c.Request.Context(), currentUser(c), uint64s(req.Ids))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": n})
+}
+
 func toQuestionDetail(d bank.QuestionDetail) gen.QuestionDetail {
 	out := gen.QuestionDetail{Id: int64(d.ID), Qtype: gen.QuestionType(d.QType), Stem: d.Stem, Source: gen.QuestionSource(d.Source),
 		ExamYear: d.ExamYear, Score: f32(d.Score), OriginTags: d.OriginTags, RubricPoints: toRubricPoints(d.Rubric), RubricVersion: d.RubricVersion,

@@ -117,6 +117,53 @@ func (s *Service) UpdateItem(ctx context.Context, userID, itemID uint64, p Patch
 	return s.GetItem(ctx, userID, itemID)
 }
 
+// DeleteItems 批量删除待确认条目（1.7 多选删除）：先核对每一条都属于这个任务，有一条不是就整体返回 404；
+// 已入库的条目跳过（到题库里删），已删除的不重复计数。返回这次删掉的条数。
+func (s *Service) DeleteItems(ctx context.Context, userID, jobID uint64, ids []uint64) (int, dbq.CountImportItemsRow, error) {
+	if _, err := s.q.GetImportJob(ctx, dbq.GetImportJobParams{ID: jobID, OwnerUserID: userID}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, dbq.CountImportItemsRow{}, apperr.NotFoundErr()
+		}
+		return 0, dbq.CountImportItemsRow{}, err
+	}
+	items := make([]Item, 0, len(ids))
+	seen := map[uint64]bool{}
+	for _, id := range ids {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		it, err := s.GetItem(ctx, userID, id)
+		if err != nil {
+			return 0, dbq.CountImportItemsRow{}, err
+		}
+		if it.JobID != jobID {
+			return 0, dbq.CountImportItemsRow{}, apperr.NotFoundErr()
+		}
+		items = append(items, it)
+	}
+	n := 0
+	err := store.WithTx(ctx, s.db, func(q *dbq.Queries) error {
+		for _, it := range items {
+			if it.CreatedEntityID.Valid || it.Status == dbq.ImportItemsStatusDeleted {
+				continue
+			}
+			if err := q.UpdateImportItem(ctx, dbq.UpdateImportItemParams{Payload: it.Payload, Status: dbq.ImportItemsStatusDeleted,
+				NeedsReview: it.NeedsReview, ReviewReasons: it.ReviewReasons, DuplicateOfQuestionID: it.DuplicateOfQuestionID,
+				ID: it.ID, OwnerUserID: userID}); err != nil {
+				return err
+			}
+			n++
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, dbq.CountImportItemsRow{}, err
+	}
+	c, err := s.q.CountImportItems(ctx, dbq.CountImportItemsParams{JobID: jobID, OwnerUserID: userID})
+	return n, c, err
+}
+
 func validateQuestion(q *QuestionDraft, old QuestionDraft) error {
 	q.Stem = strings.TrimSpace(q.Stem)
 	if q.Stem == "" || !slices.Contains(ai.QTypes, q.QType) {

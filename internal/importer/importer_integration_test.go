@@ -408,6 +408,7 @@ func TestImportOwnership(t *testing.T) {
 	_, checks["confirm"] = f.svc.Confirm(ctx, other, job.ID, nil)
 	_, checks["retry"] = f.svc.Retry(ctx, other, job.ID, m)
 	_, checks["remove"] = f.svc.Remove(ctx, other, job.ID, m)
+	_, _, checks["delete-items"] = f.svc.DeleteItems(ctx, other, job.ID, []uint64{items[0].ID})
 	_, checks["create-with-others-material"] = f.svc.CreateJob(ctx, other, otherSubject, "question", []uint64{m})
 	for name, err := range checks {
 		if !apperr.IsKind(err, apperr.NotFound) {
@@ -416,6 +417,19 @@ func TestImportOwnership(t *testing.T) {
 	}
 	if list, _ := f.svc.List(ctx, other, false); len(list) != 0 {
 		t.Error("列表不应看到别人的任务")
+	}
+
+	// 批量删除自己的待确认条目：可重复调用，第二次不再计数
+	before := items[0].Status
+	n, c, err := f.svc.DeleteItems(ctx, uid, job.ID, []uint64{items[0].ID})
+	if err != nil || n != 1 || before == "deleted" {
+		t.Fatalf("批量删除：%d %v", n, err)
+	}
+	if n, c2, err := f.svc.DeleteItems(ctx, uid, job.ID, []uint64{items[0].ID}); err != nil || n != 0 || c2 != c {
+		t.Fatalf("重复删除：%d %v %+v %+v", n, err, c, c2)
+	}
+	if it, _ := f.svc.GetItem(ctx, uid, items[0].ID); it.Status != "deleted" {
+		t.Fatalf("状态应为 deleted：%s", it.Status)
 	}
 }
 
