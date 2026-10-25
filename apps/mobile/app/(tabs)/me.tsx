@@ -3,11 +3,13 @@
 import { colors, fontFamily, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, ErrorState, Icon, Loading, Screen, Text } from '@/components';
 import { EntryGrid, entryTones } from '@/features/today/Cards';
 import { useDashboard } from '@/features/dashboard/api';
 import { mineKeys, tierNames, useMe, useOverview, useProfile, useSubjects, ymd } from '@/features/mine/api';
+import { NicknameSheet } from '@/features/mine/NicknameSheet';
 import { stageInfo } from '@/features/onboarding/api';
 import { appConfig } from '@/lib/config';
 import { api, unwrap } from '@/lib/api';
@@ -36,6 +38,7 @@ export default function MeTab() {
   const list = subjects.data?.items ?? [];
   const main = list.find((s) => !s.is_essay) ?? list[0];
   const dash = useDashboard(main?.id ?? 0);
+  const [nicknameSheet, setNicknameSheet] = useState(false);
 
   if (me.isLoading || profile.isLoading) return <Screen><Loading rows={6} /></Screen>;
   if (me.isError || !me.data) return <Screen><ErrorState error={me.error} onRetry={() => void me.refetch()} /></Screen>;
@@ -62,7 +65,12 @@ export default function MeTab() {
               </Text>
             </View>
             <View style={styles.flex}>
-              <Text variant="h2">{m.nickname || '考研人'}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="修改昵称" hitSlop={8} onPress={() => setNicknameSheet(true)} style={styles.nameRow}>
+                <Text variant="h2" numberOfLines={1} style={styles.shrink}>
+                  {m.nickname || '考研人'}
+                </Text>
+                <Icon name="edit" size={16} color={semantic.textSecondary} />
+              </Pressable>
               <Text variant="small">
                 {list.map((x) => x.code || x.name).join(' · ')}
                 {p ? ` · ${stageInfo[p.stage].name} · ${p.days_to_exam} 天后初试` : ''}
@@ -175,6 +183,7 @@ export default function MeTab() {
         </Card>
         {appConfig.variant !== 'production' ? <Button title="基础组件演示" kind="text" onPress={() => router.push('/dev/components')} /> : null}
       </ScrollView>
+      {nicknameSheet ? <NicknameSheet current={m.nickname} onClose={() => setNicknameSheet(false)} /> : null}
     </Screen>
   );
 }
@@ -183,6 +192,8 @@ const styles = StyleSheet.create({
   scroll: { gap: 12, paddingBottom: spacing.xl },
   gap: { gap: 10 },
   flex: { flex: 1 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', maxWidth: '100%' },
+  shrink: { flexShrink: 1 },
   bold: { fontWeight: '700' },
   h16: { fontSize: 16 },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingTop: spacing.sm },
