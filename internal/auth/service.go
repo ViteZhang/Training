@@ -209,33 +209,42 @@ func acceptLatest(ctx context.Context, q *dbq.Queries, userID uint64, now time.T
 }
 
 func (s *Service) issue(ctx context.Context, q *dbq.Queries, userID uint64, dev Device, now time.Time, acc params.Account) (TokenPair, error) {
+	out, _, err := s.issueWithID(ctx, q, userID, dev, now, acc)
+	return out, err
+}
+
+// issueWithID 同 issue，另外返回新刷新令牌的记录 ID（轮换时记到旧令牌的 rotated_to_id）。
+func (s *Service) issueWithID(ctx context.Context, q *dbq.Queries, userID uint64, dev Device, now time.Time, acc params.Account) (TokenPair, uint64, error) {
 	access, accessExp, err := s.signAccess(userID, dev.ID, now, time.Duration(acc.AccessTokenMinutes)*time.Minute)
 	if err != nil {
-		return TokenPair{}, err
+		return TokenPair{}, 0, err
 	}
 	refresh, hash, err := newRefreshToken()
 	if err != nil {
-		return TokenPair{}, err
+		return TokenPair{}, 0, err
 	}
 	refreshExp := now.Add(time.Duration(acc.RefreshTokenDays) * 24 * time.Hour)
 	platform := dbq.RefreshTokensPlatform(dev.Platform)
 	if !platform.Valid() {
 		platform = dbq.RefreshTokensPlatformWeb
 	}
-	err = q.InsertRefreshToken(ctx, dbq.InsertRefreshTokenParams{
+	id, err := q.InsertRefreshToken(ctx, dbq.InsertRefreshTokenParams{
 		UserID: userID, DeviceID: dev.ID, DeviceName: truncate(dev.Name, 64), Platform: platform,
 		TokenHash: hash, ExpiresAt: refreshExp, LastUsedAt: sqlTime(now),
 	})
 	if err != nil {
-		return TokenPair{}, err
+		return TokenPair{}, 0, err
 	}
-	return TokenPair{AccessToken: access, AccessExpiresAt: accessExp, RefreshToken: refresh, RefreshExpiresAt: refreshExp}, nil
+	return TokenPair{AccessToken: access, AccessExpiresAt: accessExp, RefreshToken: refresh, RefreshExpiresAt: refreshExp}, uint64(id), nil
 }
 
 var errUnauthorized = apperr.New(apperr.Unauthorized, "登录已失效，请重新登录")
 
-// Refresh 用刷新令牌换新的一对令牌，旧刷新令牌立即作废。
+// Refresh 用刷新令牌换新的一对令牌，旧刷新令牌立即作废，并记下接班令牌（rotated_to_id）。
 // 已作废的刷新令牌又被使用，说明可能泄露：作废该设备的全部令牌，要求重新登录。
+// 例外：它的接班令牌一次都没用过，说明上次刷新服务端已完成、客户端没收到响应（安卓锁屏后网络被系统掐断），
+// 这时作废接班令牌、重新发一对。被这样作废的接班令牌不记 rotated_to_id，以后再出现就按泄露处理，
+// 所以盗用者和本人不能轮流续命。登录、退出登录作废的令牌也不记 rotated_to_id，不适用例外。
 func (s *Service) Refresh(ctx context.Context, refreshToken, deviceID string) (TokenPair, error) {
 	acc, err := s.params.Account(ctx)
 	if err != nil {
@@ -254,11 +263,20 @@ func (s *Service) Refresh(ctx context.Context, refreshToken, deviceID string) (T
 		if rt.DeviceID != deviceID || !rt.ExpiresAt.After(now) {
 			return errUnauthorized
 		}
+		replace := rt.ID
 		if rt.RevokedAt.Valid {
-			if _, err := q.RevokeDeviceTokens(ctx, dbq.RevokeDeviceTokensParams{RevokedAt: sqlTime(now), UserID: rt.UserID, DeviceID: rt.DeviceID}); err != nil {
+			succ, ok, err := unusedSuccessor(ctx, q, rt, now)
+			if err != nil {
 				return err
 			}
-			return errUnauthorized
+			if !ok {
+				if _, err := q.RevokeDeviceTokens(ctx, dbq.RevokeDeviceTokensParams{RevokedAt: sqlTime(now), UserID: rt.UserID, DeviceID: rt.DeviceID}); err != nil {
+					return err
+				}
+				return errUnauthorized
+			}
+			replace = succ.ID
+			s.log.Info("refresh response was lost; reissued tokens", "user_id", rt.UserID)
 		}
 		u, err := q.GetUserByID(ctx, rt.UserID)
 		if err != nil {
@@ -267,20 +285,40 @@ func (s *Service) Refresh(ctx context.Context, refreshToken, deviceID string) (T
 		if u.Status != dbq.UsersStatusActive {
 			return errUnauthorized
 		}
-		if err := q.RevokeRefreshToken(ctx, dbq.RevokeRefreshTokenParams{RevokedAt: sqlTime(now), ID: rt.ID}); err != nil {
+		if err := q.RevokeRefreshToken(ctx, dbq.RevokeRefreshTokenParams{RevokedAt: sqlTime(now), ID: replace}); err != nil {
 			return err
 		}
 		if err := q.TouchUserActive(ctx, dbq.TouchUserActiveParams{LastActiveAt: sqlTime(now), ID: u.ID}); err != nil {
 			return err
 		}
-		out, err = s.issue(ctx, q, u.ID, Device{ID: rt.DeviceID, Name: rt.DeviceName, Platform: string(rt.Platform)}, now, acc)
-		return err
+		var newID uint64
+		out, newID, err = s.issueWithID(ctx, q, u.ID, Device{ID: rt.DeviceID, Name: rt.DeviceName, Platform: string(rt.Platform)}, now, acc)
+		if err != nil {
+			return err
+		}
+		return q.SetRefreshTokenRotatedTo(ctx, dbq.SetRefreshTokenRotatedToParams{RotatedToID: sql.NullInt64{Int64: int64(newID), Valid: true}, ID: rt.ID})
 	})
 	// 作废操作要在返回 401 时也生效，所以上面把 401 当作错误回滚了事务；这里对「复用已作废令牌」单独补一次作废。
 	if apperr.IsKind(err, apperr.Unauthorized) {
 		s.revokeReused(ctx, refreshToken, now)
 	}
 	return out, err
+}
+
+// unusedSuccessor 找已作废令牌的接班令牌：轮换时记下的、同一设备、还没作废也没过期。
+func unusedSuccessor(ctx context.Context, q *dbq.Queries, rt dbq.RefreshToken, now time.Time) (dbq.RefreshToken, bool, error) {
+	if !rt.RotatedToID.Valid {
+		return dbq.RefreshToken{}, false, nil
+	}
+	succ, err := q.GetRefreshTokenByID(ctx, dbq.GetRefreshTokenByIDParams{ID: uint64(rt.RotatedToID.Int64), UserID: rt.UserID})
+	if errors.Is(err, sql.ErrNoRows) {
+		return dbq.RefreshToken{}, false, nil
+	}
+	if err != nil {
+		return dbq.RefreshToken{}, false, err
+	}
+	ok := succ.DeviceID == rt.DeviceID && !succ.RevokedAt.Valid && succ.ExpiresAt.After(now)
+	return succ, ok, nil
 }
 
 func (s *Service) revokeReused(ctx context.Context, refreshToken string, now time.Time) {

@@ -34,12 +34,18 @@ SELECT id FROM users WHERE status = 'deleting' AND deletion_due_at <= ? ORDER BY
 -- name: DeleteUser :exec
 DELETE FROM users WHERE id = ? AND status = 'deleting';
 
--- name: InsertRefreshToken :exec
+-- name: InsertRefreshToken :execlastid
 INSERT INTO refresh_tokens (user_id, device_id, device_name, platform, token_hash, expires_at, last_used_at)
 VALUES (?, ?, ?, ?, ?, ?, ?);
 
 -- name: GetRefreshTokenByHash :one
 SELECT * FROM refresh_tokens WHERE token_hash = ?;
+
+-- name: GetRefreshTokenByID :one
+SELECT * FROM refresh_tokens WHERE id = ? AND user_id = ?;
+
+-- name: SetRefreshTokenRotatedTo :exec
+UPDATE refresh_tokens SET rotated_to_id = ? WHERE id = ?;
 
 -- name: RevokeRefreshToken :exec
 UPDATE refresh_tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL;

@@ -267,6 +267,7 @@ type Querier interface {
 	GetReciteRecordByKey(ctx context.Context, arg GetReciteRecordByKeyParams) (ReciteRecord, error)
 	GetRedeemCodeForUpdate(ctx context.Context, codeHash string) (GetRedeemCodeForUpdateRow, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error)
+	GetRefreshTokenByID(ctx context.Context, arg GetRefreshTokenByIDParams) (RefreshToken, error)
 	GetReviewTask(ctx context.Context, id uint64) (GetReviewTaskRow, error)
 	GetRuleParam(ctx context.Context, paramKey string) (RuleParam, error)
 	GetStudyProfile(ctx context.Context, userID uint64) (StudyProfile, error)
@@ -351,7 +352,7 @@ type Querier interface {
 	InsertQuestionKP(ctx context.Context, arg InsertQuestionKPParams) error
 	InsertQuotaLedger(ctx context.Context, arg InsertQuotaLedgerParams) error
 	InsertReciteRecord(ctx context.Context, arg InsertReciteRecordParams) (int64, error)
-	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
+	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) (int64, error)
 	InsertRefund(ctx context.Context, arg InsertRefundParams) (int64, error)
 	InsertReviewTask(ctx context.Context, arg InsertReviewTaskParams) (int64, error)
 	InsertRubricPoint(ctx context.Context, arg InsertRubricPointParams) error
@@ -597,6 +598,7 @@ type Querier interface {
 	SetPaperItemAttempt(ctx context.Context, arg SetPaperItemAttemptParams) error
 	SetQuestionGeneratedFrom(ctx context.Context, arg SetQuestionGeneratedFromParams) error
 	SetQuestionRequiredWords(ctx context.Context, arg SetQuestionRequiredWordsParams) error
+	SetRefreshTokenRotatedTo(ctx context.Context, arg SetRefreshTokenRotatedToParams) error
 	SetSessionCursor(ctx context.Context, arg SetSessionCursorParams) error
 	// 自动判断只在用户没改过时生效（essay_set_by = 'user' 后不再自动改）。
 	SetSubjectEssayAuto(ctx context.Context, arg SetSubjectEssayAutoParams) error
