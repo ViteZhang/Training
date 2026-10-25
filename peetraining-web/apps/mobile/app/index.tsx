@@ -10,7 +10,7 @@ import { AgreementUpdateDialog } from '@/features/auth/AgreementUpdateDialog';
 import { logout } from '@/features/auth/actions';
 import { routeFor } from '@/features/auth/routing';
 import { UpdateDialog } from '@/features/auth/UpdateDialog';
-import { api, unwrap } from '@/lib/api';
+import { api, refreshSession, unwrap } from '@/lib/api';
 import { appConfig } from '@/lib/config';
 import { useSession } from '@/lib/session';
 import { storage } from '@/lib/storage';
@@ -28,6 +28,17 @@ function proceed(b: Schemas['Bootstrap'], setPending: (p: Pending | null) => voi
   }
   if (!loggedIn && useSession.getState().session) useSession.getState().clear();
   router.replace(routeFor({ loggedIn, onboardingStep: b.onboarding_step }));
+}
+
+/** 取启动配置；离线时返回 null，按本地登录态进入，联网后各页面再拉数据。 */
+async function fetchBootstrap(): Promise<Schemas['Bootstrap'] | null> {
+  try {
+    return await unwrap(
+      api.GET('/bootstrap', { params: { query: { platform: Platform.OS === 'ios' ? 'ios' : 'android', app_version: appConfig.version } } }),
+    );
+  } catch {
+    return null;
+  }
 }
 
 /** 先看版本更新：强制更新不可跳过；普通更新每个版本只提示一次。 */
@@ -48,13 +59,12 @@ export default function Splash() {
     const started = Date.now();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const load = async () => {
-      let b: Schemas['Bootstrap'] | null = null;
-      try {
-        b = await unwrap(
-          api.GET('/bootstrap', { params: { query: { platform: Platform.OS === 'ios' ? 'ios' : 'android', app_version: appConfig.version } } }),
-        );
-      } catch {
-        // 离线时按本地登录态进入，联网后各页面再拉数据。
+      let b = await fetchBootstrap();
+      if (b && !b.logged_in && useSession.getState().session) {
+        // /bootstrap 登录可选，访问令牌过期（如锁屏久了 App 被系统回收）时按未登录返回、不会触发刷新。
+        // 先用刷新令牌换新令牌再取一次；刷新因网络失败时保留登录态，按本地登录态进入。
+        if (await refreshSession()) b = await fetchBootstrap();
+        else if (useSession.getState().session) b = { ...b, logged_in: true };
       }
       const result = b ?? { server_time: '', app_name: appConfig.appName, flags: {}, logged_in: !!useSession.getState().session };
       timer = setTimeout(() => {
