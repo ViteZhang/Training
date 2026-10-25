@@ -16,6 +16,7 @@
 1. 开工前：`scripts/sync-codeup.sh status`；云效有新提交（同事可能直接在云效提交）就先 `scripts/sync-codeup.sh pull`，合并进当前分支
 2. 开发、测试、提交到 GitHub 分支，开 PR；**PR 用「Create a merge commit」合并，不要 Squash 或 Rebase**（会断开与云效的历史关联）
 3. 合并后在 main 上再执行一次 `status`、`pull`，然后 `scripts/sync-codeup.sh push server` / `push web`
+   - 推完 server 后发布生产：`scripts/yunxiao-flow.sh run` 拿到运行编号，再 `scripts/yunxiao-flow.sh wait <编号>` 等到构建、部署都成功（流水线目前没开推送自动触发）
 4. 推到云效 server 的 main 会发布到生产：推送前先跟用户确认；有新的数据库迁移时，提醒用户按 peetraining-server/docs/runbook.md 先在生产库执行迁移
 
 不要做的事：
