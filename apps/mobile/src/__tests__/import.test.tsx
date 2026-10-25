@@ -228,6 +228,31 @@ describe('1.7 确认导入结果', () => {
     );
   });
 
+  it('不需要的题可以单条删除，也可以多选后批量删除', async () => {
+    mockParams = { id: '7' };
+    mockResponses['GET /import-jobs/{jobId}'] = () => ({ status: 200, data: job('reviewing', []) });
+    mockResponses['GET /import-jobs/{jobId}/items'] = () => ({ status: 200, data: { counts, items: [item(1), item(2), item(3)] } });
+    mockResponses['POST /import-jobs/{jobId}/items/delete'] = () => ({ status: 200, data: { deleted: 1, counts } });
+    await wrap(<ConfirmScreen />);
+    await screen.findByText('题目 1');
+    await fireEvent.press(screen.getAllByLabelText('删除这一条')[0]!);
+    await waitFor(() =>
+      expect(mockCalls.find((c) => c.path === '/import-jobs/{jobId}/items/delete')?.init?.body).toEqual({ ids: [1] }),
+    );
+
+    mockCalls.length = 0;
+    mockResponses['POST /import-jobs/{jobId}/items/delete'] = () => ({ status: 200, data: { deleted: 2, counts } });
+    await fireEvent.press(screen.getByText('多选'));
+    await fireEvent.press(screen.getByText('题目 2'));
+    await fireEvent.press(screen.getByText('题目 3'));
+    await fireEvent.press(screen.getByText('删除所选 2 条'));
+    await fireEvent.press(await screen.findByText('删除'));
+    await waitFor(() =>
+      expect(mockCalls.find((c) => c.path === '/import-jobs/{jobId}/items/delete')?.init?.body).toEqual({ ids: [2, 3] }),
+    );
+    expect(mockCalls.some((c) => c.path === '/import-jobs/{jobId}/confirm')).toBe(false);
+  });
+
   it('题目导入额度不够时弹出开会员', async () => {
     mockParams = { id: '7' };
     mockResponses['GET /import-jobs/{jobId}'] = () => ({ status: 200, data: job('reviewing', []) });

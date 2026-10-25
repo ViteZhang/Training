@@ -548,6 +548,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/import-jobs/{jobId}/items/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["JobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 批量删除待确认条目（1.7 多选删除，如不是自己专业的题）
+         * @description 已入库的条目跳过（到题库里删）；可重复调用。任意一条不属于这个任务返回 404。
+         */
+        post: operations["deleteImportItems"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/import-items/{itemId}": {
         parameters: {
             query?: never;
@@ -795,6 +817,26 @@ export interface paths {
          * @description 改了采分点后之后的批改按新采分点，历史批改不变；采分点分值合计必须等于题目分值。
          */
         patch: operations["updateQuestion"];
+        trace?: never;
+    };
+    "/questions/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 批量删除题目（3.1b 多选删除），连同作答记录与错题
+         * @description 任意一道不是自己的题返回 404，全部不删。
+         */
+        post: operations["deleteQuestions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/subjects/{subjectId}/materials": {
@@ -6531,6 +6573,14 @@ export interface components {
             counts: components["schemas"]["ImportCounts"];
             next_cursor?: string;
         };
+        IdList: {
+            ids: number[];
+        };
+        DeleteImportItemsResult: {
+            /** @description 这次删掉的条数（已删除、已入库的不计） */
+            deleted: number;
+            counts: components["schemas"]["ImportCounts"];
+        };
         ConfirmImportResult: {
             question_count: number;
             kp_count: number;
@@ -7769,6 +7819,34 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    deleteImportItems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["JobId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdList"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteImportItemsResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     getImportItem: {
         parameters: {
             query?: never;
@@ -8248,6 +8326,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuestionDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteQuestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdList"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description 删除的题数 */
+                        deleted: number;
+                    };
                 };
             };
             400: components["responses"]["BadRequest"];

@@ -4,7 +4,7 @@ import { ApiError, type Schemas } from '@training/api-client';
 import { colors, fontFamily, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Button, ConfirmDialog, ErrorState, Icon, Loading, QuotaSheet, Screen, Text, toast } from '@/components';
 import { setStep } from '@/features/onboarding/api';
@@ -21,6 +21,7 @@ export default function SubjectStep() {
   const [year, setYear] = useState<number | undefined>(draft.examYear);
   const [name, setName] = useState('');
   const [school, setSchool] = useState(draft.targetSchoolMajor ?? '');
+  const schoolRef = useRef<TextInput>(null);
   const [quota, setQuota] = useState(false);
   const [removing, setRemoving] = useState<Schemas['Subject'] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -150,19 +151,23 @@ export default function SubjectStep() {
           <Text variant="caption" color={semantic.textPrimary} style={styles.label}>
             目标院校专业 <Text variant="caption">选填</Text>
           </Text>
-          <View style={styles.school}>
+          {/* 以前是灰底卡片里一行「未填写」，看起来像普通文字、找不到点哪里输入；改成和专业课一样的白底描边输入框 */}
+          <Pressable accessibilityRole="none" onPress={() => schoolRef.current?.focus()} style={styles.school}>
+            <Icon name="edit" size={18} color={semantic.textSecondary} />
             <TextInput
+              ref={schoolRef}
               accessibilityLabel="目标院校专业"
-              placeholder="未填写"
-              placeholderTextColor={semantic.textPrimary}
+              placeholder="点这里输入，如 北京师范大学 · 中国语言文学"
+              placeholderTextColor={colors.faint}
               value={school}
               onChangeText={setSchool}
               style={styles.schoolInput}
               maxLength={64}
+              returnKeyType="done"
               maxFontSizeMultiplier={layout.maxFontScale}
             />
-            <Text variant="small">以后收录了你的院校专业，会给你推送官方题库</Text>
-          </View>
+          </Pressable>
+          <Text variant="small">以后收录了你的院校专业，会给你推送官方题库</Text>
         </View>
       </ScrollView>
       <Footer>
@@ -213,6 +218,6 @@ const styles = StyleSheet.create({
   remove: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
   input: { flex: 1, minWidth: 0, minHeight: 44, fontSize: 15, color: semantic.textPrimary },
-  school: { gap: 2, minHeight: 56, justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 18, borderRadius: radius.xl, backgroundColor: semantic.fill },
-  schoolInput: { fontSize: 14, minHeight: 24, padding: 0, color: semantic.textPrimary },
+  school: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingHorizontal: 18, borderRadius: radius.card, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
+  schoolInput: { flex: 1, minWidth: 0, minHeight: 44, fontSize: 15, padding: 0, color: semantic.textPrimary },
 });
