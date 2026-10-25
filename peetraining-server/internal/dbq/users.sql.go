@@ -190,7 +190,7 @@ func (q *Queries) GetPublishedAgreementByID(ctx context.Context, id uint64) (Agr
 }
 
 const getRefreshTokenByHash = `-- name: GetRefreshTokenByHash :one
-SELECT id, user_id, device_id, device_name, platform, token_hash, expires_at, revoked_at, last_used_at, created_at FROM refresh_tokens WHERE token_hash = ?
+SELECT id, user_id, device_id, device_name, platform, token_hash, expires_at, revoked_at, last_used_at, created_at, rotated_to_id FROM refresh_tokens WHERE token_hash = ?
 `
 
 func (q *Queries) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error) {
@@ -207,6 +207,35 @@ func (q *Queries) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (
 		&i.RevokedAt,
 		&i.LastUsedAt,
 		&i.CreatedAt,
+		&i.RotatedToID,
+	)
+	return i, err
+}
+
+const getRefreshTokenByID = `-- name: GetRefreshTokenByID :one
+SELECT id, user_id, device_id, device_name, platform, token_hash, expires_at, revoked_at, last_used_at, created_at, rotated_to_id FROM refresh_tokens WHERE id = ? AND user_id = ?
+`
+
+type GetRefreshTokenByIDParams struct {
+	ID     uint64
+	UserID uint64
+}
+
+func (q *Queries) GetRefreshTokenByID(ctx context.Context, arg GetRefreshTokenByIDParams) (RefreshToken, error) {
+	row := q.db.QueryRowContext(ctx, getRefreshTokenByID, arg.ID, arg.UserID)
+	var i RefreshToken
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.DeviceID,
+		&i.DeviceName,
+		&i.Platform,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.LastUsedAt,
+		&i.CreatedAt,
+		&i.RotatedToID,
 	)
 	return i, err
 }
@@ -262,7 +291,7 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phone string) (User, error
 	return i, err
 }
 
-const insertRefreshToken = `-- name: InsertRefreshToken :exec
+const insertRefreshToken = `-- name: InsertRefreshToken :execlastid
 INSERT INTO refresh_tokens (user_id, device_id, device_name, platform, token_hash, expires_at, last_used_at)
 VALUES (?, ?, ?, ?, ?, ?, ?)
 `
@@ -277,8 +306,8 @@ type InsertRefreshTokenParams struct {
 	LastUsedAt sql.NullTime
 }
 
-func (q *Queries) InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error {
-	_, err := q.db.ExecContext(ctx, insertRefreshToken,
+func (q *Queries) InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertRefreshToken,
 		arg.UserID,
 		arg.DeviceID,
 		arg.DeviceName,
@@ -287,7 +316,10 @@ func (q *Queries) InsertRefreshToken(ctx context.Context, arg InsertRefreshToken
 		arg.ExpiresAt,
 		arg.LastUsedAt,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
 }
 
 const listAcceptedAgreementIDs = `-- name: ListAcceptedAgreementIDs :many
@@ -497,6 +529,20 @@ type RevokeRefreshTokenParams struct {
 
 func (q *Queries) RevokeRefreshToken(ctx context.Context, arg RevokeRefreshTokenParams) error {
 	_, err := q.db.ExecContext(ctx, revokeRefreshToken, arg.RevokedAt, arg.ID)
+	return err
+}
+
+const setRefreshTokenRotatedTo = `-- name: SetRefreshTokenRotatedTo :exec
+UPDATE refresh_tokens SET rotated_to_id = ? WHERE id = ?
+`
+
+type SetRefreshTokenRotatedToParams struct {
+	RotatedToID sql.NullInt64
+	ID          uint64
+}
+
+func (q *Queries) SetRefreshTokenRotatedTo(ctx context.Context, arg SetRefreshTokenRotatedToParams) error {
+	_, err := q.db.ExecContext(ctx, setRefreshTokenRotatedTo, arg.RotatedToID, arg.ID)
 	return err
 }
 

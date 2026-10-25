@@ -182,12 +182,68 @@ func TestRefreshRotationAndReuse(t *testing.T) {
 	if _, err := f.svc.Refresh(ctx, next.RefreshToken, "other-device"); kindOf(err) != apperr.Unauthorized {
 		t.Fatal("设备不符应 401")
 	}
-	// 旧令牌被复用：作废该设备全部令牌，连新令牌也不能用。
+	// 接班令牌已经用过（轮换到 next2）后旧令牌又被使用：可能泄露，作废该设备全部令牌，连最新的也不能用。
+	next2, err := f.svc.Refresh(ctx, next.RefreshToken, dev.ID)
+	if err != nil {
+		t.Fatalf("再次刷新：%v", err)
+	}
 	if _, err := f.svc.Refresh(ctx, res.Tokens.RefreshToken, dev.ID); kindOf(err) != apperr.Unauthorized {
 		t.Fatal("旧令牌复用应 401")
 	}
-	if _, err := f.svc.Refresh(ctx, next.RefreshToken, dev.ID); kindOf(err) != apperr.Unauthorized {
+	if _, err := f.svc.Refresh(ctx, next2.RefreshToken, dev.ID); kindOf(err) != apperr.Unauthorized {
 		t.Fatal("复用后该设备的新令牌也应作废")
+	}
+
+	// 刷新响应丢失（安卓锁屏掐断网络）：客户端还拿着旧令牌，接班令牌没用过 → 换发一对新的，不退出登录。
+	lost := f.login(t, phone, dev)
+	unseen, err := f.svc.Refresh(ctx, lost.Tokens.RefreshToken, dev.ID)
+	if err != nil {
+		t.Fatalf("刷新：%v", err)
+	}
+	retry, err := f.svc.Refresh(ctx, lost.Tokens.RefreshToken, dev.ID)
+	if err != nil {
+		t.Fatalf("响应丢失后用旧令牌重试应成功：%v", err)
+	}
+	// 连着丢两次也一样。
+	retry2, err := f.svc.Refresh(ctx, lost.Tokens.RefreshToken, dev.ID)
+	if err != nil {
+		t.Fatalf("再次丢失后重试应成功：%v", err)
+	}
+	if _, err := f.svc.Refresh(ctx, retry.RefreshToken, dev.ID); kindOf(err) != apperr.Unauthorized {
+		t.Fatal("被换掉的接班令牌再出现应按泄露处理")
+	}
+	if _, err := f.svc.Refresh(ctx, retry2.RefreshToken, dev.ID); kindOf(err) != apperr.Unauthorized {
+		t.Fatal("按泄露处理后该设备的令牌全部作废")
+	}
+	if _, err := f.svc.Refresh(ctx, unseen.RefreshToken, dev.ID); kindOf(err) != apperr.Unauthorized {
+		t.Fatal("没收到的接班令牌也已作废")
+	}
+
+	// 换发后正常使用新令牌，一切照常。
+	ok := f.login(t, phone, dev)
+	_, _ = f.svc.Refresh(ctx, ok.Tokens.RefreshToken, dev.ID)
+	fresh, err := f.svc.Refresh(ctx, ok.Tokens.RefreshToken, dev.ID)
+	if err != nil {
+		t.Fatalf("重试：%v", err)
+	}
+	if _, err := f.svc.Refresh(ctx, fresh.RefreshToken, dev.ID); err != nil {
+		t.Fatalf("换发的新令牌应可用：%v", err)
+	}
+
+	// 退出登录后，旧令牌和接班令牌都不能再用。
+	out := f.login(t, phone, dev)
+	outNext, err := f.svc.Refresh(ctx, out.Tokens.RefreshToken, dev.ID)
+	if err != nil {
+		t.Fatalf("刷新：%v", err)
+	}
+	if err := f.svc.Logout(ctx, out.User.ID, dev.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.Refresh(ctx, out.Tokens.RefreshToken, dev.ID); kindOf(err) != apperr.Unauthorized {
+		t.Fatal("退出登录后旧令牌应 401")
+	}
+	if _, err := f.svc.Refresh(ctx, outNext.RefreshToken, dev.ID); kindOf(err) != apperr.Unauthorized {
+		t.Fatal("退出登录后接班令牌应 401")
 	}
 	// 过期。
 	again := f.login(t, phone, dev)
