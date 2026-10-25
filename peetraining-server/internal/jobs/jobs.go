@@ -98,7 +98,8 @@ func NewImportFileTask(userID, jobID, materialID uint64, attempt int) (*asynq.Ta
 	if err != nil {
 		return nil, err
 	}
-	return asynq.NewTask(TypeImportFile, b, asynq.Queue(QueueDefault), asynq.MaxRetry(3), asynq.Timeout(30*time.Minute),
+	// 200 页的资料要分上百批调用模型（每批 1–2 分钟、3 批并行），30 分钟不够。
+	return asynq.NewTask(TypeImportFile, b, asynq.Queue(QueueDefault), asynq.MaxRetry(3), asynq.Timeout(90*time.Minute),
 		asynq.TaskID(fmt.Sprintf("%s:%d:%d:%d", TypeImportFile, jobID, materialID, attempt))), nil
 }
 
