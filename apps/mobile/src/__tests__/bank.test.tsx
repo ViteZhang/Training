@@ -197,12 +197,35 @@ describe('3.1c 资料与 3.1d 删除', () => {
     });
     mockResponses['DELETE /materials/{materialId}'] = () => ({ status: 204 });
     await wrap(<MaterialList items={[m({})]} subjectId={7} />);
-    await fireEvent.press(screen.getByLabelText('删除 真题.pdf'));
+    await fireEvent.press(screen.getByLabelText('更多操作 真题.pdf'));
+    await fireEvent.press(screen.getByLabelText('删除资料'));
     expect(await screen.findByText('· 从它识别出的 128 道题会一起删除，包括作答记录和错题')).toBeTruthy();
     expect(await screen.findByText('· 只来自这份资料的知识点会删除（3 个），其他资料里也有的会保留')).toBeTruthy();
     const buttons = screen.getAllByText('删除');
     await fireEvent.press(buttons[buttons.length - 1]!);
     await waitFor(() => expect(mockCalls.some((c) => c.method === 'DELETE' && c.path === '/materials/{materialId}')).toBe(true));
+  });
+});
+
+describe('修改资料名称', () => {
+  const mat = {
+    id: 3, subject_id: 7, file_name: '真题.pdf', format: 'pdf' as const, status: 'parsed' as const,
+    page_count: 86, billed_pages: 86, question_count: 128, kp_count: 0, created_at: '2026-09-26T02:00:00Z',
+  };
+  it('从「更多」改名，保存去掉首尾空格的名称', async () => {
+    mockResponses['PATCH /materials/{materialId}'] = () => ({ status: 200, data: { ...mat, file_name: '2024 真题' } });
+    await wrap(<MaterialList items={[mat]} subjectId={7} />);
+    await fireEvent.press(screen.getByLabelText('更多操作 真题.pdf'));
+    await fireEvent.press(screen.getByLabelText('修改名称'));
+    await fireEvent.changeText(await screen.findByLabelText('资料名称'), '  2024 真题 ');
+    await fireEvent.press(screen.getByText('保存'));
+    await waitFor(() => expect(mockCalls.some((c) => c.method === 'PATCH' && c.path === '/materials/{materialId}' && (c.init?.body as { file_name: string }).file_name === '2024 真题')).toBe(true));
+  });
+  it('「我的资料」里只能改名，不能删除', async () => {
+    await wrap(<MaterialList items={[mat]} subjectId={7} deletable={false} />);
+    await fireEvent.press(screen.getByLabelText('更多操作 真题.pdf'));
+    expect(screen.getByLabelText('修改名称')).toBeTruthy();
+    expect(screen.queryByLabelText('删除资料')).toBeNull();
   });
 });
 

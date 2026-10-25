@@ -13,6 +13,7 @@ import { essayTypeNames, importKeys, itemNote, itemStatus, qtypeNames, useImport
 import { GroupBanner } from '@/features/import/groups';
 import { PageHeader, Segments } from '@/features/import/ui';
 import { useImportFlow } from '@/features/import/store';
+import { todayKeys } from '@/features/today/api';
 import { Footer, StepHeader } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
@@ -59,25 +60,29 @@ export function ItemRow({ it, onPress, selecting, selected, onDelete }: RowProps
       onPress={onPress}
       style={[styles.item, check && styles.itemCheck, selected && styles.itemSelected]}
     >
+      {/* 左边题型、分组标签放不下时换行；右边状态和删除固定宽度，不会被挤出屏幕 */}
       <View style={styles.itemHead}>
         {selecting ? (
           <View style={[styles.box, selected && styles.boxOn]}>{selected ? <Icon name="check" size={12} color={semantic.textOnBrand} /> : null}</View>
         ) : null}
-        <View style={[styles.kind, check && styles.kindCheck]}>
-          <Text variant="small" color={semantic.textPrimary} style={styles.medium}>
-            {kindLabel(it)}
-          </Text>
+        <View style={styles.tags}>
+          <View style={[styles.kind, check && styles.kindCheck]}>
+            <Text variant="small" color={semantic.textPrimary} style={styles.medium}>
+              {kindLabel(it)}
+            </Text>
+          </View>
+          <GroupTag group={it.question?.group} size="md" />
         </View>
-        <GroupTag group={it.question?.group} />
-        <View style={styles.flex} />
-        <Text variant="small" color={statusInk[st.tone]} style={styles.medium}>
-          {st.label}
-        </Text>
-        {!selecting && onDelete ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="删除这一条" onPress={onDelete} hitSlop={8} style={styles.trash}>
-            <Icon name="trash" size={18} color={semantic.textSecondary} />
-          </Pressable>
-        ) : null}
+        <View style={styles.side}>
+          <Text variant="small" color={statusInk[st.tone]} style={styles.medium}>
+            {st.label}
+          </Text>
+          {!selecting && onDelete ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="删除这一条" onPress={onDelete} hitSlop={8} style={styles.trash}>
+              <Icon name="trash" size={18} color={semantic.textSecondary} />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
       <Text variant="body" numberOfLines={2}>
         {title(it)}
@@ -144,7 +149,13 @@ export default function ConfirmScreen() {
     try {
       const r = await unwrap(api.POST('/import-jobs/{jobId}/items/delete', { params: { path: { jobId } }, body: { ids } }));
       track('confirm_edit', { action: 'delete', count: r.deleted });
-      await Promise.all([qc.invalidateQueries({ queryKey: ['import-items', jobId] }), qc.invalidateQueries({ queryKey: importKeys.job(jobId) })]);
+      // 删光了这次的条目，首页就不再提示「去核对」，一并刷新
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['import-items', jobId] }),
+        qc.invalidateQueries({ queryKey: importKeys.job(jobId) }),
+        qc.invalidateQueries({ queryKey: ['import-jobs'] }),
+        qc.invalidateQueries({ queryKey: todayKeys.home }),
+      ]);
       toast(r.deleted < ids.length ? `已删除 ${r.deleted} 条，已入库的请到题库里删除` : `已删除 ${r.deleted} 条`);
       exitSelect();
     } catch (e) {
@@ -159,7 +170,7 @@ export default function ConfirmScreen() {
     try {
       const r = await unwrap(api.POST('/import-jobs/{jobId}/confirm', { params: { path: { jobId } } }));
       track('confirm_submit');
-      await Promise.all([qc.invalidateQueries({ queryKey: ['subjects'] }), qc.invalidateQueries({ queryKey: ['import-jobs'] }), qc.invalidateQueries({ queryKey: ['quota'] })]);
+      await Promise.all([qc.invalidateQueries({ queryKey: ['subjects'] }), qc.invalidateQueries({ queryKey: ['import-jobs'] }), qc.invalidateQueries({ queryKey: ['quota'] }), qc.invalidateQueries({ queryKey: todayKeys.home })]);
       router.replace({
         pathname: '/import/done/[id]',
         params: {
@@ -295,13 +306,15 @@ const styles = StyleSheet.create({
   item: { gap: 8, paddingVertical: 14, paddingHorizontal: 16, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
   itemCheck: { borderColor: colors.orangeLine, backgroundColor: semantic.peachSoft },
   itemSelected: { borderColor: semantic.textPrimary },
-  box: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: colors.faint, alignItems: 'center', justifyContent: 'center' },
+  box: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: colors.faint, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
   boxOn: { backgroundColor: semantic.textPrimary, borderColor: semantic.textPrimary },
   trash: { width: 32, height: 32, marginRight: -6, alignItems: 'center', justifyContent: 'center' },
   selectBar: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 32 },
   run: { gap: 6 },
   runDelete: { alignSelf: 'flex-end', paddingHorizontal: 0, marginTop: -4 },
-  itemHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  itemHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  tags: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, minHeight: 32, alignContent: 'center' },
+  side: { flexDirection: 'row', alignItems: 'center', gap: 2, flexShrink: 0, minHeight: 32 },
   kind: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: semantic.fill },
   kindCheck: { backgroundColor: semantic.surface },
   medium: { fontWeight: '500' },

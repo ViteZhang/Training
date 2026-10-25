@@ -898,7 +898,8 @@ export interface paths {
         delete: operations["deleteMaterial"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** 修改资料名称（3.1c、6.3），方便用户管理资料 */
+        patch: operations["updateMaterial"];
         trace?: never;
     };
     "/materials/{materialId}/deletion-impact": {
@@ -6230,6 +6231,10 @@ export interface components {
             /** @enum {string} */
             onboarding_step?: "1.1" | "1.2" | "1.3" | "1.4" | "1.5" | "1.6" | "1.7" | "1.8" | "done";
         };
+        UpdateMaterialRequest: {
+            /** @description 资料名称，去掉首尾空格后不能为空 */
+            file_name: string;
+        };
         Device: {
             device_id: string;
             device_name: string;
@@ -8526,6 +8531,34 @@ export interface operations {
                 };
                 content?: never;
             };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateMaterial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                materialId: components["parameters"]["MaterialId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMaterialRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Material"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
         };
     };

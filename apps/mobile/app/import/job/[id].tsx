@@ -120,7 +120,8 @@ function FailedMaterial({ job, m }: { job: ImportJob; m: JobMaterial }) {
 
 const reminderOptions = ['07:30', '12:30', '20:00'];
 
-/** 等待时设置学习提醒（PRD 1.6）：保存到备考档案，开启时请求通知权限。 */
+/** 等待时设置学习提醒（PRD 1.6）：保存到备考档案，开启时请求通知权限。
+ * 已经设过提醒的不再显示（只需设一次，之后在「设置 · 每日训练提醒」里改）；这次刚设的继续显示，方便改选。 */
 function ReminderPicker() {
   const qc = useQueryClient();
   const profile = useQuery({ queryKey: ['profile'], queryFn: () => unwrap(api.GET('/profile')) });
@@ -129,10 +130,12 @@ function ReminderPicker() {
     return { granted: r.granted, canAskAgain: r.canAskAgain };
   });
   const times = profile.data?.reminder_times ?? [];
+  const [touched, setTouched] = useState(false);
 
   const toggle = async (t: string) => {
     const p = profile.data;
     if (!p) return;
+    setTouched(true);
     const on = !times.includes(t);
     if (on && !(await notify.ensure())) return;
     const next = on ? [...times, t].sort() : times.filter((x) => x !== t);
@@ -148,7 +151,7 @@ function ReminderPicker() {
     }
   };
 
-  if (!profile.data) return null;
+  if (!profile.data || (times.length > 0 && !touched)) return null;
   return (
     <Card tone="fill" style={styles.reminder}>
       <View style={styles.gap2}>
