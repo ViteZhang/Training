@@ -320,6 +320,9 @@ unset ADMIN_INITIAL_PASSWORD
 
 1. 按 ADR 0012 用真实样本评测选定模型后，在应用机 .env 填 AI_PROVIDER=bailian、BAILIAN_BASE_URL、BAILIAN_API_KEY、AI_MODEL_STRONG、AI_MODEL_CHEAP、AI_PREFER_STRONG，
    对照平台填 AI_ALT_BASE_URL、AI_ALT_API_KEY。生产不用 AI_PROVIDER=relay（中转接口不是备案模型，D20）。
+   当前选定（2026-10-25）：AI_MODEL_STRONG、AI_MODEL_CHEAP 都填 qwen3.8-flash，AI_BAILIAN_THINKING=false（不开思考，导入快 5–10 倍；
+   kp_extract 用 v2 提示词，名称与路径格式适配不开思考的写法）。改完 .env 后执行 docker compose up -d 让 api、worker 重新读取；
+   后台 7.8 若给某个能力设过别的模型（ai_rollouts），也要改成 qwen3.8-flash 或清掉，否则那个能力仍用旧模型。
 2. AI_PRICES 按平台当时的公开价填写（元 / 百万 token，「模型=输入价:输出价」逗号分隔），覆盖上面用到的每个模型；不填时 7.8 成本看板与预算告警都是 0。
    平台调价后同步改这里。
 

@@ -50,7 +50,7 @@ migrate-up:
 migrate-status:
 	./scripts/dev.sh --migrate status
 
-## eval cap=import|kp|rubric|grading|essay|ocr [args="-model qwen-max -prompt v2 -record -note 改了什么"]：跑 AI 评测（ADR 0012）
+## eval cap=import|kp|rubric|grading|essay|ocr [args="-model qwen3.8-flash -prompt v2 -record -note 改了什么"]：跑 AI 评测（ADR 0012）
 eval:
 	go run ./cmd/eval -cap=$(cap) $(args)
 

@@ -274,6 +274,11 @@ func (s *Service) structureQuestions(ctx context.Context, job dbq.GetImportJobRo
 // saveStructured 写一条结构化结果；分组与共用材料取自切题规则识别的块（不经过模型）。
 func (s *Service) saveStructured(ctx context.Context, job dbq.GetImportJobRow, materialID uint64, it ai.QItem, blk ai.Block) error {
 	userID := job.OwnerUserID
+	if it.ExamYear == nil && blk.Year > 0 {
+		// 年份以规则从试卷标题识别的为准兜底（模型偶尔漏填），答案按年份 + 题号配对也要用到。
+		y := blk.Year
+		it.ExamYear = &y
+	}
 	if it.Kind == "answer" {
 		year := sql.NullInt16{}
 		if it.ExamYear != nil {
@@ -286,6 +291,11 @@ func (s *Service) saveStructured(ctx context.Context, job dbq.GetImportJobRow, m
 	q := QuestionDraft{QType: it.QType, Stem: strings.TrimSpace(it.Stem), Options: it.Options, Answer: strings.TrimSpace(it.Answer),
 		Score: it.Score, ExamYear: it.ExamYear, QuestionNo: it.QuestionNo, IsRecollection: it.IsRecollection, SourcePage: it.Page,
 		Source: "exercise"}
+	// 分值同样以题型标题里的「每题 N 分」兜底：漏了分值的真题考情分析不统计。
+	if q.Score == nil && blk.Score > 0 {
+		sc := blk.Score
+		q.Score = &sc
+	}
 	if q.ExamYear != nil {
 		q.Source = "exam"
 	}

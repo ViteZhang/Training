@@ -72,6 +72,8 @@ func Subjective(qtype string) bool {
 	return false
 }
 
+// 可选字段允许 null：块上没有年份、分值时模型常输出 "exam_year": null，按缺省处理，不能因此整批判为不合格
+// （否则认不出试卷标题的资料整份导入失败）。
 var Structure = &Cap[StructureIn, StructureOut]{
 	Def: Def{Name: "import_structure", Version: "v1", Tier: "strong", Temperature: 0.1, Schema: `{
 		"type": "object", "required": ["items"],
@@ -80,16 +82,16 @@ var Structure = &Cap[StructureIn, StructureOut]{
 			"properties": {
 				"block": {"type": "integer"},
 				"kind": {"type": "string", "enum": ["question", "answer"]},
-				"qtype": {"type": "string", "enum": ["single_choice","multi_choice","true_false","fill_blank","term","short_answer","discussion","essay","calculation","other"]},
-				"stem": {"type": "string"},
-				"options": {"type": "array", "items": {"type": "object", "required": ["key","text"], "properties": {"key": {"type": "string"}, "text": {"type": "string"}}}},
-				"answer": {"type": "string"},
-				"score": {"type": "number", "minimum": 0, "maximum": 300},
-				"exam_year": {"type": "integer", "minimum": 1977, "maximum": 2100},
-				"question_no": {"type": "string", "maxLength": 16},
+				"qtype": {"type": "string", "nullable": true, "enum": ["single_choice","multi_choice","true_false","fill_blank","term","short_answer","discussion","essay","calculation","other", null]},
+				"stem": {"type": "string", "nullable": true},
+				"options": {"type": "array", "nullable": true, "items": {"type": "object", "required": ["key","text"], "properties": {"key": {"type": "string"}, "text": {"type": "string"}}}},
+				"answer": {"type": "string", "nullable": true},
+				"score": {"type": "number", "nullable": true, "minimum": 0, "maximum": 300},
+				"exam_year": {"type": "integer", "nullable": true, "minimum": 1977, "maximum": 2100},
+				"question_no": {"type": "string", "nullable": true, "maxLength": 16},
 				"page": {"type": "integer", "minimum": 1},
 				"confidence": {"type": "number", "minimum": 0, "maximum": 1},
-				"is_recollection": {"type": "boolean"}
+				"is_recollection": {"type": "boolean", "nullable": true}
 			}}}}}`},
 	Check: checkStructure,
 	Mock:  mockStructure,
@@ -333,7 +335,8 @@ type KPOut struct {
 }
 
 var ExtractKPs = &Cap[KPIn, KPOut]{
-	Def: Def{Name: "kp_extract", Version: "v1", Tier: "strong", Temperature: 0.1, Schema: `{
+	Normalize: flattenPaths("points"),
+	Def: Def{Name: "kp_extract", Version: "v2", Tier: "strong", Temperature: 0.1, Schema: `{
 		"type": "object", "required": ["points"],
 		"properties": {"points": {"type": "array", "items": {
 			"type": "object", "required": ["name", "original_text", "page", "path", "rubric_points"],
@@ -426,6 +429,7 @@ type TagOut struct {
 }
 
 var TagQuestions = &Cap[TagIn, TagOut]{
+	Normalize: flattenPaths("tags"),
 	Def: Def{Name: "kp_tag", Version: "v1", Tier: "cheap", Temperature: 0.1, Schema: `{
 		"type": "object", "required": ["tags"],
 		"properties": {"tags": {"type": "array", "items": {
@@ -460,4 +464,38 @@ var TagQuestions = &Cap[TagIn, TagOut]{
 		}
 		return out, nil
 	},
+}
+
+// flattenPaths 把 list 里每一项的 path 摊平成一层字符串数组。提示词把路径写成「[板块] 或 [板块, 章节]」，
+// 不开思考的 qwen3 模型常照抄成 [["板块", "章节"]]；意思明确，整理后再校验，不必整批重来。
+func flattenPaths(list string) func(any) any {
+	return func(v any) any {
+		root, ok := v.(map[string]any)
+		if !ok {
+			return v
+		}
+		items, _ := root[list].([]any)
+		for _, it := range items {
+			obj, ok := it.(map[string]any)
+			if !ok {
+				continue
+			}
+			if p, ok := obj["path"].([]any); ok {
+				obj["path"] = flatten(p)
+			}
+		}
+		return v
+	}
+}
+
+func flatten(xs []any) []any {
+	out := make([]any, 0, len(xs))
+	for _, x := range xs {
+		if inner, ok := x.([]any); ok {
+			out = append(out, flatten(inner)...)
+			continue
+		}
+		out = append(out, x)
+	}
+	return out
 }
