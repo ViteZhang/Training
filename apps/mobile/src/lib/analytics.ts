@@ -4,7 +4,7 @@
 import { AppState, Platform } from 'react-native';
 import { api } from './api';
 import { appConfig } from './config';
-import { useSession } from './session';
+import { accessTokenFresh, useSession } from './session';
 import { getJSON, setJSON } from './storage';
 
 export type EventName =
@@ -81,8 +81,12 @@ export async function flush() {
   if (queue().length > 0 && !isTest) timer = setTimeout(() => void flush(), INTERVAL);
 }
 
-if (!isTest) {
-  AppState.addEventListener('change', (s) => {
-    if (s === 'background') void flush();
-  });
+/**
+ * 切到后台（锁屏）时上报一次。访问令牌已过期就不报，留到回到前台：过期时上报会先刷新令牌，
+ * 而安卓锁屏后很快掐断网络，刷新请求到了服务端、响应却收不到，下次刷新就会被当成令牌复用。
+ */
+export function onAppStateChange(s: string) {
+  if (s === 'background' && accessTokenFresh()) void flush();
 }
+
+if (!isTest) AppState.addEventListener('change', onAppStateChange);

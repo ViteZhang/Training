@@ -28,3 +28,9 @@ export const useSession = create<SessionState>((set) => ({
     set({ session: undefined });
   },
 }));
+
+/** 访问令牌在 marginMs 之后仍有效（没登录返回 false）。 */
+export function accessTokenFresh(marginMs = 60_000, now = Date.now()): boolean {
+  const s = useSession.getState().session;
+  return !!s && Date.parse(s.accessExpiresAt) - now > marginMs;
+}
