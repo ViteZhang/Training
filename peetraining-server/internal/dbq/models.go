@@ -6457,6 +6457,8 @@ type RefreshToken struct {
 	RevokedAt  sql.NullTime
 	LastUsedAt sql.NullTime
 	CreatedAt  time.Time
+	// 轮换时发出的接班令牌 ID
+	RotatedToID sql.NullInt64
 }
 
 type Refund struct {
