@@ -1,10 +1,15 @@
 package importer
 
 import (
+	"context"
+	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"peetraining-server/internal/ai"
+	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
 )
 
@@ -97,5 +102,58 @@ func TestGiveUpReason(t *testing.T) {
 		if got := giveUpReason(step); !strings.HasPrefix(got, want) || !strings.Contains(got, "没扣额度") {
 			t.Errorf("%s：%q", step, got)
 		}
+	}
+}
+
+func TestRunBatches(t *testing.T) {
+	var running, peak atomic.Int32
+	out, errs, err := runBatches(context.Background(), 10, func(_ context.Context, i int) (int, error) {
+		n := running.Add(1)
+		for {
+			p := peak.Load()
+			if n <= p || peak.CompareAndSwap(p, n) {
+				break
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+		running.Add(-1)
+		if i == 3 {
+			return 0, apperr.New(apperr.AIFailed, "这一批识别失败")
+		}
+		return i * i, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, v := range out {
+		if i == 3 {
+			if errs[i] == nil {
+				t.Error("第 4 批应记为识别失败")
+			}
+			continue
+		}
+		if v != i*i || errs[i] != nil {
+			t.Errorf("结果应按批的顺序：%d → %d %v", i, v, errs[i])
+		}
+	}
+	if p := peak.Load(); p > aiParallel || p < 2 {
+		t.Errorf("同时调用的批数应在 2 到 %d 之间：%d", aiParallel, p)
+	}
+
+	platform := errors.New("平台不可用")
+	var calls atomic.Int32
+	_, _, err = runBatches(context.Background(), 20, func(ctx context.Context, i int) (int, error) {
+		calls.Add(1)
+		if i == 0 {
+			return 0, platform
+		}
+		<-ctx.Done()
+		return 0, ctx.Err()
+	})
+	if !errors.Is(err, platform) {
+		t.Fatalf("平台错误应返回给任务重试：%v", err)
+	}
+	if calls.Load() > aiParallel+1 {
+		t.Errorf("出错后应停止发起新的批：调用了 %d 次", calls.Load())
 	}
 }

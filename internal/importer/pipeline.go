@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/sync/errgroup"
+
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
@@ -18,11 +20,38 @@ import (
 )
 
 // 每批交给模型的字数：结构化按块分批，知识点按页分批。
+// 模型要把题目、知识点原文逐字带回来，输出字数与输入相当；批太大时一次生成要好几分钟，容易超时、也容易超出输出上限。
 const (
-	structureChunkChars = 6000
-	kpChunkChars        = 8000
+	structureChunkChars = 4000
+	kpChunkChars        = 3000
 	tagBatch            = 30
 )
+
+// aiParallel 是同一份资料同时调用模型的批数：几百页的资料也能在任务时限内整理完，又不至于触发平台限流。
+const aiParallel = 3
+
+// runBatches 最多 aiParallel 批同时调用模型，结果按批的顺序返回，保存时与原文顺序一致。
+// 任意一批遇到非 AIFailed 的错误（平台不可用等）就取消其余批次，交给任务重试。
+func runBatches[T any](ctx context.Context, n int, call func(ctx context.Context, i int) (T, error)) ([]T, []error, error) {
+	out := make([]T, n)
+	errs := make([]error, n)
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(aiParallel)
+	for i := 0; i < n && gctx.Err() == nil; i++ {
+		g.Go(func() error {
+			if gctx.Err() != nil {
+				return nil // 已有批次出错，不再调用模型
+			}
+			v, err := call(gctx, i)
+			if err != nil && !apperr.IsKind(err, apperr.AIFailed) {
+				return err
+			}
+			out[i], errs[i] = v, err
+			return nil
+		})
+	}
+	return out, errs, g.Wait()
+}
 
 var steps = []dbq.ImportJobMaterialsStep{
 	dbq.ImportJobMaterialsStepQueued, dbq.ImportJobMaterialsStepExtract, dbq.ImportJobMaterialsStepModerate,
@@ -206,17 +235,25 @@ func (s *Service) structureQuestions(ctx context.Context, job dbq.GetImportJobRo
 		in[i] = Page{No: int(p.PageNo), Text: p.Text}
 	}
 	n, failed := 0, 0
-	for _, chunk := range Chunk(Split(in), structureChunkChars) {
-		out, meta, err := ai.Structure.Run(ctx, s.ai, job.OwnerUserID, ai.StructureIn{Subject: job.SubjectName, Blocks: chunk})
-		if apperr.IsKind(err, apperr.AIFailed) {
+	chunks := Chunk(Split(in), structureChunkChars)
+	type result struct {
+		out  ai.StructureOut
+		meta ai.Meta
+	}
+	results, errs, err := runBatches(ctx, len(chunks), func(ctx context.Context, i int) (result, error) {
+		out, meta, err := ai.Structure.Run(ctx, s.ai, job.OwnerUserID, ai.StructureIn{Subject: job.SubjectName, Blocks: chunks[i]})
+		return result{out, meta}, err
+	})
+	if err != nil {
+		return 0, 0, err
+	}
+	for i, r := range results {
+		if errs[i] != nil {
 			failed++
 			continue
 		}
-		if err != nil {
-			return n, failed, err
-		}
-		s.notePrompt(ctx, job, ai.Structure.Name, meta)
-		for _, it := range out.Items {
+		s.notePrompt(ctx, job, ai.Structure.Name, r.meta)
+		for _, it := range r.out.Items {
 			if err := s.saveStructured(ctx, job, materialID, it); err != nil {
 				return n, failed, err
 			}
@@ -301,17 +338,24 @@ func (s *Service) extractKPs(ctx context.Context, job dbq.GetImportJobRow, mater
 		batches = append(batches, cur)
 	}
 	n, failed := 0, 0
-	for _, b := range batches {
-		out, meta, err := ai.ExtractKPs.Run(ctx, s.ai, job.OwnerUserID, ai.KPIn{Subject: job.SubjectName, Pages: b})
-		if apperr.IsKind(err, apperr.AIFailed) {
+	type result struct {
+		out  ai.KPOut
+		meta ai.Meta
+	}
+	results, errs, err := runBatches(ctx, len(batches), func(ctx context.Context, i int) (result, error) {
+		out, meta, err := ai.ExtractKPs.Run(ctx, s.ai, job.OwnerUserID, ai.KPIn{Subject: job.SubjectName, Pages: batches[i]})
+		return result{out, meta}, err
+	})
+	if err != nil {
+		return 0, 0, err
+	}
+	for i, r := range results {
+		if errs[i] != nil {
 			failed++
 			continue
 		}
-		if err != nil {
-			return n, failed, err
-		}
-		s.notePrompt(ctx, job, ai.ExtractKPs.Name, meta)
-		for _, k := range out.Points {
+		s.notePrompt(ctx, job, ai.ExtractKPs.Name, r.meta)
+		for _, k := range r.out.Points {
 			d := KPDraft{Name: k.Name, OriginalText: k.OriginalText, KPPath: k.Path, RubricPoints: k.RubricPoints, SourcePage: k.Page}
 			reasons := []string{}
 			if len(d.RubricPoints) > 0 {
