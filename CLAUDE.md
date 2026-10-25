@@ -9,6 +9,12 @@
 
 各目录的开发规范见各自的 CLAUDE.md。
 
+## 用户偏好
+
+- 回复一律用中文
+- AI 模型统一用 qwen3.8-flash（不再用 qwen-max、qwen-plus），百炼默认不开思考（AI_BAILIAN_THINKING=false）；
+  评测也用它：`AI_PROVIDER=bailian go run ./cmd/eval -cap=…`（代码默认模型已是 qwen3.8-flash）。生产以应用机 .env 为准，见 peetraining-server/docs/runbook.md 第 8 节
+
 ## 三端：Claude 会话的工作副本、GitHub、云效，三者内容保持一致
 
 目录与云效仓库用 git subtree 关联，历史已接上，用 `scripts/sync-codeup.sh` 同步（凭证读环境变量 CODEUP_ORG_URL、CODEUP_USERNAME、CODEUP_TOKEN）：
