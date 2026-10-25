@@ -32,6 +32,13 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.ShutdownTimeout != 30*time.Second {
 		t.Errorf("ShutdownTimeout = %v", cfg.ShutdownTimeout)
 	}
+	if cfg.AI.ModelStrong != "qwen3.8-flash" || cfg.AI.ModelCheap != "qwen3.8-flash" || cfg.AI.BailianThinking {
+		t.Errorf("百炼默认统一用 qwen3.8-flash、不开思考：%+v", cfg.AI)
+	}
+	on, _ := load(envFrom(map[string]string{"AI_BAILIAN_THINKING": "true"}))
+	if on == nil || !on.AI.BailianThinking {
+		t.Error("AI_BAILIAN_THINKING=true 应打开思考")
+	}
 }
 
 func TestLoadProductionRequiresExplicitValues(t *testing.T) {

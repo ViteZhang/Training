@@ -82,7 +82,7 @@ func New(cfg *config.Config) (*Clients, error) {
 		if !hasBailian {
 			errs = append(errs, errors.New("AI_PROVIDER=bailian 需要设置 BAILIAN_BASE_URL 与 BAILIAN_API_KEY"))
 		}
-		c.AI = ai.NewOpenAI(cfg.AI.BailianBaseURL, cfg.AI.BailianAPIKey)
+		c.AI = bailian(cfg)
 	case "relay":
 		// 中转接口为主；它不可用（网络错误、5xx、超时）时自动改用百炼。
 		if cfg.AI.RelayBaseURL == "" || cfg.AI.RelayAPIKey == "" {
@@ -90,7 +90,7 @@ func New(cfg *config.Config) (*Clients, error) {
 		}
 		c.AI = ai.NewOpenAI(cfg.AI.RelayBaseURL, cfg.AI.RelayAPIKey)
 		if hasBailian {
-			c.AIFallback = ai.NewOpenAI(cfg.AI.BailianBaseURL, cfg.AI.BailianAPIKey)
+			c.AIFallback = bailian(cfg)
 		}
 	default:
 		pick("AI", cfg.AI.Provider, func() { c.AI = ai.NewMock() }, nil)
@@ -211,4 +211,12 @@ func newRealPay(p config.PayConfig) (*pay.Real, error) {
 		r.Apple = a
 	}
 	return &r, errors.Join(errs...)
+}
+
+// bailian 是百炼的客户端：按 AI_BAILIAN_THINKING 明确告诉 qwen3 系列开不开思考。
+func bailian(cfg *config.Config) *ai.OpenAI {
+	c := ai.NewOpenAI(cfg.AI.BailianBaseURL, cfg.AI.BailianAPIKey)
+	thinking := cfg.AI.BailianThinking
+	c.Thinking = &thinking
+	return c
 }

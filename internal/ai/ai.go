@@ -55,6 +55,8 @@ type Cap[In, Out any] struct {
 	Check func(in In, out *Out) error
 	// Mock 在 AI_PROVIDER=mock 时代替模型。
 	Mock func(in In) (Out, error)
+	// Normalize 在 Schema 校验前整理模型输出里格式偏差但意思明确的写法（如路径多包了一层数组），可为空。
+	Normalize func(v any) any
 
 	once   sync.Once
 	schema *openapi3.Schema
@@ -145,10 +147,10 @@ type Config struct {
 
 func NewEngine(c Config) *Engine {
 	if c.Models.Strong == "" {
-		c.Models.Strong = "qwen-plus"
+		c.Models.Strong = "qwen3.8-flash"
 	}
 	if c.Models.Cheap == "" {
-		c.Models.Cheap = "qwen-turbo"
+		c.Models.Cheap = "qwen3.8-flash"
 	}
 	if c.Fallback != nil && c.Fallback.Client == nil {
 		c.Fallback = nil
@@ -269,11 +271,16 @@ func (c *Cap[In, Out]) validate(in In, content string) (Out, error) {
 	if err := json.Unmarshal([]byte(stripFence(content)), &generic); err != nil {
 		return zero, fmt.Errorf("%w：不是 JSON", ErrInvalidOutput)
 	}
+	raw := []byte(stripFence(content))
+	if c.Normalize != nil {
+		generic = c.Normalize(generic)
+		raw, _ = json.Marshal(generic)
+	}
 	if err := schema.VisitJSON(generic, openapi3.MultiErrors()); err != nil {
 		return zero, fmt.Errorf("%w：%s", ErrInvalidOutput, firstLine(err.Error()))
 	}
 	var out Out
-	if err := json.Unmarshal([]byte(stripFence(content)), &out); err != nil {
+	if err := json.Unmarshal(raw, &out); err != nil {
 		return zero, fmt.Errorf("%w：%s", ErrInvalidOutput, err.Error())
 	}
 	if c.Check != nil {

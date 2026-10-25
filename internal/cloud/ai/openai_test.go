@@ -45,6 +45,15 @@ func TestOpenAI(t *testing.T) {
 	if got.ResponseFormat == nil || got.ResponseFormat.Type != "json_object" || len(got.Messages) != 2 || got.Temperature != 0.2 {
 		t.Fatalf("请求：%+v", got)
 	}
+	if got.EnableThinking != nil {
+		t.Fatalf("没设 Thinking 时不发 enable_thinking（中转接口不认）：%v", *got.EnableThinking)
+	}
+	off := false
+	c.Thinking = &off
+	if _, err := c.Complete(context.Background(), Request{Model: "qwen"}); err != nil || got.EnableThinking == nil || *got.EnableThinking {
+		t.Fatalf("百炼关思考应发 enable_thinking=false：%v %v", err, got.EnableThinking)
+	}
+	c.Thinking = nil
 	if _, err := c.Complete(context.Background(), Request{Model: "busy"}); !errors.Is(err, ErrRateLimited) {
 		t.Fatalf("限流：%v", err)
 	}

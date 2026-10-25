@@ -119,7 +119,7 @@ func TestRetryThenFail(t *testing.T) {
 	if len(m.Calls()) != 2 || len(q.calls) != 2 || q.calls[0].Retried || !q.calls[1].Retried || q.calls[1].ErrorKind.String != "invalid_output" {
 		t.Fatalf("应重试一次并各记一条：%d %+v", len(m.Calls()), q.calls)
 	}
-	if m.Calls()[0].Model != "qwen-plus" || !m.Calls()[0].JSONMode || !strings.Contains(m.Calls()[0].Messages[1].Content, "莺莺传") {
+	if m.Calls()[0].Model != "qwen3.8-flash" || !m.Calls()[0].JSONMode || !strings.Contains(m.Calls()[0].Messages[1].Content, "莺莺传") {
 		t.Errorf("请求：%+v", m.Calls()[0])
 	}
 
