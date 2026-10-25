@@ -575,20 +575,57 @@ func (s *Service) UpdateQuestion(ctx context.Context, userID, id uint64, in Ques
 
 // DeleteQuestion 删除题目，连同作答记录与错题（外键级联）。
 func (s *Service) DeleteQuestion(ctx context.Context, userID, id uint64) error {
-	q, err := s.question(ctx, userID, id)
-	if err != nil {
-		return err
+	_, err := s.DeleteQuestions(ctx, userID, []uint64{id})
+	return err
+}
+
+// DeleteQuestions 批量删除题目（3.1b 多选删除）：先核对每一道都是自己的，有一道不是就整体返回 404、全部不删；
+// 在一个事务里删除，再按涉及的资料与题库重算统计。返回删除的题数。
+func (s *Service) DeleteQuestions(ctx context.Context, userID uint64, ids []uint64) (int, error) {
+	type ref struct {
+		id       uint64
+		material sql.NullInt64
+		bank     uint64
 	}
-	return store.WithTx(ctx, s.db, func(tx *dbq.Queries) error {
-		if _, err := tx.DeleteQuestion(ctx, dbq.DeleteQuestionParams{ID: id, OwnerUserID: owner(userID)}); err != nil {
-			return err
+	refs := make([]ref, 0, len(ids))
+	seen := map[uint64]bool{}
+	for _, id := range ids {
+		if seen[id] {
+			continue
 		}
-		if q.SourceMaterialID.Valid {
-			m := uint64(q.SourceMaterialID.Int64)
-			if err := tx.RecountMaterial(ctx, dbq.RecountMaterialParams{SourceMaterialID: q.SourceMaterialID, MaterialID: m, ID: m, OwnerUserID: userID}); err != nil {
+		seen[id] = true
+		q, err := s.question(ctx, userID, id)
+		if err != nil {
+			return 0, err
+		}
+		refs = append(refs, ref{id: id, material: q.SourceMaterialID, bank: q.BankID})
+	}
+	err := store.WithTx(ctx, s.db, func(tx *dbq.Queries) error {
+		materials, banks := map[int64]sql.NullInt64{}, map[uint64]bool{}
+		for _, r := range refs {
+			if _, err := tx.DeleteQuestion(ctx, dbq.DeleteQuestionParams{ID: r.id, OwnerUserID: owner(userID)}); err != nil {
+				return err
+			}
+			if r.material.Valid {
+				materials[r.material.Int64] = r.material
+			}
+			banks[r.bank] = true
+		}
+		for id, mid := range materials {
+			m := uint64(id)
+			if err := tx.RecountMaterial(ctx, dbq.RecountMaterialParams{SourceMaterialID: mid, MaterialID: m, ID: m, OwnerUserID: userID}); err != nil {
 				return err
 			}
 		}
-		return tx.RecountKPExamCounts(ctx, dbq.RecountKPExamCountsParams{BankID: q.BankID, OwnerUserID: owner(userID)})
+		for b := range banks {
+			if err := tx.RecountKPExamCounts(ctx, dbq.RecountKPExamCountsParams{BankID: b, OwnerUserID: owner(userID)}); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
+	if err != nil {
+		return 0, err
+	}
+	return len(refs), nil
 }

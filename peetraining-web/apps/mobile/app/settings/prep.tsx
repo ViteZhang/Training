@@ -1,4 +1,4 @@
-// 6.9 备考设置：专业课与目标分（可改、可增删，删除时提示会一起删除它的题库）；目标院校选填；初试日期只读；
+// 6.9 备考设置：专业课与目标分（可改、可增删，删除时提示会一起删除它的题库）；目标院校选填；考试年份可切换（初试日期随年份，只读）；
 // 每日学习时长；备考阶段（显示系统建议和理由）；作文每周目标篇数。改阶段或时长从明天起生效，改目标分立即生效。
 import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
@@ -18,6 +18,7 @@ export default function PrepSettings() {
   const qc = useQueryClient();
   const profile = useQuery({ queryKey: ['profile'], queryFn: () => unwrap(api.GET('/profile')) });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => unwrap(api.GET('/subjects')) });
+  const years = useQuery({ queryKey: ['exam-years'], queryFn: () => unwrap(api.GET('/exam-years')) });
   const [editing, setEditing] = useState<Schemas['Subject'] | null>(null);
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<Schemas['Subject'] | null>(null);
@@ -91,8 +92,9 @@ export default function PrepSettings() {
               <Text variant="caption">填了以后，有官方题库上线时会提醒你</Text>
             </View>
             <Text variant="body" color={semantic.textSecondary}>
-              {p.target_school_major ?? '未填写'}
+              {p.target_school_major ?? '点击填写'}
             </Text>
+            <Icon name="edit" size={16} color={semantic.textSecondary} />
           </Card>
         </Pressable>
 
@@ -100,6 +102,19 @@ export default function PrepSettings() {
           时间
         </Text>
         <Card style={styles.gap}>
+          {(years.data?.items.length ?? 0) > 1 ? (
+            <>
+              <Text variant="bodyStrong">参加哪一年的考试</Text>
+              <Chips
+                options={years.data!.items.map((y) => y.exam_year)}
+                value={p.exam_year}
+                onChange={(y) => {
+                  if (y !== p.exam_year) save.mutate({ exam_year: y }, { onSuccess: () => toast('已切换考试年份，备考阶段建议已更新') });
+                }}
+                format={(y) => years.data!.items.find((x) => x.exam_year === y)?.label ?? String(y)}
+              />
+            </>
+          ) : null}
           <View style={styles.row}>
             <Text variant="bodyStrong" style={styles.flex}>
               初试日期

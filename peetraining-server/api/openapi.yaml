@@ -661,6 +661,28 @@ paths:
         "402": { $ref: "#/components/responses/QuotaExceeded" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /import-jobs/{jobId}/items/delete:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    post:
+      tags: [import]
+      operationId: deleteImportItems
+      summary: 批量删除待确认条目（1.7 多选删除，如不是自己专业的题）
+      description: 已入库的条目跳过（到题库里删）；可重复调用。任意一条不属于这个任务返回 404。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IdList" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeleteImportItemsResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /import-items/{itemId}:
     parameters:
       - $ref: "#/components/parameters/ItemId"
@@ -997,6 +1019,30 @@ paths:
       summary: 删除题目（连同作答记录与错题）
       responses:
         "204": { description: 已删除 }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /questions/delete:
+    post:
+      tags: [bank]
+      operationId: deleteQuestions
+      summary: 批量删除题目（3.1b 多选删除），连同作答记录与错题
+      description: 任意一道不是自己的题返回 404，全部不删。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IdList" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted]
+                properties:
+                  deleted: { type: integer, description: 删除的题数 }
+        "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
 
   /subjects/{subjectId}/materials:
@@ -8752,6 +8798,21 @@ components:
         items: { type: array, items: { $ref: "#/components/schemas/ImportItem" } }
         counts: { $ref: "#/components/schemas/ImportCounts" }
         next_cursor: { type: string }
+    IdList:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items: { type: integer, format: int64 }
+    DeleteImportItemsResult:
+      type: object
+      required: [deleted, counts]
+      properties:
+        deleted: { type: integer, description: 这次删掉的条数（已删除、已入库的不计） }
+        counts: { $ref: "#/components/schemas/ImportCounts" }
     ConfirmImportResult:
       type: object
       required: [question_count, kp_count, needs_review_count, plan_ready]

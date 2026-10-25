@@ -39,8 +39,10 @@ func runBatches[T any](ctx context.Context, n int, call func(ctx context.Context
 	g.SetLimit(aiParallel)
 	for i := 0; i < n && gctx.Err() == nil; i++ {
 		g.Go(func() error {
-			if gctx.Err() != nil {
-				return nil // 已有批次出错，不再调用模型
+			select {
+			case <-gctx.Done():
+				return nil // 已有批次出错，不再调用模型；错误由出错的那一批返回
+			default:
 			}
 			v, err := call(gctx, i)
 			if err != nil && !apperr.IsKind(err, apperr.AIFailed) {

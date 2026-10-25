@@ -1,5 +1,5 @@
 // 1.5 选择文件：文件（Word、PDF、Excel）、相册、拍照、粘贴文字；可多选、显示上传进度、可移除；
-// 必须勾选使用权才能开始；解析额度不足在开始前提示（PRD 1.5、11.12）。
+// 使用权声明默认勾选，取消勾选不能开始；解析额度不足在开始前提示（PRD 1.5、11.12）。
 import { ApiError } from '@training/api-client';
 import { radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -27,7 +27,8 @@ export default function FilesScreen() {
   const { mode, subjectId, files, add, update, remove, onboarding } = useImportFlow();
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => unwrap(api.GET('/subjects')) });
   const subject = subjects.data?.items.find((s) => s.id === subjectId);
-  const [agreed, setAgreed] = useState(false);
+  // 默认勾选：用户要求不用每次手动点；声明文字保留，取消勾选就不能开始（服务端仍要求 right_confirmed）。
+  const [agreed, setAgreed] = useState(true);
   const [busy, setBusy] = useState(false);
   const [quota, setQuota] = useState<{ need?: number; remaining?: number } | null>(null);
 
