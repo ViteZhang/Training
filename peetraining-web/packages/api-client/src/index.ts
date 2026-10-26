@@ -40,7 +40,11 @@ export interface ApiClientOptions {
   baseUrl: string;
   /** 当前访问令牌；没有登录返回 undefined */
   getAccessToken: () => string | undefined;
-  /** 访问令牌过期时刷新；返回新的访问令牌，刷新失败返回 undefined（调用方随后退出登录） */
+  /**
+   * 访问令牌过期时刷新；返回新的访问令牌，刷新失败返回 undefined。
+   * 刷新失败后 getAccessToken 仍有令牌，说明登录态还在（多半是网络没恢复），按网络错误返回；
+   * 登录态被清除才把原来的 401 交给调用方。
+   */
   refresh?: () => Promise<string | undefined>;
   /** 生成幂等键，默认用 crypto.randomUUID */
   newIdempotencyKey?: () => string;
@@ -76,7 +80,16 @@ export function createApiClient(opts: ApiClientOptions) {
         refreshing = undefined;
       });
       const token = await refreshing;
-      if (!token) return undefined;
+      if (!token) {
+        // 登录态还在（刷新因网络失败）：不要让页面显示「登录已失效」，按网络错误返回，查询会自动重试。
+        if (opts.getAccessToken()) {
+          return new Response(JSON.stringify({ code: 'NETWORK', message: '网络还没连上，请稍后再试' }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return undefined;
+      }
       const retry = new Request(request, { headers: new Headers(request.headers) });
       retry.headers.set('Authorization', `Bearer ${token}`);
       retry.headers.set('X-Retried', '1');
