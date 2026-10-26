@@ -547,6 +547,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/subjects/{subjectId}/answer-files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 补充答案文件（1.7c）
+         * @description 选择或拍摄一份答案（规则同 1.5，计入解析额度，不足时 402）。解析完后先按年份 + 题号配到缺答案的题上，对不上的再按题干配；
+         *     target_job_id 是从哪次导入的确认页进来的（配那次导入里缺答案的题），不传时配题库里缺答案或只有 AI 参考答案的题。
+         *     进度用 GET /import-jobs/{jobId}，配对结果用 GET /import-jobs/{jobId}/pairings。
+         */
+        post: operations["createAnswerFileJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/import-jobs/{jobId}/pairings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["JobId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * 答案文件的配对结果（1.7c）
+         * @description 按题号配上 / 按题干配上 · 请核对 / 仍缺答案；任务还在解析时 pairings 为空。不是答案文件任务返回 404。
+         */
+        get: operations["listAnswerPairings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/import-jobs/{jobId}/pairings/{pairingId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["JobId"];
+                pairingId: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** 改配错配的答案，或取消这一条（answer_id 为 null） */
+        put: operations["updateAnswerPairing"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/import-jobs/{jobId}/pairings/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["JobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 「确认配对 N 题」（1.7c）
+         * @description 这些题的答案来源变为「来自你的资料」，主观题由 AI 从答案中提取采分点，在 1.7b 核对。
+         */
+        post: operations["confirmAnswerPairings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/import-jobs/{jobId}/confirm": {
         parameters: {
             query?: never;
@@ -1377,6 +1465,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/questions/{questionId}/answer/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: components["parameters"]["QuestionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 「答案没问题，确认」（3.3b、4.7b）
+         * @description AI 参考答案与它的采分点变为「你已确认」，之后的批改计入预估分；确认前的批改分数不追溯。答案不是 AI 参考答案时返回 409。
+         */
+        post: operations["confirmAIAnswer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/questions/{questionId}/report": {
         parameters: {
             query?: never;
@@ -1388,7 +1498,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 「题目有问题」报错（4.3）；AI 出的题被报错 3 次自动下线 */
+        /** 「题目有问题」报错（4.3）；AI 出的题被报错 3 次自动下线；客观题的 AI 答案被报错 3 次自动撤回，回到「缺答案」 */
         post: operations["reportQuestion"];
         delete?: never;
         options?: never;
@@ -4305,6 +4415,46 @@ export interface components {
          * @enum {string}
          */
         RubricSource: "user_confirmed" | "ai_extracted" | "ai_generated" | "official" | "reference_answer";
+        /** @description 1.7c 一条答案配对：按题号配上 / 按题干配上 · 请核对 / 用户改配 */
+        AnswerPairing: {
+            /** Format: int64 */
+            id: number;
+            target: components["schemas"]["PairingTarget"];
+            answer?: components["schemas"]["PairingAnswer"];
+            /** @enum {string} */
+            method: "number" | "stem" | "manual";
+            /** @enum {string} */
+            status: "proposed" | "applied";
+        };
+        PairingTarget: {
+            /**
+             * @description item = 这次导入里还没入库的题；question = 题库里的题
+             * @enum {string}
+             */
+            kind: "item" | "question";
+            /** Format: int64 */
+            id: number;
+            qtype: components["schemas"]["QuestionType"];
+            stem: string;
+            exam_year?: number;
+            question_no?: string;
+        };
+        PairingAnswer: {
+            /** Format: int64 */
+            id: number;
+            text: string;
+            exam_year?: number;
+            question_no?: string;
+            source: components["schemas"]["SourceRef"];
+        };
+        AnswerPairingResult: {
+            job: components["schemas"]["ImportJob"];
+            pairings: components["schemas"]["AnswerPairing"][];
+            /** @description 仍缺答案的题 */
+            still_missing: components["schemas"]["PairingTarget"][];
+            /** @description 没用上的答案（改配时可选） */
+            spare_answers: components["schemas"]["PairingAnswer"][];
+        };
         GradingPoint: {
             seq: number;
             content: string;
@@ -4361,6 +4511,11 @@ export interface components {
             quota_charged: boolean;
             /** @description 采分点在这次批改之后改过，可以按新采分点重批 */
             rubric_changed?: boolean;
+            answer_tier?: components["schemas"]["AnswerTier"];
+            /** @description 按 AI 参考答案批改（4.7b）：分数仅供参考、不计入预估分；确认答案后，之后的批改会计入 */
+            reference_only?: boolean;
+            /** @description 题目的 AI 参考答案已经被确认（4.7b 不再显示「这份参考答案对吗？」） */
+            answer_confirmed?: boolean;
         };
         DisputeRequest: {
             /**
@@ -4472,6 +4627,7 @@ export interface components {
             }[];
             /** @description 采分点个数（主观题「按你资料里的 N 个采分点批改」） */
             rubric_count: number;
+            answer_tier?: components["schemas"]["AnswerTier"];
             answered?: components["schemas"]["AttemptBrief"];
         };
         PracticeSession: {
@@ -4538,6 +4694,7 @@ export interface components {
              */
             wrong_book: "added" | "still" | "removed" | "none";
             kp_changes: components["schemas"]["MasteryChange"][];
+            answer_tier?: components["schemas"]["AnswerTier"];
         };
         PracticeSummary: {
             /** Format: int64 */
@@ -4777,6 +4934,10 @@ export interface components {
             basis_papers?: number;
             /** @description 依据了近多少道主观题 */
             basis_questions?: number;
+            /** @description 依据里按你确认过的 AI 答案评分的题数（「其中 N 题按你确认过的 AI 答案评分」） */
+            ai_confirmed_questions?: number;
+            /** @description 一半以上主观题没有可信答案、暂不参与估分的真题卷数（提示补答案） */
+            pending_answer_papers?: number;
             /** @description 今天的变化（中值）；今天没变时不返回 */
             today_change?: number;
             /** Format: date-time */
@@ -5515,6 +5676,20 @@ export interface components {
             avg_seconds: number;
             p95_seconds: number;
             formats: components["schemas"]["AdminFormatStat"][];
+            answers?: components["schemas"]["AdminAnswerStats"];
+        };
+        /** @description 7.5 缺答案（PRD 11.16）：导入题目缺答案占比、从用户其他资料匹配补上的比例、AI 参考答案的确认率与修改率；只有统计数字 */
+        AdminAnswerStats: {
+            /** @description 统计期内导入识别出的题 */
+            imported_questions: number;
+            /** @description 其中原文没有答案的 */
+            missing_original: number;
+            /** @description 其中从用户其他资料匹配或答案文件配上的 */
+            matched: number;
+            /** @description 统计期内生成的 AI 参考答案 */
+            ai_answers: number;
+            ai_confirmed: number;
+            ai_edited: number;
         };
         AdminImportJob: {
             /** Format: int64 */
@@ -6631,10 +6806,10 @@ export interface components {
             right_confirmed: boolean;
         };
         /**
-         * @description 1.4 选的导入方式：题目 / 资料（拆成知识点） / 作文资料
+         * @description 1.4 选的导入方式：题目 / 资料（拆成知识点） / 作文资料；answers 是 1.7c 补充答案文件（只能用 POST /subjects/{subjectId}/answer-files 创建）
          * @enum {string}
          */
-        ImportMode: "question" | "reference" | "essay";
+        ImportMode: "question" | "reference" | "essay" | "answers";
         CreateImportJobRequest: {
             /** Format: int64 */
             subject_id: number;
@@ -6674,6 +6849,11 @@ export interface components {
             /** @description AI 判断这批资料是作文类（1.7 显示，可改） */
             detected_essay?: boolean;
             counts: components["schemas"]["ImportCounts"];
+            /**
+             * Format: int64
+             * @description 答案文件任务：要补答案的导入任务
+             */
+            target_job_id?: number;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -6688,9 +6868,27 @@ export interface components {
             confirmed: number;
             /** @description 作文资料条目（评分标准、写作方法、素材、范文） */
             essay_items?: number;
+            /** @description 原文没有答案、已从你的其他资料匹配到或用答案文件配上的题数（1.7 说明卡） */
+            answer_matched?: number;
+            /** @description 还缺答案的题数（做到时由 AI 给参考答案） */
+            missing_answer?: number;
         };
-        /** @enum {string} */
-        ReviewReason: "low_confidence" | "missing_answer" | "rubric_unconfirmed" | "rubric_sum_mismatch" | "duplicate";
+        /**
+         * @description answer_matched = 答案是从你的其他资料匹配到的，请核对（PRD 11.16）
+         * @enum {string}
+         */
+        ReviewReason: "low_confidence" | "missing_answer" | "rubric_unconfirmed" | "rubric_sum_mismatch" | "duplicate" | "answer_matched";
+        /**
+         * @description 参考答案的来源档位（PRD 11.16）：来自你的资料 / 你已确认 / AI 参考答案（待确认）/ AI 出题自带的答案 / 缺答案。
+         *     只有 material、confirmed、ai_question 计入预估分；ai 可以批改，结果标「仅供参考」。
+         * @enum {string}
+         */
+        AnswerTier: "material" | "confirmed" | "ai" | "ai_question" | "missing";
+        /**
+         * @description 「来自你的资料」的答案怎么来的：原文自带 / 从你的其他资料匹配 / 1.7c 补充答案文件配对
+         * @enum {string}
+         */
+        AnswerMatch: "original" | "other_material" | "answer_file";
         /** @enum {string} */
         ImportItemStatus: "pending" | "confirmed" | "edited" | "deleted";
         /** @enum {string} */
@@ -6740,6 +6938,9 @@ export interface components {
              * @description 用户改了归属时指向已有知识点
              */
             kp_id?: number;
+            answer_match?: components["schemas"]["AnswerMatch"];
+            answer_source?: components["schemas"]["SourceRef"];
+            answer_tier?: components["schemas"]["AnswerTier"];
         };
         KnowledgePointDraft: {
             name: string;
@@ -6940,10 +7141,10 @@ export interface components {
             text: string;
         };
         /**
-         * @description 已掌握 / 错题 / 待核对 / 还没做过 / 已做过
+         * @description 已掌握 / 错题 / 待核对 / AI 答案待确认 / 还没做过 / 已做过
          * @enum {string}
          */
-        QuestionStatusTag: "mastered" | "wrong" | "needs_review" | "unanswered" | "answered";
+        QuestionStatusTag: "mastered" | "wrong" | "needs_review" | "ai_answer" | "unanswered" | "answered";
         QuestionSummary: {
             group?: components["schemas"]["QuestionGroup"];
             /** @description 共用材料的归组键，相同的题共用一段材料（列表里不返回材料原文） */
@@ -6963,6 +7164,7 @@ export interface components {
             path: string[];
             /** @description AI 出题依据的知识点名称 */
             generated_from_kp?: string;
+            answer_tier?: components["schemas"]["AnswerTier"];
         };
         QuestionPage: {
             items: components["schemas"]["QuestionSummary"][];
@@ -6975,6 +7177,10 @@ export interface components {
                     [key: string]: number;
                 };
                 exam_years: number[];
+                /** @description 各答案档位的题数（3.1b 按答案状态筛选）：material、confirmed、ai、missing */
+                by_answer?: {
+                    [key: string]: number;
+                };
             };
             next_cursor?: string;
         };
@@ -6995,6 +7201,11 @@ export interface components {
             passage?: components["schemas"]["QuestionPassage"];
             /** Format: int64 */
             id: number;
+            /**
+             * Format: int64
+             * @description 所属专业课（3.3b 显示参考教材、补充答案文件）
+             */
+            subject_id?: number;
             qtype: components["schemas"]["QuestionType"];
             stem: string;
             options?: components["schemas"]["ChoiceOption"][];
@@ -7021,6 +7232,15 @@ export interface components {
             in_wrong_book: boolean;
             needs_review: boolean;
             review_reasons?: components["schemas"]["ReviewReason"][];
+            answer_tier?: components["schemas"]["AnswerTier"];
+            answer_match?: components["schemas"]["AnswerMatch"];
+            answer_source?: components["schemas"]["SourceRef"];
+            /** @description 3.3b：按这份 AI 参考答案批改过的次数与最近一次得分（不计入预估分） */
+            reference_gradings?: {
+                count: number;
+                last_score?: number;
+                last_full_score?: number;
+            };
         };
         QuestionInput: {
             qtype: components["schemas"]["QuestionType"];
@@ -7056,6 +7276,8 @@ export interface components {
             question_count: number;
             kp_count: number;
             needs_review_count: number;
+            /** @description 缺答案的题数（3.1 提醒条「N 题缺答案」，含只有 AI 参考答案、还没确认的） */
+            missing_answer_count?: number;
             material_count: number;
             paper_count?: number;
             mastery_distribution: {
@@ -8029,7 +8251,7 @@ export interface operations {
     listImportItems: {
         parameters: {
             query?: {
-                filter?: "all" | "needs_review" | "subjective" | "objective";
+                filter?: "all" | "needs_review" | "subjective" | "objective" | "missing_answer";
                 /** @description 上一页响应里的 next_cursor */
                 cursor?: components["parameters"]["Cursor"];
                 limit?: components["parameters"]["Limit"];
@@ -8052,6 +8274,118 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    createAnswerFileJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    material_ids: number[];
+                    /** Format: int64 */
+                    target_job_id?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description 已开始解析 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportJob"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            402: components["responses"]["QuotaExceeded"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listAnswerPairings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["JobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnswerPairingResult"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateAnswerPairing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["JobId"];
+                pairingId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    answer_id: number | null;
+                };
+            };
+        };
+        responses: {
+            /** @description 已修改 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    confirmAnswerPairings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["JobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        applied: number;
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     confirmImportJob: {
@@ -8505,6 +8839,8 @@ export interface operations {
                 /** @description 某知识点（含子节点）下的题 */
                 kp_id?: number;
                 status?: "mastered" | "wrong" | "needs_review" | "unanswered";
+                /** @description 3.1b 按答案状态筛选：来自你的资料 / 你已确认 / AI 答案待确认 / 缺答案 */
+                answer_status?: "material" | "confirmed" | "ai" | "missing";
                 sort?: "chapter" | "recent";
                 /** @description 上一页响应里的 next_cursor */
                 cursor?: components["parameters"]["Cursor"];
@@ -9321,6 +9657,30 @@ export interface operations {
                 content?: never;
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    confirmAIAnswer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: components["parameters"]["QuestionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionDetail"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     reportQuestion: {

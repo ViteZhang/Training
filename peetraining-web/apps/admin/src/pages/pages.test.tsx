@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Codes } from './Codes';
 import { Feedback } from './Feedback';
 import { Overview } from './Overview';
+import { Parse } from './Parse';
 import { Users } from './Users';
 
 type Handler = (req: Request) => { status: number; body?: unknown } | Promise<{ status: number; body?: unknown }>;
@@ -136,5 +137,22 @@ describe('7.1 概览', () => {
     expect(await screen.findByText('本周资料解析成功率低于 95%，去「资料解析监控」看失败任务')).toBeTruthy();
     expect(screen.getByText('654')).toBeTruthy();
     expect(screen.getByText(/本月 ¥21860.00/)).toBeTruthy();
+  });
+});
+
+describe('7.5 资料解析监控', () => {
+  it('缺答案统计：占比、匹配补上比例、AI 参考答案确认率与修改率', async () => {
+    g.mockApi['GET /admin/parse/stats'] = () => ({
+      status: 200,
+      body: { success_rate: 0.96, pages: 100, files: 10, avg_seconds: 20, p95_seconds: 60, formats: [],
+        answers: { imported_questions: 200, missing_original: 50, matched: 20, ai_answers: 10, ai_confirmed: 6, ai_edited: 2 } },
+    });
+    g.mockApi['GET /admin/parse/jobs'] = () => ({ status: 200, body: { items: [] } });
+    wrap(<Parse />);
+    expect(await screen.findByText('导入题目缺答案')).toBeTruthy();
+    expect(screen.getByText('缺答案占比')).toBeTruthy();
+    expect(screen.getByText('50 / 200 题')).toBeTruthy();
+    expect(screen.getByText('AI 参考答案确认率')).toBeTruthy();
+    expect(screen.getByText('共 10 份')).toBeTruthy();
   });
 });

@@ -1,6 +1,7 @@
 // 7.5 资料解析监控：成功率（目标 ≥ 95%）、解析页数、平均与 P95 耗时；按资料格式的成功率与页数；失败与部分成功的任务列表；
+// 导入题目缺答案占比、匹配补上的比例、AI 参考答案确认率与修改率；
 // 任务详情只显示格式、页数、识别日志与失败环节，不显示内容；操作：重跑、给用户发拍照建议、补偿解析额度。
-import { ApiError } from '@training/api-client';
+import { ApiError, type Schemas } from '@training/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { App as AntApp, Button, Card, Col, Drawer, Form, InputNumber, Row, Space, Statistic, Table, Tag, Typography } from 'antd';
 import { useState } from 'react';
@@ -12,6 +13,22 @@ const stepNames: Record<string, string> = {
   queued: '排队', extract: '取文字', moderate: '内容安全', split: '拆题', structure: '结构化', match: '配答案', rubric: '采分点', tag: '打知识点', dedupe: '去重', done: '完成',
 };
 const statusColor: Record<string, string> = { failed: 'red', partial: 'orange', done: 'green' };
+
+const ratio = (n: number, d: number) => (d > 0 ? pct(n / d) : '—');
+
+/** 缺答案（PRD v3 7.5、11.16）：只有统计数字。 */
+function AnswerStatsCard({ a }: { a: Schemas['AdminAnswerStats'] }) {
+  return (
+    <Card title="导入题目缺答案" style={{ marginTop: 16 }}>
+      <Row gutter={16}>
+        <Col span={6}><Statistic title="缺答案占比" value={ratio(a.missing_original, a.imported_questions)} suffix={<Typography.Text type="secondary" style={{ fontSize: 13 }}>{a.missing_original} / {a.imported_questions} 题</Typography.Text>} /></Col>
+        <Col span={6}><Statistic title="从其他资料匹配补上" value={ratio(a.matched, a.missing_original)} suffix={<Typography.Text type="secondary" style={{ fontSize: 13 }}>{a.matched} 题</Typography.Text>} /></Col>
+        <Col span={6}><Statistic title="AI 参考答案确认率" value={ratio(a.ai_confirmed, a.ai_answers)} suffix={<Typography.Text type="secondary" style={{ fontSize: 13 }}>共 {a.ai_answers} 份</Typography.Text>} /></Col>
+        <Col span={6}><Statistic title="AI 参考答案修改率" value={ratio(a.ai_edited, a.ai_answers)} /></Col>
+      </Row>
+    </Card>
+  );
+}
 
 function errMsg(e: unknown) {
   return e instanceof ApiError ? e.message : '操作失败，请重试';
@@ -36,6 +53,7 @@ export function Parse() {
               <Col span={6}><Card><Statistic title="平均耗时" value={dur(s.avg_seconds)} /></Card></Col>
               <Col span={6}><Card><Statistic title="P95 耗时" value={dur(s.p95_seconds)} /></Card></Col>
             </Row>
+            {s.answers ? <AnswerStatsCard a={s.answers} /> : null}
             <Card title="按资料格式" style={{ marginTop: 16 }}>
               <Table
                 size="small"

@@ -56,6 +56,7 @@ export const statusTagNames: Record<Schemas['QuestionStatusTag'], string> = {
   mastered: '已掌握',
   wrong: '错题',
   needs_review: '待核对',
+  ai_answer: 'AI 答案待确认',
   unanswered: '还没做过',
   answered: '已做过',
 };
