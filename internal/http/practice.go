@@ -61,6 +61,9 @@ func toGenSession(s practice.Session) gen.PracticeSession {
 		if q.Answer != "" {
 			x.Answer = ptr(q.Answer)
 		}
+		if q.AnswerTier != "" {
+			x.AnswerTier = ptr(gen.AnswerTier(q.AnswerTier))
+		}
 		if q.Analysis != "" {
 			x.Analysis = ptr(q.Analysis)
 		}
@@ -232,6 +235,9 @@ func (h *Handlers) SubmitAttempt(c *gin.Context, sessionID gen.SessionId) {
 		KpChanges: make([]gen.MasteryChange, len(r.KPs))}
 	if r.Answer != "" {
 		out.CorrectAnswer = ptr(r.Answer)
+	}
+	if r.AnswerTier != "" {
+		out.AnswerTier = ptr(gen.AnswerTier(r.AnswerTier))
 	}
 	if r.Analysis != "" {
 		out.Analysis = ptr(r.Analysis)

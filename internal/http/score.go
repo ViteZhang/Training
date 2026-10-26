@@ -15,6 +15,9 @@ import (
 func toGenEstimate(c score.Card) gen.EstimateCard {
 	out := gen.EstimateCard{SubjectId: int64(c.SubjectID), Name: c.Name, IsEssay: c.IsEssay, FullScore: c.FullScore, Ready: c.Ready, TargetScore: c.Target,
 		Gap: c.Gap, TodayChange: c.TodayChange}
+	if c.PendingAnswerPapers > 0 {
+		out.PendingAnswerPapers = ptr(c.PendingAnswerPapers)
+	}
 	if c.Ready {
 		out.Low, out.High, out.BasisPapers, out.BasisQuestions = ptr(c.Low), ptr(c.High), ptr(c.BasisPapers), ptr(c.BasisQuestions)
 		out.ComputedAt = ptr(c.ComputedAt)
@@ -22,6 +25,9 @@ func toGenEstimate(c score.Card) gen.EstimateCard {
 			out.MainGapQtype = ptr(gen.QuestionType(c.MainGap))
 		}
 		out.MainGapDimension = optStr(c.MainGapDimension)
+		if c.AIConfirmed > 0 {
+			out.AiConfirmedQuestions = ptr(c.AIConfirmed)
+		}
 	}
 	return out
 }

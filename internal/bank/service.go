@@ -58,8 +58,10 @@ func (s *Service) subject(ctx context.Context, userID, subjectID uint64) (dbq.Ge
 type Overview struct {
 	SubjectID, BankID                              uint64
 	Questions, KPs, NeedsReview, Materials, Papers int
-	Unlearned, Learning, Consolidating, Mastered   int
-	IsEssay                                        bool
+	// MissingAnswers 是缺答案的题数（3.1 提醒条，PRD v3 11.16）
+	MissingAnswers                               int
+	Unlearned, Learning, Consolidating, Mastered int
+	IsEssay                                      bool
 }
 
 func (s *Service) Overview(ctx context.Context, userID, subjectID uint64) (Overview, error) {
@@ -72,7 +74,8 @@ func (s *Service) Overview(ctx context.Context, userID, subjectID uint64) (Overv
 		return Overview{}, err
 	}
 	o := Overview{SubjectID: subjectID, BankID: b.BankID, Questions: int(c.QuestionCount), KPs: int(c.KpCount),
-		NeedsReview: int(c.QuestionReviewCount + c.KpReviewCount), Materials: int(c.MaterialCount), Papers: int(c.PaperCount), IsEssay: b.IsEssay}
+		NeedsReview: int(c.QuestionReviewCount + c.KpReviewCount), Materials: int(c.MaterialCount), Papers: int(c.PaperCount), IsEssay: b.IsEssay,
+		MissingAnswers: int(c.MissingAnswerCount)}
 	kps, err := s.q.ListBankKPsFull(ctx, dbq.ListBankKPsFullParams{UserID: userID, BankID: b.BankID, Owner: owner(userID)})
 	if err != nil {
 		return Overview{}, err

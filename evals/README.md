@@ -41,3 +41,4 @@ make eval cap=grading args="-model qwen-plus -prompt v2 -record -note 采分点�
 
 | 日期 | 能力 | 样本数 | 指标 | 是否达标 | 能力@提示词版本 · 模型 | 成本与时延 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-10-26 | answer_match@v1、answer_generate@v2（T35 新增与改版） | 4 + 3（虚构示例） | 匹配：候选编号正确 4/4，摘录全部能在原文里逐字找到；生成：分值合计正确 3/3，有资料原文时沿用原文表述 | 示例通过；PRD 12.3 没有这两项的门槛，真实样本待补 | qwen3.8-flash | — | 正式门槛建议并入「题目导入」与「出题」评测集，见 docs/open-questions.md |

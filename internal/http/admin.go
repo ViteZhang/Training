@@ -479,6 +479,9 @@ func (h *Handlers) GetParseStats(c *gin.Context) {
 	for i, f := range s.Formats {
 		out.Formats[i] = gen.AdminFormatStat{Format: f.Format, Files: f.Files, Pages: f.Pages, Ok: f.OK, Partial: f.Partial, Failed: f.Failed, Rate: fl(f.Rate)}
 	}
+	a := s.Answers
+	out.Answers = &gen.AdminAnswerStats{ImportedQuestions: a.Imported, MissingOriginal: a.MissingOriginal, Matched: a.Matched,
+		AiAnswers: a.AIAnswers, AiConfirmed: a.AIConfirmed, AiEdited: a.AIEdited}
 	c.JSON(http.StatusOK, out)
 }
 

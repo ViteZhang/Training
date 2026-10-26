@@ -637,7 +637,7 @@ paths:
       parameters:
         - name: filter
           in: query
-          schema: { type: string, enum: [all, needs_review, subjective, objective], default: all }
+          schema: { type: string, enum: [all, needs_review, subjective, objective, missing_answer], default: all }
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/Limit"
       responses:
@@ -647,6 +647,96 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ImportItemPage" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /subjects/{subjectId}/answer-files:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    post:
+      tags: [import]
+      operationId: createAnswerFileJob
+      summary: 补充答案文件（1.7c）
+      description: |
+        选择或拍摄一份答案（规则同 1.5，计入解析额度，不足时 402）。解析完后先按年份 + 题号配到缺答案的题上，对不上的再按题干配；
+        target_job_id 是从哪次导入的确认页进来的（配那次导入里缺答案的题），不传时配题库里缺答案或只有 AI 参考答案的题。
+        进度用 GET /import-jobs/{jobId}，配对结果用 GET /import-jobs/{jobId}/pairings。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [material_ids]
+              properties:
+                material_ids: { type: array, minItems: 1, maxItems: 10, items: { type: integer, format: int64 } }
+                target_job_id: { type: integer, format: int64 }
+      responses:
+        "201":
+          description: 已开始解析
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportJob" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "402": { $ref: "#/components/responses/QuotaExceeded" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /import-jobs/{jobId}/pairings:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      tags: [import]
+      operationId: listAnswerPairings
+      summary: 答案文件的配对结果（1.7c）
+      description: 按题号配上 / 按题干配上 · 请核对 / 仍缺答案；任务还在解析时 pairings 为空。不是答案文件任务返回 404。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnswerPairingResult" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /import-jobs/{jobId}/pairings/{pairingId}:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+      - { name: pairingId, in: path, required: true, schema: { type: integer, format: int64 } }
+    put:
+      tags: [import]
+      operationId: updateAnswerPairing
+      summary: 改配错配的答案，或取消这一条（answer_id 为 null）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answer_id]
+              properties:
+                answer_id: { type: integer, format: int64, nullable: true }
+      responses:
+        "204": { description: 已修改 }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /import-jobs/{jobId}/pairings/confirm:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    post:
+      tags: [import]
+      operationId: confirmAnswerPairings
+      summary: 「确认配对 N 题」（1.7c）
+      description: 这些题的答案来源变为「来自你的资料」，主观题由 AI 从答案中提取采分点，在 1.7b 核对。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [applied]
+                properties:
+                  applied: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
 
   /import-jobs/{jobId}/confirm:
     parameters:
@@ -999,6 +1089,7 @@ paths:
         - { name: exam_year, in: query, schema: { type: integer } }
         - { name: kp_id, in: query, schema: { type: integer, format: int64 }, description: 某知识点（含子节点）下的题 }
         - { name: status, in: query, schema: { type: string, enum: [mastered, wrong, needs_review, unanswered] } }
+        - { name: answer_status, in: query, schema: { type: string, enum: [material, confirmed, ai, missing] }, description: 3.1b 按答案状态筛选：来自你的资料 / 你已确认 / AI 答案待确认 / 缺答案 }
         - { name: sort, in: query, schema: { type: string, enum: [chapter, recent], default: chapter } }
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/Limit"
@@ -1557,13 +1648,30 @@ paths:
         "204": { description: 已移出 }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /questions/{questionId}/answer/confirm:
+    parameters:
+      - $ref: "#/components/parameters/QuestionId"
+    post:
+      tags: [bank]
+      operationId: confirmAIAnswer
+      summary: 「答案没问题，确认」（3.3b、4.7b）
+      description: AI 参考答案与它的采分点变为「你已确认」，之后的批改计入预估分；确认前的批改分数不追溯。答案不是 AI 参考答案时返回 409。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QuestionDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
   /questions/{questionId}/report:
     parameters:
       - $ref: "#/components/parameters/QuestionId"
     post:
       tags: [practice]
       operationId: reportQuestion
-      summary: 「题目有问题」报错（4.3）；AI 出的题被报错 3 次自动下线
+      summary: 「题目有问题」报错（4.3）；AI 出的题被报错 3 次自动下线；客观题的 AI 答案被报错 3 次自动撤回，回到「缺答案」
       requestBody:
         required: true
         content:
@@ -6114,6 +6222,43 @@ components:
       type: string
       description: 批改依据的来源：用户确认 / AI 提取待确认 / AI 生成 / 官方 / 没有采分点时按参考答案整体批改
       enum: [user_confirmed, ai_extracted, ai_generated, official, reference_answer]
+    AnswerPairing:
+      type: object
+      description: 1.7c 一条答案配对：按题号配上 / 按题干配上 · 请核对 / 用户改配
+      required: [id, target, method, status]
+      properties:
+        id: { type: integer, format: int64 }
+        target: { $ref: "#/components/schemas/PairingTarget" }
+        answer: { $ref: "#/components/schemas/PairingAnswer" }
+        method: { type: string, enum: [number, stem, manual] }
+        status: { type: string, enum: [proposed, applied] }
+    PairingTarget:
+      type: object
+      required: [kind, id, qtype, stem]
+      properties:
+        kind: { type: string, enum: [item, question], description: item = 这次导入里还没入库的题；question = 题库里的题 }
+        id: { type: integer, format: int64 }
+        qtype: { $ref: "#/components/schemas/QuestionType" }
+        stem: { type: string }
+        exam_year: { type: integer }
+        question_no: { type: string }
+    PairingAnswer:
+      type: object
+      required: [id, text, source]
+      properties:
+        id: { type: integer, format: int64 }
+        text: { type: string }
+        exam_year: { type: integer }
+        question_no: { type: string }
+        source: { $ref: "#/components/schemas/SourceRef" }
+    AnswerPairingResult:
+      type: object
+      required: [job, pairings, still_missing, spare_answers]
+      properties:
+        job: { $ref: "#/components/schemas/ImportJob" }
+        pairings: { type: array, items: { $ref: "#/components/schemas/AnswerPairing" } }
+        still_missing: { type: array, items: { $ref: "#/components/schemas/PairingTarget" }, description: 仍缺答案的题 }
+        spare_answers: { type: array, items: { $ref: "#/components/schemas/PairingAnswer" }, description: 没用上的答案（改配时可选） }
     GradingPoint:
       type: object
       required: [seq, content, score, got, verdict]
@@ -6166,6 +6311,11 @@ components:
         disputed: { type: boolean, description: 已经提交过复核 }
         quota_charged: { type: boolean }
         rubric_changed: { type: boolean, description: 采分点在这次批改之后改过，可以按新采分点重批 }
+        answer_tier: { $ref: "#/components/schemas/AnswerTier" }
+        reference_only:
+          type: boolean
+          description: 按 AI 参考答案批改（4.7b）：分数仅供参考、不计入预估分；确认答案后，之后的批改会计入
+        answer_confirmed: { type: boolean, description: 题目的 AI 参考答案已经被确认（4.7b 不再显示「这份参考答案对吗？」） }
     DisputeRequest:
       type: object
       required: [reason]
@@ -6264,6 +6414,7 @@ components:
               name: { type: string }
               is_primary: { type: boolean }
         rubric_count: { type: integer, description: 采分点个数（主观题「按你资料里的 N 个采分点批改」） }
+        answer_tier: { $ref: "#/components/schemas/AnswerTier" }
         answered: { $ref: "#/components/schemas/AttemptBrief" }
     PracticeSession:
       type: object
@@ -6312,6 +6463,7 @@ components:
         analysis: { type: string }
         wrong_book: { type: string, enum: [added, still, removed, none], description: 加入错题本 / 仍在错题本 / 自动移出（已消灭） / 无变化 }
         kp_changes: { type: array, items: { $ref: "#/components/schemas/MasteryChange" } }
+        answer_tier: { $ref: "#/components/schemas/AnswerTier" }
     PracticeSummary:
       type: object
       required: [session_id, title, question_count, answered, correct_rate, minutes, by_qtype, from_bank, from_ai, review_kps, comment]
@@ -6565,6 +6717,8 @@ components:
         main_gap_dimension: { type: string, description: 作文课的失分主项（得分率最低的维度，PRD 11.13） }
         basis_papers: { type: integer, description: 依据了几套导入真题卷；作文课为依据的作文篇数 }
         basis_questions: { type: integer, description: 依据了近多少道主观题 }
+        ai_confirmed_questions: { type: integer, description: 依据里按你确认过的 AI 答案评分的题数（「其中 N 题按你确认过的 AI 答案评分」） }
+        pending_answer_papers: { type: integer, description: 一半以上主观题没有可信答案、暂不参与估分的真题卷数（提示补答案） }
         today_change: { type: integer, description: 今天的变化（中值）；今天没变时不返回 }
         computed_at: { type: string, format: date-time }
     LossPoints:
@@ -7555,6 +7709,35 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AdminFormatStat'
+        answers:
+          $ref: '#/components/schemas/AdminAnswerStats'
+    AdminAnswerStats:
+      type: object
+      description: 7.5 缺答案（PRD 11.16）：导入题目缺答案占比、从用户其他资料匹配补上的比例、AI 参考答案的确认率与修改率；只有统计数字
+      required:
+      - imported_questions
+      - missing_original
+      - matched
+      - ai_answers
+      - ai_confirmed
+      - ai_edited
+      properties:
+        imported_questions:
+          type: integer
+          description: 统计期内导入识别出的题
+        missing_original:
+          type: integer
+          description: 其中原文没有答案的
+        matched:
+          type: integer
+          description: 其中从用户其他资料匹配或答案文件配上的
+        ai_answers:
+          type: integer
+          description: 统计期内生成的 AI 参考答案
+        ai_confirmed:
+          type: integer
+        ai_edited:
+          type: integer
     AdminImportJob:
       type: object
       required:
@@ -9009,8 +9192,8 @@ components:
 
     ImportMode:
       type: string
-      description: 1.4 选的导入方式：题目 / 资料（拆成知识点） / 作文资料
-      enum: [question, reference, essay]
+      description: 1.4 选的导入方式：题目 / 资料（拆成知识点） / 作文资料；answers 是 1.7c 补充答案文件（只能用 POST /subjects/{subjectId}/answer-files 创建）
+      enum: [question, reference, essay, answers]
     CreateImportJobRequest:
       type: object
       required: [subject_id, mode, material_ids]
@@ -9047,6 +9230,7 @@ components:
         eta_seconds: { type: integer, description: 预计剩余时间 }
         detected_essay: { type: boolean, description: AI 判断这批资料是作文类（1.7 显示，可改） }
         counts: { $ref: "#/components/schemas/ImportCounts" }
+        target_job_id: { type: integer, format: int64, description: 答案文件任务：要补答案的导入任务 }
         created_at: { type: string, format: date-time }
         finished_at: { type: string, format: date-time }
     ImportCounts:
@@ -9060,10 +9244,23 @@ components:
         objective: { type: integer }
         confirmed: { type: integer }
         essay_items: { type: integer, description: 作文资料条目（评分标准、写作方法、素材、范文） }
+        answer_matched: { type: integer, description: 原文没有答案、已从你的其他资料匹配到或用答案文件配上的题数（1.7 说明卡） }
+        missing_answer: { type: integer, description: 还缺答案的题数（做到时由 AI 给参考答案） }
 
     ReviewReason:
       type: string
-      enum: [low_confidence, missing_answer, rubric_unconfirmed, rubric_sum_mismatch, duplicate]
+      description: answer_matched = 答案是从你的其他资料匹配到的，请核对（PRD 11.16）
+      enum: [low_confidence, missing_answer, rubric_unconfirmed, rubric_sum_mismatch, duplicate, answer_matched]
+    AnswerTier:
+      type: string
+      description: |
+        参考答案的来源档位（PRD 11.16）：来自你的资料 / 你已确认 / AI 参考答案（待确认）/ AI 出题自带的答案 / 缺答案。
+        只有 material、confirmed、ai_question 计入预估分；ai 可以批改，结果标「仅供参考」。
+      enum: [material, confirmed, ai, ai_question, missing]
+    AnswerMatch:
+      type: string
+      description: 「来自你的资料」的答案怎么来的：原文自带 / 从你的其他资料匹配 / 1.7c 补充答案文件配对
+      enum: [original, other_material, answer_file]
     ImportItemStatus:
       type: string
       enum: [pending, confirmed, edited, deleted]
@@ -9117,6 +9314,9 @@ components:
         rubric_origin: { $ref: "#/components/schemas/Origin" }
         kp_path: { type: array, items: { type: string }, description: 板块 / 章节 / 知识点名称 }
         kp_id: { type: integer, format: int64, description: 用户改了归属时指向已有知识点 }
+        answer_match: { $ref: "#/components/schemas/AnswerMatch" }
+        answer_source: { $ref: "#/components/schemas/SourceRef" }
+        answer_tier: { $ref: "#/components/schemas/AnswerTier" }
     KnowledgePointDraft:
       type: object
       required: [name, kp_path]
@@ -9323,8 +9523,8 @@ components:
         text: { type: string }
     QuestionStatusTag:
       type: string
-      description: 已掌握 / 错题 / 待核对 / 还没做过 / 已做过
-      enum: [mastered, wrong, needs_review, unanswered, answered]
+      description: 已掌握 / 错题 / 待核对 / AI 答案待确认 / 还没做过 / 已做过
+      enum: [mastered, wrong, needs_review, ai_answer, unanswered, answered]
     QuestionSummary:
       type: object
       required: [id, qtype, stem, source, status_tag, attempt_count, path]
@@ -9342,6 +9542,7 @@ components:
         attempt_count: { type: integer }
         path: { type: array, items: { type: string }, description: 所属板块 / 章节 }
         generated_from_kp: { type: string, description: AI 出题依据的知识点名称 }
+        answer_tier: { $ref: "#/components/schemas/AnswerTier" }
     QuestionPage:
       type: object
       required: [items, facets]
@@ -9359,6 +9560,10 @@ components:
               type: object
               additionalProperties: { type: integer }
             exam_years: { type: array, items: { type: integer } }
+            by_answer:
+              type: object
+              additionalProperties: { type: integer }
+              description: 各答案档位的题数（3.1b 按答案状态筛选）：material、confirmed、ai、missing
         next_cursor: { type: string }
     AttemptHistory:
       type: object
@@ -9410,6 +9615,17 @@ components:
         in_wrong_book: { type: boolean }
         needs_review: { type: boolean }
         review_reasons: { type: array, items: { $ref: "#/components/schemas/ReviewReason" } }
+        answer_tier: { $ref: "#/components/schemas/AnswerTier" }
+        answer_match: { $ref: "#/components/schemas/AnswerMatch" }
+        answer_source: { $ref: "#/components/schemas/SourceRef" }
+        reference_gradings:
+          type: object
+          description: 3.3b：按这份 AI 参考答案批改过的次数与最近一次得分（不计入预估分）
+          required: [count]
+          properties:
+            count: { type: integer }
+            last_score: { type: number }
+            last_full_score: { type: number }
     QuestionInput:
       type: object
       required: [qtype, stem]
@@ -9447,6 +9663,7 @@ components:
         question_count: { type: integer }
         kp_count: { type: integer }
         needs_review_count: { type: integer }
+        missing_answer_count: { type: integer, description: 缺答案的题数（3.1 提醒条「N 题缺答案」，含只有 AI 参考答案、还没确认的） }
         material_count: { type: integer }
         paper_count: { type: integer }
         mastery_distribution:

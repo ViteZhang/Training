@@ -31,6 +31,11 @@ type QuestionDraft struct {
 	KPPath         []string         `json:"kp_path,omitempty"`
 	KPID           *int64           `json:"kp_id,omitempty"`
 	SourcePage     int              `json:"source_page,omitempty"`
+	// AnswerMatch 是「来自你的资料」的答案怎么来的（PRD v3 11.16）：original 原文自带 / other_material 从用户其他资料匹配 / answer_file 1.7c 答案文件配对。
+	// AnswerMaterialID、AnswerPage 是答案出处（文件 + 页码）。
+	AnswerMatch      string `json:"answer_match,omitempty"`
+	AnswerMaterialID uint64 `json:"answer_material_id,omitempty"`
+	AnswerPage       int    `json:"answer_page,omitempty"`
 	// Group 是专业分组（「第一组」与适用专业），只答报考专业那一组；Passage 是多题共用的材料。都由切题规则识别。
 	Group   *GroupInfo   `json:"group,omitempty"`
 	Passage *PassageInfo `json:"passage,omitempty"`
@@ -85,6 +90,15 @@ const (
 	ReasonRubricUnconfirmed = "rubric_unconfirmed"
 	ReasonRubricSumMismatch = "rubric_sum_mismatch"
 	ReasonDuplicate         = "duplicate"
+	// ReasonAnswerMatched 是从用户其他资料匹配到的答案，请用户核对（PRD v3 11.16 第 2 条）。
+	ReasonAnswerMatched = "answer_matched"
+)
+
+// 答案出处（QuestionDraft.AnswerMatch，questions.answer_match）。
+const (
+	MatchOriginal      = "original"
+	MatchOtherMaterial = "other_material"
+	MatchAnswerFile    = "answer_file"
 )
 
 var reLeadNo = regexp.MustCompile(`^\s*(?:[（(]\s*)?\d{1,3}\s*[.．、)）]\s*`)
@@ -92,10 +106,10 @@ var reLeadNo = regexp.MustCompile(`^\s*(?:[（(]\s*)?\d{1,3}\s*[.．、)）]\s*`
 // LowConfidence 低于它的条目标「需核对」（PRD 1.7）。
 const LowConfidence = 0.7
 
-// needsReview：低置信度、采分点合计不等于分值、疑似重复要用户核对；缺答案、采分点待确认只是状态。
+// needsReview：低置信度、采分点合计不等于分值、疑似重复、从其他资料匹配到的答案要用户核对；缺答案、采分点待确认只是状态。
 func needsReview(reasons []string) bool {
 	for _, r := range reasons {
-		if r == ReasonLowConfidence || r == ReasonRubricSumMismatch || r == ReasonDuplicate {
+		if r == ReasonLowConfidence || r == ReasonRubricSumMismatch || r == ReasonDuplicate || r == ReasonAnswerMatched {
 			return true
 		}
 	}
@@ -112,6 +126,8 @@ func reviewReasons(q QuestionDraft, keep []string) []string {
 	}
 	if strings.TrimSpace(q.Answer) == "" {
 		out = append(out, ReasonMissingAnswer)
+	} else if q.AnswerMatch == MatchOtherMaterial && q.AnswerOrigin != "user_confirmed" {
+		out = append(out, ReasonAnswerMatched)
 	}
 	if ai.Subjective(q.QType) {
 		if len(q.RubricPoints) > 0 && q.RubricOrigin != "user_confirmed" {

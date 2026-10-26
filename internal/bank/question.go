@@ -18,6 +18,7 @@ import (
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/importer"
 	"peetraining-server/internal/quota"
+	"peetraining-server/internal/rules"
 	"peetraining-server/internal/store"
 )
 
@@ -28,9 +29,11 @@ type QuestionFilter struct {
 	ExamYear *int
 	KPID     *uint64
 	Status   string // mastered / wrong / needs_review / unanswered
-	Sort     string // chapter（按章节）/ recent（最近做过）
-	After    int    // 分页游标：已返回的条数
-	Limit    int
+	// AnswerStatus 按答案档位筛选（3.1b）：material / confirmed / ai / missing（PRD v3 11.16）
+	AnswerStatus string
+	Sort         string // chapter（按章节）/ recent（最近做过）
+	After        int    // 分页游标：已返回的条数
+	Limit        int
 }
 
 // QuestionSummary 是列表里的一题。
@@ -46,6 +49,7 @@ type QuestionSummary struct {
 	AttemptCount    int
 	Path            []string
 	GeneratedFromKP string
+	AnswerTier      string
 	// 专业分组与共用材料归组键（列表里不带材料原文）
 	GroupLabel, GroupMajors, PassageKey string
 }
@@ -54,14 +58,18 @@ type QuestionSummary struct {
 type Facets struct {
 	ByQType  map[string]int
 	BySource map[string]int
+	// ByAnswer 是各答案档位的题数（AI 出题自带的答案算在 material 里）
+	ByAnswer map[string]int
 	Years    []int
 }
 
-// statusTag：待核对 > 错题 > 已掌握（主知识点已掌握）> 还没做过 > 已做过。
+// statusTag：待核对 > AI 答案待确认 > 错题 > 已掌握（主知识点已掌握）> 还没做过 > 已做过。
 func statusTag(q dbq.ListBankQuestionsFullRow, kpState string) string {
 	switch {
 	case q.NeedsReview:
 		return "needs_review"
+	case listTier(q) == rules.AnswerAI:
+		return "ai_answer"
 	case q.InWrongBook:
 		return "wrong"
 	case q.AttemptCount > 0 && kpState == string(dbq.KpMasteryStateMastered):
@@ -70,6 +78,26 @@ func statusTag(q dbq.ListBankQuestionsFullRow, kpState string) string {
 		return "unanswered"
 	}
 	return "answered"
+}
+
+// listTier 是列表里一题的答案档位。
+func listTier(q dbq.ListBankQuestionsFullRow) rules.AnswerTier {
+	answer, origin := "", ""
+	if q.HasAnswer == 1 {
+		answer = "x"
+	}
+	if q.AnswerOrigin.Valid {
+		origin = string(q.AnswerOrigin.QuestionsAnswerOrigin)
+	}
+	return rules.TierOf(answer, origin, string(q.Source))
+}
+
+// answerFacet 把 AI 出题自带的答案归到「来自你的资料」一档里统计与筛选（它们按确认过的采分点出题，与原题同样计分）。
+func answerFacet(t rules.AnswerTier) string {
+	if t == rules.AnswerAIQuestion {
+		return string(rules.AnswerMaterial)
+	}
+	return string(t)
 }
 
 func parseScore(s sql.NullString) *float64 {
@@ -141,7 +169,7 @@ func (s *Service) Questions(ctx context.Context, userID, subjectID uint64, f Que
 			}
 		}
 	}
-	facets := Facets{ByQType: map[string]int{}, BySource: map[string]int{}}
+	facets := Facets{ByQType: map[string]int{}, BySource: map[string]int{}, ByAnswer: map[string]int{}}
 	years := map[int]bool{}
 	var out []QuestionSummary
 	var times []time.Time
@@ -154,7 +182,11 @@ func (s *Service) Questions(ctx context.Context, userID, subjectID uint64, f Que
 		}
 		kp := uint64(r.PrimaryKpID)
 		tag := statusTag(r, string(byID[kp].State))
+		tier := listTier(r)
+		facets.ByAnswer[answerFacet(tier)]++
 		switch {
+		case f.AnswerStatus != "" && answerFacet(tier) != f.AnswerStatus:
+			continue
 		case f.QType != "" && string(r.Qtype) != f.QType,
 			f.Source != "" && string(r.Source) != f.Source,
 			f.ExamYear != nil && (!r.ExamYear.Valid || int(r.ExamYear.Int16) != *f.ExamYear),
@@ -164,7 +196,7 @@ func (s *Service) Questions(ctx context.Context, userID, subjectID uint64, f Que
 		}
 		q := QuestionSummary{ID: r.ID, QType: string(r.Qtype), Stem: r.Stem, Score: parseScore(r.Score), Source: string(r.Source),
 			ExamYear: year(r.ExamYear), StatusTag: tag, LastScore: parseScore(r.LastScore), AttemptCount: int(r.AttemptCount), Path: pathOf(kp),
-			GroupLabel: r.GroupLabel.String, GroupMajors: r.GroupMajors.String, PassageKey: r.PassageKey.String}
+			GroupLabel: r.GroupLabel.String, GroupMajors: r.GroupMajors.String, PassageKey: r.PassageKey.String, AnswerTier: string(tier)}
 		if r.GeneratedFromKpID.Valid {
 			q.GeneratedFromKP = byID[uint64(r.GeneratedFromKpID.Int64)].Name
 		}
@@ -239,8 +271,19 @@ type QuestionDetail struct {
 	InWrongBook     bool
 	NeedsReview     bool
 	ReviewReasons   []string
+	// 答案档位与出处（PRD v3 11.16）；ReferenceGradings 是按这份 AI 参考答案批改过的次数与最近一次得分（3.3b）。
+	AnswerTier        string
+	AnswerMatch       string
+	AnswerSource      *Source
+	ReferenceGradings *ReferenceGradings
 	// 专业分组与共用材料（迁移 00020）：组名、适用专业、材料原文与归组键
 	GroupLabel, GroupMajors, Passage, PassageKey string
+}
+
+// ReferenceGradings 是 3.3b 显示的按 AI 参考答案批改的情况（不计入预估分）。
+type ReferenceGradings struct {
+	Count               int
+	LastScore, LastFull *float64
 }
 
 // QuestionKP 是题目关联的知识点。
@@ -270,6 +313,35 @@ func (s *Service) Question(ctx context.Context, userID, id uint64) (QuestionDeta
 		GroupLabel: q.GroupLabel.String, GroupMajors: q.GroupMajors.String, Passage: q.Passage.String, PassageKey: q.PassageKey.String}
 	if q.AnswerOrigin.Valid {
 		d.AnswerOrigin = string(q.AnswerOrigin.QuestionsAnswerOrigin)
+	}
+	tier := rules.TierOf(q.Answer.String, d.AnswerOrigin, string(q.Source))
+	d.AnswerTier = string(tier)
+	if q.AnswerMatch.Valid {
+		d.AnswerMatch = string(q.AnswerMatch.QuestionsAnswerMatch)
+	}
+	if tier == rules.AnswerMaterial {
+		mid, page := q.AnswerMaterialID, q.AnswerPage
+		if !mid.Valid {
+			mid, page = q.SourceMaterialID, q.SourcePage
+		}
+		if mid.Valid {
+			if m, err := s.q.GetMaterial(ctx, dbq.GetMaterialParams{ID: uint64(mid.Int64), OwnerUserID: userID}); err == nil {
+				d.AnswerSource = &Source{MaterialID: m.ID, FileName: m.FileName, Page: int(page.Int32)}
+			}
+		}
+	}
+	if tier == rules.AnswerAI {
+		n, err := s.q.CountReferenceOnlyAttempts(ctx, dbq.CountReferenceOnlyAttemptsParams{QuestionID: id, OwnerUserID: userID})
+		if err != nil {
+			return d, err
+		}
+		rg := &ReferenceGradings{Count: int(n)}
+		if n > 0 {
+			if last, err := s.q.LatestReferenceOnlyAttempt(ctx, dbq.LatestReferenceOnlyAttemptParams{QuestionID: id, OwnerUserID: userID}); err == nil {
+				rg.LastScore, rg.LastFull = parseScore(last.Score), parseScore(last.FullScore)
+			}
+		}
+		d.ReferenceGradings = rg
 	}
 	_ = json.Unmarshal(q.Options, &d.Options)
 	_ = json.Unmarshal(q.ReviewReasons, &d.ReviewReasons)
@@ -529,9 +601,16 @@ func (s *Service) UpdateQuestion(ctx context.Context, userID, id uint64, in Ques
 			p.Options, _ = json.Marshal(*in.Options)
 		}
 	}
+	editedAI := false
 	if in.Answer != nil && *in.Answer != q.Answer.String {
 		p.Answer = nullStr(in.Answer)
 		p.AnswerOrigin = dbq.NullQuestionsAnswerOrigin{QuestionsAnswerOrigin: dbq.QuestionsAnswerOriginUserConfirmed, Valid: p.Answer.Valid}
+		editedAI = q.AnswerOrigin.Valid && q.AnswerOrigin.QuestionsAnswerOrigin == dbq.QuestionsAnswerOriginAiGenerated
+	}
+	// 「我来改」改了 AI 参考答案的采分点，也算确认过答案（PRD v3 11.16 第 6 条：用户修改采分点同理）。
+	if in.Rubric != nil && q.AnswerOrigin.Valid && q.AnswerOrigin.QuestionsAnswerOrigin == dbq.QuestionsAnswerOriginAiGenerated && p.AnswerOrigin == q.AnswerOrigin {
+		p.AnswerOrigin = dbq.NullQuestionsAnswerOrigin{QuestionsAnswerOrigin: dbq.QuestionsAnswerOriginUserConfirmed, Valid: true}
+		editedAI = true
 	}
 	if in.Analysis != nil {
 		p.Analysis = nullStr(in.Analysis)
@@ -557,6 +636,11 @@ func (s *Service) UpdateQuestion(ctx context.Context, userID, id uint64, in Ques
 	err = store.WithTx(ctx, s.db, func(tx *dbq.Queries) error {
 		if err := tx.UpdateQuestion(ctx, p); err != nil {
 			return err
+		}
+		if editedAI {
+			if err := tx.MarkAIAnswerEdited(ctx, dbq.MarkAIAnswerEditedParams{ID: id, OwnerUserID: owner(userID)}); err != nil {
+				return err
+			}
 		}
 		if in.Rubric != nil {
 			if err := tx.DeleteQuestionRubric(ctx, dbq.DeleteQuestionRubricParams{QuestionID: sql.NullInt64{Int64: int64(id), Valid: true}, OwnerUserID: owner(userID)}); err != nil {
@@ -634,4 +718,26 @@ func (s *Service) DeleteQuestions(ctx context.Context, userID uint64, ids []uint
 		return 0, err
 	}
 	return len(refs), nil
+}
+
+// ConfirmAIAnswer 「答案没问题，确认」（3.3b、4.7b）：AI 参考答案与它的采分点变为「你已确认」，之后的批改计入预估分；
+// 确认前的批改分数不追溯（PRD v3 11.16 第 6 条）。答案不是 AI 参考答案时返回 409。
+func (s *Service) ConfirmAIAnswer(ctx context.Context, userID, id uint64) (QuestionDetail, error) {
+	if _, err := s.question(ctx, userID, id); err != nil {
+		return QuestionDetail{}, err
+	}
+	err := store.WithTx(ctx, s.db, func(tx *dbq.Queries) error {
+		n, err := tx.ConfirmAIAnswer(ctx, dbq.ConfirmAIAnswerParams{ID: id, OwnerUserID: owner(userID)})
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return apperr.New(apperr.Conflict, "这道题的答案不是待确认的 AI 参考答案")
+		}
+		return tx.ConfirmQuestionRubric(ctx, dbq.ConfirmQuestionRubricParams{QuestionID: sql.NullInt64{Int64: int64(id), Valid: true}, OwnerUserID: owner(userID)})
+	})
+	if err != nil {
+		return QuestionDetail{}, err
+	}
+	return s.Question(ctx, userID, id)
 }

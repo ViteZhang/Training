@@ -70,7 +70,10 @@ SELECT
   CAST(COALESCE(SUM(item_type = 'question' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.qtype')) IN ('term', 'short_answer', 'discussion', 'essay')), 0) AS SIGNED) AS subjective,
   CAST(COALESCE(SUM(item_type = 'question' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.qtype')) NOT IN ('term', 'short_answer', 'discussion', 'essay')), 0) AS SIGNED) AS objective,
   CAST(COALESCE(SUM(status = 'confirmed' AND created_entity_id IS NOT NULL), 0) AS SIGNED) AS confirmed,
-  CAST(COALESCE(SUM(item_type IN ('essay_topic', 'essay_rubric', 'writing_method', 'essay_material', 'model_essay')), 0) AS SIGNED) AS essay_items
+  CAST(COALESCE(SUM(item_type IN ('essay_topic', 'essay_rubric', 'writing_method', 'essay_material', 'model_essay')), 0) AS SIGNED) AS essay_items,
+  -- 1.7 缺答案说明卡（PRD v3 11.16）：原文没有答案的题、已从其他资料匹配或答案文件配上的、还缺的
+  CAST(COALESCE(SUM(item_type = 'question' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.answer_match')) IN ('other_material', 'answer_file')), 0) AS SIGNED) AS answer_matched,
+  CAST(COALESCE(SUM(item_type = 'question' AND IFNULL(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.answer')), '') = ''), 0) AS SIGNED) AS missing_answer
 FROM import_items WHERE job_id = ? AND owner_user_id = ? AND status <> 'deleted'
 `
 
@@ -87,6 +90,8 @@ type CountImportItemsRow struct {
 	Objective       int64
 	Confirmed       int64
 	EssayItems      int64
+	AnswerMatched   int64
+	MissingAnswer   int64
 }
 
 func (q *Queries) CountImportItems(ctx context.Context, arg CountImportItemsParams) (CountImportItemsRow, error) {
@@ -100,6 +105,8 @@ func (q *Queries) CountImportItems(ctx context.Context, arg CountImportItemsPara
 		&i.Objective,
 		&i.Confirmed,
 		&i.EssayItems,
+		&i.AnswerMatched,
+		&i.MissingAnswer,
 	)
 	return i, err
 }
@@ -245,7 +252,7 @@ func (q *Queries) GetImportItem(ctx context.Context, arg GetImportItemParams) (G
 }
 
 const getImportJob = `-- name: GetImportJob :one
-SELECT j.id, j.owner_user_id, j.bank_id, j.mode, j.status, j.reserved_pages, j.billed_pages, j.prompt_versions, j.fail_reason, j.started_at, j.finished_at, j.confirmed_at, j.created_at, j.updated_at, b.subject_id, s.name AS subject_name, s.full_score AS subject_full_score FROM import_jobs j
+SELECT j.id, j.owner_user_id, j.bank_id, j.status, j.reserved_pages, j.billed_pages, j.prompt_versions, j.fail_reason, j.started_at, j.finished_at, j.confirmed_at, j.created_at, j.updated_at, j.mode, j.target_job_id, b.subject_id, s.name AS subject_name, s.full_score AS subject_full_score FROM import_jobs j
 JOIN banks b ON b.id = j.bank_id JOIN subjects s ON s.id = b.subject_id
 WHERE j.id = ? AND j.owner_user_id = ?
 `
@@ -259,7 +266,6 @@ type GetImportJobRow struct {
 	ID               uint64
 	OwnerUserID      uint64
 	BankID           uint64
-	Mode             ImportJobsMode
 	Status           ImportJobsStatus
 	ReservedPages    uint32
 	BilledPages      uint32
@@ -270,6 +276,8 @@ type GetImportJobRow struct {
 	ConfirmedAt      sql.NullTime
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	Mode             ImportJobsMode
+	TargetJobID      sql.NullInt64
 	SubjectID        sql.NullInt64
 	SubjectName      string
 	SubjectFullScore uint16
@@ -282,7 +290,6 @@ func (q *Queries) GetImportJob(ctx context.Context, arg GetImportJobParams) (Get
 		&i.ID,
 		&i.OwnerUserID,
 		&i.BankID,
-		&i.Mode,
 		&i.Status,
 		&i.ReservedPages,
 		&i.BilledPages,
@@ -293,6 +300,8 @@ func (q *Queries) GetImportJob(ctx context.Context, arg GetImportJobParams) (Get
 		&i.ConfirmedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Mode,
+		&i.TargetJobID,
 		&i.SubjectID,
 		&i.SubjectName,
 		&i.SubjectFullScore,
@@ -422,7 +431,7 @@ func (q *Queries) ListBankQuestionsForDedupe(ctx context.Context, arg ListBankQu
 }
 
 const listImportAnswers = `-- name: ListImportAnswers :many
-SELECT id, owner_user_id, job_id, material_id, exam_year, question_no, answer, page, dedupe_key, created_at FROM import_answers WHERE job_id = ? AND owner_user_id = ? ORDER BY id
+SELECT id, owner_user_id, job_id, material_id, exam_year, question_no, answer, page, dedupe_key, created_at, stem FROM import_answers WHERE job_id = ? AND owner_user_id = ? ORDER BY id
 `
 
 type ListImportAnswersParams struct {
@@ -450,6 +459,7 @@ func (q *Queries) ListImportAnswers(ctx context.Context, arg ListImportAnswersPa
 			&i.Page,
 			&i.DedupeKey,
 			&i.CreatedAt,
+			&i.Stem,
 		); err != nil {
 			return nil, err
 		}
@@ -470,7 +480,10 @@ WHERE job_id = ? AND owner_user_id = ? AND status <> 'deleted' AND id > ?
   AND (? = 'all'
     OR (? = 'needs_review' AND needs_review = 1)
     OR (? = 'subjective' AND item_type = 'question' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.qtype')) IN ('term', 'short_answer', 'discussion', 'essay'))
-    OR (? = 'objective' AND item_type = 'question' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.qtype')) NOT IN ('term', 'short_answer', 'discussion', 'essay')))
+    OR (? = 'objective' AND item_type = 'question' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.qtype')) NOT IN ('term', 'short_answer', 'discussion', 'essay'))
+    -- 1.7「缺答案」：原文没有答案的题（含已从其他资料匹配到、待核对的），PRD v3 11.16
+    OR (? = 'missing_answer' AND item_type = 'question' AND (IFNULL(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.answer')), '') = ''
+      OR JSON_UNQUOTE(JSON_EXTRACT(payload, '$.answer_match')) IN ('other_material', 'answer_file'))))
 ORDER BY id LIMIT ?
 `
 
@@ -487,6 +500,7 @@ func (q *Queries) ListImportItemsPage(ctx context.Context, arg ListImportItemsPa
 		arg.JobID,
 		arg.OwnerUserID,
 		arg.AfterID,
+		arg.Filter,
 		arg.Filter,
 		arg.Filter,
 		arg.Filter,
@@ -889,9 +903,9 @@ func (q *Queries) UpdateImportJobStatus(ctx context.Context, arg UpdateImportJob
 }
 
 const upsertImportAnswer = `-- name: UpsertImportAnswer :exec
-INSERT INTO import_answers (owner_user_id, job_id, material_id, exam_year, question_no, answer, page, dedupe_key)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-ON DUPLICATE KEY UPDATE answer = VALUES(answer), page = VALUES(page)
+INSERT INTO import_answers (owner_user_id, job_id, material_id, exam_year, question_no, stem, answer, page, dedupe_key)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON DUPLICATE KEY UPDATE answer = VALUES(answer), page = VALUES(page), stem = VALUES(stem)
 `
 
 type UpsertImportAnswerParams struct {
@@ -900,6 +914,7 @@ type UpsertImportAnswerParams struct {
 	MaterialID  uint64
 	ExamYear    sql.NullInt16
 	QuestionNo  string
+	Stem        sql.NullString
 	Answer      string
 	Page        uint32
 	DedupeKey   string
@@ -912,6 +927,7 @@ func (q *Queries) UpsertImportAnswer(ctx context.Context, arg UpsertImportAnswer
 		arg.MaterialID,
 		arg.ExamYear,
 		arg.QuestionNo,
+		arg.Stem,
 		arg.Answer,
 		arg.Page,
 		arg.DedupeKey,

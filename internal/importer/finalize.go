@@ -32,6 +32,9 @@ func (s *Service) Finalize(ctx context.Context, userID, jobID uint64) error {
 	if err != nil {
 		return err
 	}
+	if job.Mode == dbq.ImportJobsModeAnswers {
+		return s.finalizeAnswers(ctx, job, ms)
+	}
 	allFailed := len(ms) > 0
 	for _, m := range ms {
 		if m.Status == dbq.ImportJobMaterialsStatusPending || m.Status == dbq.ImportJobMaterialsStatusRunning {
@@ -81,7 +84,26 @@ func (s *Service) Finalize(ctx context.Context, userID, jobID uint64) error {
 		for _, a := range answers {
 			if a.QuestionNo == w.q.QuestionNo && sameYear(a.ExamYear, w.q.ExamYear) {
 				w.q.Answer, w.q.AnswerOrigin, w.changed = a.Answer, "imported", true
+				w.q.AnswerMatch, w.q.AnswerMaterialID, w.q.AnswerPage = MatchOriginal, a.MaterialID, int(a.Page)
 				break
+			}
+		}
+	}
+	// 第 7b 步：还缺答案的题，先在同一门课的其他资料里找（PRD v3 11.16 第 2 条，不额外计费），找到的标「来自你的资料」并请用户核对。
+	var missing []*QuestionDraft
+	for _, w := range ws {
+		if strings.TrimSpace(w.q.Answer) == "" && w.q.AnswerOrigin != "user_confirmed" {
+			missing = append(missing, &w.q)
+		}
+	}
+	if len(missing) > 0 {
+		matched, err := s.matchFromOtherMaterials(ctx, job, missing)
+		if err != nil {
+			return err
+		}
+		for _, w := range ws {
+			if matched[&w.q] {
+				w.changed = true
 			}
 		}
 	}

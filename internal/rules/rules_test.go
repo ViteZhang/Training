@@ -784,3 +784,34 @@ func TestEstimateEssay(t *testing.T) {
 		t.Errorf("得分率最低的维度：%s", w)
 	}
 }
+
+// PRD v3 11.16：答案三档来源；AI 出题的变式题与原题同样计分。
+func TestAnswerTier(t *testing.T) {
+	cases := []struct {
+		answer, origin, source string
+		want                   AnswerTier
+		counts                 bool
+	}{
+		{"", "imported", "exam", AnswerMissing, false},
+		{"  ", "", "exam", AnswerMissing, false},
+		{"答案", "imported", "exam", AnswerMaterial, true},
+		{"答案", "official", "official", AnswerMaterial, true},
+		{"答案", "", "exercise", AnswerMaterial, true},
+		{"答案", "user_confirmed", "exam", AnswerConfirmed, true},
+		{"答案", "ai_generated", "exam", AnswerAI, false},
+		{"答案", "ai_generated", "ai_generated", AnswerAIQuestion, true},
+	}
+	for _, c := range cases {
+		got := TierOf(c.answer, c.origin, c.source)
+		if got != c.want || got.CountsForEstimate() != c.counts {
+			t.Errorf("TierOf(%q,%q,%q) = %s（计入 %v），想要 %s（计入 %v）", c.answer, c.origin, c.source, got, got.CountsForEstimate(), c.want, c.counts)
+		}
+	}
+}
+
+// PRD v3 11.6：一套真题卷里一半以上的主观题分值没有可信答案时，暂不参与估分；正好一半仍参与。
+func TestPaperCountsForEstimate(t *testing.T) {
+	if !PaperCountsForEstimate(0, 0) || !PaperCountsForEstimate(50, 100) || PaperCountsForEstimate(51, 100) || !PaperCountsForEstimate(10, 100) {
+		t.Fatal("一半以上没有可信答案才排除")
+	}
+}

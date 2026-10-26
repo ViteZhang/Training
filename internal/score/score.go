@@ -75,6 +75,9 @@ type estimateDetails struct {
 	// 作文课（PRD 11.13）：计入的作文得分，与失分主项（得分率最低的维度）。
 	Essays           []float64 `json:"essays,omitempty"`
 	MainGapDimension string    `json:"main_gap_dimension,omitempty"`
+	// AIConfirmed 是计入的整卷里按用户确认过的 AI 答案评分的题数；PendingAnswerPapers 是因缺可信答案暂不参与估分的真题卷数（PRD v3 11.6）。
+	AIConfirmed         int `json:"ai_confirmed,omitempty"`
+	PendingAnswerPapers int `json:"pending_answer_papers,omitempty"`
 }
 
 type estimateQTStats struct {
@@ -104,18 +107,33 @@ func (s *Service) Recompute(ctx context.Context, userID, subjectID uint64, reaso
 	}
 	var in rules.EstimateInput
 	var latest *dbq.ListGradedPaperSessionsRow
+	aiConfirmed, pendingAnswers := 0, 0
 	for i, ss := range sessions {
 		// AI 组卷成绩不计入（PRD 11.6）。
 		if !ss.CountsForEstimate || !ss.Score.Valid {
 			continue
 		}
-		in.Papers = append(in.Papers, rules.PaperScore{Score: dec(ss.Score.String)})
+		score := dec(ss.Score.String)
+		if r := report(ss.Report); r.Trust {
+			// 只用答案来源可信的题计分；一半以上的主观题分值没有可信答案时，这套卷暂不参与估分（PRD v3 11.6，10 月 26 日更新）。
+			if !rules.PaperCountsForEstimate(r.UntrustedSubjective, r.Subjective) || r.TrustedFull <= 0 {
+				pendingAnswers++
+				continue
+			}
+			if r.TrustedFull < r.ActualFull {
+				score = rules.ScalePaperScore(r.TrustedRaw, r.TrustedFull, r.PaperFull)
+			}
+			if len(in.Papers) < 2 {
+				aiConfirmed += r.AIConfirmed
+			}
+		}
+		in.Papers = append(in.Papers, rules.PaperScore{Score: score})
 		if latest == nil {
 			latest = &sessions[i]
 		}
 	}
 	if latest == nil {
-		return nil
+		return nil // 卡片上按 pendingPapers 提示补答案
 	}
 	in.FullScore = dec(latest.FullScore)
 
@@ -142,7 +160,7 @@ func (s *Service) Recompute(ctx context.Context, userID, subjectID uint64, reaso
 	if rep.ActualFull > 0 && rep.PaperFull > 0 {
 		scale = rep.PaperFull / rep.ActualFull
 	}
-	det := estimateDetails{}
+	det := estimateDetails{AIConfirmed: aiConfirmed, PendingAnswerPapers: pendingAnswers}
 	for _, ps := range in.Papers {
 		det.Papers = append(det.Papers, ps.Score)
 	}
@@ -246,8 +264,11 @@ type Card struct {
 	MainGapDimension string
 	BasisPapers      int
 	BasisQuestions   int
-	TodayChange      *int // 今天的变化（中值，四舍五入）；今天没变时为空
-	ComputedAt       time.Time
+	// AIConfirmed 是依据里按用户确认过的 AI 答案评分的题数；PendingAnswerPapers 是缺可信答案、暂不参与估分的真题卷数（PRD v3 11.6）。
+	AIConfirmed         int
+	PendingAnswerPapers int
+	TodayChange         *int // 今天的变化（中值，四舍五入）；今天没变时为空
+	ComputedAt          time.Time
 }
 
 type subjectInfo struct {
@@ -266,7 +287,9 @@ func (s *Service) card(ctx context.Context, userID uint64, sub subjectInfo) (Car
 	}
 	e, err := s.q.LatestScoreEstimate(ctx, dbq.LatestScoreEstimateParams{OwnerUserID: userID, SubjectID: sub.ID})
 	if errors.Is(err, sql.ErrNoRows) {
-		return c, nil
+		n, err := s.pendingPapers(ctx, userID, sub.ID)
+		c.PendingAnswerPapers = n
+		return c, err
 	}
 	if err != nil {
 		return c, err
@@ -276,6 +299,7 @@ func (s *Service) card(ctx context.Context, userID uint64, sub subjectInfo) (Car
 	var det estimateDetails
 	if len(e.Details) > 0 && json.Unmarshal(e.Details, &det) == nil {
 		c.MainGapDimension = det.MainGapDimension
+		c.AIConfirmed, c.PendingAnswerPapers = det.AIConfirmed, det.PendingAnswerPapers
 	}
 	if c.Target != nil {
 		g := max(*c.Target-c.High, 0)
@@ -321,4 +345,19 @@ func (s *Service) subject(ctx context.Context, userID, subjectID uint64) (subjec
 		return subjectInfo{}, err
 	}
 	return subjectInfo{ID: sub.ID, Name: sub.Name, IsEssay: sub.IsEssay, FullScore: sub.FullScore, Target: sub.TargetScore}, nil
+}
+
+// pendingPapers 数一门课里做完了、但一半以上主观题分值没有可信答案而暂不参与估分的真题卷（PRD v3 11.6）。
+func (s *Service) pendingPapers(ctx context.Context, userID, subjectID uint64) (int, error) {
+	sessions, err := s.q.ListGradedPaperSessions(ctx, dbq.ListGradedPaperSessionsParams{OwnerUserID: userID, SubjectID: subjectID})
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, ss := range sessions {
+		if r := report(ss.Report); ss.CountsForEstimate && r.Trust && (!rules.PaperCountsForEstimate(r.UntrustedSubjective, r.Subjective) || r.TrustedFull <= 0) {
+			n++
+		}
+	}
+	return n, nil
 }

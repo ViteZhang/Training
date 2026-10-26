@@ -51,7 +51,7 @@ SELECT * FROM paper_sessions WHERE id = ? AND owner_user_id = ?;
 SELECT * FROM paper_sessions WHERE id = ? AND owner_user_id = ? FOR UPDATE;
 
 -- name: ListPaperSessionItems :many
-SELECT i.*, q.stem, q.options, q.source, q.required_words, q.passage, q.passage_key, q.group_label, q.group_majors, a.score AS got,
+SELECT i.*, q.stem, q.options, q.source, q.required_words, q.passage, q.passage_key, q.group_label, q.group_majors, q.answer, q.answer_origin, q.ai_answer_outcome, a.score AS got, CAST(IFNULL(a.reference_only, 0) AS SIGNED) AS reference_only,
   CAST(COALESCE((SELECT g.id FROM gradings g WHERE g.attempt_id = i.attempt_id AND g.status = 'done' ORDER BY g.id DESC LIMIT 1), 0) AS UNSIGNED) AS grading_id
 FROM paper_session_items i
 JOIN paper_sessions s ON s.id = i.paper_session_id

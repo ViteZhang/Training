@@ -74,7 +74,10 @@ WHERE job_id = sqlc.arg(job_id) AND owner_user_id = sqlc.arg(owner_user_id) AND 
   AND (sqlc.arg(filter) = 'all'
     OR (sqlc.arg(filter) = 'needs_review' AND needs_review = 1)
     OR (sqlc.arg(filter) = 'subjective' AND item_type = 'question' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.qtype')) IN ('term', 'short_answer', 'discussion', 'essay'))
-    OR (sqlc.arg(filter) = 'objective' AND item_type = 'question' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.qtype')) NOT IN ('term', 'short_answer', 'discussion', 'essay')))
+    OR (sqlc.arg(filter) = 'objective' AND item_type = 'question' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.qtype')) NOT IN ('term', 'short_answer', 'discussion', 'essay'))
+    -- 1.7「缺答案」：原文没有答案的题（含已从其他资料匹配到、待核对的），PRD v3 11.16
+    OR (sqlc.arg(filter) = 'missing_answer' AND item_type = 'question' AND (IFNULL(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.answer')), '') = ''
+      OR JSON_UNQUOTE(JSON_EXTRACT(payload, '$.answer_match')) IN ('other_material', 'answer_file'))))
 ORDER BY id LIMIT ?;
 
 -- name: CountImportItems :one
@@ -85,7 +88,10 @@ SELECT
   CAST(COALESCE(SUM(item_type = 'question' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.qtype')) IN ('term', 'short_answer', 'discussion', 'essay')), 0) AS SIGNED) AS subjective,
   CAST(COALESCE(SUM(item_type = 'question' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.qtype')) NOT IN ('term', 'short_answer', 'discussion', 'essay')), 0) AS SIGNED) AS objective,
   CAST(COALESCE(SUM(status = 'confirmed' AND created_entity_id IS NOT NULL), 0) AS SIGNED) AS confirmed,
-  CAST(COALESCE(SUM(item_type IN ('essay_topic', 'essay_rubric', 'writing_method', 'essay_material', 'model_essay')), 0) AS SIGNED) AS essay_items
+  CAST(COALESCE(SUM(item_type IN ('essay_topic', 'essay_rubric', 'writing_method', 'essay_material', 'model_essay')), 0) AS SIGNED) AS essay_items,
+  -- 1.7 缺答案说明卡（PRD v3 11.16）：原文没有答案的题、已从其他资料匹配或答案文件配上的、还缺的
+  CAST(COALESCE(SUM(item_type = 'question' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.answer_match')) IN ('other_material', 'answer_file')), 0) AS SIGNED) AS answer_matched,
+  CAST(COALESCE(SUM(item_type = 'question' AND IFNULL(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.answer')), '') = ''), 0) AS SIGNED) AS missing_answer
 FROM import_items WHERE job_id = ? AND owner_user_id = ? AND status <> 'deleted';
 
 -- name: GetImportItem :one
@@ -104,9 +110,9 @@ UPDATE import_items SET status = 'confirmed', created_entity_id = ? WHERE id = ?
 DELETE FROM import_items WHERE job_id = ? AND material_id = ? AND owner_user_id = ? AND created_entity_id IS NULL;
 
 -- name: UpsertImportAnswer :exec
-INSERT INTO import_answers (owner_user_id, job_id, material_id, exam_year, question_no, answer, page, dedupe_key)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-ON DUPLICATE KEY UPDATE answer = VALUES(answer), page = VALUES(page);
+INSERT INTO import_answers (owner_user_id, job_id, material_id, exam_year, question_no, stem, answer, page, dedupe_key)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON DUPLICATE KEY UPDATE answer = VALUES(answer), page = VALUES(page), stem = VALUES(stem);
 
 -- name: ListImportAnswers :many
 SELECT * FROM import_answers WHERE job_id = ? AND owner_user_id = ? ORDER BY id;

@@ -111,6 +111,7 @@ func TestIntegrationIDOR(t *testing.T) {
 	}
 	job := ins("INSERT INTO import_jobs (owner_user_id, bank_id, mode) VALUES (?, ?, 'reference')", a, bank)
 	ins("INSERT INTO import_job_materials (job_id, material_id, owner_user_id, status) VALUES (?, ?, ?, 'failed')", job, mat.ID, a)
+	pairing := ins("INSERT INTO answer_pairings (owner_user_id, job_id, target_kind, target_id, method) VALUES (?, ?, 'question', 1, 'number')", a, job)
 	item := ins("INSERT INTO import_items (owner_user_id, job_id, item_type, payload) VALUES (?, ?, 'question', '{\"qtype\":\"term\",\"stem\":\"意境\"}')", a, job)
 	kp := ins("INSERT INTO knowledge_points (owner_user_id, bank_id, level, name, original_text) VALUES (?, ?, 'point', '意境', '情景交融')", a, bank)
 	kp2 := ins("INSERT INTO knowledge_points (owner_user_id, bank_id, level, name) VALUES (?, ?, 'point', '典型')", a, bank)
@@ -135,7 +136,7 @@ func TestIntegrationIDOR(t *testing.T) {
 		"subjectId": fmt.Sprint(sub.ID), "materialId": fmt.Sprint(mat.ID), "jobId": fmt.Sprint(job), "itemId": fmt.Sprint(item), "kpId": fmt.Sprint(kp),
 		"questionId": fmt.Sprint(q), "relationId": fmt.Sprint(rel), "gradingId": fmt.Sprint(grading), "paperId": fmt.Sprint(paper), "essayId": fmt.Sprint(essay),
 		"essayMaterialId": fmt.Sprint(essayMat), "modelEssayId": fmt.Sprint(model), "exportId": fmt.Sprint(export), "messageId": fmt.Sprint(msg),
-		"orderNo": "T20261004000000123456", "deviceId": "device-a", "pageNo": "1", "qtype": "term", "seq": "1",
+		"orderNo": "T20261004000000123456", "deviceId": "device-a", "pageNo": "1", "qtype": "term", "seq": "1", "pairingId": fmt.Sprint(pairing),
 	}
 	// sessionId 在不同路径下是不同的会话。
 	sessionFor := func(path string) string {

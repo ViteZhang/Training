@@ -46,6 +46,8 @@ type Question struct {
 	PlanGroup  string
 	KPs        []KPRef
 	RubricN    int
+	// AnswerTier 是参考答案的档位（PRD v3 11.16）：4.4 据此显示「这道题按 AI 参考答案批改，仅供参考」
+	AnswerTier string
 	Answered   *Answered
 	// 专业分组与共用材料（迁移 00020）：组名、适用专业、材料原文与归组键
 	GroupLabel, GroupMajors, Passage, PassageKey string
@@ -181,6 +183,7 @@ func (s *Service) question(ctx context.Context, userID uint64, qr dbq.GetQuestio
 	}
 	rp, err := s.q.ListQuestionRubric(ctx, dbq.ListQuestionRubricParams{QuestionID: sql.NullInt64{Int64: int64(qr.ID), Valid: true}, OwnerUserID: owner(userID)})
 	qu.RubricN = len(rp)
+	qu.AnswerTier = string(answerTier(qr))
 	return qu, err
 }
 
@@ -213,6 +216,8 @@ type AttemptResult struct {
 	IsCorrect *bool
 	Answer    string
 	Analysis  string
+	// AnswerTier 是参考答案的档位（PRD v3 11.16），ai 时界面标「AI 参考答案 · 待确认」。
+	AnswerTier string
 	Effect
 }
 
@@ -234,6 +239,15 @@ func (s *Service) Submit(ctx context.Context, userID, sessionID uint64, in Attem
 	if in.Offline && in.AnsweredAt != nil && !in.AnsweredAt.After(now) && now.Sub(*in.AnsweredAt) <= offlineWindow {
 		at = *in.AnsweredAt
 	}
+	// 客观题与「看参考答案」遇到还没有答案的题：先由 AI 给答案与解析并标注（PRD v3 11.16 第 4、7 条，计入每日 AI 出题额度）。
+	if qr, err := s.q.GetQuestionFull(ctx, dbq.GetQuestionFullParams{ID: in.QuestionID, OwnerUserID: owner(userID)}); err == nil &&
+		strings.TrimSpace(qr.Answer.String) == "" && (rules.IsObjective(rules.QType(qr.Qtype)) || in.Revealed) {
+		if _, err := s.q.GetAttemptByKey(ctx, dbq.GetAttemptByKeyParams{OwnerUserID: userID, IdempotencyKey: sql.NullString{String: in.Key, Valid: true}}); errors.Is(err, sql.ErrNoRows) {
+			if _, err := s.ensureAnswer(ctx, userID, qr, true); err != nil {
+				return AttemptResult{}, err
+			}
+		}
+	}
 	var res AttemptResult
 	err = s.withTx(ctx, func(q *dbq.Queries) error {
 		if prev, err := q.GetAttemptByKey(ctx, dbq.GetAttemptByKeyParams{OwnerUserID: userID, IdempotencyKey: sql.NullString{String: in.Key, Valid: true}}); err == nil {
@@ -244,7 +258,7 @@ func (s *Service) Submit(ctx context.Context, userID, sessionID uint64, in Attem
 			}
 			qr, err := q.GetQuestionFull(ctx, dbq.GetQuestionFullParams{ID: prev.QuestionID, OwnerUserID: owner(userID)})
 			if err == nil {
-				res.Answer, res.Analysis = qr.Answer.String, qr.Analysis.String
+				res.Answer, res.Analysis, res.AnswerTier = qr.Answer.String, qr.Analysis.String, string(answerTier(qr))
 			}
 			return nil
 		} else if !errors.Is(err, sql.ErrNoRows) {
@@ -312,6 +326,12 @@ func (s *Service) Submit(ctx context.Context, userID, sessionID uint64, in Attem
 			return err
 		}
 		res.AttemptID, res.Answer, res.Analysis = uint64(aid), qr.Answer.String, qr.Analysis.String
+		res.AnswerTier = string(answerTier(qr))
+		if objective && !in.Revealed {
+			if err := markReference(ctx, q, userID, uint64(aid), res.AnswerTier); err != nil {
+				return err
+			}
+		}
 		if res.Effect, err = Apply(ctx, q, p, userID, qr.ID, o, rules.DayOf(at)); err != nil {
 			return err
 		}

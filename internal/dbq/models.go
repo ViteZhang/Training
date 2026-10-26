@@ -133,6 +133,183 @@ func AllAgreementsKindValues() []AgreementsKind {
 	}
 }
 
+type AnswerPairingsMethod string
+
+const (
+	AnswerPairingsMethodNumber AnswerPairingsMethod = "number"
+	AnswerPairingsMethodStem   AnswerPairingsMethod = "stem"
+	AnswerPairingsMethodManual AnswerPairingsMethod = "manual"
+)
+
+func (e *AnswerPairingsMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AnswerPairingsMethod(s)
+	case string:
+		*e = AnswerPairingsMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AnswerPairingsMethod: %T", src)
+	}
+	return nil
+}
+
+type NullAnswerPairingsMethod struct {
+	AnswerPairingsMethod AnswerPairingsMethod
+	Valid                bool // Valid is true if AnswerPairingsMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAnswerPairingsMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.AnswerPairingsMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AnswerPairingsMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAnswerPairingsMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AnswerPairingsMethod), nil
+}
+
+func (e AnswerPairingsMethod) Valid() bool {
+	switch e {
+	case AnswerPairingsMethodNumber,
+		AnswerPairingsMethodStem,
+		AnswerPairingsMethodManual:
+		return true
+	}
+	return false
+}
+
+func AllAnswerPairingsMethodValues() []AnswerPairingsMethod {
+	return []AnswerPairingsMethod{
+		AnswerPairingsMethodNumber,
+		AnswerPairingsMethodStem,
+		AnswerPairingsMethodManual,
+	}
+}
+
+type AnswerPairingsStatus string
+
+const (
+	AnswerPairingsStatusProposed AnswerPairingsStatus = "proposed"
+	AnswerPairingsStatusApplied  AnswerPairingsStatus = "applied"
+)
+
+func (e *AnswerPairingsStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AnswerPairingsStatus(s)
+	case string:
+		*e = AnswerPairingsStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AnswerPairingsStatus: %T", src)
+	}
+	return nil
+}
+
+type NullAnswerPairingsStatus struct {
+	AnswerPairingsStatus AnswerPairingsStatus
+	Valid                bool // Valid is true if AnswerPairingsStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAnswerPairingsStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.AnswerPairingsStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AnswerPairingsStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAnswerPairingsStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AnswerPairingsStatus), nil
+}
+
+func (e AnswerPairingsStatus) Valid() bool {
+	switch e {
+	case AnswerPairingsStatusProposed,
+		AnswerPairingsStatusApplied:
+		return true
+	}
+	return false
+}
+
+func AllAnswerPairingsStatusValues() []AnswerPairingsStatus {
+	return []AnswerPairingsStatus{
+		AnswerPairingsStatusProposed,
+		AnswerPairingsStatusApplied,
+	}
+}
+
+type AnswerPairingsTargetKind string
+
+const (
+	AnswerPairingsTargetKindItem     AnswerPairingsTargetKind = "item"
+	AnswerPairingsTargetKindQuestion AnswerPairingsTargetKind = "question"
+)
+
+func (e *AnswerPairingsTargetKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AnswerPairingsTargetKind(s)
+	case string:
+		*e = AnswerPairingsTargetKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AnswerPairingsTargetKind: %T", src)
+	}
+	return nil
+}
+
+type NullAnswerPairingsTargetKind struct {
+	AnswerPairingsTargetKind AnswerPairingsTargetKind
+	Valid                    bool // Valid is true if AnswerPairingsTargetKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAnswerPairingsTargetKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.AnswerPairingsTargetKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AnswerPairingsTargetKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAnswerPairingsTargetKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AnswerPairingsTargetKind), nil
+}
+
+func (e AnswerPairingsTargetKind) Valid() bool {
+	switch e {
+	case AnswerPairingsTargetKindItem,
+		AnswerPairingsTargetKindQuestion:
+		return true
+	}
+	return false
+}
+
+func AllAnswerPairingsTargetKindValues() []AnswerPairingsTargetKind {
+	return []AnswerPairingsTargetKind{
+		AnswerPairingsTargetKindItem,
+		AnswerPairingsTargetKindQuestion,
+	}
+}
+
 type AppVersionsPlatform string
 
 const (
@@ -1736,6 +1913,7 @@ const (
 	ImportJobsModeQuestion  ImportJobsMode = "question"
 	ImportJobsModeReference ImportJobsMode = "reference"
 	ImportJobsModeEssay     ImportJobsMode = "essay"
+	ImportJobsModeAnswers   ImportJobsMode = "answers"
 )
 
 func (e *ImportJobsMode) Scan(src interface{}) error {
@@ -1777,7 +1955,8 @@ func (e ImportJobsMode) Valid() bool {
 	switch e {
 	case ImportJobsModeQuestion,
 		ImportJobsModeReference,
-		ImportJobsModeEssay:
+		ImportJobsModeEssay,
+		ImportJobsModeAnswers:
 		return true
 	}
 	return false
@@ -1788,6 +1967,7 @@ func AllImportJobsModeValues() []ImportJobsMode {
 		ImportJobsModeQuestion,
 		ImportJobsModeReference,
 		ImportJobsModeEssay,
+		ImportJobsModeAnswers,
 	}
 }
 
@@ -3570,6 +3750,125 @@ func AllPracticeSessionsStatusValues() []PracticeSessionsStatus {
 		PracticeSessionsStatusInProgress,
 		PracticeSessionsStatusFinished,
 		PracticeSessionsStatusAbandoned,
+	}
+}
+
+type QuestionsAiAnswerOutcome string
+
+const (
+	QuestionsAiAnswerOutcomeConfirmed QuestionsAiAnswerOutcome = "confirmed"
+	QuestionsAiAnswerOutcomeEdited    QuestionsAiAnswerOutcome = "edited"
+)
+
+func (e *QuestionsAiAnswerOutcome) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = QuestionsAiAnswerOutcome(s)
+	case string:
+		*e = QuestionsAiAnswerOutcome(s)
+	default:
+		return fmt.Errorf("unsupported scan type for QuestionsAiAnswerOutcome: %T", src)
+	}
+	return nil
+}
+
+type NullQuestionsAiAnswerOutcome struct {
+	QuestionsAiAnswerOutcome QuestionsAiAnswerOutcome
+	Valid                    bool // Valid is true if QuestionsAiAnswerOutcome is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullQuestionsAiAnswerOutcome) Scan(value interface{}) error {
+	if value == nil {
+		ns.QuestionsAiAnswerOutcome, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.QuestionsAiAnswerOutcome.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullQuestionsAiAnswerOutcome) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.QuestionsAiAnswerOutcome), nil
+}
+
+func (e QuestionsAiAnswerOutcome) Valid() bool {
+	switch e {
+	case QuestionsAiAnswerOutcomeConfirmed,
+		QuestionsAiAnswerOutcomeEdited:
+		return true
+	}
+	return false
+}
+
+func AllQuestionsAiAnswerOutcomeValues() []QuestionsAiAnswerOutcome {
+	return []QuestionsAiAnswerOutcome{
+		QuestionsAiAnswerOutcomeConfirmed,
+		QuestionsAiAnswerOutcomeEdited,
+	}
+}
+
+type QuestionsAnswerMatch string
+
+const (
+	QuestionsAnswerMatchOriginal      QuestionsAnswerMatch = "original"
+	QuestionsAnswerMatchOtherMaterial QuestionsAnswerMatch = "other_material"
+	QuestionsAnswerMatchAnswerFile    QuestionsAnswerMatch = "answer_file"
+)
+
+func (e *QuestionsAnswerMatch) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = QuestionsAnswerMatch(s)
+	case string:
+		*e = QuestionsAnswerMatch(s)
+	default:
+		return fmt.Errorf("unsupported scan type for QuestionsAnswerMatch: %T", src)
+	}
+	return nil
+}
+
+type NullQuestionsAnswerMatch struct {
+	QuestionsAnswerMatch QuestionsAnswerMatch
+	Valid                bool // Valid is true if QuestionsAnswerMatch is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullQuestionsAnswerMatch) Scan(value interface{}) error {
+	if value == nil {
+		ns.QuestionsAnswerMatch, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.QuestionsAnswerMatch.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullQuestionsAnswerMatch) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.QuestionsAnswerMatch), nil
+}
+
+func (e QuestionsAnswerMatch) Valid() bool {
+	switch e {
+	case QuestionsAnswerMatchOriginal,
+		QuestionsAnswerMatchOtherMaterial,
+		QuestionsAnswerMatchAnswerFile:
+		return true
+	}
+	return false
+}
+
+func AllQuestionsAnswerMatchValues() []QuestionsAnswerMatch {
+	return []QuestionsAnswerMatch{
+		QuestionsAnswerMatchOriginal,
+		QuestionsAnswerMatchOtherMaterial,
+		QuestionsAnswerMatchAnswerFile,
 	}
 }
 
@@ -5527,6 +5826,24 @@ type Announcement struct {
 	CreatedAt   time.Time
 }
 
+// 1.7c 答案文件配对结果，用户确认后写进题目
+type AnswerPairing struct {
+	ID          uint64
+	OwnerUserID uint64
+	// answers 方式的导入任务
+	JobID uint64
+	// item = 还没入库的导入条目；question = 题库里的题
+	TargetKind AnswerPairingsTargetKind
+	TargetID   uint64
+	// 为空表示用户取消了这一条
+	ImportAnswerID sql.NullInt64
+	// 按年份 + 题号 / 按题干（请核对）/ 用户手动改配
+	Method    AnswerPairingsMethod
+	Status    AnswerPairingsStatus
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type AppVersion struct {
 	Platform      AppVersionsPlatform
 	LatestVersion string
@@ -5567,6 +5884,8 @@ type Attempt struct {
 	// 作答时间（离线作答取客户端时间）
 	AnsweredAt time.Time
 	CreatedAt  time.Time
+	// 按 AI 参考答案（待确认）判分，不计入预估分
+	ReferenceOnly bool
 }
 
 // 题库：知识点、题目、试卷、资料的容器
@@ -5871,6 +6190,8 @@ type ImportAnswer struct {
 	// 同一任务重跑时防止重复写入
 	DedupeKey string
 	CreatedAt time.Time
+	// 答案文件里带着的题干，题号对不上时按题干匹配
+	Stem sql.NullString
 }
 
 // AI 产出的待确认条目（1.7）
@@ -5904,8 +6225,6 @@ type ImportJob struct {
 	ID          uint64
 	OwnerUserID uint64
 	BankID      uint64
-	// 1.4 选的导入方式
-	Mode ImportJobsMode
 	// reviewing=已有可确认的条目
 	Status ImportJobsStatus
 	// 预占的解析额度
@@ -5920,6 +6239,10 @@ type ImportJob struct {
 	ConfirmedAt    sql.NullTime
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	// 1.4 选的导入方式；answers = 1.7c 补充答案文件
+	Mode ImportJobsMode
+	// answers 任务：要补答案的导入任务（为空时补题库里的题）
+	TargetJobID sql.NullInt64
 }
 
 // 导入任务里每个文件的进度（1.6）
@@ -6364,6 +6687,17 @@ type Question struct {
 	GroupLabel sql.NullString
 	// 这一组适用的专业，如「文艺学、比较文学与世界文学」
 	GroupMajors sql.NullString
+	// 来自你的资料的答案怎么来的：原文自带 / 从其他资料匹配 / 补充答案文件配对
+	AnswerMatch NullQuestionsAnswerMatch
+	// 答案出处的资料；原文自带时与 source_material_id 相同
+	AnswerMaterialID sql.NullInt64
+	AnswerPage       sql.NullInt32
+	// 生成 AI 参考答案的时间（7.5 统计确认率与修改率）
+	AiAnswerAt sql.NullTime
+	// AI 参考答案被用户确认还是修改过
+	AiAnswerOutcome NullQuestionsAiAnswerOutcome
+	// 客观题 AI 答案被报错次数，3 次自动撤回（PRD 11.16 第 7 条）
+	AiAnswerReports uint16
 }
 
 // 题目与知识点多对多
