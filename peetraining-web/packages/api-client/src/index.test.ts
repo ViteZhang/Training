@@ -60,14 +60,25 @@ describe('createApiClient', () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it('刷新失败时返回原来的 401', async () => {
+  it('刷新被拒绝、登录态已清除时返回原来的 401', async () => {
+    let token: string | undefined = 'old';
+    const client = createApiClient({
+      baseUrl: 'https://x.test/api/v1',
+      getAccessToken: () => token,
+      refresh: async () => (token = undefined),
+      fetch: async () => jsonResponse(401, { code: 'UNAUTHORIZED', message: '登录已失效' }),
+    });
+    await expect(unwrap(client.GET('/me'))).rejects.toMatchObject({ code: 'UNAUTHORIZED', status: 401 });
+  });
+
+  it('刷新因网络失败、登录态还在时按网络错误返回，不提示登录失效', async () => {
     const client = createApiClient({
       baseUrl: 'https://x.test/api/v1',
       getAccessToken: () => 'old',
       refresh: async () => undefined,
       fetch: async () => jsonResponse(401, { code: 'UNAUTHORIZED', message: '登录已失效' }),
     });
-    await expect(unwrap(client.GET('/me'))).rejects.toMatchObject({ code: 'UNAUTHORIZED', status: 401 });
+    await expect(unwrap(client.GET('/me'))).rejects.toMatchObject({ code: 'NETWORK', status: 503 });
   });
 });
 

@@ -1,4 +1,4 @@
-import { refreshSession } from '../lib/api';
+import { REFRESH_RETRY_MS, refreshSession } from '../lib/api';
 import { useSession } from '../lib/session';
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'uuid-1234-5678' }));
@@ -9,6 +9,9 @@ const realFetch = globalThis.fetch;
 function respond(status: number, body: unknown) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
+
+// 测试里不真的等重试间隔。
+REFRESH_RETRY_MS.splice(0, REFRESH_RETRY_MS.length, 0, 0);
 
 beforeEach(() => {
   useSession.getState().setSession(session);
@@ -32,6 +35,26 @@ describe('刷新令牌', () => {
     }) as unknown as typeof fetch;
     await expect(refreshSession()).resolves.toBeUndefined();
     expect(useSession.getState().session?.refreshToken).toBe('r');
+  });
+
+  it('解锁后网络晚一会儿才恢复：自动重试刷新，成功换成新令牌', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Network request failed'))
+      .mockImplementationOnce(async () =>
+        respond(200, { access_token: 'a4', access_expires_at: '2099-01-01T00:00:00Z', refresh_token: 'r4', refresh_expires_at: '2099-01-01T00:00:00Z' }),
+      );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    await expect(refreshSession()).resolves.toBe('a4');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(useSession.getState().session?.refreshToken).toBe('r4');
+  });
+
+  it('服务端明确拒绝时不重试', async () => {
+    const fetchMock = jest.fn(async () => respond(401, { code: 'UNAUTHORIZED', message: '登录已失效' }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    await refreshSession();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('服务端 5xx 时不退出登录', async () => {
