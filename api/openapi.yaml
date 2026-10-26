@@ -9585,6 +9585,7 @@ components:
         group: { $ref: "#/components/schemas/QuestionGroup" }
         passage: { $ref: "#/components/schemas/QuestionPassage" }
         id: { type: integer, format: int64 }
+        subject_id: { type: integer, format: int64, description: 所属专业课（3.3b 显示参考教材、补充答案文件） }
         qtype: { $ref: "#/components/schemas/QuestionType" }
         stem: { type: string }
         options: { type: array, items: { $ref: "#/components/schemas/ChoiceOption" } }

@@ -252,6 +252,7 @@ type Attempt struct {
 // QuestionDetail 是题目详情（3.3）。
 type QuestionDetail struct {
 	ID              uint64
+	SubjectID       uint64
 	QType           string
 	Stem            string
 	Options         []ai.Option
@@ -307,7 +308,7 @@ func (s *Service) Question(ctx context.Context, userID, id uint64) (QuestionDeta
 	if err != nil {
 		return QuestionDetail{}, err
 	}
-	d := QuestionDetail{ID: q.ID, QType: string(q.Qtype), Stem: q.Stem, Answer: q.Answer.String, Analysis: q.Analysis.String,
+	d := QuestionDetail{ID: q.ID, SubjectID: uint64(q.SubjectID.Int64), QType: string(q.Qtype), Stem: q.Stem, Answer: q.Answer.String, Analysis: q.Analysis.String,
 		Score: parseScore(q.Score), Source: string(q.Source), ExamYear: year(q.ExamYear), RubricVersion: int(q.RubricVersion),
 		NeedsReview: q.NeedsReview, OriginTags: []string{},
 		GroupLabel: q.GroupLabel.String, GroupMajors: q.GroupMajors.String, Passage: q.Passage.String, PassageKey: q.PassageKey.String}

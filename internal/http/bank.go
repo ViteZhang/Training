@@ -453,7 +453,7 @@ func (h *Handlers) DeleteQuestions(c *gin.Context) {
 }
 
 func toQuestionDetail(d bank.QuestionDetail) gen.QuestionDetail {
-	out := gen.QuestionDetail{Id: int64(d.ID), Qtype: gen.QuestionType(d.QType), Stem: d.Stem, Source: gen.QuestionSource(d.Source),
+	out := gen.QuestionDetail{Id: int64(d.ID), SubjectId: ptr(int64(d.SubjectID)), Qtype: gen.QuestionType(d.QType), Stem: d.Stem, Source: gen.QuestionSource(d.Source),
 		ExamYear: d.ExamYear, Score: f32(d.Score), OriginTags: d.OriginTags, RubricPoints: toRubricPoints(d.Rubric), RubricVersion: d.RubricVersion,
 		Attempts: []gen.AttemptHistory{}, InWrongBook: d.InWrongBook, NeedsReview: d.NeedsReview, SourceRef: toSource(d.SourceRef),
 		Group: toGroup(d.GroupLabel, d.GroupMajors), Passage: toPassage(d.PassageKey, d.Passage)}
