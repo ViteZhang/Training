@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,6 +117,20 @@ func TestSubjectsLimitAndOwnership(t *testing.T) {
 	}
 
 	// 拿别人的 ID：404。
+	// PRD v3 1.3、6.9：参考教材，去掉空白与重复，最多 5 本；空列表清空；只改教材不动其他字段。
+	books := []string{" 童庆炳《文学理论教程》", "童庆炳《文学理论教程》", "", "王力《古代汉语》"}
+	upd, err = f.svc.UpdateSubject(ctx, uid, s.ID, profile.SubjectPatch{Textbooks: &books})
+	if err != nil || strings.Join(profile.Textbooks(upd.Textbooks), "|") != "童庆炳《文学理论教程》|王力《古代汉语》" || upd.Name != "改名" {
+		t.Fatalf("参考教材：%+v %v", profile.Textbooks(upd.Textbooks), err)
+	}
+	tooMany := []string{"1", "2", "3", "4", "5", "6"}
+	if _, err := f.svc.UpdateSubject(ctx, uid, s.ID, profile.SubjectPatch{Textbooks: &tooMany}); kind(err) != apperr.BadRequest {
+		t.Fatalf("超过 5 本应拒绝：%v", err)
+	}
+	empty := []string{}
+	if upd, err = f.svc.UpdateSubject(ctx, uid, s.ID, profile.SubjectPatch{Textbooks: &empty}); err != nil || len(profile.Textbooks(upd.Textbooks)) != 0 {
+		t.Fatalf("清空参考教材：%+v %v", upd.Textbooks, err)
+	}
 	if _, err := f.svc.UpdateSubject(ctx, other, s.ID, profile.SubjectPatch{Name: ptr("x")}); kind(err) != apperr.NotFound {
 		t.Fatal("改别人的专业课应 404")
 	}

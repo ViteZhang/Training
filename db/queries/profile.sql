@@ -65,3 +65,7 @@ DELETE FROM export_jobs WHERE owner_user_id = ? AND subject_id = ?;
 
 -- name: DeleteSubject :execrows
 DELETE FROM subjects WHERE id = ? AND owner_user_id = ?;
+
+-- name: SetSubjectTextbooks :exec
+-- PRD v3 1.3、6.9：参考教材（选填）。
+UPDATE subjects SET textbooks = ? WHERE id = ? AND owner_user_id = ?;

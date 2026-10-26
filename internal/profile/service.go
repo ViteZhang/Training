@@ -13,6 +13,7 @@ import (
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/dbq"
+	"peetraining-server/internal/dbtypes"
 	"peetraining-server/internal/membership"
 	"peetraining-server/internal/params"
 	"peetraining-server/internal/rules"
@@ -344,6 +345,41 @@ type SubjectPatch struct {
 	// MyMajors 是报考方向（按专业分组的真题只保留匹配的组）；ClearMajors 表示不区分方向。
 	MyMajors    *string
 	ClearMajors bool
+	// Textbooks 是参考教材书名（PRD v3 1.3、6.9）；非 nil 时整体替换，空列表表示清空。
+	Textbooks *[]string
+}
+
+// MaxTextbooks 是每门专业课最多填几本参考教材。
+const MaxTextbooks = 5
+
+// cleanTextbooks 去掉空白与重复的书名，最多 MaxTextbooks 本、每本 64 字。
+func cleanTextbooks(in []string) ([]string, error) {
+	out := []string{}
+	seen := map[string]bool{}
+	for _, t := range in {
+		t = strings.TrimSpace(t)
+		if t == "" || seen[t] {
+			continue
+		}
+		if len([]rune(t)) > 64 {
+			return nil, apperr.New(apperr.BadRequest, "教材名称最多 64 个字")
+		}
+		seen[t] = true
+		out = append(out, t)
+	}
+	if len(out) > MaxTextbooks {
+		return nil, apperr.New(apperr.BadRequest, fmt.Sprintf("每门专业课最多填 %d 本参考教材", MaxTextbooks))
+	}
+	return out, nil
+}
+
+// Textbooks 解出专业课的参考教材书名。
+func Textbooks(raw dbtypes.NullJSON) []string {
+	var out []string
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &out)
+	}
+	return out
 }
 
 // UpdateSubject 修改专业课；改目标分立即生效（2.1f）；用户纠正作文课判断后不再自动改（D13）。
@@ -385,9 +421,24 @@ func (s *Service) UpdateSubject(ctx context.Context, userID, id uint64, in Subje
 		p.IsEssay = *in.IsEssay
 		p.EssaySetBy = dbq.NullSubjectsEssaySetBy{SubjectsEssaySetBy: dbq.SubjectsEssaySetByUser, Valid: true}
 	}
+	var books dbtypes.NullJSON
+	if in.Textbooks != nil {
+		list, err := cleanTextbooks(*in.Textbooks)
+		if err != nil {
+			return Subject{}, err
+		}
+		if len(list) > 0 {
+			books, _ = json.Marshal(list)
+		}
+	}
 	err = store.WithTx(ctx, s.db, func(q *dbq.Queries) error {
 		if err := q.UpdateSubject(ctx, p); err != nil {
 			return err
+		}
+		if in.Textbooks != nil {
+			if err := q.SetSubjectTextbooks(ctx, dbq.SetSubjectTextbooksParams{Textbooks: books, ID: id, OwnerUserID: userID}); err != nil {
+				return err
+			}
 		}
 		if in.ClearMajors || in.MyMajors != nil {
 			v := sql.NullString{}

@@ -120,6 +120,7 @@ func (h *Handlers) UpdateSubject(c *gin.Context, subjectID int64) {
 		in.ClearMajors = req.MyMajors.IsNull()
 		in.MyMajors = nullableStr(req.MyMajors)
 	}
+	in.Textbooks = req.Textbooks
 	s, err := h.deps.Profile.UpdateSubject(c.Request.Context(), currentUser(c), uint64(subjectID), in)
 	if err != nil {
 		_ = c.Error(err)
@@ -150,6 +151,9 @@ func toSubject(s profile.Subject) gen.Subject {
 	}
 	if s.MyMajors.Valid {
 		out.MyMajors = &s.MyMajors.String
+	}
+	if books := profile.Textbooks(s.Textbooks); len(books) > 0 {
+		out.Textbooks = &books
 	}
 	return out
 }
