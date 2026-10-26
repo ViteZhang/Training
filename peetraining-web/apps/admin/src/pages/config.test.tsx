@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { flatten, setPath } from '../components/ParamEditor';
-import { ParamsPanel } from './Config';
+import { ExamDatesPanel, ParamsPanel } from './Config';
 import { Roles } from './Roles';
 
 type Handler = (req: Request) => { status: number; body?: unknown } | Promise<{ status: number; body?: unknown }>;
@@ -66,5 +66,32 @@ describe('7.15 后台账号与权限', () => {
     expect(await screen.findByText('kefu')).toBeTruthy();
     expect(screen.getByText('待改初始密码')).toBeTruthy();
     expect(await screen.findByText('POST /admin/accounts')).toBeTruthy();
+  });
+});
+
+describe('7.8 初试日期', () => {
+  it('点「修改」带出原日期，保存覆盖同一年', async () => {
+    let savedUrl = '';
+    let saved: unknown;
+    g.mockApi['GET /admin/config/exam-dates'] = () => ({
+      status: 200,
+      body: { items: [{ year: 2027, label: '2027 研考', first_exam_start: '2026-12-19', first_exam_end: '2026-12-21', subject_exam_date: '2026-12-20' }] },
+    });
+    g.mockApi['PUT /admin/config/exam-dates/{year}'] = async (req) => {
+      savedUrl = req.url;
+      saved = await req.json();
+      return { status: 204 };
+    };
+    wrap(<ExamDatesPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: /修\s*改/ }));
+    expect(screen.getByText('修改 2027 年')).toBeTruthy();
+    expect((screen.getByLabelText('年份') as HTMLInputElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: '2027 年研考' } });
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
+    await waitFor(() =>
+      expect(saved).toEqual({ label: '2027 年研考', first_exam_start: '2026-12-19', first_exam_end: '2026-12-21', subject_exam_date: '2026-12-20' }),
+    );
+    expect(savedUrl).toMatch(/\/admin\/config\/exam-dates\/2027$/);
+    await waitFor(() => expect(screen.getByText('新增某年')).toBeTruthy());
   });
 });
