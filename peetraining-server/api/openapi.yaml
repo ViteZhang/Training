@@ -5377,6 +5377,153 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+  /admin/official/projects/{projectId}/references:
+    get:
+      tags:
+      - admin
+      operationId: listOfficialReferences
+      summary: 7.11 官方参考素材列表
+      x-roles:
+      - content_lead
+      - content_editor
+      security:
+      - adminAuth: []
+      parameters:
+      - *id003_3
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OfficialReference'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+      - admin
+      operationId: createOfficialReference
+      summary: 7.11 录入官方参考素材
+      description: 只能录入有授权的教材、讲义（authorized 必须为 true 并写明授权说明）；粘贴原文后按章节与段落切分，供 7.12 生成参考答案时引用。
+      x-roles:
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - *id003_3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - title
+              - kind
+              - authorized
+              - license_note
+              - text
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 128
+                kind:
+                  $ref: '#/components/schemas/OfficialReferenceKind'
+                authorized:
+                  type: boolean
+                  description: 确认已获授权
+                license_note:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                text:
+                  type: string
+                  minLength: 20
+                  maxLength: 2000000
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfficialReference'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/official/projects/{projectId}/references/{referenceId}:
+    delete:
+      tags:
+      - admin
+      operationId: deleteOfficialReference
+      summary: 7.11 删除官方参考素材
+      x-roles:
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - *id003_3
+      - name: referenceId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '204':
+          description: No Content
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/official/projects/{projectId}/answer-candidates:
+    post:
+      tags:
+      - admin
+      operationId: generateOfficialAnswer
+      summary: 7.12 AI 生成参考答案与采分点（优先引用官方参考素材并标出处）
+      x-roles:
+      - content_lead
+      - content_editor
+      security:
+      - adminAuth: []
+      parameters:
+      - *id003_3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - qtype
+              - stem
+              properties:
+                qtype:
+                  $ref: '#/components/schemas/QuestionType'
+                stem:
+                  type: string
+                  minLength: 1
+                  maxLength: 5000
+                score:
+                  type: number
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfficialAnswerCandidate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /admin/official/rubric-candidates:
     post:
       tags:
@@ -8286,6 +8433,70 @@ components:
         payload: &id005_5
           type: object
           additionalProperties: true
+    OfficialReferenceKind:
+      type: string
+      enum:
+      - textbook
+      - handout
+      description: 教材 / 讲义
+    OfficialReference:
+      type: object
+      required:
+      - id
+      - title
+      - kind
+      - license_note
+      - segments
+      - chars
+      - created_at
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        kind:
+          $ref: '#/components/schemas/OfficialReferenceKind'
+        license_note:
+          type: string
+        segments:
+          type: integer
+          description: 切分出的段数
+        chars:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+    OfficialAnswerCandidate:
+      type: object
+      required:
+      - answer
+      - points
+      - citations
+      properties:
+        answer:
+          type: string
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/OfficialPoint'
+        citations:
+          type: array
+          description: 生成时引用的官方参考素材段落（出处）；为空表示素材里没找到相关内容，按通用知识生成
+          items:
+            type: object
+            required:
+            - reference_id
+            - title
+            - heading
+            properties:
+              reference_id:
+                type: integer
+                format: int64
+              title:
+                type: string
+              heading:
+                type: string
     OfficialPoint:
       type: object
       required:
