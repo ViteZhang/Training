@@ -621,6 +621,8 @@ type Querier interface {
 	// 自动判断只在用户没改过时生效（essay_set_by = 'user' 后不再自动改）。
 	SetSubjectEssayAuto(ctx context.Context, arg SetSubjectEssayAutoParams) error
 	SetSubjectMajors(ctx context.Context, arg SetSubjectMajorsParams) error
+	// PRD v3 1.3、6.9：参考教材（选填）。
+	SetSubjectTextbooks(ctx context.Context, arg SetSubjectTextbooksParams) error
 	SetUserQuestionStatus(ctx context.Context, arg SetUserQuestionStatusParams) error
 	// 某天（北京时间，[from, to)）的新增、活跃、作答、解析、付费与收入。
 	StatDay(ctx context.Context, arg StatDayParams) (StatDayRow, error)

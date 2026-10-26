@@ -184,7 +184,7 @@ func (q *Queries) GetStudyProfile(ctx context.Context, userID uint64) (StudyProf
 }
 
 const getSubject = `-- name: GetSubject :one
-SELECT s.id, s.owner_user_id, s.name, s.code, s.full_score, s.target_score, s.is_essay, s.essay_set_by, s.sort_order, s.created_at, s.updated_at, s.my_majors, b.id AS bank_id FROM subjects s JOIN banks b ON b.subject_id = s.id
+SELECT s.id, s.owner_user_id, s.name, s.code, s.full_score, s.target_score, s.is_essay, s.essay_set_by, s.sort_order, s.created_at, s.updated_at, s.my_majors, s.textbooks, b.id AS bank_id FROM subjects s JOIN banks b ON b.subject_id = s.id
 WHERE s.id = ? AND s.owner_user_id = ?
 `
 
@@ -206,6 +206,7 @@ type GetSubjectRow struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	MyMajors    sql.NullString
+	Textbooks   dbtypes.NullJSON
 	BankID      uint64
 }
 
@@ -225,6 +226,7 @@ func (q *Queries) GetSubject(ctx context.Context, arg GetSubjectParams) (GetSubj
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.MyMajors,
+		&i.Textbooks,
 		&i.BankID,
 	)
 	return i, err
@@ -306,7 +308,7 @@ func (q *Queries) ListExamDatesFrom(ctx context.Context, subjectExamDate time.Ti
 }
 
 const listSubjects = `-- name: ListSubjects :many
-SELECT s.id, s.owner_user_id, s.name, s.code, s.full_score, s.target_score, s.is_essay, s.essay_set_by, s.sort_order, s.created_at, s.updated_at, s.my_majors, b.id AS bank_id,
+SELECT s.id, s.owner_user_id, s.name, s.code, s.full_score, s.target_score, s.is_essay, s.essay_set_by, s.sort_order, s.created_at, s.updated_at, s.my_majors, s.textbooks, b.id AS bank_id,
   (SELECT COUNT(*) FROM questions q WHERE q.bank_id = b.id AND q.status = 'active') AS question_count,
   (SELECT COUNT(*) FROM knowledge_points k WHERE k.bank_id = b.id AND k.level = 'point') AS kp_count,
   (SELECT COUNT(*) FROM materials m WHERE m.bank_id = b.id) AS material_count
@@ -328,6 +330,7 @@ type ListSubjectsRow struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	MyMajors      sql.NullString
+	Textbooks     dbtypes.NullJSON
 	BankID        uint64
 	QuestionCount int64
 	KpCount       int64
@@ -356,6 +359,7 @@ func (q *Queries) ListSubjects(ctx context.Context, ownerUserID uint64) ([]ListS
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.MyMajors,
+			&i.Textbooks,
 			&i.BankID,
 			&i.QuestionCount,
 			&i.KpCount,
@@ -386,6 +390,22 @@ type SetSubjectMajorsParams struct {
 
 func (q *Queries) SetSubjectMajors(ctx context.Context, arg SetSubjectMajorsParams) error {
 	_, err := q.db.ExecContext(ctx, setSubjectMajors, arg.MyMajors, arg.ID, arg.OwnerUserID)
+	return err
+}
+
+const setSubjectTextbooks = `-- name: SetSubjectTextbooks :exec
+UPDATE subjects SET textbooks = ? WHERE id = ? AND owner_user_id = ?
+`
+
+type SetSubjectTextbooksParams struct {
+	Textbooks   dbtypes.NullJSON
+	ID          uint64
+	OwnerUserID uint64
+}
+
+// PRD v3 1.3、6.9：参考教材（选填）。
+func (q *Queries) SetSubjectTextbooks(ctx context.Context, arg SetSubjectTextbooksParams) error {
+	_, err := q.db.ExecContext(ctx, setSubjectTextbooks, arg.Textbooks, arg.ID, arg.OwnerUserID)
 	return err
 }
 

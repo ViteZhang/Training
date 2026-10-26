@@ -6502,6 +6502,8 @@ export interface components {
             target_score?: number | null;
             /** @description 用户纠正作文课判断（1.7），之后不再自动改 */
             is_essay?: boolean;
+            /** @description 参考教材书名（1.3、6.9，选填），整体替换；空数组表示清空。缺答案时 AI 按教材表述给参考答案 */
+            textbooks?: string[];
         };
         Subject: {
             /** @description 报考方向（导入按专业分组的真题时默认只保留匹配的组） */
@@ -6514,6 +6516,8 @@ export interface components {
             target_score?: number;
             /** @description 作文课（如 908），题库页显示为 3.10 */
             is_essay: boolean;
+            /** @description 参考教材书名（选填） */
+            textbooks?: string[];
             /** Format: int64 */
             bank_id: number;
             question_count: number;
