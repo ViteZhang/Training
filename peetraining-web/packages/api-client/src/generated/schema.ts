@@ -263,6 +263,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/purchase-entry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 购买入口与客服企业微信（3.4、6.1、6.5、6.5a、6.7、4.9 / 4.9b）
+         * @description 后台 7.8 按平台开关（安卓默认开、iOS 默认关，提审通过后打开），改动立即生效、不用发版。
+         *     enabled 为 false 时 App 不显示会员中心入口、获取兑换码、兑换码页和价格，额度用完时只给免费出路（4.9b）；此时不返回 contact。
+         *     兑换接口不受这个开关拦截。
+         */
+        get: operations["getPurchaseEntry"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-years": {
         parameters: {
             query?: never;
@@ -2932,6 +2954,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/redeem/single-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 7.4 单个发码 · 手动收款
+         * @description 客服在企业微信收款后生成一个兑换码，同时记一笔渠道为企业微信客服的已支付订单（收入计入 7.3），码归入「企业微信客服 · 单个发码」批次。
+         *     码不绑定手机号，手机号只记在订单上用于对账；码的明文只在这次响应里返回。
+         */
+        post: operations["issueManualRedeemCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/redeem/codes": {
         parameters: {
             query?: never;
@@ -3381,6 +3424,41 @@ export interface paths {
         get?: never;
         /** 设置功能开关：全部打开或指定用户 */
         put: operations["setAdminFlag"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/config/purchase-entry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.8 购买入口：按平台开关与客服企业微信信息 */
+        get: operations["getAdminPurchaseEntry"];
+        /** 修改购买入口开关与客服信息（立即生效，不用发版） */
+        put: operations["updateAdminPurchaseEntry"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/config/purchase-entry/qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 上传客服企业微信二维码（PNG 或 JPEG，不超过 2 MB） */
+        put: operations["uploadAdminWecomQr"];
         post?: never;
         delete?: never;
         options?: never;
@@ -5309,7 +5387,12 @@ export interface components {
             /** Format: int64 */
             user_id: number;
             tier: components["schemas"]["PlanTier"];
-            channel: components["schemas"]["PayChannel"];
+            channel: components["schemas"]["OrderChannel"];
+            /** @description 企业微信客服手动收款的收款方式 */
+            pay_method?: string;
+            /** @description 手动收款时填的购买人手机号（脱敏） */
+            buyer_phone_masked?: string;
+            remark?: string;
             /** Format: int64 */
             amount_cents: number;
             status: components["schemas"]["OrderStatus"];
@@ -5318,6 +5401,36 @@ export interface components {
             paid_at?: string;
             /** Format: date-time */
             created_at: string;
+        };
+        /**
+         * @description 微信支付 / 支付宝 / App Store 内购 / 企业微信客服（手动收款）
+         * @enum {string}
+         */
+        OrderChannel: "wechat" | "alipay" | "apple_iap" | "wecom";
+        AdminPurchaseEntry: {
+            android: boolean;
+            ios: boolean;
+            wecom: {
+                name: string;
+                wecom_id: string;
+                reply_time: string;
+                note: string;
+                qr_uploaded: boolean;
+                qr_url?: string;
+            };
+            /** @description 修改时带上，防止覆盖别人刚改的值 */
+            version: number;
+        };
+        AdminPurchaseEntryInput: {
+            android: boolean;
+            ios: boolean;
+            wecom: {
+                name: string;
+                wecom_id: string;
+                reply_time: string;
+                note: string;
+            };
+            version: number;
         };
         AdminTierSales: {
             tier: components["schemas"]["PlanTier"];
@@ -6130,6 +6243,24 @@ export interface components {
         HealthStatus: "ok" | "error";
         /** @enum {string} */
         Platform: "ios" | "android";
+        PurchaseEntry: {
+            /** @description 这个平台是否显示会员购买与兑换码入口 */
+            enabled: boolean;
+            contact?: components["schemas"]["WeComContact"];
+        };
+        /** @description 6.5a 获取兑换码弹层：客服企业微信名称、ID、二维码、回复时间、说明文案（后台 7.8 配置） */
+        WeComContact: {
+            /** @example 考研Training 客服 */
+            name: string;
+            /** @example kaoyan-training */
+            wecom_id: string;
+            /** @description 二维码图片的短时效下载地址（30 分钟）；没上传时缺省 */
+            qr_url?: string;
+            /** @example 工作日 9:00–21:00，一般 30 分钟内回复 */
+            reply_time: string;
+            /** @example 暂未开放在线支付，加客服企业微信获取兑换码 */
+            note: string;
+        };
         /**
          * @description 内容来源，界面据此标注（PRD 2.3「标明来源」）
          * @enum {string}
@@ -7469,6 +7600,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FeatureFlags"];
+                };
+            };
+        };
+    };
+    getPurchaseEntry: {
+        parameters: {
+            query: {
+                platform: components["schemas"]["Platform"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseEntry"];
                 };
             };
         };
@@ -11409,6 +11562,44 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    issueManualRedeemCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    phone: string;
+                    tier: components["schemas"]["PlanTier"];
+                    /** Format: int64 */
+                    amount_cents: number;
+                    /** @description 收款方式，如「企业微信转账」「收款码」 */
+                    pay_method: string;
+                    remark?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        order_no: string;
+                        /** Format: int64 */
+                        batch_id: number;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
     findRedeemCode: {
         parameters: {
             query: {
@@ -12111,6 +12302,82 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    getAdminPurchaseEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPurchaseEntry"];
+                };
+            };
+        };
+    };
+    updateAdminPurchaseEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminPurchaseEntryInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPurchaseEntry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    uploadAdminWecomQr: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    content_type: "image/png" | "image/jpeg";
+                    /** @description 图片的 Base64，不带 data 前缀 */
+                    data_base64: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPurchaseEntry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
         };
     };
     listAppVersions: {

@@ -9,6 +9,7 @@ import { AIFailed, Button, QuotaSheet, Text, toast } from '@/components';
 import type { PracticeQuestion } from './api';
 import { HandwritingFlow } from './handwriting';
 import { GradingProgress, SubjectiveInput, useDraft, useSubmitSubjective, type GradingResult } from './grading';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 type Level = 'unknown' | 'vague' | 'mastered';
 
@@ -29,6 +30,7 @@ export function SubjectiveFlow({
   const [timed, setTimed] = useState(false);
   const [showRef, setShowRef] = useState(false);
   const [quotaOut, setQuotaOut] = useState(false);
+  const upgrade = useUpgradeActions(() => setQuotaOut(false));
   const [failed, setFailed] = useState(false);
   const [photo, setPhoto] = useState(false);
   const last = useRef<{ text: string; keys?: string[] }>({ text: '' });
@@ -127,10 +129,12 @@ export function SubjectiveFlow({
         }}
         title="今天的免费批改次数用完了"
         desc="免费版每天可批改 3 道主观题，明天 0 点恢复。你的答案已保存。"
-        onUpgrade={() => toast('会员马上上线')}
+        upgrade={upgrade}
+        compare={{ free: '每天 3 次', member: '不限次数' }}
+        freeDesc="每天可批改 3 道主观题，明天 0 点恢复。你的答案已保存，明天可以一键提交批改。"
         freeOptions={[
           {
-            label: '先对照参考答案',
+            label: upgrade ? '先对照参考答案' : '先对照参考答案自评',
             onPress: () => {
               setQuotaOut(false);
               setShowRef(true);

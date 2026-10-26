@@ -24,7 +24,8 @@ func init() {
 		session_start session_finish answer_submit reveal_answer loss_attribution recite_finish
 		paper_start time_reminder_shown paper_submit time_report_view essay_submit essay_rewrite
 		grade_result grade_dispute grade_recheck rubric_edit question_report
-		quota_block member_page_view pay_success redeem invite_success export
+		quota_block member_page_view getcode_view getcode_copy_id getcode_save_qr pay_success redeem invite_success export
+		answer_status_import answer_match_done answer_file_import ai_answer_generate ai_answer_confirm ai_answer_edit
 		survey_submit app_open official_bank_add`) {
 		Names[n] = true
 	}

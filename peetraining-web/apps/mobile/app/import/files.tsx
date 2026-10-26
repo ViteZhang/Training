@@ -18,6 +18,7 @@ import { Footer, StepHeader } from '@/features/onboarding/ui';
 import { usePermissionPrompt } from '@/features/permissions/PermissionPrompt';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 let seq = 0;
 const nextKey = () => `f${Date.now()}-${seq++}`;
@@ -31,6 +32,7 @@ export default function FilesScreen() {
   const [agreed, setAgreed] = useState(true);
   const [busy, setBusy] = useState(false);
   const [quota, setQuota] = useState<{ need?: number; remaining?: number } | null>(null);
+  const upgrade = useUpgradeActions(() => setQuota(null));
 
   const addPicked = (items: Omit<Picked, 'key' | 'status' | 'progress'>[]) => {
     const err = checkLimits(files, items);
@@ -214,10 +216,7 @@ export default function FilesScreen() {
             ? `这次大约需要 ${quota.need} 页，还剩 ${quota.remaining} 页。开通会员每月 1000 页。`
             : '开通会员每月可解析 1000 页。'
         }
-        onUpgrade={() => {
-          setQuota(null);
-          router.push('/member');
-        }}
+        upgrade={upgrade}
         freeOptions={[{ label: '少选几个文件', onPress: () => setQuota(null) }]}
       />
     </Screen>

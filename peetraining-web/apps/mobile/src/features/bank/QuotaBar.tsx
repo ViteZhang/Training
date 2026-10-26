@@ -1,14 +1,16 @@
-// 资料解析额度条（3.1c、6.3）：「免费版 · 累计 98 / 100 页」，快用完时给「开通会员」。
+// 资料解析额度条（3.1c、6.3）：「免费版 · 累计 98 / 100 页」，快用完时给「开通会员」（购买入口关闭的平台不出现）。
 import { semantic } from '@training/ui-tokens';
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { Button, Card, ProgressBar, Text } from '@/components';
 import { useQuota } from '@/features/import/api';
+import { usePurchaseEnabled } from '@/features/membership/purchase';
 
 const periodName = { total: '累计', monthly: '本月', daily: '今天', weekly: '本周' } as const;
 
 export function ParseQuotaBar() {
   const quota = useQuota();
+  const canBuy = usePurchaseEnabled();
   const item = quota.data?.items.find((i) => i.quota_type === 'parse_pages');
   if (!quota.data || !item) return null;
   const limit = item.limit ?? undefined;
@@ -29,9 +31,9 @@ export function ParseQuotaBar() {
       {low ? (
         <View style={styles.row}>
           <Text variant="small" style={styles.flex}>
-            还剩 {left} 页。用完后仍可刷题，再解析资料需开通会员
+            {canBuy ? `还剩 ${left} 页。用完后仍可刷题，再解析资料需开通会员` : `还剩 ${left} 页。用完后仍可刷题`}
           </Text>
-          <Button title="开通会员" kind="text" size="sm" color={semantic.textPrimary} onPress={() => router.push('/member')} />
+          {canBuy ? <Button title="开通会员" kind="text" size="sm" color={semantic.textPrimary} onPress={() => router.push('/member')} /> : null}
         </View>
       ) : null}
     </Card>

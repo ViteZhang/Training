@@ -4,7 +4,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { flatten, setPath } from '../components/ParamEditor';
-import { ExamDatesPanel, ParamsPanel } from './Config';
+import { ManualIssue } from './Codes';
+import { ExamDatesPanel, ParamsPanel, PurchaseEntryPanel } from './Config';
 import { Roles } from './Roles';
 
 type Handler = (req: Request) => { status: number; body?: unknown } | Promise<{ status: number; body?: unknown }>;
@@ -93,5 +94,46 @@ describe('7.8 初试日期', () => {
     );
     expect(savedUrl).toMatch(/\/admin\/config\/exam-dates\/2027$/);
     await waitFor(() => expect(screen.getByText('新增某年')).toBeTruthy());
+  });
+});
+
+describe('7.8 购买入口', () => {
+  it('iOS 默认关闭；打开并保存时带版本号', async () => {
+    let saved: unknown;
+    const entry = { android: true, ios: false, version: 3, wecom: { name: '考研Training 客服', wecom_id: 'kaoyan-training', reply_time: '工作日', note: '加客服', qr_uploaded: false } };
+    g.mockApi['GET /admin/config/purchase-entry'] = () => ({ status: 200, body: entry });
+    g.mockApi['PUT /admin/config/purchase-entry'] = async (req) => {
+      saved = await req.json();
+      return { status: 200, body: { ...entry, ios: true, version: 4 } };
+    };
+    wrap(<PurchaseEntryPanel />);
+    expect(await screen.findByText('iOS · 显示购买入口')).toBeTruthy();
+    expect(screen.getByText('还没上传')).toBeTruthy();
+    const switches = screen.getAllByRole('switch');
+    const [androidSwitch, iosSwitch] = switches as [HTMLElement, HTMLElement];
+    expect(androidSwitch.getAttribute('aria-checked')).toBe('true');
+    expect(iosSwitch.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(iosSwitch);
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
+    await waitFor(() =>
+      expect(saved).toEqual({ android: true, ios: true, version: 3, wecom: { name: '考研Training 客服', wecom_id: 'kaoyan-training', reply_time: '工作日', note: '加客服' } }),
+    );
+  });
+});
+
+describe('7.4 单个发码 · 手动收款', () => {
+  it('填手机号、档位、金额、收款方式，生成后显示完整兑换码', async () => {
+    let sent: unknown;
+    g.mockApi['POST /admin/redeem/single-codes'] = async (req) => {
+      sent = await req.json();
+      return { status: 200, body: { code: 'K7Q2HNXA', order_no: 'W20261026120000123456', batch_id: 9 } };
+    };
+    wrap(<ManualIssue onIssued={() => {}} />);
+    fireEvent.change(screen.getByPlaceholderText('186 2210 7731'), { target: { value: '186 2210 7731' } });
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '169' } });
+    fireEvent.change(screen.getByPlaceholderText('小红书私信来的'), { target: { value: '小红书私信来的' } });
+    fireEvent.click(screen.getByRole('button', { name: '生成并复制兑换码' }));
+    expect(await screen.findByText('K7Q2HNXA')).toBeTruthy();
+    expect(sent).toEqual({ phone: '18622107731', tier: 'season', amount_cents: 16900, pay_method: '企业微信转账', remark: '小红书私信来的' });
   });
 });

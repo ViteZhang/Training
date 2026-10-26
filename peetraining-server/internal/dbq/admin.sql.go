@@ -56,6 +56,15 @@ func (q *Queries) AdminBatchCodes(ctx context.Context, batchID uint64) ([]AdminB
 	return items, nil
 }
 
+const adminBumpBatchQuantity = `-- name: AdminBumpBatchQuantity :exec
+UPDATE redeem_batches SET quantity = quantity + 1 WHERE id = ?
+`
+
+func (q *Queries) AdminBumpBatchQuantity(ctx context.Context, id uint64) error {
+	_, err := q.db.ExecContext(ctx, adminBumpBatchQuantity, id)
+	return err
+}
+
 const adminDisableBatch = `-- name: AdminDisableBatch :execrows
 UPDATE redeem_batches SET status = 'disabled' WHERE id = ? AND status = 'active'
 `
@@ -264,6 +273,34 @@ func (q *Queries) AdminFindCode(ctx context.Context, codeHash string) (AdminFind
 		&i.Days,
 		&i.CodeExpiresAt,
 		&i.BatchStatus,
+	)
+	return i, err
+}
+
+const adminFindSingleBatch = `-- name: AdminFindSingleBatch :one
+SELECT id, name, tier, days, quantity, code_expires_at, channel, status, created_by, created_at FROM redeem_batches WHERE channel = 'wecom_single' AND tier = ? AND status = 'active' AND code_expires_at > ? ORDER BY id DESC LIMIT 1 FOR UPDATE
+`
+
+type AdminFindSingleBatchParams struct {
+	Tier          RedeemBatchesTier
+	CodeExpiresAt time.Time
+}
+
+// 7.4 单个发码：每个档位一个「企业微信客服 · 单个发码」批次；码有效期不足 180 天时另开一批。
+func (q *Queries) AdminFindSingleBatch(ctx context.Context, arg AdminFindSingleBatchParams) (RedeemBatch, error) {
+	row := q.db.QueryRowContext(ctx, adminFindSingleBatch, arg.Tier, arg.CodeExpiresAt)
+	var i RedeemBatch
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Tier,
+		&i.Days,
+		&i.Quantity,
+		&i.CodeExpiresAt,
+		&i.Channel,
+		&i.Status,
+		&i.CreatedBy,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -592,6 +629,64 @@ func (q *Queries) AdminInsertCode(ctx context.Context, arg AdminInsertCodeParams
 	return err
 }
 
+const adminInsertCodeReturning = `-- name: AdminInsertCodeReturning :execlastid
+INSERT INTO redeem_codes (batch_id, code_hash, code_tail) VALUES (?, ?, ?)
+`
+
+type AdminInsertCodeReturningParams struct {
+	BatchID  uint64
+	CodeHash string
+	CodeTail string
+}
+
+func (q *Queries) AdminInsertCodeReturning(ctx context.Context, arg AdminInsertCodeReturningParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, adminInsertCodeReturning, arg.BatchID, arg.CodeHash, arg.CodeTail)
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
+}
+
+const adminInsertManualOrder = `-- name: AdminInsertManualOrder :execlastid
+INSERT INTO orders (order_no, owner_user_id, tier, channel, pay_method, buyer_phone, remark, amount_cents, status, redeem_code_id, created_by, paid_at, created_at)
+VALUES (?, ?, ?, 'wecom', ?, ?, ?, ?, 'paid', ?, ?, ?, ?)
+`
+
+type AdminInsertManualOrderParams struct {
+	OrderNo      string
+	OwnerUserID  sql.NullInt64
+	Tier         OrdersTier
+	PayMethod    sql.NullString
+	BuyerPhone   sql.NullString
+	Remark       sql.NullString
+	AmountCents  uint32
+	RedeemCodeID sql.NullInt64
+	CreatedBy    sql.NullInt64
+	PaidAt       sql.NullTime
+	CreatedAt    time.Time
+}
+
+// PRD v3 13.3：客服收款后单个发码，记一笔已支付订单，收入计入 7.3（渠道：企业微信客服）。
+func (q *Queries) AdminInsertManualOrder(ctx context.Context, arg AdminInsertManualOrderParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, adminInsertManualOrder,
+		arg.OrderNo,
+		arg.OwnerUserID,
+		arg.Tier,
+		arg.PayMethod,
+		arg.BuyerPhone,
+		arg.Remark,
+		arg.AmountCents,
+		arg.RedeemCodeID,
+		arg.CreatedBy,
+		arg.PaidAt,
+		arg.CreatedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
+}
+
 const adminListBatches = `-- name: AdminListBatches :many
 SELECT b.id, b.name, b.tier, b.days, b.quantity, b.code_expires_at, b.channel, b.status, b.created_by, b.created_at, (SELECT COUNT(*) FROM redeem_codes c WHERE c.batch_id = b.id AND c.status = 'used') AS used_count
 FROM redeem_batches b WHERE (CAST(? AS UNSIGNED) = 0 OR b.id < CAST(? AS UNSIGNED)) ORDER BY b.id DESC LIMIT 50
@@ -847,7 +942,7 @@ func (q *Queries) AdminListImportJobs(ctx context.Context, arg AdminListImportJo
 
 const adminListOrders = `-- name: AdminListOrders :many
 
-SELECT o.id, o.order_no, o.owner_user_id, o.tier, o.channel, o.amount_cents, o.status, o.paid_at, o.created_at,
+SELECT o.id, o.order_no, o.owner_user_id, o.tier, o.channel, o.pay_method, o.buyer_phone, o.remark, o.amount_cents, o.status, o.paid_at, o.created_at,
   CAST(IFNULL((SELECT r.status FROM refunds r WHERE r.order_id = o.id ORDER BY r.id DESC LIMIT 1), '') AS CHAR) AS refund_status
 FROM orders o
 WHERE (CAST(? AS CHAR) = '' OR o.status = CAST(? AS CHAR)) AND (CAST(? AS UNSIGNED) = 0 OR o.owner_user_id = CAST(? AS UNSIGNED))
@@ -867,6 +962,9 @@ type AdminListOrdersRow struct {
 	OwnerUserID  sql.NullInt64
 	Tier         OrdersTier
 	Channel      OrdersChannel
+	PayMethod    sql.NullString
+	BuyerPhone   sql.NullString
+	Remark       sql.NullString
 	AmountCents  uint32
 	Status       OrdersStatus
 	PaidAt       sql.NullTime
@@ -897,6 +995,9 @@ func (q *Queries) AdminListOrders(ctx context.Context, arg AdminListOrdersParams
 			&i.OwnerUserID,
 			&i.Tier,
 			&i.Channel,
+			&i.PayMethod,
+			&i.BuyerPhone,
+			&i.Remark,
 			&i.AmountCents,
 			&i.Status,
 			&i.PaidAt,
