@@ -25,6 +25,7 @@ export const useSession = create<SessionState>((set) => ({
   },
   clear: () => {
     remove(KEY);
+    remove('onboarding_step'); // 启动页记下的引导进度，换账号登录时不能沿用
     set({ session: undefined });
   },
 }));

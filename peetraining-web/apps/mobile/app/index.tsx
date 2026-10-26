@@ -16,6 +16,7 @@ import { useSession } from '@/lib/session';
 import { storage } from '@/lib/storage';
 
 export const SPLASH_MS = 1500;
+const ONBOARDING_KEY = 'onboarding_step';
 
 type Pending = { kind: 'update'; update: Schemas['AppUpdate'] } | { kind: 'agreements'; list: Schemas['AgreementSummary'][] };
 
@@ -66,7 +67,13 @@ export default function Splash() {
         if (await refreshSession()) b = await fetchBootstrap();
         else if (useSession.getState().session) b = { ...b, logged_in: true };
       }
-      const result = b ?? { server_time: '', app_name: appConfig.appName, flags: {}, logged_in: !!useSession.getState().session };
+      if (b?.logged_in && b.onboarding_step) storage.set(ONBOARDING_KEY, b.onboarding_step);
+      let result = b ?? { server_time: '', app_name: appConfig.appName, flags: {}, logged_in: !!useSession.getState().session };
+      // 没拿到服务端的引导进度（离线或刷新令牌没成功）时，用上次记下的，免得已完成引导的用户被带回第一步。
+      if (result.logged_in && !result.onboarding_step) {
+        const saved = storage.getString(ONBOARDING_KEY);
+        if (saved) result = { ...result, onboarding_step: saved };
+      }
       timer = setTimeout(() => {
         setBoot(result);
         decide(result, setPending);
