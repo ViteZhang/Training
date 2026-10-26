@@ -80,3 +80,18 @@ func TestAIFailedError(t *testing.T) {
 		t.Errorf("%+v", e)
 	}
 }
+
+// 修改昵称传空字符串表示「随机换一个」，契约不能拦掉空串（否则 App 的按钮点了没反应）。
+func TestEmptyNicknameAllowedByContract(t *testing.T) {
+	spec, err := gen.GetSwagger()
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema := spec.Components.Schemas["UpdateMeRequest"].Value
+	if err := schema.VisitJSON(map[string]any{"nickname": ""}); err != nil {
+		t.Fatalf("空昵称被契约拦掉：%v", err)
+	}
+	if err := schema.VisitJSON(map[string]any{"nickname": strings.Repeat("长", 17)}); err == nil {
+		t.Fatal("超过 16 个字的昵称应被拦掉")
+	}
+}
