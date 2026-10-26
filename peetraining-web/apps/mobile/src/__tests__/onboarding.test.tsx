@@ -125,4 +125,30 @@ describe('1.3 备考安排', () => {
     });
     expect(mockCalls.find((c) => c.path === '/me')?.init).toEqual({ body: { onboarding_step: '1.4' } });
   });
+
+  it('参考教材（选填）：添加到对应专业课，下一步时只保存改过的', async () => {
+    saveDraft({ examYear: 2027 });
+    const subject = (id: number, code: string, name: string, textbooks?: string[]) => ({
+      id, code, name, full_score: 150, is_essay: false, bank_id: id, question_count: 0, kp_count: 0, material_count: 0, textbooks,
+    });
+    mockResponses = {
+      'GET /exam-years': () => ({ status: 200, data: years }),
+      'GET /subjects': () => ({ status: 200, data: { items: [subject(1, '654', '语言文学基础'), subject(2, '908', '写作', ['范文选'])], max_subjects: 3, can_add: true } }),
+      'PUT /profile': () => ({ status: 200, data: {} }),
+      'PATCH /me': () => ({ status: 200, data: {} }),
+      'PATCH /subjects/{subjectId}': () => ({ status: 200, data: {} }),
+    };
+    await wrap(<Setup />);
+    expect(await screen.findByText('范文选')).toBeTruthy();
+    expect(screen.getByText('资料里缺答案时，AI 会尽量按这本教材的表述给参考答案')).toBeTruthy();
+    await fireEvent.press(screen.getByText('+ 添加教材'));
+    await fireEvent.press(screen.getByText('654 语言文学基础'));
+    await fireEvent.changeText(screen.getByLabelText('教材名称'), '童庆炳《文学理论教程》');
+    await fireEvent.press(screen.getByText('添加'));
+    expect(await screen.findByText('童庆炳《文学理论教程》')).toBeTruthy();
+    await fireEvent.press(screen.getByText('下一步'));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/(onboarding)/import'));
+    const patches = mockCalls.filter((c) => c.path === '/subjects/{subjectId}');
+    expect(patches.map((c) => c.init)).toEqual([{ params: { path: { subjectId: 1 } }, body: { textbooks: ['童庆炳《文学理论教程》'] } }]);
+  });
 });

@@ -1,4 +1,5 @@
-// 1.3 备考安排：显示距初试天数；按天数推荐阶段，用户可改；每日时长 30 / 45 / 60 / 90 分钟，默认 45。
+// 1.3 备考安排：显示距初试天数；按天数推荐阶段，用户可改；每日时长 30 / 45 / 60 / 90 分钟，默认 45；
+// 参考教材（选填，每门专业课可填多本）：资料里缺答案时，AI 会尽量按这本教材的表述给参考答案，之后在 6.9 修改。
 import { colors, radius, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
@@ -8,6 +9,8 @@ import { Button, Card, ErrorState, Loading, Screen, Tag, Text, toast } from '@/c
 import { setStep, stageInfo, stages, type StageKey } from '@/features/onboarding/api';
 import { loadDraft } from '@/features/onboarding/draft';
 import { Chips, Footer, OptionCard, StepHeader } from '@/features/onboarding/ui';
+import { useSubjects } from '@/features/mine/api';
+import { saveTextbooks, TextbookList, textbooksOf, type TextbookMap } from '@/features/profile/textbooks';
 import { api, unwrap } from '@/lib/api';
 
 export default function SetupStep() {
@@ -18,6 +21,11 @@ export default function SetupStep() {
   const [minutes, setMinutes] = useState<30 | 45 | 60 | 90>(45);
   const [busy, setBusy] = useState(false);
   const chosen = stage ?? year?.suggested_stage;
+  const subjects = useSubjects();
+  const subjectList = subjects.data?.items ?? [];
+  // 没改过时用服务端已存的教材（中途退出再回来不丢）。
+  const [edited, setBooks] = useState<TextbookMap | null>(null);
+  const books = edited ?? textbooksOf(subjectList);
 
   const next = async () => {
     if (!year || !chosen) return;
@@ -28,6 +36,7 @@ export default function SetupStep() {
           body: { exam_year: year.exam_year, stage: chosen, daily_minutes: minutes, target_school_major: draft.targetSchoolMajor ?? null },
         }),
       );
+      await saveTextbooks(subjectList, books);
       await setStep('1.4');
       router.push('/(onboarding)/import');
     } catch {
@@ -81,6 +90,18 @@ export default function SetupStep() {
           每天能练多久
         </Text>
         <Chips options={[30, 45, 60, 90] as const} value={minutes} onChange={setMinutes} format={(n) => `${n} 分钟`} />
+
+        {subjectList.length > 0 ? (
+          <>
+            <View style={styles.labelRow}>
+              <Text variant="bodyStrong" style={styles.bold}>
+                参考教材
+              </Text>
+              <Text variant="small">选填</Text>
+            </View>
+            <TextbookList subjects={subjectList} value={books} onChange={setBooks} />
+          </>
+        ) : null}
       </ScrollView>
       <Footer>
         <Button title="下一步" loading={busy} disabled={!chosen} onPress={() => void next()} />
@@ -97,6 +118,7 @@ const styles = StyleSheet.create({
   days: { fontSize: 34, lineHeight: 40 },
   label: { marginTop: 22, marginBottom: 10, fontWeight: '500' },
   bold: { fontWeight: '700' },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 22, marginBottom: 8 },
   gap: { gap: spacing.sm },
   stageRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   range: { marginLeft: 'auto' },

@@ -6619,6 +6619,8 @@ type Subject struct {
 	UpdatedAt  time.Time
 	// 报考方向：导入按专业分组的真题时默认只保留与它匹配的组
 	MyMajors sql.NullString
+	// 参考教材书名列表，如 ["童庆炳《文学理论教程》"]
+	Textbooks dbtypes.NullJSON
 }
 
 // 考后回访（6.14），每人一次

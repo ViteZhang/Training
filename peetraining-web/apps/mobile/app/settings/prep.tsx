@@ -1,4 +1,4 @@
-// 6.9 备考设置：专业课与目标分（可改、可增删，删除时提示会一起删除它的题库）；目标院校选填；考试年份可切换（初试日期随年份，只读）；
+// 6.9 备考设置：专业课与目标分（可改、可增删，删除时提示会一起删除它的题库）；目标院校选填；参考教材（每门专业课可填多本，选填）；考试年份可切换（初试日期随年份，只读）；
 // 每日学习时长；备考阶段（显示系统建议和理由）；作文每周目标篇数。改阶段或时长从明天起生效，改目标分立即生效。
 import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
@@ -11,6 +11,7 @@ import { stageInfo, stages } from '@/features/onboarding/api';
 import { Chips, OptionCard, Stepper } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
 import { useUpgradeActions } from '@/features/membership/purchase';
+import { TextbookSheet, textbookSummary } from '@/features/profile/textbooks';
 
 type Profile = Schemas['StudyProfile'];
 
@@ -23,6 +24,7 @@ export default function PrepSettings() {
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<Schemas['Subject'] | null>(null);
   const [schoolEdit, setSchoolEdit] = useState<string | null>(null);
+  const [bookEdit, setBookEdit] = useState<Schemas['Subject'] | null>(null);
   const [quota, setQuota] = useState(false);
   const upgrade = useUpgradeActions(() => setQuota(false));
 
@@ -98,6 +100,25 @@ export default function PrepSettings() {
             <Icon name="edit" size={16} color={semantic.textSecondary} />
           </Card>
         </Pressable>
+
+        {(subjects.data?.items.length ?? 0) > 0 ? (
+          <>
+            <Text variant="small" style={styles.section}>
+              参考教材（选填）
+            </Text>
+            <ListCard>
+              {subjects.data!.items.map((s, i) => (
+                <Pressable key={s.id} accessibilityRole="button" onPress={() => setBookEdit(s)} style={[styles.bookRow, i > 0 && styles.bookDivider]}>
+                  <View style={styles.flex}>
+                    <Text variant="body">{textbookSummary(s)}</Text>
+                    <Text variant="small">缺答案时 AI 按教材表述给参考答案</Text>
+                  </View>
+                  <Icon name="chevron" size={16} color={semantic.textSecondary} />
+                </Pressable>
+              ))}
+            </ListCard>
+          </>
+        ) : null}
 
         <Text variant="small" style={styles.section}>
           时间
@@ -203,6 +224,17 @@ export default function PrepSettings() {
               .catch(() => toast('删除失败，请重试'));
         }}
       />
+      {bookEdit ? (
+        <TextbookSheet
+          subject={bookEdit}
+          onClose={() => setBookEdit(null)}
+          onSaved={() => {
+            setBookEdit(null);
+            toast('已保存');
+            void refreshSubjects();
+          }}
+        />
+      ) : null}
       {schoolEdit !== null ? (
         <BottomSheet visible onClose={() => setSchoolEdit(null)} title="目标院校与专业">
           <TextInput accessibilityLabel="目标院校专业" value={schoolEdit} onChangeText={setSchoolEdit} placeholder="如：海南大学 · 中国语言文学" style={styles.input} maxLength={64} maxFontSizeMultiplier={layout.maxFontScale} />
@@ -314,6 +346,8 @@ const styles = StyleSheet.create({
   stageRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: 2 },
   inlineTag: { alignSelf: 'center' },
   flex: { flex: 1 },
+  bookRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 6, paddingHorizontal: 16 },
+  bookDivider: { borderTopWidth: 1, borderTopColor: semantic.border },
   note: { marginTop: spacing.xl },
   input: { minHeight: 48, borderWidth: 1, borderColor: semantic.inputBorder, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 16, color: semantic.textPrimary },
   inputGap: { marginTop: spacing.sm },

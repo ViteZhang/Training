@@ -8884,6 +8884,11 @@ components:
         full_score: { type: integer, enum: [100, 150, 300] }
         target_score: { type: integer, minimum: 0, nullable: true }
         is_essay: { type: boolean, description: 用户纠正作文课判断（1.7），之后不再自动改 }
+        textbooks:
+          type: array
+          maxItems: 5
+          description: 参考教材书名（1.3、6.9，选填），整体替换；空数组表示清空。缺答案时 AI 按教材表述给参考答案
+          items: { type: string, minLength: 1, maxLength: 64 }
     Subject:
       type: object
       required: [id, name, full_score, is_essay, bank_id, question_count, kp_count, material_count]
@@ -8895,6 +8900,7 @@ components:
         full_score: { type: integer }
         target_score: { type: integer }
         is_essay: { type: boolean, description: 作文课（如 908），题库页显示为 3.10 }
+        textbooks: { type: array, items: { type: string }, description: 参考教材书名（选填） }
         bank_id: { type: integer, format: int64 }
         question_count: { type: integer }
         kp_count: { type: integer }
