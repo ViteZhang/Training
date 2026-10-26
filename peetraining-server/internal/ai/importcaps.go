@@ -273,12 +273,22 @@ func splitPoints(answer string, score float64) []RubricPoint {
 	return pts
 }
 
-// GenerateAnswerIn 是缺答案时生成参考答案与采分点的输入（1.7b，标「AI 生成」）。
+// GenerateAnswerIn 是缺答案时生成参考答案与采分点的输入（1.7b、3.3b、4.4，标「AI 参考答案 · 待确认」）。
+// 生成时依次参考：用户同课资料里的相关原文（Context）→ 用户填的参考教材（Textbooks，只给书名）→ 通用知识（PRD v3 11.16 第 5 条）。
+// 官方题库的题，Context 是后台录入的官方参考素材（7.11），Sources 给出处，答案优先引用并标明。
 type GenerateAnswerIn struct {
-	Subject string  `json:"subject"`
-	QType   string  `json:"qtype"`
-	Stem    string  `json:"stem"`
-	Score   float64 `json:"score"`
+	Subject   string          `json:"subject"`
+	QType     string          `json:"qtype"`
+	Stem      string          `json:"stem"`
+	Score     float64         `json:"score"`
+	Textbooks []string        `json:"textbooks,omitempty"`
+	Context   []AnswerContext `json:"context,omitempty"`
+}
+
+// AnswerContext 是一段用户资料（或官方参考素材）的原文。
+type AnswerContext struct {
+	Source string `json:"source"`
+	Text   string `json:"text"`
 }
 
 type GenerateAnswerOut struct {
@@ -287,7 +297,7 @@ type GenerateAnswerOut struct {
 }
 
 var GenerateAnswer = &Cap[GenerateAnswerIn, GenerateAnswerOut]{
-	Def: Def{Name: "answer_generate", Version: "v1", Tier: "strong", Temperature: 0.3, Schema: `{
+	Def: Def{Name: "answer_generate", Version: "v2", Tier: "strong", Temperature: 0.3, Schema: `{
 		"type": "object", "required": ["answer", "points"],
 		"properties": {
 			"answer": {"type": "string", "minLength": 1},
@@ -306,8 +316,87 @@ var GenerateAnswer = &Cap[GenerateAnswerIn, GenerateAnswerOut]{
 	},
 	Mock: func(in GenerateAnswerIn) (GenerateAnswerOut, error) {
 		ans := "（AI 生成）" + in.Stem + "的要点：一是概念与内涵；二是特征与表现；三是意义与影响。"
+		if len(in.Context) > 0 {
+			ans = "（AI 生成）据你的资料：" + truncRunes(in.Context[0].Text, 60)
+		}
 		return GenerateAnswerOut{Answer: ans, Points: splitPoints(ans, in.Score)}, nil
 	},
+}
+
+func truncRunes(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n])
+}
+
+// MatchAnswerIn 是从用户其他资料里给缺答案的题找答案的输入（PRD v3 11.16 第 2 条，不额外计费）：
+// 候选是同一门课里与题目相关的资料原文（知识点原文表述、讲义段落）。
+type MatchAnswerIn struct {
+	Subject    string            `json:"subject"`
+	QType      string            `json:"qtype"`
+	Stem       string            `json:"stem"`
+	Candidates []AnswerCandidate `json:"candidates"`
+}
+
+// AnswerCandidate 是一段候选原文；ID 从 1 开始。
+type AnswerCandidate struct {
+	ID   int    `json:"id"`
+	Text string `json:"text"`
+}
+
+// MatchAnswerOut：CandidateID 为 0 表示资料里没有这道题的答案；Answer 必须从那段原文里逐字摘出（忠于原文）。
+type MatchAnswerOut struct {
+	CandidateID int     `json:"candidate_id"`
+	Answer      string  `json:"answer"`
+	Confidence  float64 `json:"confidence"`
+}
+
+var MatchAnswer = &Cap[MatchAnswerIn, MatchAnswerOut]{
+	Def: Def{Name: "answer_match", Version: "v1", Tier: "cheap", Temperature: 0, Schema: `{
+		"type": "object", "required": ["candidate_id", "answer", "confidence"],
+		"properties": {
+			"candidate_id": {"type": "integer", "minimum": 0},
+			"answer": {"type": "string"},
+			"confidence": {"type": "number", "minimum": 0, "maximum": 1}}}`},
+	Check: func(in MatchAnswerIn, out *MatchAnswerOut) error {
+		if out.CandidateID == 0 {
+			out.Answer = ""
+			return nil
+		}
+		for _, c := range in.Candidates {
+			if c.ID == out.CandidateID {
+				if strings.TrimSpace(out.Answer) == "" || !ContainsVerbatim(c.Text, out.Answer) {
+					return fmt.Errorf("答案必须从第 %d 段原文里逐字摘出", c.ID)
+				}
+				return nil
+			}
+		}
+		return fmt.Errorf("没有第 %d 段原文", out.CandidateID)
+	},
+	Mock: func(in MatchAnswerIn) (MatchAnswerOut, error) {
+		best, score := AnswerCandidate{}, 0.0
+		for _, c := range in.Candidates {
+			if v := Overlap(stemCore(in.Stem), c.Text); v > score {
+				best, score = c, v
+			}
+		}
+		if score < 0.5 {
+			return MatchAnswerOut{}, nil
+		}
+		return MatchAnswerOut{CandidateID: best.ID, Answer: best.Text, Confidence: score}, nil
+	},
+}
+
+// stemCore 去掉「名词解释：」之类的题型前缀，只留要考的内容。
+func stemCore(stem string) string {
+	for _, sep := range []string{"：", ":"} {
+		if i := strings.Index(stem, sep); i >= 0 && i < 12 {
+			return stem[i+len(sep):]
+		}
+	}
+	return stem
 }
 
 // KPIn 是参考资料拆知识点的输入（参考类资料，第 9 步）：按页给原文。

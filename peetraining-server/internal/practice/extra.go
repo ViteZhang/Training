@@ -334,7 +334,23 @@ func (s *Service) Report(ctx context.Context, userID, questionID uint64, reason 
 		if err := q.UpsertQuestionReport(ctx, dbq.UpsertQuestionReportParams{QuestionID: questionID, OwnerUserID: userID, Reason: sql.NullString{String: reason, Valid: reason != ""}}); err != nil {
 			return err
 		}
-		return q.BumpQuestionReport(ctx, dbq.BumpQuestionReportParams{ReportCount: reportOffline, ID: questionID, OwnerUserID: owner(userID)})
+		if err := q.BumpQuestionReport(ctx, dbq.BumpQuestionReportParams{ReportCount: reportOffline, ID: questionID, OwnerUserID: owner(userID)}); err != nil {
+			return err
+		}
+		// 客观题的 AI 答案被报错 3 次自动撤回，回到「缺答案」（PRD v3 11.16 第 7 条）。
+		n, err := q.ReportAIAnswer(ctx, dbq.ReportAIAnswerParams{ID: questionID, OwnerUserID: owner(userID)})
+		if err != nil || n == 0 {
+			return err
+		}
+		cnt, err := q.GetAIAnswerReports(ctx, dbq.GetAIAnswerReportsParams{ID: questionID, OwnerUserID: owner(userID)})
+		if err != nil || int(cnt) < reportOffline {
+			return err
+		}
+		qr, err := q.GetQuestionFull(ctx, dbq.GetQuestionFullParams{ID: questionID, OwnerUserID: owner(userID)})
+		if err != nil || !rules.IsObjective(rules.QType(qr.Qtype)) {
+			return err
+		}
+		return q.WithdrawAIAnswer(ctx, dbq.WithdrawAIAnswerParams{ID: questionID, OwnerUserID: owner(userID)})
 	})
 	if err != nil {
 		return false, err

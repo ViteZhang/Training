@@ -11,7 +11,10 @@ SELECT
   (SELECT COUNT(*) FROM questions q WHERE q.bank_id = sqlc.arg(bank_id) AND q.owner_user_id = sqlc.arg(owner) AND q.status = 'active' AND q.needs_review = 1) AS question_review_count,
   (SELECT COUNT(*) FROM knowledge_points k WHERE k.bank_id = sqlc.arg(bank_id) AND k.owner_user_id = sqlc.arg(owner) AND k.needs_review = 1) AS kp_review_count,
   (SELECT COUNT(*) FROM materials m WHERE m.bank_id = sqlc.arg(bank_id) AND m.owner_user_id = sqlc.arg(user_id)) AS material_count,
-  (SELECT COUNT(*) FROM papers p WHERE p.bank_id = sqlc.arg(bank_id) AND p.owner_user_id = sqlc.arg(owner)) AS paper_count;
+  (SELECT COUNT(*) FROM papers p WHERE p.bank_id = sqlc.arg(bank_id) AND p.owner_user_id = sqlc.arg(owner)) AS paper_count,
+  -- 3.1 提醒条「N 题缺答案」：还没有答案或只有待确认的 AI 参考答案（PRD v3 11.16）；AI 出的变式题自带答案，不算
+  (SELECT COUNT(*) FROM questions q WHERE q.bank_id = sqlc.arg(bank_id) AND q.owner_user_id = sqlc.arg(owner) AND q.status = 'active' AND q.source <> 'ai_generated'
+    AND (IFNULL(q.answer, '') = '' OR q.answer_origin = 'ai_generated')) AS missing_answer_count;
 
 -- name: ListBankKPsFull :many
 SELECT k.id, k.parent_id, k.level, k.name, k.exam_count, k.needs_review, k.official_kp_id, k.origin, k.official_new_until, k.sort_order,
@@ -93,7 +96,7 @@ ON DUPLICATE KEY UPDATE
 -- name: ListBankQuestionsFull :many
 -- 题目列表（3.1b）：一次取出题库全部题目及作答概况，在服务端筛选、排序与分页（单个题库通常几百到几千题）。
 SELECT q.id, q.qtype, LEFT(q.stem, 120) AS stem, q.score, q.source, q.exam_year, q.needs_review, q.generated_from_kp_id, q.created_at,
-  q.group_label, q.group_majors, q.passage_key,
+  q.group_label, q.group_majors, q.passage_key, q.answer_origin, CAST(IFNULL(q.answer, '') <> '' AS SIGNED) AS has_answer,
   CAST(COALESCE((SELECT qk.kp_id FROM question_kps qk WHERE qk.question_id = q.id ORDER BY qk.is_primary DESC, qk.kp_id LIMIT 1), 0) AS UNSIGNED) AS primary_kp_id,
   (SELECT COUNT(*) FROM attempts a WHERE a.question_id = q.id AND a.owner_user_id = sqlc.arg(user_id)) AS attempt_count,
   (SELECT a.score FROM attempts a WHERE a.question_id = q.id AND a.owner_user_id = sqlc.arg(user_id) ORDER BY a.answered_at DESC, a.id DESC LIMIT 1) AS last_score,

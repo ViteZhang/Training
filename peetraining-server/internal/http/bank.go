@@ -22,7 +22,7 @@ func (h *Handlers) GetBankOverview(c *gin.Context, subjectID gen.SubjectId) {
 		return
 	}
 	out := gen.BankOverview{SubjectId: int64(o.SubjectID), BankId: int64(o.BankID), QuestionCount: o.Questions, KpCount: o.KPs,
-		NeedsReviewCount: o.NeedsReview, MaterialCount: o.Materials, PaperCount: &o.Papers, IsEssay: &o.IsEssay}
+		NeedsReviewCount: o.NeedsReview, MaterialCount: o.Materials, PaperCount: &o.Papers, IsEssay: &o.IsEssay, MissingAnswerCount: &o.MissingAnswers}
 	out.MasteryDistribution.Unlearned, out.MasteryDistribution.Learning = o.Unlearned, o.Learning
 	out.MasteryDistribution.Consolidating, out.MasteryDistribution.Mastered = o.Consolidating, o.Mastered
 	c.JSON(http.StatusOK, out)
@@ -279,6 +279,9 @@ func (h *Handlers) ListQuestions(c *gin.Context, subjectID gen.SubjectId, p gen.
 	if p.Status != nil {
 		f.Status = string(*p.Status)
 	}
+	if p.AnswerStatus != nil {
+		f.AnswerStatus = string(*p.AnswerStatus)
+	}
 	if p.Sort != nil {
 		f.Sort = string(*p.Sort)
 	}
@@ -300,6 +303,7 @@ func (h *Handlers) ListQuestions(c *gin.Context, subjectID gen.SubjectId, p gen.
 	}
 	out := gen.QuestionPage{Items: make([]gen.QuestionSummary, len(items))}
 	out.Facets.ByQtype, out.Facets.BySource, out.Facets.ExamYears = facets.ByQType, facets.BySource, facets.Years
+	out.Facets.ByAnswer = &facets.ByAnswer
 	if out.Facets.ExamYears == nil {
 		out.Facets.ExamYears = []int{}
 	}
@@ -312,6 +316,10 @@ func (h *Handlers) ListQuestions(c *gin.Context, subjectID gen.SubjectId, p gen.
 		}
 		if q.GeneratedFromKP != "" {
 			g.GeneratedFromKp = &q.GeneratedFromKP
+		}
+		if q.AnswerTier != "" {
+			t := gen.AnswerTier(q.AnswerTier)
+			g.AnswerTier = &t
 		}
 		out.Items[i] = g
 	}
@@ -456,6 +464,22 @@ func toQuestionDetail(d bank.QuestionDetail) gen.QuestionDetail {
 		o := gen.Origin(d.AnswerOrigin)
 		out.AnswerOrigin = &o
 	}
+	if d.AnswerTier != "" {
+		t := gen.AnswerTier(d.AnswerTier)
+		out.AnswerTier = &t
+	}
+	if d.AnswerMatch != "" {
+		m := gen.AnswerMatch(d.AnswerMatch)
+		out.AnswerMatch = &m
+	}
+	out.AnswerSource = toSource(d.AnswerSource)
+	if rg := d.ReferenceGradings; rg != nil {
+		out.ReferenceGradings = &struct {
+			Count         int      `json:"count"`
+			LastFullScore *float32 `json:"last_full_score,omitempty"`
+			LastScore     *float32 `json:"last_score,omitempty"`
+		}{Count: rg.Count, LastFullScore: f32(rg.LastFull), LastScore: f32(rg.LastScore)}
+	}
 	if d.Analysis != "" {
 		out.Analysis = &d.Analysis
 	}
@@ -599,4 +623,13 @@ func toPassage(key, text string) *gen.QuestionPassage {
 		key = importer.PassageKey(text)
 	}
 	return &gen.QuestionPassage{Key: key, Text: text}
+}
+
+func (h *Handlers) ConfirmAIAnswer(c *gin.Context, id gen.QuestionId) {
+	d, err := h.deps.Bank.ConfirmAIAnswer(c.Request.Context(), currentUser(c), uint64(id))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, toQuestionDetail(d))
 }

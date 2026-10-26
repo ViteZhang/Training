@@ -908,6 +908,9 @@ func (s *Service) judgePaperObjective(ctx context.Context, q *dbq.Queries, p rul
 	if err := q.SetPaperItemAttempt(ctx, dbq.SetPaperItemAttemptParams{AttemptID: sql.NullInt64{Int64: aid, Valid: true}, PaperSessionID: sessionID, Seq: it.Seq, OwnerUserID: userID}); err != nil {
 		return err
 	}
+	if err := markReference(ctx, q, userID, uint64(aid), string(answerTier(qr))); err != nil {
+		return err
+	}
 	_, err = Apply(ctx, q, p, userID, qr.ID, Outcome{Objective: true, Correct: correct}, rules.DayOf(at))
 	return err
 }
@@ -943,6 +946,16 @@ type PaperReport struct {
 	TotalMinutes   int                `json:"total_minutes"`
 	Loss           map[string]float64 `json:"loss"`
 	ByQType        []PaperQTypeStat   `json:"by_qtype"`
+	// 答案可信度（PRD v3 11.6，10 月 26 日更新）：只用答案来自用户资料或用户已确认的题计分。
+	// Trust 为 true 时以下字段有效（之前批改的整卷没有这些字段，按全部可信处理）。
+	Trust bool `json:"trust,omitempty"`
+	// TrustedRaw / TrustedFull 是有可信答案的题的得分与满分；UntrustedSubjective / Subjective 是没有可信答案的主观题分值与全部主观题分值。
+	TrustedRaw          float64 `json:"trusted_raw,omitempty"`
+	TrustedFull         float64 `json:"trusted_full,omitempty"`
+	UntrustedSubjective float64 `json:"untrusted_subjective,omitempty"`
+	Subjective          float64 `json:"subjective,omitempty"`
+	// AIConfirmed 是按用户确认过的 AI 答案计分的题数（卡片写明「其中 N 题按你确认过的 AI 答案评分」）。
+	AIConfirmed int `json:"ai_confirmed,omitempty"`
 }
 
 // PaperQTypeStat 是一种题型的得分与用时。
@@ -1007,7 +1020,7 @@ func (s *Service) GradePaper(ctx context.Context, userID, sessionID uint64) erro
 	}
 	lossAll := map[string]float64{"knowledge": 0, "norm": 0, "time": 0}
 	for i, it := range items {
-		if !it.QuestionID.Valid || it.AttemptID.Valid || rules.IsObjective(rules.QType(it.Qtype)) {
+		if !it.QuestionID.Valid || it.AttemptID.Valid {
 			continue
 		}
 		answer := strings.TrimSpace(it.DraftText.String)
@@ -1016,6 +1029,20 @@ func (s *Service) GradePaper(ctx context.Context, userID, sessionID uint64) erro
 		}
 		qr, err := s.q.GetQuestionFull(ctx, dbq.GetQuestionFullParams{ID: uint64(it.QuestionID.Int64), OwnerUserID: owner(userID)})
 		if err != nil {
+			continue
+		}
+		// 真题卷里还没有答案的题：一次生成 AI 参考答案，计入整卷额度、不另扣 AI 出题额度（PRD v3 11.16 第 4 条）。
+		if qr, err = s.ensureAnswer(ctx, userID, qr, false); err != nil {
+			if apperr.IsKind(err, apperr.AIFailed) {
+				continue // 生成失败的题不批改，计 0 分
+			}
+			return err
+		}
+		if rules.IsObjective(rules.QType(it.Qtype)) {
+			// 交卷时没有答案没判分的客观题，现在按 AI 给的答案判分。
+			if err := s.withTx(ctx, func(q *dbq.Queries) error { return s.judgePaperObjective(ctx, q, p, userID, sessionID, row, it, at) }); err != nil {
+				return err
+			}
 			continue
 		}
 		snap, err := s.snapshot(ctx, s.q, userID, qr)
@@ -1046,6 +1073,9 @@ func (s *Service) GradePaper(ctx context.Context, userID, sessionID uint64) erro
 				AnswerMode: dbq.AttemptsAnswerModeTyped, AnswerText: sql.NullString{String: answer, Valid: true}, Score: fmtScore(out.Total()), FullScore: fmtScore(snap.FullScore),
 				DurationSeconds: it.TimeSpentSeconds, Timed: mock, AnsweredAt: at})
 			if err != nil {
+				return err
+			}
+			if err := markReference(ctx, q, userID, uint64(aid), snap.AnswerTier); err != nil {
 				return err
 			}
 			eff, err := Apply(ctx, q, p, userID, qr.ID, Outcome{Graded: true, ScoreRate: out.Total() / snap.FullScore, LossType: mainLoss}, rules.DayOf(at))
@@ -1090,9 +1120,30 @@ func (s *Service) finishPaper(ctx context.Context, userID uint64, row dbq.PaperS
 	stats := map[string]*PaperQTypeStat{}
 	var order []string
 	var unanswered []rules.UnansweredQuestion
+	rep.Trust = true
 	for _, it := range items {
 		full := dec(it.ScoreMax)
 		rep.ActualFull += full
+		origin := ""
+		if it.AnswerOrigin.Valid {
+			origin = string(it.AnswerOrigin.QuestionsAnswerOrigin)
+		}
+		trusted := it.ReferenceOnly == 0 && rules.TierOf(it.Answer.String, origin, string(it.Source.QuestionsSource)).CountsForEstimate()
+		if !rules.IsObjective(rules.QType(it.Qtype)) {
+			rep.Subjective += full
+			if !trusted {
+				rep.UntrustedSubjective += full
+			}
+		}
+		if trusted {
+			rep.TrustedFull += full
+			if g, ok := parseScore(it.Got); ok {
+				rep.TrustedRaw += g
+			}
+			if it.AiAnswerOutcome.Valid && it.AiAnswerOutcome.QuestionsAiAnswerOutcome == dbq.QuestionsAiAnswerOutcomeConfirmed && origin == "user_confirmed" {
+				rep.AIConfirmed++
+			}
+		}
 		rep.UsedSeconds += int(it.TimeSpentSeconds)
 		st, ok := stats[it.Qtype]
 		if !ok {

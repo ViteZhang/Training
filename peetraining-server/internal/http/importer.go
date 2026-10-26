@@ -10,6 +10,7 @@ import (
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/gen"
 	"peetraining-server/internal/importer"
+	"peetraining-server/internal/rules"
 )
 
 // 1.5–1.8 导入流程（T10）。
@@ -22,6 +23,10 @@ func (h *Handlers) CreateImportJob(c *gin.Context, _ gen.CreateImportJobParams) 
 	ids := make([]uint64, len(req.MaterialIds))
 	for i, id := range req.MaterialIds {
 		ids[i] = uint64(id)
+	}
+	if req.Mode == gen.ImportModeAnswers {
+		_ = c.Error(ErrBadRequest("补充答案文件请用 1.7c 的入口"))
+		return
 	}
 	j, err := h.deps.Importer.CreateJob(c.Request.Context(), currentUser(c), uint64(req.SubjectId), string(req.Mode), ids)
 	if err != nil {
@@ -231,6 +236,9 @@ func toImportJob(j importer.Job) gen.ImportJob {
 	if j.DetectedEssay {
 		out.DetectedEssay = &j.DetectedEssay
 	}
+	if j.TargetJobID.Valid {
+		out.TargetJobId = &j.TargetJobID.Int64
+	}
 	billed := int(j.BilledPages)
 	out.BilledPages = &billed
 	if j.FinishedAt.Valid {
@@ -260,8 +268,10 @@ func toImportJob(j importer.Job) gen.ImportJob {
 
 func toCounts(c dbq.CountImportItemsRow) gen.ImportCounts {
 	essay := int(c.EssayItems)
+	matched, missing := int(c.AnswerMatched), int(c.MissingAnswer)
 	return gen.ImportCounts{Questions: int(c.Questions), KnowledgePoints: int(c.KnowledgePoints), NeedsReview: int(c.NeedsReview),
-		Subjective: int(c.Subjective), Objective: int(c.Objective), Confirmed: int(c.Confirmed), EssayItems: &essay}
+		Subjective: int(c.Subjective), Objective: int(c.Objective), Confirmed: int(c.Confirmed), EssayItems: &essay,
+		AnswerMatched: &matched, MissingAnswer: &missing}
 }
 
 func toImportItem(it dbq.GetImportItemRow, fileName func(uint64) string) gen.ImportItem {
@@ -287,6 +297,17 @@ func toImportItem(it dbq.GetImportItemRow, fileName func(uint64) string) gen.Imp
 		page = d.SourcePage
 		out.Question = &gen.QuestionDraft{}
 		_ = json.Unmarshal(it.Payload, out.Question)
+		// 答案档位与出处（PRD v3 11.16）：「来自你的资料 · 文件 + 页码」
+		tier := gen.AnswerTier(rules.TierOf(d.Answer, d.AnswerOrigin, d.Source))
+		out.Question.AnswerTier = &tier
+		if d.Answer != "" && d.AnswerMaterialID != 0 && d.AnswerOrigin == "imported" {
+			src := gen.SourceRef{MaterialId: int64(d.AnswerMaterialID), FileName: fileName(d.AnswerMaterialID)}
+			if d.AnswerPage > 0 {
+				p := d.AnswerPage
+				src.Page = &p
+			}
+			out.Question.AnswerSource = &src
+		}
 	case dbq.ImportItemsItemTypeKnowledgePoint:
 		var d importer.KPDraft
 		_ = json.Unmarshal(it.Payload, &d)
@@ -366,4 +387,93 @@ func toImportGroups(in []importer.GroupSummary) *[]gen.ImportGroup {
 		}
 	}
 	return &out
+}
+
+// ---------- 1.7c 补充答案文件（PRD v3 1.7c，10 月 26 日更新） ----------
+
+func (h *Handlers) CreateAnswerFileJob(c *gin.Context, subjectID gen.SubjectId) {
+	var req gen.CreateAnswerFileJobJSONBody
+	if !bind(c, &req) {
+		return
+	}
+	var target uint64
+	if req.TargetJobId != nil {
+		target = uint64(*req.TargetJobId)
+	}
+	j, err := h.deps.Importer.CreateAnswerJob(c.Request.Context(), currentUser(c), uint64(subjectID), target, uint64s(req.MaterialIds))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusCreated, toImportJob(j))
+}
+
+func toPairingTarget(t importer.PairingTarget) gen.PairingTarget {
+	out := gen.PairingTarget{Kind: gen.PairingTargetKind(t.Kind), Id: int64(t.ID), Qtype: gen.QuestionType(t.QType), Stem: t.Stem, ExamYear: t.ExamYear}
+	if t.QuestionNo != "" {
+		out.QuestionNo = &t.QuestionNo
+	}
+	return out
+}
+
+func toPairingAnswer(a importer.PairingAnswer) gen.PairingAnswer {
+	out := gen.PairingAnswer{Id: int64(a.ID), Text: a.Text, ExamYear: a.ExamYear,
+		Source: gen.SourceRef{MaterialId: int64(a.Source.MaterialID), FileName: a.Source.FileName}}
+	if a.Source.Page > 0 {
+		p := a.Source.Page
+		out.Source.Page = &p
+	}
+	if a.QuestionNo != "" {
+		out.QuestionNo = &a.QuestionNo
+	}
+	return out
+}
+
+func (h *Handlers) ListAnswerPairings(c *gin.Context, jobID gen.JobId) {
+	r, err := h.deps.Importer.Pairings(c.Request.Context(), currentUser(c), uint64(jobID))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	out := gen.AnswerPairingResult{Job: toImportJob(r.Job), Pairings: []gen.AnswerPairing{}, StillMissing: []gen.PairingTarget{}, SpareAnswers: []gen.PairingAnswer{}}
+	for _, p := range r.Pairings {
+		gp := gen.AnswerPairing{Id: int64(p.ID), Target: toPairingTarget(p.Target), Method: gen.AnswerPairingMethod(p.Method), Status: gen.AnswerPairingStatus(p.Status)}
+		if p.Answer != nil {
+			a := toPairingAnswer(*p.Answer)
+			gp.Answer = &a
+		}
+		out.Pairings = append(out.Pairings, gp)
+	}
+	for _, t := range r.StillMissing {
+		out.StillMissing = append(out.StillMissing, toPairingTarget(t))
+	}
+	for _, a := range r.Spare {
+		out.SpareAnswers = append(out.SpareAnswers, toPairingAnswer(a))
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+func (h *Handlers) UpdateAnswerPairing(c *gin.Context, jobID gen.JobId, pairingID int64) {
+	var req gen.UpdateAnswerPairingJSONBody
+	if !bind(c, &req) {
+		return
+	}
+	var answer uint64
+	if v, err := req.AnswerId.Get(); err == nil {
+		answer = uint64(v)
+	}
+	if err := h.deps.Importer.UpdatePairing(c.Request.Context(), currentUser(c), uint64(jobID), uint64(pairingID), answer); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *Handlers) ConfirmAnswerPairings(c *gin.Context, jobID gen.JobId) {
+	n, err := h.deps.Importer.ConfirmPairings(c.Request.Context(), currentUser(c), uint64(jobID))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"applied": n})
 }

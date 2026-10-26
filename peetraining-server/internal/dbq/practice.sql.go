@@ -116,7 +116,7 @@ func (q *Queries) FinishPracticeSession(ctx context.Context, arg FinishPracticeS
 }
 
 const getAttemptByKey = `-- name: GetAttemptByKey :one
-SELECT id, owner_user_id, question_id, practice_session_id, paper_session_id, answer_mode, selected, answer_text, photo_keys, is_correct, score, full_score, revealed_answer, self_assess, duration_seconds, timed, offline, verified_at, idempotency_key, answered_at, created_at FROM attempts WHERE owner_user_id = ? AND idempotency_key = ?
+SELECT id, owner_user_id, question_id, practice_session_id, paper_session_id, answer_mode, selected, answer_text, photo_keys, is_correct, score, full_score, revealed_answer, self_assess, duration_seconds, timed, offline, verified_at, idempotency_key, answered_at, created_at, reference_only FROM attempts WHERE owner_user_id = ? AND idempotency_key = ?
 `
 
 type GetAttemptByKeyParams struct {
@@ -149,6 +149,7 @@ func (q *Queries) GetAttemptByKey(ctx context.Context, arg GetAttemptByKeyParams
 		&i.IdempotencyKey,
 		&i.AnsweredAt,
 		&i.CreatedAt,
+		&i.ReferenceOnly,
 	)
 	return i, err
 }

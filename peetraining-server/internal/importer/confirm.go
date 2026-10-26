@@ -237,11 +237,15 @@ func (s *Service) GenerateAnswer(ctx context.Context, userID, itemID uint64) (It
 	if q.Score != nil {
 		score = *q.Score
 	}
-	out, _, err := ai.GenerateAnswer.Run(ctx, s.ai, userID, ai.GenerateAnswerIn{Subject: job.SubjectName, QType: q.QType, Stem: q.fullStem(), Score: score})
+	in, err := AnswerInput(ctx, s.q, userID, job.BankID, q.QType, q.fullStem(), score)
 	if err != nil {
 		return Item{}, err
 	}
-	q.Answer, q.AnswerOrigin = out.Answer, "ai_generated"
+	out, _, err := ai.GenerateAnswer.Run(ctx, s.ai, userID, in)
+	if err != nil {
+		return Item{}, err
+	}
+	q.Answer, q.AnswerOrigin, q.AnswerMatch, q.AnswerMaterialID, q.AnswerPage = out.Answer, "ai_generated", "", 0, 0
 	if ai.Subjective(q.QType) {
 		q.RubricPoints, q.RubricOrigin = out.Points, "ai_generated"
 	}
@@ -553,6 +557,23 @@ func (s *Service) insertQuestion(ctx context.Context, q *dbq.Queries, t *tree, j
 		return 0, err
 	}
 	qid := uint64(res)
+	// 答案出处（PRD v3 11.16）：「来自你的资料 · 文件 + 页码」；AI 参考答案记下生成时间，7.5 统计确认率与修改率。
+	if d.Answer != "" && d.AnswerMatch != "" && d.AnswerOrigin == "imported" {
+		mid := d.AnswerMaterialID
+		if mid == 0 && it.MaterialID.Valid {
+			mid = uint64(it.MaterialID.Int64)
+		}
+		if err := q.SetQuestionAnswerSource(ctx, dbq.SetQuestionAnswerSourceParams{AnswerMatch: dbq.NullQuestionsAnswerMatch{QuestionsAnswerMatch: dbq.QuestionsAnswerMatch(d.AnswerMatch), Valid: true},
+			AnswerMaterialID: sql.NullInt64{Int64: int64(mid), Valid: mid != 0}, AnswerPage: sql.NullInt32{Int32: int32(d.AnswerPage), Valid: d.AnswerPage > 0},
+			ID: qid, OwnerUserID: t.owner}); err != nil {
+			return 0, err
+		}
+	}
+	if d.Answer != "" && d.AnswerOrigin == "ai_generated" {
+		if err := q.MarkQuestionAIAnswer(ctx, dbq.MarkQuestionAIAnswerParams{AiAnswerAt: sql.NullTime{Time: s.now().UTC(), Valid: true}, ID: qid, OwnerUserID: t.owner}); err != nil {
+			return 0, err
+		}
+	}
 	origin := dbq.RubricPointsOrigin(d.RubricOrigin)
 	if !origin.Valid() || origin == dbq.RubricPointsOriginOfficial {
 		origin = dbq.RubricPointsOriginAiExtracted

@@ -305,3 +305,15 @@ SELECT
 -- name: StatHotSubjects :many
 -- 热门专业课：按用户填的代码聚合（只有代码与人数）。
 SELECT code, COUNT(DISTINCT owner_user_id) AS users FROM subjects WHERE code IS NOT NULL AND code <> '' GROUP BY code ORDER BY users DESC LIMIT 20;
+
+-- name: AdminAnswerStats :one
+-- 7.5 缺答案（PRD v3 11.16）：只统计数量，不读题目与答案内容。
+SELECT
+  (SELECT COUNT(*) FROM questions q WHERE q.created_at >= CAST(sqlc.arg(since) AS DATETIME) AND q.source_material_id IS NOT NULL AND q.source IN ('exam', 'exercise')) AS imported_questions,
+  (SELECT COUNT(*) FROM questions q WHERE q.created_at >= CAST(sqlc.arg(since) AS DATETIME) AND q.source_material_id IS NOT NULL AND q.source IN ('exam', 'exercise')
+    AND (q.answer_match IS NULL OR q.answer_match <> 'original')) AS missing_original,
+  (SELECT COUNT(*) FROM questions q WHERE q.created_at >= CAST(sqlc.arg(since) AS DATETIME) AND q.source_material_id IS NOT NULL AND q.source IN ('exam', 'exercise')
+    AND q.answer_match IN ('other_material', 'answer_file')) AS matched,
+  (SELECT COUNT(*) FROM questions q WHERE q.ai_answer_at >= CAST(sqlc.arg(since) AS DATETIME)) AS ai_answers,
+  (SELECT COUNT(*) FROM questions q WHERE q.ai_answer_at >= CAST(sqlc.arg(since) AS DATETIME) AND q.ai_answer_outcome = 'confirmed') AS ai_confirmed,
+  (SELECT COUNT(*) FROM questions q WHERE q.ai_answer_at >= CAST(sqlc.arg(since) AS DATETIME) AND q.ai_answer_outcome = 'edited') AS ai_edited;

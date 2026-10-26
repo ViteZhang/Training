@@ -38,7 +38,12 @@ type rubricSnap struct {
 	MaterialID uint64          `json:"material_id,omitempty"`
 	FileName   string          `json:"file_name,omitempty"`
 	Page       int             `json:"page,omitempty"`
+	// AnswerTier 是批改时参考答案的档位（PRD v3 11.16）：ai 表示按 AI 参考答案批改，结果仅供参考、不计入预估分（4.7b）。
+	AnswerTier string `json:"answer_tier,omitempty"`
 }
+
+// ReferenceOnly 表示这次批改按 AI 参考答案（待确认），不计入预估分。
+func (r rubricSnap) ReferenceOnly() bool { return r.AnswerTier == string(rules.AnswerAI) }
 
 // PointResult 是一个采分点的批改结果。
 type PointResult struct {
@@ -83,6 +88,8 @@ type Grading struct {
 	Disputed                  bool
 	QuotaCharged              bool
 	RubricChanged             bool
+	// AnswerConfirmed 是按 AI 参考答案批改之后，用户已经确认（或改过）了这道题的答案（4.7b 不再问「这份参考答案对吗？」）。
+	AnswerConfirmed bool
 }
 
 // SubjectiveInput 是一次主观题作答。
@@ -113,7 +120,7 @@ func (s *Service) snapshot(ctx context.Context, q *dbq.Queries, userID uint64, q
 	if err != nil {
 		return rubricSnap{}, err
 	}
-	snap := rubricSnap{Version: int(qr.RubricVersion), Reference: qr.Answer.String}
+	snap := rubricSnap{Version: int(qr.RubricVersion), Reference: qr.Answer.String, AnswerTier: string(answerTier(qr))}
 	full, hasFull := parseScore(qr.Score)
 	sum, allScored := 0.0, len(rp) > 0
 	for _, p := range rp {
@@ -288,6 +295,10 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 	if rules.IsObjective(rules.QType(qr.Qtype)) {
 		return Grading{}, apperr.New(apperr.BadRequest, "客观题直接提交选项")
 	}
+	// 还没有任何答案的题：先生成 AI 参考答案再批改（计入每日 AI 出题额度），按它批改的结果仅供参考（4.7b）。
+	if qr, err = s.ensureAnswer(ctx, userID, qr, true); err != nil {
+		return Grading{}, err
+	}
 	snap, err := s.snapshot(ctx, s.q, userID, qr)
 	if err != nil {
 		return Grading{}, err
@@ -320,6 +331,9 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 				return err
 			}
 			if err := s.annotate(ctx, q, userID, uint64(aid), in); err != nil {
+				return err
+			}
+			if err := markReference(ctx, q, userID, uint64(aid), snap.AnswerTier); err != nil {
 				return err
 			}
 			gid, err = q.InsertGrading(ctx, dbq.InsertGradingParams{OwnerUserID: userID, AttemptID: uint64(aid), TriggerReason: dbq.GradingsTriggerReasonSubmit,
@@ -363,6 +377,9 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 			return err
 		}
 		if err := s.annotate(ctx, q, userID, uint64(aid), in); err != nil {
+			return err
+		}
+		if err := markReference(ctx, q, userID, uint64(aid), snap.AnswerTier); err != nil {
 			return err
 		}
 		eff, err := Apply(ctx, q, p, userID, qr.ID, Outcome{Graded: true, ScoreRate: total / snap.FullScore, LossType: mainLoss}, rules.DayOf(now))
@@ -478,6 +495,7 @@ func (s *Service) Grading(ctx context.Context, userID, id uint64) (Grading, erro
 	out.Disputed = len(ds) > 0
 	if qr, err := s.q.GetQuestionFull(ctx, dbq.GetQuestionFullParams{ID: g.QuestionID, OwnerUserID: owner(userID)}); err == nil {
 		out.RubricChanged = int(qr.RubricVersion) != out.Rubric.Version
+		out.AnswerConfirmed = answerTier(qr) != rules.AnswerAI
 	}
 	return out, nil
 }
@@ -706,4 +724,39 @@ func (s *Service) SubmitPending(ctx context.Context, userID uint64) ([]Grading, 
 	}
 	left, err := s.q.ListQueuedGradings(ctx, userID)
 	return done, len(left), err
+}
+
+// answerTier 是题目当前参考答案的档位（PRD v3 11.16）。
+func answerTier(qr dbq.GetQuestionFullRow) rules.AnswerTier {
+	origin := ""
+	if qr.AnswerOrigin.Valid {
+		origin = string(qr.AnswerOrigin.QuestionsAnswerOrigin)
+	}
+	return rules.TierOf(qr.Answer.String, origin, string(qr.Source))
+}
+
+// ensureAnswer 给还没有任何答案的题先生成 AI 参考答案并缓存（PRD v3 4.4、11.16 第 4 条）。主观题有采分点时按采分点批改，不用生成。
+// charge 为 true 时计入每日 AI 出题额度；整卷里的题计入整卷额度，传 false。返回重新读出的题目。
+func (s *Service) ensureAnswer(ctx context.Context, userID uint64, qr dbq.GetQuestionFullRow, charge bool) (dbq.GetQuestionFullRow, error) {
+	if strings.TrimSpace(qr.Answer.String) != "" {
+		return qr, nil
+	}
+	if !rules.IsObjective(rules.QType(qr.Qtype)) {
+		rp, err := s.q.ListQuestionRubric(ctx, dbq.ListQuestionRubricParams{QuestionID: sql.NullInt64{Int64: int64(qr.ID), Valid: true}, OwnerUserID: owner(userID)})
+		if err != nil || len(rp) > 0 {
+			return qr, err
+		}
+	}
+	if _, err := importer.GenerateQuestionAnswer(ctx, s.db, s.q, s.ai, s.quota, userID, qr, charge, s.now().UTC()); err != nil {
+		return qr, err
+	}
+	return s.q.GetQuestionFull(ctx, dbq.GetQuestionFullParams{ID: qr.ID, OwnerUserID: owner(userID)})
+}
+
+// markReference 把按 AI 参考答案判分的作答标为不计入预估分（PRD v3 11.6）。
+func markReference(ctx context.Context, q *dbq.Queries, userID, attemptID uint64, tier string) error {
+	if tier != string(rules.AnswerAI) {
+		return nil
+	}
+	return q.SetAttemptReferenceOnly(ctx, dbq.SetAttemptReferenceOnlyParams{ID: attemptID, OwnerUserID: userID})
 }
