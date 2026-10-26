@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { BackHandler } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import TrainTab from '../../app/(tabs)/train';
 import PracticeRunner from '../../app/practice/[id]';
@@ -89,6 +90,35 @@ describe('4.4 主观题 → 4.7 批改结果', () => {
     expect(body).toMatchObject({ question_id: 201, answer_text: answer, answer_mode: 'typed', timed: false });
     await fireEvent.press(screen.getByText('学知识点'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/bank/kp/[id]', params: { id: '3' } });
+  });
+
+  it('看参考答案后按返回键回到作答；作答页按返回键先确认，不直接退出', async () => {
+    // 测试环境里 BackHandler 是空实现：截获注册的回调，按「后注册先调用」模拟安卓返回键
+    const handlers: Parameters<typeof BackHandler.addEventListener>[1][] = [];
+    const spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_e, h) => {
+      handlers.push(h);
+      return { remove: () => handlers.splice(handlers.indexOf(h), 1) };
+    });
+    const pressBack = () => [...handlers].reverse().some((h) => h({} as never));
+    const { router } = jest.requireMock('expo-router') as { router: { back: jest.Mock } };
+    router.back.mockClear();
+    await wrap(<PracticeRunner />);
+    await fireEvent.changeText(await screen.findByLabelText('你的答案'), answer);
+    await fireEvent.press(screen.getByText('看参考答案'));
+    expect(screen.getByText('对照参考答案，你掌握得怎么样？')).toBeTruthy();
+    await act(async () => {
+      pressBack();
+    });
+    expect(screen.getByLabelText('你的答案').props.value).toBe(answer);
+    await fireEvent.press(screen.getByText('看参考答案'));
+    await fireEvent.press(screen.getByText('返回作答'));
+    expect(screen.getByLabelText('你的答案')).toBeTruthy();
+    await act(async () => {
+      pressBack();
+    });
+    expect(screen.getByText('先休息一下？')).toBeTruthy();
+    expect(router.back).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it('次数用完（4.9）：答案已保存，可以明天再批改', async () => {

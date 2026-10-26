@@ -89,15 +89,15 @@ export default function BankTab() {
   const overview = useOverview(subject?.id);
   const official = useFeatureFlag('official_bank');
 
-  if (subjects.isLoading) return <Screen><Loading rows={6} /></Screen>;
-  if (subjects.isError) return <Screen><ErrorState error={subjects.error} onRetry={() => void subjects.refetch()} /></Screen>;
-  if (!subject) return <Screen><EmptyState title="还没有专业课" actionText="去添加" onAction={() => router.push('/settings/prep')} /></Screen>;
+  if (subjects.isLoading) return <Screen edges={['top']}><Loading rows={6} /></Screen>;
+  if (subjects.isError) return <Screen edges={['top']}><ErrorState error={subjects.error} onRetry={() => void subjects.refetch()} /></Screen>;
+  if (!subject) return <Screen edges={['top']}><EmptyState title="还没有专业课" actionText="去添加" onAction={() => router.push('/settings/prep')} /></Screen>;
 
   const label = `${subject.code ? `${subject.code} ` : ''}${subject.name}`;
   const o = overview.data;
   const empty = o && o.question_count === 0 && o.kp_count === 0 && o.material_count === 0;
   return (
-    <Screen>
+    <Screen edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.title}>
           <Text variant="h1" style={styles.flex}>

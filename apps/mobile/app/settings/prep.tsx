@@ -131,9 +131,9 @@ export default function PrepSettings() {
         <View style={styles.gap}>
           {stages.map((k) => (
             <OptionCard key={k} label={stageInfo[k].name} selected={k === effectiveStage} onPress={() => save.mutate({ stage: k })}>
-              <View style={styles.row}>
+              <View style={styles.stageRow}>
                 <Text variant="bodyStrong">{stageInfo[k].name}</Text>
-                {k === p.suggested_stage ? <Tag label="系统建议" tone="progress" /> : null}
+                {k === p.suggested_stage ? <Tag label="系统建议" tone="progress" style={styles.inlineTag} /> : null}
               </View>
               <Text variant="caption">{stageInfo[k].desc}</Text>
             </OptionCard>
@@ -311,6 +311,9 @@ const styles = StyleSheet.create({
   section: { marginTop: spacing.xl, marginBottom: spacing.sm },
   gap: { gap: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: layout.minTouch },
+  // 阶段卡片的标题行：整张卡片已是点击区域，这里不再撑到 44 高，标签与标题垂直居中
+  stageRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: 2 },
+  inlineTag: { alignSelf: 'center' },
   flex: { flex: 1 },
   note: { marginTop: spacing.xl },
   input: { minHeight: 48, borderWidth: 1, borderColor: semantic.inputBorder, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 16, color: semantic.textPrimary },
