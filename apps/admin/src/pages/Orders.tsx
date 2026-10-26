@@ -10,7 +10,7 @@ import { api, dt, pct, unwrap, yuan } from '../lib/api';
 import type { Role } from '../lib/menu';
 
 const tierNames: Record<string, string> = { sprint: '冲刺卡', season: '考季卡', monthly: '月卡' };
-const channelNames: Record<string, string> = { wechat: '微信支付', alipay: '支付宝', apple_iap: 'App Store' };
+const channelNames: Record<string, string> = { wechat: '微信支付', alipay: '支付宝', apple_iap: 'App Store', wecom: '企业微信客服' };
 const statusNames: Record<string, string> = { created: '待支付', paid: '已支付', closed: '已关闭', refunding: '退款中', refunded: '已退款' };
 type Status = '' | 'paid' | 'refunded' | 'closed';
 
@@ -58,9 +58,10 @@ export function Orders({ roles }: { roles: Role[] }) {
           dataSource={list.data?.items ?? []}
           columns={[
             { title: '订单号', dataIndex: 'order_no' },
-            { title: '用户 ID', dataIndex: 'user_id' },
+            { title: '用户', render: (_, o) => (o.user_id ? o.user_id : o.buyer_phone_masked ? `${o.buyer_phone_masked}（未兑换）` : '—') },
             { title: '档位', render: (_, o) => tierNames[o.tier] },
-            { title: '渠道', render: (_, o) => channelNames[o.channel] },
+            { title: '渠道', render: (_, o) => (o.pay_method ? `${channelNames[o.channel]} · ${o.pay_method}` : channelNames[o.channel]) },
+            { title: '备注', render: (_, o) => o.remark ?? '' },
             { title: '金额', render: (_, o) => yuan(o.amount_cents) },
             { title: '状态', render: (_, o) => statusNames[o.status] ?? o.status },
             { title: '支付时间', render: (_, o) => dt(o.paid_at) },

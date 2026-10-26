@@ -90,6 +90,7 @@ beforeEach(() => {
   mockLogout.mockClear();
   mockResponses = {
     'GET /me': () => ({ status: 200, data: me() }),
+    'GET /purchase-entry': () => ({ status: 200, data: { enabled: true } }),
     'GET /profile': () => ({ status: 200, data: profile }),
     'GET /subjects': () => ({ status: 200, data: subjects }),
     'GET /me/overview': () => ({ status: 200, data: { materials: 3, questions: 246, wrong: 23, essays: 0 } }),
@@ -108,13 +109,23 @@ describe('6.1 我的', () => {
     const r = await wrap(<MeTab />);
     expect(await screen.findByText('小林同学')).toBeTruthy();
     expect(screen.getByText('654 · 强化期 · 83 天后初试')).toBeTruthy();
-    expect(screen.getByText('开通会员：批改、整卷、资料解析不限')).toBeTruthy();
+    expect(await screen.findByText('开通会员：批改、整卷、资料解析不限')).toBeTruthy();
     expect(await screen.findByText('失分：知识没掌握 50% · 答题不规范 25% · 时间不够 25%')).toBeTruthy();
     expect(screen.getByText('3 份 · 246 题')).toBeTruthy();
     expect(screen.getByText('还没有作文')).toBeTruthy();
     expect(screen.getByText('初试辛苦了！填写考后回访送 30 天会员')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('兑换码'));
     expect(mockPush).toHaveBeenCalledWith('/mine/redeem');
+    await r.unmount();
+  });
+
+  it('购买入口关闭的平台：会员条只显示当前状态，不出现开通与兑换码入口', async () => {
+    mockResponses['GET /purchase-entry'] = () => ({ status: 200, data: { enabled: false } });
+    const r = await wrap(<MeTab />);
+    expect(await screen.findByText('小林同学')).toBeTruthy();
+    expect(await screen.findByText('每日额度 0 点恢复')).toBeTruthy();
+    expect(screen.queryByText('开通')).toBeNull();
+    expect(screen.queryByLabelText('兑换码')).toBeNull();
     await r.unmount();
   });
 

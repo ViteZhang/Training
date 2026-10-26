@@ -12,6 +12,7 @@ import { loadDraft, saveDraft } from '@/features/onboarding/draft';
 import { Footer, StepHeader } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 export default function SubjectStep() {
   const qc = useQueryClient();
@@ -23,6 +24,7 @@ export default function SubjectStep() {
   const [school, setSchool] = useState(draft.targetSchoolMajor ?? '');
   const schoolRef = useRef<TextInput>(null);
   const [quota, setQuota] = useState(false);
+  const upgrade = useUpgradeActions(() => setQuota(false));
   const [removing, setRemoving] = useState<Schemas['Subject'] | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -179,10 +181,8 @@ export default function SubjectStep() {
         onClose={() => setQuota(false)}
         title="免费版最多添加 3 门专业课"
         desc="开通会员后可以添加第 4 门，资料解析、批改次数也不再受限。"
-        onUpgrade={() => {
-          setQuota(false);
-          router.push('/member');
-        }}
+        upgrade={upgrade}
+        freeDesc="免费版最多添加 3 门专业课，可以先删掉一门再添加。"
         freeOptions={[{ label: '先不加了', onPress: () => setQuota(false) }]}
       />
       <ConfirmDialog

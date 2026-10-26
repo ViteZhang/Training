@@ -1,5 +1,7 @@
 // 7.4 兑换码：汇总（已生成、已使用、可用、已停用或过期）；批次列表（档位、数量、已用、有效期、渠道、状态），可看明细、导出、停用；
 // 新建批次：名称、档位、数量、码有效期、渠道；单码查询，显示使用人与时间，可作废并收回会员。
+// 单个发码 · 手动收款（PRD v3 7.4、13.3）：客服在企业微信收款后填手机号、档位、金额、收款方式、备注，生成一个码复制发给用户，
+// 这笔收入记入 7.3（渠道：企业微信客服），码归入「企业微信客服 · 单个发码」批次。
 // 码在库里只存哈希：完整兑换码只在生成时返回一次，生成后立即导出（D37）；之后的明细与导出只有末 3 位。
 import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
@@ -90,6 +92,7 @@ export function Codes({ roles }: { roles: Role[] }) {
           />
         </Loadable>
       </Card>
+      <ManualIssue onIssued={refresh} />
       <CodeLookup canVoid={isAdmin} onChanged={refresh} />
 
       <Modal open={creating} title="新建批次" footer={null} onCancel={() => setCreating(false)} destroyOnHidden>
@@ -175,6 +178,80 @@ function CreateBatch({ onCreated }: { onCreated: (r: Schemas['AdminBatchCreated'
         <Button type="primary" htmlType="submit" loading={create.isPending}>生成兑换码</Button>
       </Form.Item>
     </Form>
+  );
+}
+
+const payMethods = ['企业微信转账', '企业微信收款码', '微信转账', '支付宝转账', '其他'];
+
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function ManualIssue({ onIssued }: { onIssued: () => void }) {
+  const { message } = AntApp.useApp();
+  const [form] = Form.useForm();
+  const [issued, setIssued] = useState<{ code: string; order_no: string; copied: boolean }>();
+  const issue = useMutation({
+    mutationFn: (body: { phone: string; tier: 'sprint' | 'season' | 'monthly'; amount_cents: number; pay_method: string; remark?: string }) =>
+      unwrap(api.POST('/admin/redeem/single-codes', { body })),
+    onSuccess: async (r) => {
+      const copied = await copyText(r.code);
+      setIssued({ code: r.code, order_no: r.order_no, copied });
+      form.resetFields();
+      onIssued();
+    },
+    onError: (e) => message.error(errMsg(e)),
+  });
+  return (
+    <Card title="单个发码 · 手动收款" extra={<Tag>单个发码</Tag>} style={{ marginTop: 16 }}>
+      <Form
+        form={form}
+        layout="inline"
+        initialValues={{ tier: 'season', pay_method: payMethods[0] }}
+        onFinish={(v: { phone: string; tier: 'sprint' | 'season' | 'monthly'; amount: number; pay_method: string; remark?: string }) =>
+          issue.mutate({ phone: v.phone.replace(/\s/g, ''), tier: v.tier, amount_cents: Math.round(v.amount * 100), pay_method: v.pay_method, remark: v.remark || undefined })
+        }
+      >
+        <Form.Item label="用户手机号" name="phone" rules={[{ required: true, pattern: /^1[3-9]\d{9}$/, transform: (v: string) => v?.replace(/\s/g, ''), message: '请输入正确的手机号' }]}>
+          <Input maxLength={13} placeholder="186 2210 7731" style={{ width: 160 }} />
+        </Form.Item>
+        <Form.Item label="档位" name="tier">
+          <Select style={{ width: 110 }} options={[{ label: '冲刺卡', value: 'sprint' }, { label: '考季卡', value: 'season' }, { label: '月卡', value: 'monthly' }]} />
+        </Form.Item>
+        <Form.Item label="收款金额" name="amount" rules={[{ required: true, message: '请填写收款金额' }]}>
+          <InputNumber min={0.01} max={100000} precision={2} prefix="¥" style={{ width: 120 }} />
+        </Form.Item>
+        <Form.Item label="收款方式" name="pay_method">
+          <Select style={{ width: 150 }} options={payMethods.map((m) => ({ label: m, value: m }))} />
+        </Form.Item>
+        <Form.Item label="备注" name="remark">
+          <Input maxLength={200} placeholder="小红书私信来的" style={{ width: 180 }} />
+        </Form.Item>
+        <Form.Item>
+          <Button type="primary" htmlType="submit" loading={issue.isPending}>生成并复制兑换码</Button>
+        </Form.Item>
+      </Form>
+      <div style={{ marginTop: 8, color: '#6E6E6E', fontSize: 12 }}>生成后复制发给用户；这笔收入记入「会员与订单」，渠道记为企业微信客服。码不绑定手机号，手机号只用于对账。</div>
+      <Modal open={!!issued} title="兑换码已生成" onCancel={() => setIssued(undefined)} footer={<Button onClick={() => setIssued(undefined)}>完成</Button>}>
+        {issued ? (
+          <>
+            <Alert type={issued.copied ? 'success' : 'warning'} showIcon message={issued.copied ? '已复制到剪贴板，发给用户即可' : '没能自动复制，请手动复制'} style={{ marginBottom: 12 }} />
+            <Descriptions column={1} size="small">
+              <Descriptions.Item label="兑换码">
+                <span style={{ fontFamily: 'DM Sans, monospace', fontSize: 20, letterSpacing: 2 }}>{issued.code}</span>
+              </Descriptions.Item>
+              <Descriptions.Item label="订单号">{issued.order_no}</Descriptions.Item>
+            </Descriptions>
+            <Alert type="info" message="完整兑换码只显示这一次，系统只保存哈希。" style={{ marginTop: 12 }} />
+          </>
+        ) : null}
+      </Modal>
+    </Card>
   );
 }
 
