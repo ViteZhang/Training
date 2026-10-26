@@ -448,3 +448,73 @@ func (h *Handlers) RollbackOfficialRelease(c *gin.Context, projectID, versionID 
 	}
 	c.Status(http.StatusNoContent)
 }
+
+// ---------- 7.11 官方参考素材 ----------
+
+func toGenReference(r official.Reference) gen.OfficialReference {
+	return gen.OfficialReference{Id: int64(r.ID), Title: r.Title, Kind: gen.OfficialReferenceKind(r.Kind), LicenseNote: r.LicenseNote,
+		Segments: r.Segments, Chars: r.Chars, CreatedAt: r.CreatedAt}
+}
+
+func (h *Handlers) ListOfficialReferences(c *gin.Context, projectID int64) {
+	if !h.canProject(c, projectID) {
+		return
+	}
+	rs, err := h.deps.Official.References(c.Request.Context(), uint64(projectID))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	out := make([]gen.OfficialReference, len(rs))
+	for i, r := range rs {
+		out[i] = toGenReference(r)
+	}
+	c.JSON(http.StatusOK, items(out))
+}
+
+func (h *Handlers) CreateOfficialReference(c *gin.Context, projectID int64) {
+	var body gen.CreateOfficialReferenceJSONBody
+	if !bind(c, &body) {
+		return
+	}
+	r, err := h.deps.Official.CreateReference(c.Request.Context(), currentAdmin(c).ID, uint64(projectID), body.Title, string(body.Kind), body.Authorized, body.LicenseNote, body.Text)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusCreated, toGenReference(r))
+}
+
+func (h *Handlers) DeleteOfficialReference(c *gin.Context, projectID int64, referenceID int64) {
+	if err := h.deps.Official.DeleteReference(c.Request.Context(), uint64(projectID), uint64(referenceID)); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *Handlers) GenerateOfficialAnswer(c *gin.Context, projectID int64) {
+	var body gen.GenerateOfficialAnswerJSONBody
+	if !bind(c, &body) || !h.canProject(c, projectID) {
+		return
+	}
+	score := 10.0
+	if body.Score != nil {
+		score = float64(*body.Score)
+	}
+	a, err := h.deps.Official.AnswerCandidates(c.Request.Context(), uint64(projectID), string(body.Qtype), body.Stem, score)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	out := gen.OfficialAnswerCandidate{Answer: a.Answer, Points: toGenPoints(a.Points)}
+	out.Citations = make([]struct {
+		Heading     string `json:"heading"`
+		ReferenceId int64  `json:"reference_id"`
+		Title       string `json:"title"`
+	}, len(a.Citations))
+	for i, x := range a.Citations {
+		out.Citations[i].Heading, out.Citations[i].ReferenceId, out.Citations[i].Title = x.Heading, int64(x.ReferenceID), x.Title
+	}
+	c.JSON(http.StatusOK, out)
+}

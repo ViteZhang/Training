@@ -26,6 +26,36 @@ func (q *Queries) CountEditorReviews(ctx context.Context, editorID uint64) (int6
 	return count, err
 }
 
+const createOfficialReference = `-- name: CreateOfficialReference :execlastid
+INSERT INTO official_references (project_id, title, kind, license_note, segments, chars, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateOfficialReferenceParams struct {
+	ProjectID   uint64
+	Title       string
+	Kind        OfficialReferencesKind
+	LicenseNote string
+	Segments    uint32
+	Chars       uint32
+	CreatedBy   sql.NullInt64
+}
+
+func (q *Queries) CreateOfficialReference(ctx context.Context, arg CreateOfficialReferenceParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, createOfficialReference,
+		arg.ProjectID,
+		arg.Title,
+		arg.Kind,
+		arg.LicenseNote,
+		arg.Segments,
+		arg.Chars,
+		arg.CreatedBy,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
+}
+
 const decideReviewTask = `-- name: DecideReviewTask :execrows
 UPDATE review_tasks SET reviewer_id = ?, decision = ?, reason = ?, edited_payload = ?, decided_at = ? WHERE id = ? AND decision = 'pending'
 `
@@ -119,6 +149,23 @@ DELETE FROM rubric_points WHERE question_id = ? AND owner_user_id IS NULL
 func (q *Queries) DeleteOfficialQuestionRubric(ctx context.Context, questionID sql.NullInt64) error {
 	_, err := q.db.ExecContext(ctx, deleteOfficialQuestionRubric, questionID)
 	return err
+}
+
+const deleteOfficialReference = `-- name: DeleteOfficialReference :execrows
+DELETE FROM official_references WHERE id = ? AND project_id = ?
+`
+
+type DeleteOfficialReferenceParams struct {
+	ID        uint64
+	ProjectID uint64
+}
+
+func (q *Queries) DeleteOfficialReference(ctx context.Context, arg DeleteOfficialReferenceParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOfficialReference, arg.ID, arg.ProjectID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteSubscription = `-- name: DeleteSubscription :execrows
@@ -538,6 +585,27 @@ func (q *Queries) InsertOfficialQuestionKP(ctx context.Context, arg InsertOffici
 		arg.KpID,
 		arg.IsPrimary,
 		arg.OwnerUserID,
+	)
+	return err
+}
+
+const insertOfficialReferenceSegment = `-- name: InsertOfficialReferenceSegment :exec
+INSERT INTO official_reference_segments (reference_id, seq, heading, text) VALUES (?, ?, ?, ?)
+`
+
+type InsertOfficialReferenceSegmentParams struct {
+	ReferenceID uint64
+	Seq         uint32
+	Heading     string
+	Text        string
+}
+
+func (q *Queries) InsertOfficialReferenceSegment(ctx context.Context, arg InsertOfficialReferenceSegmentParams) error {
+	_, err := q.db.ExecContext(ctx, insertOfficialReferenceSegment,
+		arg.ReferenceID,
+		arg.Seq,
+		arg.Heading,
+		arg.Text,
 	)
 	return err
 }
@@ -1071,6 +1139,92 @@ func (q *Queries) ListOfficialQuestions(ctx context.Context, bankID uint64) ([]L
 			&i.Score,
 			&i.ExamYear,
 			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOfficialReferenceSegments = `-- name: ListOfficialReferenceSegments :many
+SELECT s.id, s.reference_id, s.seq, s.heading, s.text, r.title
+FROM official_reference_segments s
+JOIN official_references r ON r.id = s.reference_id
+WHERE r.project_id = ?
+ORDER BY s.reference_id, s.seq
+`
+
+type ListOfficialReferenceSegmentsRow struct {
+	ID          uint64
+	ReferenceID uint64
+	Seq         uint32
+	Heading     string
+	Text        string
+	Title       string
+}
+
+func (q *Queries) ListOfficialReferenceSegments(ctx context.Context, projectID uint64) ([]ListOfficialReferenceSegmentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOfficialReferenceSegments, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOfficialReferenceSegmentsRow{}
+	for rows.Next() {
+		var i ListOfficialReferenceSegmentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ReferenceID,
+			&i.Seq,
+			&i.Heading,
+			&i.Text,
+			&i.Title,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOfficialReferences = `-- name: ListOfficialReferences :many
+
+SELECT id, project_id, title, kind, license_note, segments, chars, created_by, created_at FROM official_references WHERE project_id = ? ORDER BY id
+`
+
+// ---------- 7.11 官方参考素材 ----------
+func (q *Queries) ListOfficialReferences(ctx context.Context, projectID uint64) ([]OfficialReference, error) {
+	rows, err := q.db.QueryContext(ctx, listOfficialReferences, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OfficialReference{}
+	for rows.Next() {
+		var i OfficialReference
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Title,
+			&i.Kind,
+			&i.LicenseNote,
+			&i.Segments,
+			&i.Chars,
+			&i.CreatedBy,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

@@ -269,3 +269,24 @@ FROM subjects s JOIN users u ON u.id = s.owner_user_id
 WHERE s.code = sqlc.arg(code) AND u.status = 'active'
   AND (EXISTS (SELECT 1 FROM feature_flags f WHERE f.flag_key = 'official_bank' AND f.enabled_for_all = 1)
     OR EXISTS (SELECT 1 FROM feature_flag_users fu WHERE fu.flag_key = 'official_bank' AND fu.user_id = s.owner_user_id));
+
+-- ---------- 7.11 官方参考素材 ----------
+
+-- name: ListOfficialReferences :many
+SELECT * FROM official_references WHERE project_id = ? ORDER BY id;
+
+-- name: CreateOfficialReference :execlastid
+INSERT INTO official_references (project_id, title, kind, license_note, segments, chars, created_by) VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- name: InsertOfficialReferenceSegment :exec
+INSERT INTO official_reference_segments (reference_id, seq, heading, text) VALUES (?, ?, ?, ?);
+
+-- name: DeleteOfficialReference :execrows
+DELETE FROM official_references WHERE id = ? AND project_id = ?;
+
+-- name: ListOfficialReferenceSegments :many
+SELECT s.id, s.reference_id, s.seq, s.heading, s.text, r.title
+FROM official_reference_segments s
+JOIN official_references r ON r.id = s.reference_id
+WHERE r.project_id = ?
+ORDER BY s.reference_id, s.seq;

@@ -3900,6 +3900,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/official/projects/{projectId}/references": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.11 官方参考素材列表 */
+        get: operations["listOfficialReferences"];
+        put?: never;
+        /**
+         * 7.11 录入官方参考素材
+         * @description 只能录入有授权的教材、讲义（authorized 必须为 true 并写明授权说明）；粘贴原文后按章节与段落切分，供 7.12 生成参考答案时引用。
+         */
+        post: operations["createOfficialReference"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/references/{referenceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 7.11 删除官方参考素材 */
+        delete: operations["deleteOfficialReference"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/answer-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 7.12 AI 生成参考答案与采分点（优先引用官方参考素材并标出处） */
+        post: operations["generateOfficialAnswer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/official/rubric-candidates": {
         parameters: {
             query?: never;
@@ -5996,6 +6051,34 @@ export interface components {
             payload: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * @description 教材 / 讲义
+         * @enum {string}
+         */
+        OfficialReferenceKind: "textbook" | "handout";
+        OfficialReference: {
+            /** Format: int64 */
+            id: number;
+            title: string;
+            kind: components["schemas"]["OfficialReferenceKind"];
+            license_note: string;
+            /** @description 切分出的段数 */
+            segments: number;
+            chars: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        OfficialAnswerCandidate: {
+            answer: string;
+            points: components["schemas"]["OfficialPoint"][];
+            /** @description 生成时引用的官方参考素材段落（出处）；为空表示素材里没找到相关内容，按通用知识生成 */
+            citations: {
+                /** Format: int64 */
+                reference_id: number;
+                title: string;
+                heading: string;
+            }[];
         };
         OfficialPoint: {
             content: string;
@@ -13319,6 +13402,120 @@ export interface operations {
                     "application/json": {
                         items: components["schemas"]["OfficialCandidate"][];
                     };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listOfficialReferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["OfficialReference"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createOfficialReference: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                    kind: components["schemas"]["OfficialReferenceKind"];
+                    /** @description 确认已获授权 */
+                    authorized: boolean;
+                    license_note: string;
+                    text: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialReference"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteOfficialReference: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+                referenceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    generateOfficialAnswer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    qtype: components["schemas"]["QuestionType"];
+                    stem: string;
+                    score?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialAnswerCandidate"];
                 };
             };
             400: components["responses"]["BadRequest"];
