@@ -286,12 +286,25 @@ function AgreementForm({ agreement, onDone }: { agreement?: Schemas['AdminAgreem
   );
 }
 
-function ExamDatesPanel() {
+type ExamDateForm = { year: number; label?: string; range: [dayjs.Dayjs, dayjs.Dayjs]; subject: dayjs.Dayjs };
+
+export function ExamDatesPanel() {
   const qc = useQueryClient();
   const { message } = AntApp.useApp();
+  const [form] = Form.useForm<ExamDateForm>();
+  // 正在修改的年份；为空时表单用于新增。保存按年份覆盖，所以修改与新增调同一个接口。
+  const [editing, setEditing] = useState<number | null>(null);
   const q = useQuery({ queryKey: ['admin', 'exam-dates'], queryFn: () => unwrap(api.GET('/admin/config/exam-dates')) });
+  const reset = () => {
+    setEditing(null);
+    form.resetFields();
+  };
+  const edit = (d: Schemas['AdminExamDate']) => {
+    setEditing(d.year);
+    form.setFieldsValue({ year: d.year, label: d.label, range: [dayjs(d.first_exam_start), dayjs(d.first_exam_end)], subject: dayjs(d.subject_exam_date) });
+  };
   const save = useMutation({
-    mutationFn: (v: { year: number; label?: string; range: [dayjs.Dayjs, dayjs.Dayjs]; subject: dayjs.Dayjs }) =>
+    mutationFn: (v: ExamDateForm) =>
       unwrap(
         api.PUT('/admin/config/exam-dates/{year}', {
           params: { path: { year: v.year } },
@@ -300,6 +313,7 @@ function ExamDatesPanel() {
       ),
     onSuccess: () => {
       message.success('已保存');
+      reset();
       void qc.invalidateQueries({ queryKey: ['admin', 'exam-dates'] });
     },
     onError: (e) => message.error(errMsg(e)),
@@ -315,15 +329,22 @@ function ExamDatesPanel() {
           { title: '名称', dataIndex: 'label' },
           { title: '初试', render: (_, d) => `${d.first_exam_start} 至 ${d.first_exam_end}` },
           { title: '专业课考试日（倒计时以它为准）', dataIndex: 'subject_exam_date' },
+          { title: '操作', render: (_, d) => <Button type="link" onClick={() => edit(d)}>修改</Button> },
         ]}
       />
-      <Card size="small" title="新增或修改某年" style={{ marginTop: 16 }}>
-        <Form layout="inline" onFinish={save.mutate}>
-          <Form.Item name="year" rules={[{ required: true, message: '年份' }]}><InputNumber placeholder="2028" min={2000} max={2100} /></Form.Item>
-          <Form.Item name="label"><Input placeholder="2028 研考" /></Form.Item>
+      <Card size="small" title={editing ? `修改 ${editing} 年` : '新增某年'} style={{ marginTop: 16 }}>
+        <Form form={form} layout="inline" onFinish={save.mutate}>
+          <Form.Item name="year" rules={[{ required: true, message: '年份' }]}>
+            {/* 修改时年份锁定，避免误改成另一年而新增一条 */}
+            <InputNumber placeholder="2028" min={2000} max={2100} disabled={editing !== null} aria-label="年份" />
+          </Form.Item>
+          <Form.Item name="label"><Input placeholder="2028 研考" aria-label="名称" /></Form.Item>
           <Form.Item name="range" rules={[{ required: true, message: '初试日期' }]}><DatePicker.RangePicker /></Form.Item>
           <Form.Item name="subject" rules={[{ required: true, message: '专业课考试日' }]}><DatePicker placeholder="专业课考试日" /></Form.Item>
-          <Button type="primary" htmlType="submit" loading={save.isPending}>保存</Button>
+          <Space>
+            <Button type="primary" htmlType="submit" loading={save.isPending}>保存</Button>
+            {editing !== null && <Button onClick={reset}>取消修改</Button>}
+          </Space>
         </Form>
         <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
           冲刺卡至当年初试结束、考季卡至次年初试结束，都按这里的日期算；次年日期没配置时考季卡暂不能购买。
