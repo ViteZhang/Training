@@ -59,7 +59,7 @@ export default function Login() {
           登录考研Training
         </Text>
         <Text variant="caption" style={styles.sub}>
-          题库和学习进度都保存在账号里，换手机也不会丢
+          考研文科专业课 AI 提分教练
         </Text>
       </View>
 
@@ -137,10 +137,6 @@ export default function Login() {
         </Text>
       </Pressable>
 
-      <Text variant="caption" style={styles.footer}>
-        首期仅支持手机号验证码登录
-      </Text>
-
       <BottomSheet visible={agreeSheet} onClose={() => setAgreeSheet(false)} title="请阅读并同意以下条款">
         <Text variant="caption" color={semantic.textPrimary} style={styles.sheetText}>
           为保障你的权益，登录前请阅读并同意
@@ -207,6 +203,5 @@ const styles = StyleSheet.create({
   checkbox: { width: 18, height: 18, marginTop: 1, borderRadius: 9, borderWidth: 1.5, borderColor: colors.faint, alignItems: 'center', justifyContent: 'center' },
   checkboxOn: { backgroundColor: semantic.textPrimary, borderColor: semantic.textPrimary },
   agreeText: { flex: 1 },
-  footer: { position: 'absolute', bottom: 40, alignSelf: 'center' },
   sheetActions: { gap: spacing.sm, marginTop: spacing.xl },
 });
