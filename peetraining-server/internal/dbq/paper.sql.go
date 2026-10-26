@@ -635,7 +635,7 @@ func (q *Queries) ListPaperQuestions(ctx context.Context, arg ListPaperQuestions
 }
 
 const listPaperSessionItems = `-- name: ListPaperSessionItems :many
-SELECT i.paper_session_id, i.seq, i.question_id, i.qtype, i.section, i.score_max, i.attempt_id, i.draft_text, i.marked, i.time_spent_seconds, q.stem, q.options, q.source, q.required_words, q.passage, q.passage_key, q.group_label, q.group_majors, a.score AS got,
+SELECT i.paper_session_id, i.seq, i.question_id, i.qtype, i.section, i.score_max, i.attempt_id, i.draft_text, i.marked, i.time_spent_seconds, q.stem, q.options, q.source, q.required_words, q.passage, q.passage_key, q.group_label, q.group_majors, q.answer, q.answer_origin, q.ai_answer_outcome, a.score AS got, CAST(IFNULL(a.reference_only, 0) AS SIGNED) AS reference_only,
   CAST(COALESCE((SELECT g.id FROM gradings g WHERE g.attempt_id = i.attempt_id AND g.status = 'done' ORDER BY g.id DESC LIMIT 1), 0) AS UNSIGNED) AS grading_id
 FROM paper_session_items i
 JOIN paper_sessions s ON s.id = i.paper_session_id
@@ -669,7 +669,11 @@ type ListPaperSessionItemsRow struct {
 	PassageKey       sql.NullString
 	GroupLabel       sql.NullString
 	GroupMajors      sql.NullString
+	Answer           sql.NullString
+	AnswerOrigin     NullQuestionsAnswerOrigin
+	AiAnswerOutcome  NullQuestionsAiAnswerOutcome
 	Got              sql.NullString
+	ReferenceOnly    int64
 	GradingID        int64
 }
 
@@ -701,7 +705,11 @@ func (q *Queries) ListPaperSessionItems(ctx context.Context, arg ListPaperSessio
 			&i.PassageKey,
 			&i.GroupLabel,
 			&i.GroupMajors,
+			&i.Answer,
+			&i.AnswerOrigin,
+			&i.AiAnswerOutcome,
 			&i.Got,
+			&i.ReferenceOnly,
 			&i.GradingID,
 		); err != nil {
 			return nil, err

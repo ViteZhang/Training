@@ -223,7 +223,7 @@ func (s *Service) structure(ctx context.Context, job dbq.GetImportJobRow, materi
 		return s.organizeEssay(ctx, job, materialID, pages)
 	}
 	switch job.Mode {
-	case dbq.ImportJobsModeQuestion:
+	case dbq.ImportJobsModeQuestion, dbq.ImportJobsModeAnswers:
 		return s.structureQuestions(ctx, job, materialID, pages)
 	case dbq.ImportJobsModeReference:
 		return s.extractKPs(ctx, job, materialID, pages)
@@ -279,14 +279,23 @@ func (s *Service) saveStructured(ctx context.Context, job dbq.GetImportJobRow, m
 		y := blk.Year
 		it.ExamYear = &y
 	}
-	if it.Kind == "answer" {
+	// 1.7c 补充答案文件（answers 方式）只收答案：带着题干的「题目 + 答案」也存成答案，题号对不上时按题干配（PRD v3 1.7c）。
+	if it.Kind == "answer" || (job.Mode == dbq.ImportJobsModeAnswers && strings.TrimSpace(it.Answer) != "") {
 		year := sql.NullInt16{}
 		if it.ExamYear != nil {
 			year = sql.NullInt16{Int16: int16(*it.ExamYear), Valid: true}
 		}
+		stem := strings.TrimSpace(it.Stem)
+		key := hashOf(strconv.FormatUint(materialID, 10), yearKey(it.ExamYear), it.QuestionNo)
+		if it.QuestionNo == "" {
+			key = hashOf(strconv.FormatUint(materialID, 10), yearKey(it.ExamYear), "stem", ContentHash(stem))
+		}
 		return s.q.UpsertImportAnswer(ctx, dbq.UpsertImportAnswerParams{OwnerUserID: userID, JobID: job.ID, MaterialID: materialID,
-			ExamYear: year, QuestionNo: it.QuestionNo, Answer: it.Answer, Page: uint32(it.Page),
-			DedupeKey: hashOf(strconv.FormatUint(materialID, 10), yearKey(it.ExamYear), it.QuestionNo)})
+			ExamYear: year, QuestionNo: truncate(it.QuestionNo, 16), Stem: sql.NullString{String: stem, Valid: stem != ""}, Answer: it.Answer, Page: uint32(it.Page),
+			DedupeKey: key})
+	}
+	if job.Mode == dbq.ImportJobsModeAnswers {
+		return nil // 答案文件里没带答案的题目不入库
 	}
 	q := QuestionDraft{QType: it.QType, Stem: strings.TrimSpace(it.Stem), Options: it.Options, Answer: strings.TrimSpace(it.Answer),
 		Score: it.Score, ExamYear: it.ExamYear, QuestionNo: it.QuestionNo, IsRecollection: it.IsRecollection, SourcePage: it.Page,
@@ -300,7 +309,7 @@ func (s *Service) saveStructured(ctx context.Context, job dbq.GetImportJobRow, m
 		q.Source = "exam"
 	}
 	if q.Answer != "" {
-		q.AnswerOrigin = "imported"
+		q.AnswerOrigin, q.AnswerMatch, q.AnswerMaterialID, q.AnswerPage = "imported", MatchOriginal, materialID, it.Page
 	}
 	if blk.Group != "" {
 		q.Group = &GroupInfo{Label: blk.Group, Majors: blk.GroupMajors}

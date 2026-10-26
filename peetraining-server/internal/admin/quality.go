@@ -39,6 +39,14 @@ type ParseStats struct {
 	AvgSeconds  int
 	P95Seconds  int
 	Formats     []FormatStat
+	// Answers 是缺答案的统计（PRD v3 7.5、11.16）。
+	Answers AnswerStats
+}
+
+// AnswerStats：导入题目缺答案占比、从用户其他资料匹配补上的比例、AI 参考答案的确认率与修改率（只有数量）。
+type AnswerStats struct {
+	Imported, MissingOriginal, Matched int
+	AIAnswers, AIConfirmed, AIEdited   int
 }
 
 func (s *Service) ParseStats(ctx context.Context) (ParseStats, error) {
@@ -80,6 +88,12 @@ func (s *Service) ParseStats(ctx context.Context) (ParseStats, error) {
 	if out.Files > 0 {
 		out.SuccessRate = float64(ok) / float64(out.Files)
 	}
+	a, err := s.q.AdminAnswerStats(ctx, dbq.AdminAnswerStatsParams{Since: since})
+	if err != nil {
+		return ParseStats{}, err
+	}
+	out.Answers = AnswerStats{Imported: int(a.ImportedQuestions), MissingOriginal: int(a.MissingOriginal), Matched: int(a.Matched),
+		AIAnswers: int(a.AiAnswers), AIConfirmed: int(a.AiConfirmed), AIEdited: int(a.AiEdited)}
 	durs, err := s.q.AdminImportDurations(ctx, since)
 	if err != nil {
 		return ParseStats{}, err

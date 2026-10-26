@@ -298,7 +298,7 @@ FROM attempts a
 JOIN questions q ON q.id = a.question_id
 JOIN banks b ON b.id = q.bank_id
 WHERE a.owner_user_id = ? AND b.subject_id = ? AND b.owner_user_id = a.owner_user_id
-  AND a.answer_mode <> 'self_assess'
+  AND a.answer_mode <> 'self_assess' AND a.reference_only = 0 -- 按 AI 参考答案判分的不计入（PRD v3 11.6）
   AND ((a.score IS NOT NULL AND a.full_score IS NOT NULL AND a.full_score > 0) OR a.is_correct IS NOT NULL)
 ORDER BY a.answered_at DESC, a.id DESC
 LIMIT 1000

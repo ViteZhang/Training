@@ -14,6 +14,53 @@ import (
 	"peetraining-server/internal/dbtypes"
 )
 
+const adminAnswerStats = `-- name: AdminAnswerStats :one
+SELECT
+  (SELECT COUNT(*) FROM questions q WHERE q.created_at >= CAST(? AS DATETIME) AND q.source_material_id IS NOT NULL AND q.source IN ('exam', 'exercise')) AS imported_questions,
+  (SELECT COUNT(*) FROM questions q WHERE q.created_at >= CAST(? AS DATETIME) AND q.source_material_id IS NOT NULL AND q.source IN ('exam', 'exercise')
+    AND (q.answer_match IS NULL OR q.answer_match <> 'original')) AS missing_original,
+  (SELECT COUNT(*) FROM questions q WHERE q.created_at >= CAST(? AS DATETIME) AND q.source_material_id IS NOT NULL AND q.source IN ('exam', 'exercise')
+    AND q.answer_match IN ('other_material', 'answer_file')) AS matched,
+  (SELECT COUNT(*) FROM questions q WHERE q.ai_answer_at >= CAST(? AS DATETIME)) AS ai_answers,
+  (SELECT COUNT(*) FROM questions q WHERE q.ai_answer_at >= CAST(? AS DATETIME) AND q.ai_answer_outcome = 'confirmed') AS ai_confirmed,
+  (SELECT COUNT(*) FROM questions q WHERE q.ai_answer_at >= CAST(? AS DATETIME) AND q.ai_answer_outcome = 'edited') AS ai_edited
+`
+
+type AdminAnswerStatsParams struct {
+	Since time.Time
+}
+
+type AdminAnswerStatsRow struct {
+	ImportedQuestions int64
+	MissingOriginal   int64
+	Matched           int64
+	AiAnswers         int64
+	AiConfirmed       int64
+	AiEdited          int64
+}
+
+// 7.5 缺答案（PRD v3 11.16）：只统计数量，不读题目与答案内容。
+func (q *Queries) AdminAnswerStats(ctx context.Context, arg AdminAnswerStatsParams) (AdminAnswerStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, adminAnswerStats,
+		arg.Since,
+		arg.Since,
+		arg.Since,
+		arg.Since,
+		arg.Since,
+		arg.Since,
+	)
+	var i AdminAnswerStatsRow
+	err := row.Scan(
+		&i.ImportedQuestions,
+		&i.MissingOriginal,
+		&i.Matched,
+		&i.AiAnswers,
+		&i.AiConfirmed,
+		&i.AiEdited,
+	)
+	return i, err
+}
+
 const adminBatchCodes = `-- name: AdminBatchCodes :many
 SELECT id, code_tail, status, used_by, used_at FROM redeem_codes WHERE batch_id = ? ORDER BY id LIMIT 2000
 `

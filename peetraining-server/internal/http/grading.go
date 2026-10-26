@@ -8,6 +8,7 @@ import (
 
 	"peetraining-server/internal/gen"
 	"peetraining-server/internal/practice"
+	"peetraining-server/internal/rules"
 )
 
 // 4.4 主观题、4.6 批改中、4.7 批改结果、4.8 异议、4.9 待批改（T18）。
@@ -20,6 +21,14 @@ func toGenGrading(g practice.Grading, reference string) gen.GradingResult {
 		KpChanges: make([]gen.MasteryChange, len(g.Extra.KPs))}
 	if g.Extra.WrongBook != "" {
 		out.WrongBook = gen.GradingResultWrongBook(g.Extra.WrongBook)
+	}
+	// 按 AI 参考答案批改（4.7b）：分数仅供参考、不计入预估分；AnswerConfirmed 表示题目的答案之后已经被确认。
+	if g.Rubric.AnswerTier != "" {
+		out.AnswerTier = ptr(gen.AnswerTier(g.Rubric.AnswerTier))
+	}
+	if g.Rubric.AnswerTier == string(rules.AnswerAI) {
+		out.ReferenceOnly = ptr(true)
+		out.AnswerConfirmed = ptr(g.AnswerConfirmed)
 	}
 	if g.Score != nil {
 		out.Score = ptr(float32(*g.Score))
