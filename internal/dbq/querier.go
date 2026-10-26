@@ -133,6 +133,7 @@ type Querier interface {
 	// 导入流水线（T10）。每条查询都带 owner_user_id 归属条件。
 	CreateImportJob(ctx context.Context, arg CreateImportJobParams) (int64, error)
 	CreateMaterial(ctx context.Context, arg CreateMaterialParams) (int64, error)
+	CreateOfficialReference(ctx context.Context, arg CreateOfficialReferenceParams) (int64, error)
 	CreateSubject(ctx context.Context, arg CreateSubjectParams) (int64, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (int64, error)
 	CreateUserBank(ctx context.Context, arg CreateUserBankParams) (int64, error)
@@ -160,6 +161,7 @@ type Querier interface {
 	DeleteOfficialKPRubric(ctx context.Context, kpID sql.NullInt64) error
 	DeleteOfficialQuestionKPs(ctx context.Context, questionID uint64) error
 	DeleteOfficialQuestionRubric(ctx context.Context, questionID sql.NullInt64) error
+	DeleteOfficialReference(ctx context.Context, arg DeleteOfficialReferenceParams) (int64, error)
 	// 系统清理任务：保留 30 天。
 	DeleteOldMessages(ctx context.Context, createdAt time.Time) (int64, error)
 	DeletePaperQuestions(ctx context.Context, arg DeletePaperQuestionsParams) error
@@ -363,6 +365,7 @@ type Querier interface {
 	InsertOfficialProject(ctx context.Context, arg InsertOfficialProjectParams) (int64, error)
 	InsertOfficialQuestion(ctx context.Context, arg InsertOfficialQuestionParams) (int64, error)
 	InsertOfficialQuestionKP(ctx context.Context, arg InsertOfficialQuestionKPParams) error
+	InsertOfficialReferenceSegment(ctx context.Context, arg InsertOfficialReferenceSegmentParams) error
 	InsertOfficialRubricPoint(ctx context.Context, arg InsertOfficialRubricPointParams) error
 	// ---------- 版本（7.14） ----------
 	InsertOfficialVersion(ctx context.Context, arg InsertOfficialVersionParams) (int64, error)
@@ -494,6 +497,9 @@ type Querier interface {
 	ListOfficialProjects(ctx context.Context) ([]ListOfficialProjectsRow, error)
 	ListOfficialQuestionKPs(ctx context.Context, bankID uint64) ([]ListOfficialQuestionKPsRow, error)
 	ListOfficialQuestions(ctx context.Context, bankID uint64) ([]ListOfficialQuestionsRow, error)
+	ListOfficialReferenceSegments(ctx context.Context, projectID uint64) ([]ListOfficialReferenceSegmentsRow, error)
+	// ---------- 7.11 官方参考素材 ----------
+	ListOfficialReferences(ctx context.Context, projectID uint64) ([]OfficialReference, error)
 	// 官方题库的全部采分点（题目的与知识点的）。
 	ListOfficialRubric(ctx context.Context, arg ListOfficialRubricParams) ([]ListOfficialRubricRow, error)
 	ListOfficialVersions(ctx context.Context, projectID uint64) ([]ListOfficialVersionsRow, error)

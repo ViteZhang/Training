@@ -3171,6 +3171,64 @@ func AllOfficialProjectsStageValues() []OfficialProjectsStage {
 	}
 }
 
+type OfficialReferencesKind string
+
+const (
+	OfficialReferencesKindTextbook OfficialReferencesKind = "textbook"
+	OfficialReferencesKindHandout  OfficialReferencesKind = "handout"
+)
+
+func (e *OfficialReferencesKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialReferencesKind(s)
+	case string:
+		*e = OfficialReferencesKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialReferencesKind: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialReferencesKind struct {
+	OfficialReferencesKind OfficialReferencesKind
+	Valid                  bool // Valid is true if OfficialReferencesKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialReferencesKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialReferencesKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialReferencesKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialReferencesKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialReferencesKind), nil
+}
+
+func (e OfficialReferencesKind) Valid() bool {
+	switch e {
+	case OfficialReferencesKindTextbook,
+		OfficialReferencesKindHandout:
+		return true
+	}
+	return false
+}
+
+func AllOfficialReferencesKindValues() []OfficialReferencesKind {
+	return []OfficialReferencesKind{
+		OfficialReferencesKindTextbook,
+		OfficialReferencesKindHandout,
+	}
+}
+
 type OrdersChannel string
 
 const (
@@ -6487,6 +6545,32 @@ type OfficialProject struct {
 	CreatedBy           sql.NullInt64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+}
+
+// 7.11 官方参考素材
+type OfficialReference struct {
+	ID        uint64
+	ProjectID uint64
+	// 如：童庆炳《文学理论教程》第五版
+	Title string
+	// 教材 / 讲义
+	Kind OfficialReferencesKind
+	// 授权说明（必须有授权才能录入）
+	LicenseNote string
+	Segments    uint32
+	Chars       uint32
+	CreatedBy   sql.NullInt64
+	CreatedAt   time.Time
+}
+
+// 官方参考素材切分后的段落
+type OfficialReferenceSegment struct {
+	ID          uint64
+	ReferenceID uint64
+	Seq         uint32
+	// 段落所在的章节标题，用作出处
+	Heading string
+	Text    string
 }
 
 // 官方题库版本（7.14）
