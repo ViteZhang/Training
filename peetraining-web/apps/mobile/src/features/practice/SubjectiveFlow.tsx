@@ -1,9 +1,10 @@
 // 4.4 主观题作答 → 4.6 批改中 → 4.7（由答题页显示）；次数用完 4.9；批改失败显示「未扣除次数」可重试；「看参考答案」进入自评。
+// 参考答案、拍照作答是同一页里切换的视图：按安卓返回键或「返回作答」回到作答，不退出答题页。
 import { ApiError } from '@training/api-client';
 import { semantic, spacing } from '@training/ui-tokens';
 import * as Crypto from 'expo-crypto';
-import { useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { BackHandler, StyleSheet, View } from 'react-native';
 import { AIFailed, Button, QuotaSheet, Text, toast } from '@/components';
 import type { PracticeQuestion } from './api';
 import { HandwritingFlow } from './handwriting';
@@ -34,6 +35,18 @@ export function SubjectiveFlow({
   const [started] = useState(() => Date.now());
   const key = useRef('');
   const submit = useSubmitSubjective(sessionId);
+
+  // 在参考答案或拍照视图时，安卓返回键先回到作答。进入视图时才注册，比答题页的返回拦截后注册，所以先被调用。
+  const inSubView = showRef || photo;
+  useEffect(() => {
+    if (!inSubView) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setShowRef(false);
+      setPhoto(false);
+      return true;
+    });
+    return () => sub.remove();
+  }, [inSubView]);
 
   // 拍照作答时提交的是识别后核对过的文字与照片；重试沿用上一次的内容。
   const send = (answer?: { text: string; keys?: string[] }) => {
@@ -94,6 +107,7 @@ export function SubjectiveFlow({
             <Button key={k} title={label} kind="soft" style={styles.flex} onPress={() => onSelfAssess(k)} />
           ))}
         </View>
+        <Button title="返回作答" kind="text" onPress={() => setShowRef(false)} />
       </View>
     );
   }

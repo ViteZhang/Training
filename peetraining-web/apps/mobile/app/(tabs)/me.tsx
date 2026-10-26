@@ -40,8 +40,8 @@ export default function MeTab() {
   const dash = useDashboard(main?.id ?? 0);
   const [nicknameSheet, setNicknameSheet] = useState(false);
 
-  if (me.isLoading || profile.isLoading) return <Screen><Loading rows={6} /></Screen>;
-  if (me.isError || !me.data) return <Screen><ErrorState error={me.error} onRetry={() => void me.refetch()} /></Screen>;
+  if (me.isLoading || profile.isLoading) return <Screen edges={['top']}><Loading rows={6} /></Screen>;
+  if (me.isError || !me.data) return <Screen edges={['top']}><ErrorState error={me.error} onRetry={() => void me.refetch()} /></Screen>;
   const m = me.data;
   const p = profile.data;
   const o = overview.data;
@@ -55,7 +55,7 @@ export default function MeTab() {
   };
 
   return (
-    <Screen>
+    <Screen edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={me.isRefetching} onRefresh={refresh} />}>
         <View style={styles.head}>
           <Pressable accessibilityRole="button" accessibilityLabel="备考设置" onPress={() => router.push('/settings/prep')} style={[styles.headMain, styles.flex]}>

@@ -47,9 +47,9 @@ export default function TrainTab() {
     if (pending > 0) void flush().then((n) => n > 0 && toast(`已补交 ${n} 道离线作答`));
   }, [pending]);
 
-  if (subjects.isLoading) return <Screen><Loading rows={6} /></Screen>;
-  if (subjects.isError) return <Screen><ErrorState error={subjects.error} onRetry={() => void subjects.refetch()} /></Screen>;
-  if (!subject) return <Screen><EmptyState title="还没有专业课" actionText="去添加" onAction={() => router.push('/settings/prep')} /></Screen>;
+  if (subjects.isLoading) return <Screen edges={['top']}><Loading rows={6} /></Screen>;
+  if (subjects.isError) return <Screen edges={['top']}><ErrorState error={subjects.error} onRetry={() => void subjects.refetch()} /></Screen>;
+  if (!subject) return <Screen edges={['top']}><EmptyState title="还没有专业课" actionText="去添加" onAction={() => router.push('/settings/prep')} /></Screen>;
   const h = home.data;
   const sid = subject.id;
   const essay = list.find((x) => x.is_essay && x.id !== sid);
@@ -70,7 +70,7 @@ export default function TrainTab() {
   );
 
   return (
-    <Screen>
+    <Screen edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={home.isRefetching} onRefresh={() => void home.refetch()} />}>
         <View style={styles.header}>
           <Text variant="h1">训练</Text>
