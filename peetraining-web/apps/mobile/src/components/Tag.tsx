@@ -1,5 +1,5 @@
 import { colors, radius, semantic } from '@training/ui-tokens';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Text } from './Text';
 
 export type TagTone = 'neutral' | 'brand' | 'ai' | 'mastered' | 'info' | 'danger' | 'progress' | 'outline';
@@ -17,12 +17,15 @@ const tones: Record<TagTone, { bg: string; fg: string; border?: string }> = {
   outline: { bg: 'transparent', fg: colors.ink, border: colors.ink },
 };
 
-/** 标签：来源、状态、题型等小标记，胶囊形（设计稿 11 号字、2×8 内边距）。size="md" 用于阶段标签。 */
-export function Tag({ label, tone = 'neutral', size = 'sm' }: { label: string; tone?: TagTone; size?: 'sm' | 'md' }) {
+/**
+ * 标签：来源、状态、题型等小标记，胶囊形（设计稿 11 号字、2×8 内边距）。size="md" 用于阶段标签。
+ * 默认贴左上（alignSelf: flex-start）；放在和文字同一行时传 style={{ alignSelf: 'center' }} 与文字垂直居中。
+ */
+export function Tag({ label, tone = 'neutral', size = 'sm', style }: { label: string; tone?: TagTone; size?: 'sm' | 'md'; style?: StyleProp<ViewStyle> }) {
   const t = tones[tone];
   const md = size === 'md';
   return (
-    <View style={[styles.tag, md && styles.md, { backgroundColor: t.bg }, t.border ? { borderWidth: 1, borderColor: t.border } : null]}>
+    <View style={[styles.tag, md && styles.md, { backgroundColor: t.bg }, t.border ? { borderWidth: 1, borderColor: t.border } : null, style]}>
       <Text variant="small" color={t.fg} style={[styles.text, md ? styles.mdText : null]}>
         {label}
       </Text>

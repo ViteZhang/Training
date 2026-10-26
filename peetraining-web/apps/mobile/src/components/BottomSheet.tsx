@@ -1,8 +1,9 @@
 import { radius, semantic, spacing } from '@training/ui-tokens';
 import type { ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from './Text';
+import { ToastHost } from './Toast';
 
 export interface BottomSheetProps {
   visible: boolean;
@@ -23,7 +24,7 @@ export function BottomSheet({ visible, onClose, title, children, dismissible = t
   if (centered) {
     return (
       <Modal visible={visible} transparent animationType="fade" onRequestClose={dismissible ? onClose : undefined}>
-        <View style={styles.center}>
+        <KeyboardAvoidingView behavior="padding" style={styles.center}>
           <Pressable style={StyleSheet.absoluteFill} onPress={dismissible ? onClose : undefined} accessibilityLabel="关闭" />
           <View style={styles.dialog} accessibilityRole="alert">
             {icon ? <View style={styles.icon}>{icon}</View> : null}
@@ -34,27 +35,33 @@ export function BottomSheet({ visible, onClose, title, children, dismissible = t
             ) : null}
             {children}
           </View>
-        </View>
+        </KeyboardAvoidingView>
+        <ToastHost />
       </Modal>
     );
   }
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={dismissible ? onClose : undefined}>
-      <Pressable style={styles.mask} onPress={dismissible ? onClose : undefined} accessibilityLabel="关闭" />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]}>
-        <View style={styles.handle} />
-        {title ? (
-          <Text variant="h2" style={styles.title}>
-            {title}
-          </Text>
-        ) : null}
-        {children}
-      </View>
+      {/* 弹层里有输入框（改昵称等）时，键盘弹起把整个弹层顶上去，不挡输入框 */}
+      <KeyboardAvoidingView behavior="padding" style={styles.fill}>
+        <Pressable style={styles.mask} onPress={dismissible ? onClose : undefined} accessibilityLabel="关闭" />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]}>
+          <View style={styles.handle} />
+          {title ? (
+            <Text variant="h2" style={styles.title}>
+              {title}
+            </Text>
+          ) : null}
+          {children}
+        </View>
+      </KeyboardAvoidingView>
+      <ToastHost />
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   mask: { flex: 1, backgroundColor: semantic.scrim },
   sheet: {
     backgroundColor: semantic.surface,

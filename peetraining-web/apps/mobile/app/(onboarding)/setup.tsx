@@ -67,7 +67,7 @@ export default function SetupStep() {
                 <Text variant="bodyStrong" style={styles.bold}>
                   {stageInfo[k].name}
                 </Text>
-                {k === year.suggested_stage ? <Tag label="推荐" tone="outline" /> : null}
+                {k === year.suggested_stage ? <Tag label="推荐" tone="outline" style={styles.inlineTag} /> : null}
                 <Text variant="small" style={styles.range}>
                   {stageInfo[k].range}
                 </Text>
@@ -100,4 +100,5 @@ const styles = StyleSheet.create({
   gap: { gap: spacing.sm },
   stageRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   range: { marginLeft: 'auto' },
+  inlineTag: { alignSelf: 'center' },
 });

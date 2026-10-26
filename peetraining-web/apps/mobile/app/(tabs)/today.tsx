@@ -109,8 +109,8 @@ export default function TodayTab() {
   const summary = useTodaySummary();
   const [editTarget, setEditTarget] = useState(false);
 
-  if (home.isLoading) return <Screen><Loading rows={6} /></Screen>;
-  if (home.isError || !home.data) return <Screen><ErrorState error={home.error} onRetry={() => void home.refetch()} /></Screen>;
+  if (home.isLoading) return <Screen edges={['top']}><Loading rows={6} /></Screen>;
+  if (home.isError || !home.data) return <Screen edges={['top']}><ErrorState error={home.error} onRetry={() => void home.refetch()} /></Screen>;
   const h = home.data;
   const list = subjects.data?.items ?? [];
   const top = <Top days={h.days_to_exam} stage={h.stage} />;
@@ -121,7 +121,7 @@ export default function TodayTab() {
   // 2.1c 还没导入资料
   if (h.state === 'no_material') {
     return (
-      <Screen>
+      <Screen edges={['top']}>
         <ScrollView contentContainerStyle={styles.scroll} refreshControl={refresh}>
           {top}
           <Card style={styles.emptyCard}>
@@ -156,7 +156,7 @@ export default function TodayTab() {
     const recognized = j ? j.counts.questions + j.counts.knowledge_points + (j.counts.essay_items ?? 0) : 0;
     const jobId = j?.id ?? h.organizing_job_id;
     return (
-      <Screen>
+      <Screen edges={['top']}>
         <ScrollView contentContainerStyle={styles.scroll} refreshControl={refresh}>
           {top}
           <View style={styles.dashed}>
@@ -193,7 +193,7 @@ export default function TodayTab() {
 
   // 2.1d 今日已完成 / 2.1 正常
   return (
-    <Screen>
+    <Screen edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} refreshControl={refresh}>
         {top}
         {h.low_coverage ? (

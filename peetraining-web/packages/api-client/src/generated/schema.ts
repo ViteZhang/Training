@@ -6264,6 +6264,7 @@ export interface components {
             deletion_due_at?: string;
         };
         UpdateMeRequest: {
+            /** @description 新昵称；传空字符串表示让服务端随机分配一个（修改昵称弹层的「随机换一个」） */
             nickname?: string;
             /** @enum {string} */
             onboarding_step?: "1.1" | "1.2" | "1.3" | "1.4" | "1.5" | "1.6" | "1.7" | "1.8" | "done";

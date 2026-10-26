@@ -2,6 +2,7 @@ import { radius, semantic, spacing } from '@training/ui-tokens';
 import { Modal, StyleSheet, View } from 'react-native';
 import { Button } from './Button';
 import { Text } from './Text';
+import { ToastHost } from './Toast';
 
 export interface ConfirmDialogProps {
   visible: boolean;
@@ -35,6 +36,7 @@ export function ConfirmDialog({ visible, title, message, confirmText = '确定',
           </View>
         </View>
       </View>
+      <ToastHost />
     </Modal>
   );
 }
