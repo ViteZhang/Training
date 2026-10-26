@@ -10,7 +10,7 @@
 ## 依据文档（冲突时从上到下取）
 
 1. docs/prd.md：PRD v3。逐页功能与规则见第 6–10 节，通用状态见第 14 节
-2. docs/design/：设计稿（App 94 页、后台 15 页）。INDEX.md 是页面编号 → 文件；NOTES.md 是每个模块的调整说明；pages/*.dc.html 是视觉稿源码
+2. docs/design/：设计稿（App 99 页、后台 15 页）。INDEX.md 是页面编号 → 文件；NOTES.md 是每个模块的调整说明；pages/*.dc.html 是视觉稿源码
 3. docs/design/vi/：视觉识别规范 v1.0（Logo、App 图标）；VI 的夜靛紫等品牌色只用于 Logo 和 App 图标，页面（含启动页）的颜色和字体一律按设计稿
 4. docs/dev-spec.md：研发规格（第十一节前端规格、第十二节任务卡）
 5. docs/tasks/：任务卡；docs/open-questions.md：未决问题

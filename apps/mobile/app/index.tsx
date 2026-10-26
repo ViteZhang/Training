@@ -91,12 +91,9 @@ export default function Splash() {
           考研<Text style={styles.en}>Training</Text>
         </Text>
         <Text variant="body" color={semantic.textSecondary} style={styles.slogan}>
-          把你的专业课资料，变成能刷、能批改的题库
+          考研文科专业课 AI 提分教练
         </Text>
       </View>
-      <Text variant="small" color={semantic.textTertiary} style={styles.footer}>
-        {appConfig.variant === 'production' ? '文科专业课' : '文科专业课 · 内测版'}
-      </Text>
       {pending?.kind === 'update' ? (
         <UpdateDialog
           update={pending.update}
@@ -130,5 +127,4 @@ const styles = StyleSheet.create({
   wordmark: { fontSize: 26, lineHeight: 35, fontWeight: '700', letterSpacing: 1, color: semantic.textPrimary },
   en: { fontFamily: fontFamily.numberSemiBold, letterSpacing: 0 },
   slogan: { fontSize: 14, textAlign: 'center' },
-  footer: { textAlign: 'center', paddingBottom: 40 },
 });
