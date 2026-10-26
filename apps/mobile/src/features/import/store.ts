@@ -1,5 +1,9 @@
 import { create } from 'zustand';
-import type { ImportMode } from './api';
+import type { ImportMode as AnyMode } from './api';
+
+/** 1.4 的三种导入方式；补充答案文件（answers）走 1.7c 自己的页面。 */
+export type FlowMode = Exclude<AnyMode, 'answers'>;
+type ImportMode = FlowMode;
 import type { Picked } from './files';
 
 /** 导入流程（1.4 → 1.5）里跨页面的选择：导入方式、专业课、已选文件。只在内存里，离开流程即清空。 */

@@ -42,6 +42,9 @@ export const colors = {
   blue: '#6FA8DC',
   blueSoft: '#E5F0FA',
   blueInk: '#1D4C77',
+  /** 复习天蓝的描边与次级文字（1.7 缺答案说明卡） */
+  blueLine: '#A9C7E4',
+  blueMuted: '#3A6A96',
   /** 查漏 · 蜜桃（薄弱、错题、提醒；也用于预估分、进度、提分） */
   peach: '#F2956B',
   peachSoft: '#FDEDE4',

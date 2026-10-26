@@ -1,4 +1,5 @@
-// 1.7 确认导入结果：汇总「N 份文件 · 识别出 N 题 · N 处需要核对」；筛选全部 / 需核对 / 主观题 / 客观题；
+// 1.7 确认导入结果：汇总「N 份文件 · 识别出 N 题 · N 处需要核对 · N 题缺答案」；筛选全部 / 需核对 / 缺答案 / 主观题 / 客观题；
+// 有缺答案时列表顶部显示说明卡：原文没有答案的题数、已从其他资料匹配到的、还剩的，给「补充答案文件」（→ 1.7c）与「做到时让 AI 给」（PRD 11.16）；
 // 每条显示题型、分值、状态与说明；需核对的题也可以先入库并带标记；「确认入库 N 题」。
 // 不是自己要的内容（如非报考专业的分组题）可以直接删：每条右侧删除，或「多选」后批量删除。
 // 按专业分组的论述题：顶部卡片选报考方向，只保留那一组；多题共用的材料在这组小题前显示一张材料卡，可整组删除。
@@ -19,7 +20,7 @@ import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { useUpgradeActions } from '@/features/membership/purchase';
 
-type Filter = 'all' | 'needs_review' | 'subjective' | 'objective';
+type Filter = 'all' | 'needs_review' | 'missing_answer' | 'subjective' | 'objective';
 
 function title(it: ImportItem) {
   if (it.question) return it.question.stem;
@@ -111,6 +112,8 @@ export default function ConfirmScreen() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [asking, setAsking] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // 「做到时让 AI 给」：收起说明卡，这些题做到时再生成 AI 参考答案
+  const [laterAI, setLaterAI] = useState(false);
   const items = useInfiniteQuery({
     queryKey: importKeys.items(jobId, filter),
     queryFn: ({ pageParam }) =>
@@ -131,6 +134,9 @@ export default function ConfirmScreen() {
     return { text: list[index]!.question!.passage!.text, ids };
   };
   const total = counts ? counts.questions + counts.knowledge_points + (counts.essay_items ?? 0) - counts.confirmed : 0;
+  const matched = counts?.answer_matched ?? 0;
+  const missing = counts?.missing_answer ?? 0;
+  const noOriginal = matched + missing;
   const unit = counts && counts.questions === 0 ? '条' : '题';
 
   const toggle = (itemId: number) =>
@@ -223,6 +229,7 @@ export default function ConfirmScreen() {
             <Text variant="caption" style={styles.summary}>
               {files} 份文件 · 识别出 <Text variant="caption" num color={semantic.textPrimary}>{counts ? counts.questions + counts.knowledge_points + (counts.essay_items ?? 0) : 0}</Text> {unit}
               {counts?.needs_review ? <Text variant="caption" color={warnInk}> · {counts.needs_review} 处需要核对</Text> : null}
+              {missing > 0 ? <Text variant="caption" color={colors.blueInk}> · {missing} 题缺答案</Text> : null}
             </Text>
             <Segments<Filter>
               value={filter}
@@ -230,10 +237,36 @@ export default function ConfirmScreen() {
               options={[
                 { key: 'all', label: '全部' },
                 { key: 'needs_review', label: '需核对', count: counts?.needs_review },
+                ...(noOriginal > 0 ? [{ key: 'missing_answer' as const, label: '缺答案', count: noOriginal }] : []),
                 { key: 'subjective', label: '主观题', count: counts?.subjective },
                 { key: 'objective', label: '客观题', count: counts?.objective },
               ]}
             />
+            {noOriginal > 0 && !laterAI && !selecting ? (
+              <View style={styles.answerCard}>
+                <Text variant="caption" color={colors.blueInk} style={styles.bold}>
+                  {noOriginal} 题原文没有答案
+                </Text>
+                <Text variant="small" color={colors.blueInk} style={styles.lh}>
+                  {matched > 0 ? `已从你的其他资料里找到 ${matched} 题的答案（标「来自你的资料」，待你确认）；还剩 ${missing} 题` : `你的其他资料里也没找到，还缺 ${missing} 题`}
+                </Text>
+                {missing > 0 ? (
+                  <View style={styles.answerActions}>
+                    <Button
+                      title="补充答案文件"
+                      size="sm"
+                      color={colors.white}
+                      style={[styles.flex, styles.answerMain]}
+                      onPress={() => router.push({ pathname: '/import/answers', params: { subject: String(job.data?.subject_id ?? ''), job: String(jobId) } })}
+                    />
+                    <Button title="做到时让 AI 给" kind="secondary" size="sm" color={colors.blueInk} style={[styles.flex, styles.answerSub]} onPress={() => setLaterAI(true)} />
+                  </View>
+                ) : null}
+                <Text variant="small" color={colors.blueMuted}>
+                  AI 参考答案在你确认前不计入预估分
+                </Text>
+              </View>
+            ) : null}
           </View>
         }
         renderItem={({ item, index }) => {
@@ -319,4 +352,10 @@ const styles = StyleSheet.create({
   kindCheck: { backgroundColor: semantic.surface },
   medium: { fontWeight: '500' },
   flex: { flex: 1 },
+  bold: { fontWeight: '700' },
+  lh: { lineHeight: 19 },
+  answerCard: { gap: 10, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 18, backgroundColor: colors.blueSoft },
+  answerActions: { flexDirection: 'row', gap: 8 },
+  answerMain: { backgroundColor: colors.blueInk, borderColor: colors.blueInk },
+  answerSub: { backgroundColor: 'transparent', borderColor: colors.blueLine },
 });

@@ -1,5 +1,6 @@
 // 3.1b 题目：按题型筛选（显示各题型题数）、按来源筛选、按章节或最近排序；每题显示得分或状态、所属板块章节、做过几次；
 // AI 出题注明由哪个知识点生成。「多选」后可以批量删除（如不是自己报考专业的题）。
+// 按答案状态筛选（PRD 11.16）：来自你的资料 / 你已确认 / AI 答案待确认 / 缺答案；缺答案时给「补充答案文件」（→ 1.7c）。
 import { ApiError, type Schemas } from '@training/api-client';
 import { colors, radius, semantic } from '@training/ui-tokens';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,12 +15,15 @@ import { bankKeys, sourceLabel, sourceNames, statusTagNames } from './api';
 
 type Source = Schemas['QuestionSource'] | 'all';
 const sources: Source[] = ['all', 'exam', 'exercise', 'ai_generated'];
+type AnswerFilter = 'all' | 'material' | 'confirmed' | 'ai' | 'missing';
+const answerFilters: AnswerFilter[] = ['all', 'material', 'confirmed', 'ai', 'missing'];
+export const answerFilterNames: Record<AnswerFilter, string> = { all: '全部', material: '来自你的资料', confirmed: '你已确认', ai: 'AI 答案待确认', missing: '缺答案' };
 
 function QuestionRow({ q, selecting, selected, onToggle }: { q: Schemas['QuestionSummary']; selecting?: boolean; selected?: boolean; onToggle?: () => void }) {
   const meta = [q.path.join(' · ')];
   if (q.attempt_count > 0) meta.push(`做过 ${q.attempt_count} 次`);
   if (q.generated_from_kp) meta.push(`由「${q.generated_from_kp}」生成`);
-  const bad = q.status_tag === 'wrong' || q.status_tag === 'needs_review';
+  const bad = q.status_tag === 'wrong' || q.status_tag === 'needs_review' || q.status_tag === 'ai_answer';
   const state = q.last_score !== undefined && q.score !== undefined && q.status_tag !== 'needs_review' ? `${q.last_score} / ${q.score}` : statusTagNames[q.status_tag];
   return (
     <Pressable
@@ -53,9 +57,10 @@ function QuestionRow({ q, selecting, selected, onToggle }: { q: Schemas['Questio
   );
 }
 
-export function QuestionList({ subjectId, kpId, status }: { subjectId: number; kpId?: number; status?: Schemas['QuestionStatusTag'] }) {
+export function QuestionList({ subjectId, kpId, status, answer: initialAnswer }: { subjectId: number; kpId?: number; status?: Schemas['QuestionStatusTag']; answer?: AnswerFilter }) {
   const [qtype, setQtype] = useState<Schemas['QuestionType'] | 'all'>('all');
   const [source, setSource] = useState<Source>('all');
+  const [answer, setAnswer] = useState<AnswerFilter>(initialAnswer ?? (status === 'ai_answer' ? 'ai' : 'all'));
   const [sort, setSort] = useState<'chapter' | 'recent'>('chapter');
   const qc = useQueryClient();
   const [selecting, setSelecting] = useState(false);
@@ -86,7 +91,7 @@ export function QuestionList({ subjectId, kpId, status }: { subjectId: number; k
       setDeleting(false);
     }
   };
-  const filter = { qtype, source, sort, kpId, status };
+  const filter = { qtype, source, sort, kpId, status, answer };
   const list = useInfiniteQuery({
     queryKey: bankKeys.questions(subjectId, filter),
     queryFn: ({ pageParam }) =>
@@ -98,7 +103,8 @@ export function QuestionList({ subjectId, kpId, status }: { subjectId: number; k
               qtype: qtype === 'all' ? undefined : qtype,
               source: source === 'all' ? undefined : source,
               kp_id: kpId,
-              status: status === 'answered' ? undefined : status,
+              status: status === 'answered' || status === 'ai_answer' ? undefined : status,
+              answer_status: answer === 'all' ? undefined : answer,
               sort,
               cursor: pageParam,
               limit: 30,
@@ -115,6 +121,7 @@ export function QuestionList({ subjectId, kpId, status }: { subjectId: number; k
   const items = list.data?.pages.flatMap((p) => p.items) ?? [];
   const byQtype = first?.facets.by_qtype ?? {};
   const qtypes = Object.keys(byQtype) as Schemas['QuestionType'][];
+  const byAnswer = first?.facets.by_answer ?? {};
   return (
     <View style={styles.wrap}>
       {qtypes.length > 1 ? (
@@ -136,17 +143,34 @@ export function QuestionList({ subjectId, kpId, status }: { subjectId: number; k
       ) : (
         <View style={styles.tools}>
           <Button
-            title={`按来源：${source === 'all' ? '全部' : sourceNames[source]}`}
+            title={`来源：${source === 'all' ? '全部' : sourceNames[source]}`}
             kind="text"
             size="sm"
             style={styles.tool}
             onPress={() => setSource(sources[(sources.indexOf(source) + 1) % sources.length]!)}
+          />
+          <Button
+            title={`答案：${answerFilterNames[answer]}${answer !== 'all' && byAnswer[answer] !== undefined ? ` ${byAnswer[answer]}` : ''}`}
+            kind="text"
+            size="sm"
+            style={styles.tool}
+            onPress={() => setAnswer(answerFilters[(answerFilters.indexOf(answer) + 1) % answerFilters.length]!)}
           />
           <View style={styles.flex} />
           <Button title={sort === 'chapter' ? '按章节排序 ▾' : '最近做过 ▾'} kind="text" size="sm" color={semantic.textPrimary} style={styles.tool} onPress={() => setSort(sort === 'chapter' ? 'recent' : 'chapter')} />
           {items.length > 0 ? <Button title="多选" kind="text" size="sm" color={semantic.textPrimary} style={styles.tool} onPress={() => setSelecting(true)} /> : null}
         </View>
       )}
+      {answer === 'missing' || answer === 'ai' ? (
+        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/import/answers', params: { subject: String(subjectId) } })} style={styles.answerTip}>
+          <Text variant="small" color={colors.blueInk} style={styles.flex}>
+            {answer === 'missing' ? '这些题做到时由 AI 给参考答案；有答案文件的话，补充进来更准' : 'AI 参考答案在你确认前不计入预估分；有答案文件的话，补充进来更准'}
+          </Text>
+          <Text variant="small" color={colors.blueInk} style={styles.medium}>
+            补充答案文件 ›
+          </Text>
+        </Pressable>
+      ) : null}
       {items.length === 0 ? (
         <EmptyState title="没有符合条件的题" />
       ) : (
@@ -182,4 +206,5 @@ const styles = StyleSheet.create({
   pill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: semantic.fill },
   medium: { fontWeight: '500' },
   flex: { flex: 1 },
+  answerTip: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: radius.lg, backgroundColor: colors.blueSoft },
 });

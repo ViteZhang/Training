@@ -98,6 +98,14 @@ describe('2.1 今日首页', () => {
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/dashboard', params: { subjectId: '7' } });
   });
 
+  it('预估分卡（PRD 11.6、11.16）：写明按确认过的 AI 答案评分的题数与缺答案暂不估分的卷数', async () => {
+    const est = { subject_id: 7, name: '语言文学基础', is_essay: false, full_score: 150, ready: true, low: 98, high: 106,
+      basis_papers: 2, basis_questions: 20, ai_confirmed_questions: 3, pending_answer_papers: 1 };
+    mockResponses['GET /home'] = () => ({ status: 200, data: home({ estimates: [est] }) });
+    await wrap(<TodayTab />);
+    expect(await screen.findByText('依据你导入的 2 套真题卷实测和近 20 道主观题估算，其中 3 题按你确认过的 AI 答案评分；另有 1 套卷缺答案，暂不参与估分')).toBeTruthy();
+  });
+
   it('还没导入资料（2.1c）', async () => {
     mockResponses['GET /home'] = () => ({ status: 200, data: home({ state: 'no_material', plan: undefined, stage_push: undefined, false_mastery_count: 0, banks: [bank({ question_count: 0, kp_count: 0, mastery_distribution: { unlearned: 0, learning: 0, consolidating: 0, mastered: 0 } })] }) });
     await wrap(<TodayTab />);

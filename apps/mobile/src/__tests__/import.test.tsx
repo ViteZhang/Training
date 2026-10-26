@@ -114,7 +114,7 @@ describe('导入工具函数', () => {
     expect(itemStatus(item(1, { review_reasons: ['missing_answer'] })).label).toBe('缺答案');
     expect(itemStatus(item(1, { review_reasons: ['rubric_unconfirmed'] })).label).toBe('采分点待确认');
     expect(itemStatus(item(1, { status: 'confirmed' })).label).toBe('已确认');
-    expect(itemNote(item(1, { review_reasons: ['missing_answer'] }))).toContain('AI 生成');
+    expect(itemNote(item(1, { review_reasons: ['missing_answer'] }))).toContain('补充答案文件');
     expect(rubricTotal([{ content: 'a', score: 1.5 }, { content: 'b', score: 2 }, { content: 'c' }])).toBe(3.5);
     expect(stepIndex('extract')).toBe(0);
     expect(stepIndex('structure')).toBe(1);

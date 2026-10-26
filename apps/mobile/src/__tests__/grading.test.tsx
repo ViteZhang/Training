@@ -206,3 +206,53 @@ describe('待批改', () => {
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith({ pathname: '/practice/grading/[id]', params: { id: '9' } }));
   });
 });
+
+describe('4.4 / 4.7b 按 AI 参考答案批改', () => {
+  const aiSession = (tier: string) => ({ ...session, questions: [{ ...termQ, answer_tier: tier }] });
+
+  it('4.4 标明按 AI 参考答案批改；4.7b 说明不计入预估分，可确认答案', async () => {
+    mockResponses['GET /practice-sessions/{sessionId}'] = () => ({ status: 200, data: aiSession('ai') });
+    mockResponses['POST /practice-sessions/{sessionId}/gradings'] = () => ({
+      status: 200,
+      data: grading({ rubric_source: 'ai_generated', answer_tier: 'ai', reference_only: true, answer_confirmed: false }),
+    });
+    mockResponses['POST /questions/{questionId}/answer/confirm'] = () => ({ status: 200, data: { ...termQ, answer_tier: 'confirmed' } });
+    await wrap(<PracticeRunner />);
+    expect(await screen.findByText(/这道题按 AI 参考答案批改，仅供参考/)).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('你的答案'), answer);
+    await fireEvent.press(screen.getByText('提交批改'));
+    expect(await screen.findByText('AI 参考答案 · 待确认')).toBeTruthy();
+    expect(screen.getByText(/不计入预估分/)).toBeTruthy();
+    expect(screen.getByText('这份参考答案对吗？')).toBeTruthy();
+    await fireEvent.press(screen.getByText('我来改'));
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/bank/question/[id]', params: { id: '201', edit: '1' } });
+    await fireEvent.press(screen.getByText('答案没问题，确认'));
+    expect(await screen.findByText(/已确认，答案来源变为「你已确认」/)).toBeTruthy();
+    expect(mockCalls.some((c) => c.method === 'POST' && c.path === '/questions/{questionId}/answer/confirm')).toBe(true);
+  });
+
+  it('还没有答案：提交时先生成 AI 参考答案；AI 出题次数用完时答案保留，可先自评', async () => {
+    mockResponses['GET /practice-sessions/{sessionId}'] = () => ({ status: 200, data: aiSession('missing') });
+    mockResponses['POST /practice-sessions/{sessionId}/gradings'] = () => ({
+      status: 402,
+      error: { code: 'QUOTA_EXCEEDED', message: '今天的 AI 出题次数用完了', detail: { quota_type: 'ai_questions', remaining: 0 } },
+    });
+    await wrap(<PracticeRunner />);
+    expect(await screen.findByText(/提交时 AI 先生成参考答案再批改/)).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('你的答案'), answer);
+    await fireEvent.press(screen.getByText('提交批改'));
+    expect(await screen.findByText('今天的 AI 出题次数用完了')).toBeTruthy();
+    await fireEvent.press(await screen.findByText('先自评，明天再批改'));
+    expect(screen.getByText('对照参考答案，你掌握得怎么样？')).toBeTruthy();
+  });
+
+  it('来自你的资料的答案：不显示 4.7b 的说明与确认卡', async () => {
+    mockResponses['POST /practice-sessions/{sessionId}/gradings'] = () => ({ status: 200, data: grading({ answer_tier: 'material' }) });
+    await wrap(<PracticeRunner />);
+    await fireEvent.changeText(await screen.findByLabelText('你的答案'), answer);
+    await fireEvent.press(screen.getByText('提交批改'));
+    expect(await screen.findByText('/ 5 分')).toBeTruthy();
+    expect(screen.queryByText('这份参考答案对吗？')).toBeNull();
+    expect(screen.queryByText('AI 参考答案 · 待确认')).toBeNull();
+  });
+});

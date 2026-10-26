@@ -9,7 +9,7 @@ import { setStep } from '@/features/onboarding/api';
 import { Footer, OptionCard, StepHeader } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
 import type { ImportMode } from './api';
-import { useImportFlow } from './store';
+import { useImportFlow, type FlowMode } from './store';
 import { PageHeader } from './ui';
 
 export const modes: { key: ImportMode; name: string; eg: string; what: string }[] = [
@@ -32,7 +32,7 @@ export function ModeStep({ onboarding, subjectId: initialSubject }: { onboarding
 
   const next = () => {
     if (!subjectId) return;
-    start(mode, subjectId, onboarding);
+    start(mode as FlowMode, subjectId, onboarding);
     if (onboarding) void setStep('1.5');
     router.push('/import/files');
   };

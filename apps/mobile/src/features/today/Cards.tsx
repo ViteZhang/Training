@@ -53,7 +53,13 @@ export function EstimateCard({
                   {s.name}
                 </Text>
                 {!ready ? (
-                  <Text variant="small">{organizing ? '题库整理好后，做完一套导入的真题卷就能估分' : '做完一套整卷后生成预估分'}</Text>
+                  <Text variant="small">
+                    {organizing
+                      ? '题库整理好后，做完一套导入的真题卷就能估分'
+                      : e?.pending_answer_papers
+                        ? `${e.pending_answer_papers} 套真题卷缺答案，补充答案文件或确认 AI 参考答案后参与估分`
+                        : '做完一套整卷后生成预估分'}
+                  </Text>
                 ) : null}
               </View>
               {s.target_score !== undefined && s.target_score !== null ? (
@@ -114,7 +120,9 @@ export function EstimateLine({ e, target }: { e: Schemas['EstimateCard']; target
       <Text variant="small" style={styles.basis}>
         {e.is_essay
           ? `依据你最近 ${e.basis_papers} 篇按评分细则批改的真题限时作文估算`
-          : `依据你导入的 ${e.basis_papers} 套真题卷实测${e.basis_questions ? `和近 ${e.basis_questions} 道主观题` : ''}估算`}
+          : `依据你导入的 ${e.basis_papers} 套真题卷实测${e.basis_questions ? `和近 ${e.basis_questions} 道主观题` : ''}估算${e.ai_confirmed_questions ? `，其中 ${e.ai_confirmed_questions} 题按你确认过的 AI 答案评分` : ''}`}
+        {/* PRD v3 11.6：一半以上主观题没有可信答案的卷暂不参与估分，提示补答案 */}
+        {!e.is_essay && e.pending_answer_papers ? `；另有 ${e.pending_answer_papers} 套卷缺答案，暂不参与估分` : ''}
       </Text>
     </View>
   );
