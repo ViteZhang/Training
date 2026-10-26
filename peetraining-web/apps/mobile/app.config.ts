@@ -60,6 +60,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ['expo-notifications', { color: '#231F55' }],
     // 口述背诵（4.16，功能开关 oral_recite）与语音作答（voice_answer）录音
     ['expo-audio', { microphonePermission: '用于语音作答和口述背诵' }],
+    // 安卓只打真机用的 ARM 架构；默认还会带 x86 / x86_64（只有模拟器用），安装包会大一倍左右
+    ['expo-build-properties', { android: { buildArchs: ['armeabi-v7a', 'arm64-v8a'] } }],
   ],
   experiments: { typedRoutes: true },
   extra: {
