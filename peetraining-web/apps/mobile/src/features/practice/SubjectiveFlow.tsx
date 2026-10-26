@@ -30,7 +30,11 @@ export function SubjectiveFlow({
   const [timed, setTimed] = useState(false);
   const [showRef, setShowRef] = useState(false);
   const [quotaOut, setQuotaOut] = useState(false);
-  const upgrade = useUpgradeActions(() => setQuotaOut(false));
+  const [aiOut, setAiOut] = useState(false);
+  const upgrade = useUpgradeActions(() => {
+    setQuotaOut(false);
+    setAiOut(false);
+  });
   const [failed, setFailed] = useState(false);
   const [photo, setPhoto] = useState(false);
   const last = useRef<{ text: string; keys?: string[] }>({ text: '' });
@@ -76,6 +80,8 @@ export function SubjectiveFlow({
           // 批改失败不扣次数、不保存；换一个幂等键重试。
           key.current = '';
           if (e instanceof ApiError && e.code === 'AI_FAILED') setFailed(true);
+          // 还没有答案的题要先生成 AI 参考答案，计入每日 AI 出题额度（PRD v3 11.16 第 4 条）。
+          else if (e instanceof ApiError && e.isQuotaExceeded && e.detail?.quota_type === 'ai_questions') setAiOut(true);
           else toast(e instanceof Error ? e.message : '提交失败，请重试');
         },
       },
@@ -145,6 +151,23 @@ export function SubjectiveFlow({
             onPress: () => {
               setQuotaOut(false);
               onQueued();
+            },
+          },
+        ]}
+      />
+      <QuotaSheet
+        visible={aiOut}
+        onClose={() => setAiOut(false)}
+        title="今天的 AI 出题次数用完了"
+        desc="这道题还没有参考答案，批改前要先由 AI 生成，计入每天的 AI 出题次数。你的答案已保存。"
+        upgrade={upgrade}
+        freeDesc="这道题还没有参考答案，批改前要先由 AI 生成。今天的 AI 出题次数用完了，明天 0 点恢复，你的答案已保存。"
+        freeOptions={[
+          {
+            label: '先自评，明天再批改',
+            onPress: () => {
+              setAiOut(false);
+              setShowRef(true);
             },
           },
         ]}

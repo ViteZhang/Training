@@ -18,7 +18,7 @@ import { useFeatureFlag } from '@/lib/flags';
 type Tab = 'kp' | 'question' | 'material';
 type TreeFilter = 'all' | 'unmastered' | 'exam' | 'needs_review';
 
-function KnowledgeTab({ subjectId }: { subjectId: number }) {
+function KnowledgeTab({ subjectId, missing, onMissing }: { subjectId: number; missing: number; onMissing: () => void }) {
   const [filter, setFilter] = useState<TreeFilter>('all');
   const tree = useQuery({
     queryKey: ['bank', subjectId, 'tree', filter],
@@ -39,14 +39,15 @@ function KnowledgeTab({ subjectId }: { subjectId: number }) {
           { key: 'needs_review', label: '待核对' },
         ]}
       />
-      {data.needs_review_count > 0 && filter !== 'needs_review' ? (
-        <Pressable accessibilityRole="button" onPress={() => setFilter('needs_review')} style={styles.banner}>
+      {/* 3.1 提醒条：「N 处待核对 · N 题缺答案 · 补全后批改更准」（PRD 11.16）；只有缺答案时点进去看缺答案的题 */}
+      {(data.needs_review_count > 0 && filter !== 'needs_review') || missing > 0 ? (
+        <Pressable accessibilityRole="button" onPress={() => (data.needs_review_count > 0 && filter !== 'needs_review' ? setFilter('needs_review') : onMissing())} style={styles.banner}>
           <View style={styles.dot} />
           <Text variant="caption" color={colors.orangeInk} style={styles.flex}>
             <Text variant="caption" color={colors.orangeInk} style={styles.bold}>
-              {data.needs_review_count} 处待核对
+              {[data.needs_review_count > 0 ? `${data.needs_review_count} 处待核对` : '', missing > 0 ? `${missing} 题缺答案` : ''].filter(Boolean).join(' · ')}
             </Text>{' '}
-            · 采分点核对后批改更准
+            · {missing > 0 ? '补全后批改更准' : '采分点核对后批改更准'}
           </Text>
           <Icon name="chevron" size={16} color={colors.orangeInk} />
         </Pressable>
@@ -84,6 +85,7 @@ export default function BankTab() {
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => unwrap(api.GET('/subjects')) });
   const [picked, setPicked] = useState<number>();
   const [tab, setTab] = useState<Tab>('kp');
+  const [answerFilter, setAnswerFilter] = useState<'missing' | undefined>();
   const list = subjects.data?.items ?? [];
   const subject = list.find((s) => s.id === picked) ?? list[0];
   const overview = useOverview(subject?.id);
@@ -145,7 +147,10 @@ export default function BankTab() {
           <>
             <UnderlineTabs<Tab>
               value={tab}
-              onChange={setTab}
+              onChange={(t) => {
+                setAnswerFilter(undefined);
+                setTab(t);
+              }}
               options={[
                 { key: 'kp', label: '知识点', count: o?.kp_count },
                 { key: 'question', label: '题目', count: o?.question_count },
@@ -158,8 +163,17 @@ export default function BankTab() {
                 <Text variant="caption">搜索知识点、题目或原文</Text>
               </Pressable>
             ) : null}
-            {tab === 'kp' ? <KnowledgeTab subjectId={subject.id} /> : null}
-            {tab === 'question' ? <QuestionList subjectId={subject.id} /> : null}
+            {tab === 'kp' ? (
+              <KnowledgeTab
+                subjectId={subject.id}
+                missing={o?.missing_answer_count ?? 0}
+                onMissing={() => {
+                  setAnswerFilter('missing');
+                  setTab('question');
+                }}
+              />
+            ) : null}
+            {tab === 'question' ? <QuestionList key={answerFilter ?? 'all'} subjectId={subject.id} answer={answerFilter} /> : null}
             {tab === 'material' ? <MaterialTab subjectId={subject.id} label={label} /> : null}
           </>
         )}
