@@ -28,3 +28,10 @@ UPDATE memberships SET revoked_at = ? WHERE id = ? AND owner_user_id = ? AND rev
 
 -- name: InsertRefund :execlastid
 INSERT INTO refunds (order_id, refund_no, amount_cents, reason, status, handled_by, handled_at, created_at) VALUES (?, ?, ?, ?, 'done', ?, ?, ?);
+
+-- name: AttachManualOrder :exec
+-- 手动收款的兑换码被兑换后，订单补上兑换人与会员时段，退款时据此收回会员。
+UPDATE orders SET owner_user_id = ?, membership_id = ? WHERE redeem_code_id = ? AND channel = 'wecom';
+
+-- name: VoidCodeIfUnused :execrows
+UPDATE redeem_codes SET status = 'void' WHERE id = ? AND status = 'unused';

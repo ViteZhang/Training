@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"peetraining-server/internal/apperr"
+	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/cloud/pay"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/flags"
@@ -42,6 +43,8 @@ type Deps struct {
 	Quota   *quota.Service
 	Flags   FlagChecker
 	Gateway pay.Gateway
+	// OSS 用来给客服二维码生成下载地址（6.5a）。
+	OSS oss.Store
 	// NotifyBaseURL 是回调地址前缀，拼上 /pay/notify/{channel}。
 	NotifyBaseURL string
 	// AppleBundleID 校验内购交易属于本 App。
@@ -397,7 +400,8 @@ func (s *Service) AppleVerify(ctx context.Context, userID uint64, orderNo, trans
 	if err != nil {
 		return Order{}, err
 	}
-	if o.Channel != dbq.OrdersChannelAppleIap {
+	// 企业微信客服手动收款（7.4 单个发码）由客服线下退款，这里只记账、收回会员、作废还没用的码。
+	if o.Channel != dbq.OrdersChannelAppleIap && o.Channel != dbq.OrdersChannelWecom {
 		return Order{}, apperr.New(apperr.BadRequest, "这不是 App Store 订单")
 	}
 	if o.Status != dbq.OrdersStatusCreated {
@@ -471,6 +475,11 @@ func (s *Service) Refund(ctx context.Context, orderNo, reason string, adminID ui
 				return err
 			}
 		}
+		if o.RedeemCodeID.Valid {
+			if _, err := q.VoidCodeIfUnused(ctx, uint64(o.RedeemCodeID.Int64)); err != nil {
+				return err
+			}
+		}
 		if _, err := q.InsertRefund(ctx, dbq.InsertRefundParams{OrderID: o.ID, RefundNo: sql.NullString{String: refundNo, Valid: true},
 			AmountCents: sql.NullInt32{Int32: int32(o.AmountCents), Valid: true}, Reason: reason, HandledBy: sql.NullInt64{Int64: int64(adminID), Valid: adminID != 0},
 			HandledAt: sql.NullTime{Time: now, Valid: true}, CreatedAt: now}); err != nil {
@@ -480,7 +489,7 @@ func (s *Service) Refund(ctx context.Context, orderNo, reason string, adminID ui
 			return nil
 		}
 		return q.InsertMessage(ctx, dbq.InsertMessageParams{OwnerUserID: ownerID(o), Mtype: dbq.MessagesMtypeMembership, Title: "退款已受理",
-			Body: "订单已退款，本单开通的会员时长已收回；款项按原支付方式退回", DedupeKey: sql.NullString{String: "refund:" + o.OrderNo, Valid: true}})
+			Body: refundBody(o.Channel), DedupeKey: sql.NullString{String: "refund:" + o.OrderNo, Valid: true}})
 	})
 }
 
@@ -505,4 +514,11 @@ func (s *Service) MockNotify(ctx context.Context, userID uint64, orderNo string)
 func MockBody(orderNo, transactionID string, amountCents int64) []byte {
 	b, _ := json.Marshal(pay.MockNotify{OrderNo: orderNo, TransactionID: transactionID, AmountCents: amountCents})
 	return b
+}
+
+func refundBody(ch dbq.OrdersChannel) string {
+	if ch == dbq.OrdersChannelWecom {
+		return "订单已退款，本单开通的会员时长已收回；款项由客服按原收款方式退回"
+	}
+	return "订单已退款，本单开通的会员时长已收回；款项按原支付方式退回"
 }

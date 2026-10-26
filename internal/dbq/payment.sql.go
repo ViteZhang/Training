@@ -11,8 +11,24 @@ import (
 	"time"
 )
 
+const attachManualOrder = `-- name: AttachManualOrder :exec
+UPDATE orders SET owner_user_id = ?, membership_id = ? WHERE redeem_code_id = ? AND channel = 'wecom'
+`
+
+type AttachManualOrderParams struct {
+	OwnerUserID  sql.NullInt64
+	MembershipID sql.NullInt64
+	RedeemCodeID sql.NullInt64
+}
+
+// 手动收款的兑换码被兑换后，订单补上兑换人与会员时段，退款时据此收回会员。
+func (q *Queries) AttachManualOrder(ctx context.Context, arg AttachManualOrderParams) error {
+	_, err := q.db.ExecContext(ctx, attachManualOrder, arg.OwnerUserID, arg.MembershipID, arg.RedeemCodeID)
+	return err
+}
+
 const getMyOrder = `-- name: GetMyOrder :one
-SELECT id, order_no, owner_user_id, tier, channel, amount_cents, status, transaction_id, notify_hash, membership_id, paid_at, created_at, updated_at, app_account_token, idempotency_key FROM orders WHERE order_no = ? AND owner_user_id = ?
+SELECT id, order_no, owner_user_id, tier, amount_cents, status, transaction_id, notify_hash, membership_id, paid_at, created_at, updated_at, app_account_token, idempotency_key, channel, pay_method, buyer_phone, remark, redeem_code_id, created_by FROM orders WHERE order_no = ? AND owner_user_id = ?
 `
 
 type GetMyOrderParams struct {
@@ -28,7 +44,6 @@ func (q *Queries) GetMyOrder(ctx context.Context, arg GetMyOrderParams) (Order, 
 		&i.OrderNo,
 		&i.OwnerUserID,
 		&i.Tier,
-		&i.Channel,
 		&i.AmountCents,
 		&i.Status,
 		&i.TransactionID,
@@ -39,12 +54,18 @@ func (q *Queries) GetMyOrder(ctx context.Context, arg GetMyOrderParams) (Order, 
 		&i.UpdatedAt,
 		&i.AppAccountToken,
 		&i.IdempotencyKey,
+		&i.Channel,
+		&i.PayMethod,
+		&i.BuyerPhone,
+		&i.Remark,
+		&i.RedeemCodeID,
+		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const getOrderByIdem = `-- name: GetOrderByIdem :one
-SELECT id, order_no, owner_user_id, tier, channel, amount_cents, status, transaction_id, notify_hash, membership_id, paid_at, created_at, updated_at, app_account_token, idempotency_key FROM orders WHERE owner_user_id = ? AND idempotency_key = ?
+SELECT id, order_no, owner_user_id, tier, amount_cents, status, transaction_id, notify_hash, membership_id, paid_at, created_at, updated_at, app_account_token, idempotency_key, channel, pay_method, buyer_phone, remark, redeem_code_id, created_by FROM orders WHERE owner_user_id = ? AND idempotency_key = ?
 `
 
 type GetOrderByIdemParams struct {
@@ -60,7 +81,6 @@ func (q *Queries) GetOrderByIdem(ctx context.Context, arg GetOrderByIdemParams) 
 		&i.OrderNo,
 		&i.OwnerUserID,
 		&i.Tier,
-		&i.Channel,
 		&i.AmountCents,
 		&i.Status,
 		&i.TransactionID,
@@ -71,12 +91,18 @@ func (q *Queries) GetOrderByIdem(ctx context.Context, arg GetOrderByIdemParams) 
 		&i.UpdatedAt,
 		&i.AppAccountToken,
 		&i.IdempotencyKey,
+		&i.Channel,
+		&i.PayMethod,
+		&i.BuyerPhone,
+		&i.Remark,
+		&i.RedeemCodeID,
+		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const getOrderByTransaction = `-- name: GetOrderByTransaction :one
-SELECT id, order_no, owner_user_id, tier, channel, amount_cents, status, transaction_id, notify_hash, membership_id, paid_at, created_at, updated_at, app_account_token, idempotency_key FROM orders WHERE channel = ? AND transaction_id = ?
+SELECT id, order_no, owner_user_id, tier, amount_cents, status, transaction_id, notify_hash, membership_id, paid_at, created_at, updated_at, app_account_token, idempotency_key, channel, pay_method, buyer_phone, remark, redeem_code_id, created_by FROM orders WHERE channel = ? AND transaction_id = ?
 `
 
 type GetOrderByTransactionParams struct {
@@ -92,7 +118,6 @@ func (q *Queries) GetOrderByTransaction(ctx context.Context, arg GetOrderByTrans
 		&i.OrderNo,
 		&i.OwnerUserID,
 		&i.Tier,
-		&i.Channel,
 		&i.AmountCents,
 		&i.Status,
 		&i.TransactionID,
@@ -103,12 +128,18 @@ func (q *Queries) GetOrderByTransaction(ctx context.Context, arg GetOrderByTrans
 		&i.UpdatedAt,
 		&i.AppAccountToken,
 		&i.IdempotencyKey,
+		&i.Channel,
+		&i.PayMethod,
+		&i.BuyerPhone,
+		&i.Remark,
+		&i.RedeemCodeID,
+		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const getOrderForUpdate = `-- name: GetOrderForUpdate :one
-SELECT id, order_no, owner_user_id, tier, channel, amount_cents, status, transaction_id, notify_hash, membership_id, paid_at, created_at, updated_at, app_account_token, idempotency_key FROM orders WHERE order_no = ? FOR UPDATE
+SELECT id, order_no, owner_user_id, tier, amount_cents, status, transaction_id, notify_hash, membership_id, paid_at, created_at, updated_at, app_account_token, idempotency_key, channel, pay_method, buyer_phone, remark, redeem_code_id, created_by FROM orders WHERE order_no = ? FOR UPDATE
 `
 
 // 回调与退款：锁住订单行，重复回调串行执行，第二次看到已支付直接返回。
@@ -120,7 +151,6 @@ func (q *Queries) GetOrderForUpdate(ctx context.Context, orderNo string) (Order,
 		&i.OrderNo,
 		&i.OwnerUserID,
 		&i.Tier,
-		&i.Channel,
 		&i.AmountCents,
 		&i.Status,
 		&i.TransactionID,
@@ -131,6 +161,12 @@ func (q *Queries) GetOrderForUpdate(ctx context.Context, orderNo string) (Order,
 		&i.UpdatedAt,
 		&i.AppAccountToken,
 		&i.IdempotencyKey,
+		&i.Channel,
+		&i.PayMethod,
+		&i.BuyerPhone,
+		&i.Remark,
+		&i.RedeemCodeID,
+		&i.CreatedBy,
 	)
 	return i, err
 }
@@ -251,4 +287,16 @@ type RevokeMembershipParams struct {
 func (q *Queries) RevokeMembership(ctx context.Context, arg RevokeMembershipParams) error {
 	_, err := q.db.ExecContext(ctx, revokeMembership, arg.RevokedAt, arg.ID, arg.OwnerUserID)
 	return err
+}
+
+const voidCodeIfUnused = `-- name: VoidCodeIfUnused :execrows
+UPDATE redeem_codes SET status = 'void' WHERE id = ? AND status = 'unused'
+`
+
+func (q *Queries) VoidCodeIfUnused(ctx context.Context, id uint64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, voidCodeIfUnused, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

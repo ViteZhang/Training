@@ -101,7 +101,7 @@ SELECT phone FROM users WHERE id = ?;
 -- ---------- 7.3 会员与订单 ----------
 
 -- name: AdminListOrders :many
-SELECT o.id, o.order_no, o.owner_user_id, o.tier, o.channel, o.amount_cents, o.status, o.paid_at, o.created_at,
+SELECT o.id, o.order_no, o.owner_user_id, o.tier, o.channel, o.pay_method, o.buyer_phone, o.remark, o.amount_cents, o.status, o.paid_at, o.created_at,
   CAST(IFNULL((SELECT r.status FROM refunds r WHERE r.order_id = o.id ORDER BY r.id DESC LIMIT 1), '') AS CHAR) AS refund_status
 FROM orders o
 WHERE (CAST(sqlc.arg(status) AS CHAR) = '' OR o.status = CAST(sqlc.arg(status) AS CHAR)) AND (CAST(sqlc.arg(user_id) AS UNSIGNED) = 0 OR o.owner_user_id = CAST(sqlc.arg(user_id) AS UNSIGNED))
@@ -148,6 +148,21 @@ INSERT INTO redeem_batches (name, tier, days, quantity, code_expires_at, channel
 
 -- name: AdminInsertCode :exec
 INSERT INTO redeem_codes (batch_id, code_hash, code_tail) VALUES (?, ?, ?);
+
+-- name: AdminInsertCodeReturning :execlastid
+INSERT INTO redeem_codes (batch_id, code_hash, code_tail) VALUES (?, ?, ?);
+
+-- name: AdminFindSingleBatch :one
+-- 7.4 单个发码：每个档位一个「企业微信客服 · 单个发码」批次；码有效期不足 180 天时另开一批。
+SELECT * FROM redeem_batches WHERE channel = 'wecom_single' AND tier = ? AND status = 'active' AND code_expires_at > ? ORDER BY id DESC LIMIT 1 FOR UPDATE;
+
+-- name: AdminBumpBatchQuantity :exec
+UPDATE redeem_batches SET quantity = quantity + 1 WHERE id = ?;
+
+-- name: AdminInsertManualOrder :execlastid
+-- PRD v3 13.3：客服收款后单个发码，记一笔已支付订单，收入计入 7.3（渠道：企业微信客服）。
+INSERT INTO orders (order_no, owner_user_id, tier, channel, pay_method, buyer_phone, remark, amount_cents, status, redeem_code_id, created_by, paid_at, created_at)
+VALUES (?, ?, ?, 'wecom', ?, ?, ?, ?, 'paid', ?, ?, ?, ?);
 
 -- name: AdminDisableBatch :execrows
 UPDATE redeem_batches SET status = 'disabled' WHERE id = ? AND status = 'active';

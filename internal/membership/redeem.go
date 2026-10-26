@@ -142,6 +142,11 @@ func (s *Service) redeem(ctx context.Context, userID uint64, code string, now ti
 		if n == 0 {
 			return redeemErr("used", "这个兑换码已经被使用过了")
 		}
+		// 客服手动收款发的码（7.4 单个发码）：订单补上兑换人与会员时段，退款时据此收回会员（PRD v3 13.3）。
+		if err := q.AttachManualOrder(ctx, dbq.AttachManualOrderParams{OwnerUserID: sql.NullInt64{Int64: int64(userID), Valid: true},
+			MembershipID: sql.NullInt64{Int64: int64(g.ID), Valid: true}, RedeemCodeID: sql.NullInt64{Int64: int64(row.ID), Valid: true}}); err != nil {
+			return err
+		}
 		out = Redeemed{Tier: string(row.Tier), Days: int(g.EndsAt.Sub(g.StartsAt).Hours() / 24), StartsAt: g.StartsAt, EndsAt: g.EndsAt, TotalUntil: g.TotalUntil}
 		return nil
 	})

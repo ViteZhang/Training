@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"errors"
+	"fmt"
 	"math/big"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +26,9 @@ type OrderRow struct {
 	UserID       uint64
 	Tier         string
 	Channel      string
+	PayMethod    string
+	BuyerPhone   string // 脱敏
+	Remark       string
 	AmountCents  int64
 	Status       string
 	RefundStatus string
@@ -39,8 +44,11 @@ func (s *Service) Orders(ctx context.Context, status string, userID, before uint
 	}
 	out := make([]OrderRow, len(rows))
 	for i, r := range rows {
-		out[i] = OrderRow{OrderNo: r.OrderNo, UserID: uint64(r.OwnerUserID.Int64), Tier: string(r.Tier), Channel: string(r.Channel), AmountCents: int64(r.AmountCents),
+		out[i] = OrderRow{OrderNo: r.OrderNo, UserID: uint64(r.OwnerUserID.Int64), Tier: string(r.Tier), Channel: string(r.Channel), PayMethod: r.PayMethod.String, Remark: r.Remark.String, AmountCents: int64(r.AmountCents),
 			Status: string(r.Status), RefundStatus: str(r.RefundStatus), PaidAt: nullTimePtr(r.PaidAt), CreatedAt: r.CreatedAt}
+		if r.BuyerPhone.Valid {
+			out[i].BuyerPhone = MaskPhone(r.BuyerPhone.String)
+		}
 	}
 	return out, nil
 }
@@ -328,4 +336,104 @@ func (s *Service) VoidCode(ctx context.Context, id uint64) error {
 		}
 		return nil
 	})
+}
+
+// ---------- 7.4 单个发码 · 手动收款（PRD v3 13.3） ----------
+
+// ManualSale 是客服收款后单个发码的输入：用户手机号、档位、收款金额、收款方式、备注。
+type ManualSale struct {
+	Phone       string
+	Tier        string
+	AmountCents int64
+	PayMethod   string
+	Remark      string
+}
+
+// ManualCode 是单个发码的结果：码的明文只在这次返回，客服复制后发给用户。
+type ManualCode struct {
+	Code    string
+	OrderNo string
+	BatchID uint64
+}
+
+// singleBatchName 是单个发码归入的批次名（每个档位一批）。
+const singleBatchName = "企业微信客服 · 单个发码"
+
+// singleBatchMinLife 是单个发码批次剩余有效期的下限：不足时另开一批，保证新发的码至少能用这么久。
+const singleBatchMinLife = 180 * 24 * time.Hour
+
+// IssueManualCode 生成一个兑换码，同时记一笔渠道为企业微信客服的已支付订单（收入计入 7.3）。
+// 码不绑定手机号：手机号只记在订单上用于对账；用户兑换后订单补上兑换人，退款时据此收回会员。
+func (s *Service) IssueManualCode(ctx context.Context, adminID uint64, in ManualSale) (ManualCode, error) {
+	phone := strings.TrimSpace(in.Phone)
+	switch {
+	case !phonePattern.MatchString(phone):
+		return ManualCode{}, apperr.New(apperr.BadRequest, "请输入正确的手机号")
+	case in.Tier != "sprint" && in.Tier != "season" && in.Tier != "monthly":
+		return ManualCode{}, apperr.New(apperr.BadRequest, "未知档位")
+	case in.AmountCents <= 0 || in.AmountCents > 100_000_00:
+		return ManualCode{}, apperr.New(apperr.BadRequest, "请填写收款金额")
+	case strings.TrimSpace(in.PayMethod) == "":
+		return ManualCode{}, apperr.New(apperr.BadRequest, "请选择收款方式")
+	case len([]rune(in.Remark)) > 200:
+		return ManualCode{}, apperr.New(apperr.BadRequest, "备注最多 200 字")
+	}
+	now := s.now().UTC()
+	var out ManualCode
+	err := store.WithTx(ctx, s.d.DB, func(q *dbq.Queries) error {
+		b, err := q.AdminFindSingleBatch(ctx, dbq.AdminFindSingleBatchParams{Tier: dbq.RedeemBatchesTier(in.Tier), CodeExpiresAt: now.Add(singleBatchMinLife)})
+		var batchID uint64
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			id, err := q.AdminInsertBatch(ctx, dbq.AdminInsertBatchParams{Name: singleBatchName, Tier: dbq.RedeemBatchesTier(in.Tier), Quantity: 0,
+				CodeExpiresAt: now.AddDate(1, 0, 0), Channel: "wecom_single", CreatedBy: sql.NullInt64{Int64: int64(adminID), Valid: true}})
+			if err != nil {
+				return err
+			}
+			batchID = uint64(id)
+		case err != nil:
+			return err
+		default:
+			batchID = b.ID
+		}
+		var codeID int64
+		for {
+			c := newCode()
+			codeID, err = q.AdminInsertCodeReturning(ctx, dbq.AdminInsertCodeReturningParams{BatchID: batchID, CodeHash: membership.HashCode(c), CodeTail: c[5:]})
+			if isDuplicate(err) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			out.Code = c
+			break
+		}
+		if err := q.AdminBumpBatchQuantity(ctx, batchID); err != nil {
+			return err
+		}
+		owner := sql.NullInt64{}
+		if u, err := q.GetUserByPhone(ctx, phone); err == nil {
+			owner = sql.NullInt64{Int64: int64(u.ID), Valid: true}
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		out.OrderNo = manualOrderNo(now)
+		out.BatchID = batchID
+		_, err = q.AdminInsertManualOrder(ctx, dbq.AdminInsertManualOrderParams{OrderNo: out.OrderNo, OwnerUserID: owner, Tier: dbq.OrdersTier(in.Tier),
+			PayMethod: sql.NullString{String: strings.TrimSpace(in.PayMethod), Valid: true}, BuyerPhone: sql.NullString{String: phone, Valid: true},
+			Remark: sql.NullString{String: strings.TrimSpace(in.Remark), Valid: strings.TrimSpace(in.Remark) != ""}, AmountCents: uint32(in.AmountCents),
+			RedeemCodeID: sql.NullInt64{Int64: codeID, Valid: true}, CreatedBy: sql.NullInt64{Int64: int64(adminID), Valid: true},
+			PaidAt: sql.NullTime{Time: now, Valid: true}, CreatedAt: now})
+		return err
+	})
+	return out, err
+}
+
+var phonePattern = regexp.MustCompile(`^1[3-9][0-9]{9}$`)
+
+// manualOrderNo 与在线支付的订单号同格式，前缀 W 表示企业微信客服手动收款。
+func manualOrderNo(now time.Time) string {
+	n, _ := rand.Int(rand.Reader, big.NewInt(1_000_000))
+	return fmt.Sprintf("W%s%06d", now.In(time.FixedZone("CST", 8*3600)).Format("20060102150405"), n.Int64())
 }

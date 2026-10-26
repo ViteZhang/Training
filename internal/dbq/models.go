@@ -2997,6 +2997,7 @@ const (
 	OrdersChannelWechat   OrdersChannel = "wechat"
 	OrdersChannelAlipay   OrdersChannel = "alipay"
 	OrdersChannelAppleIap OrdersChannel = "apple_iap"
+	OrdersChannelWecom    OrdersChannel = "wecom"
 )
 
 func (e *OrdersChannel) Scan(src interface{}) error {
@@ -3038,7 +3039,8 @@ func (e OrdersChannel) Valid() bool {
 	switch e {
 	case OrdersChannelWechat,
 		OrdersChannelAlipay,
-		OrdersChannelAppleIap:
+		OrdersChannelAppleIap,
+		OrdersChannelWecom:
 		return true
 	}
 	return false
@@ -3049,6 +3051,7 @@ func AllOrdersChannelValues() []OrdersChannel {
 		OrdersChannelWechat,
 		OrdersChannelAlipay,
 		OrdersChannelAppleIap,
+		OrdersChannelWecom,
 	}
 }
 
@@ -6184,7 +6187,6 @@ type Order struct {
 	// 注销后置空，订单保留用于财务
 	OwnerUserID   sql.NullInt64
 	Tier          OrdersTier
-	Channel       OrdersChannel
 	AmountCents   uint32
 	Status        OrdersStatus
 	TransactionID sql.NullString
@@ -6197,6 +6199,17 @@ type Order struct {
 	// App Store 内购：购买时传给 StoreKit 的 appAccountToken，校验交易属于这个订单
 	AppAccountToken sql.NullString
 	IdempotencyKey  sql.NullString
+	// wecom = 企业微信客服手动收款（7.4 单个发码）
+	Channel OrdersChannel
+	// 手动收款的收款方式，如企业微信转账、收款码
+	PayMethod sql.NullString
+	// 手动收款时客服填的购买人手机号，后台脱敏显示
+	BuyerPhone sql.NullString
+	Remark     sql.NullString
+	// 手动收款生成的兑换码；兑换后订单补上 owner_user_id 与 membership_id
+	RedeemCodeID sql.NullInt64
+	// 手动收款：经办的后台账号
+	CreatedBy sql.NullInt64
 }
 
 // 真题卷与 AI 组卷

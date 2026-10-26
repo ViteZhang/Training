@@ -177,7 +177,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 		Export:     export.New(export.Deps{DB: db, OSS: clients.OSS, Queue: queue, Fonts: export.Fonts{CJK: cfg.ExportFontPath, Latin: cfg.ExportLatinFontPath}}),
 		Invite:     inv,
 		Notify:     notify.New(db, nil),
-		Payment: payment.New(payment.Deps{DB: db, Params: ps, Quota: qs, Flags: fl, Gateway: clients.Pay, NotifyBaseURL: cfg.Pay.NotifyBaseURL,
+		Payment: payment.New(payment.Deps{DB: db, Params: ps, Quota: qs, Flags: fl, Gateway: clients.Pay, OSS: clients.OSS, NotifyBaseURL: cfg.Pay.NotifyBaseURL,
 			AppleBundleID: cfg.Pay.AppleBundleID, Log: log}),
 	}
 	base.Admin = admin.New(admin.Deps{DB: db, Redis: rdb, SMS: clients.SMS, OSS: clients.OSS, Params: ps, Quota: qs, Notify: base.Notify, Payment: base.Payment,
