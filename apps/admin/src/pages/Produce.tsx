@@ -1,4 +1,4 @@
-// 7.12 内容生产：AI 从授权资料拆知识点（与现有知识点树对齐：新增 / 补充来源 / 表述差异），录题与采分点（可让 AI 从参考答案提），
+// 7.12 内容生产：AI 从授权资料拆知识点（与现有知识点树对齐：新增 / 补充来源 / 表述差异），录题与采分点（可让 AI 从参考答案提，或引用 7.11 官方参考素材生成参考答案与采分点），
 // 修订、下线已有条目；编辑只写草稿，提交后进审核（新编辑前 3 次全量审核，之后 30% 抽检）。
 import { ApiError } from '@training/api-client';
 import type { components } from '@training/api-client';
@@ -299,6 +299,22 @@ function DraftEditor({ project, editing, onClose }: { project: number; editing: 
     onSuccess: (r) => form.setFieldValue('rubric', r.items),
     onError: (e) => message.error(errMsg(e)),
   });
+  // 引用官方参考素材生成参考答案与采分点（PRD v3 7.11），出处只给编辑核对，不写进题目。
+  const [citations, setCitations] = useState<components['schemas']['OfficialAnswerCandidate']['citations']>();
+  const generate = useMutation({
+    mutationFn: (v: { qtype: string; stem: string; score?: number }) =>
+      unwrap(
+        api.POST('/admin/official/projects/{projectId}/answer-candidates', {
+          params: { path: { projectId: project } },
+          body: { qtype: v.qtype as components['schemas']['QuestionType'], stem: v.stem, score: v.score },
+        }),
+      ),
+    onSuccess: (r) => {
+      form.setFieldsValue({ answer: r.answer, rubric: r.points });
+      setCitations(r.citations);
+    },
+    onError: (e) => message.error(errMsg(e)),
+  });
   const onFinish = (v: Record<string, unknown>) => {
     if (editing.change_type === 'offline') return save.mutate(p);
     const rubric = ((v.rubric as Point[] | undefined) ?? []).filter((r) => r?.content);
@@ -356,9 +372,39 @@ function DraftEditor({ project, editing, onClose }: { project: number; editing: 
                 )
               }
             </Form.Item>
-            <Form.Item name="answer" label="参考答案">
+            <Form.Item
+              name="answer"
+              label={
+                <Space>
+                  参考答案
+                  <Button
+                    size="small"
+                    loading={generate.isPending}
+                    onClick={() => {
+                      const v = form.getFieldsValue() as { qtype: string; stem: string; score?: number };
+                      if (!v.qtype || !v.stem) return message.warning('先选题型、填题干');
+                      generate.mutate(v);
+                    }}
+                  >
+                    AI 生成（引用官方参考素材）
+                  </Button>
+                </Space>
+              }
+            >
               <Input.TextArea rows={4} />
             </Form.Item>
+            {citations ? (
+              <Alert
+                type={citations.length ? 'info' : 'warning'}
+                showIcon
+                style={{ marginBottom: 16 }}
+                message={
+                  citations.length
+                    ? `AI 生成，引用：${citations.map((c) => (c.heading ? `${c.title} · ${c.heading}` : c.title)).join('；')}`
+                    : 'AI 生成：官方参考素材里没找到相关内容，按通用知识生成，请仔细核对'
+                }
+              />
+            ) : null}
             <Form.Item name="analysis" label="解析">
               <Input.TextArea rows={2} />
             </Form.Item>
