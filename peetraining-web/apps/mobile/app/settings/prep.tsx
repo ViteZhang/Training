@@ -4,13 +4,13 @@ import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
 import { layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { BottomSheet, Button, Card, Icon, ListCard, NavBar, ConfirmDialog, ErrorState, Loading, QuotaSheet, Screen, Tag, Text, toast } from '@/components';
 import { stageInfo, stages } from '@/features/onboarding/api';
 import { Chips, OptionCard, Stepper } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 type Profile = Schemas['StudyProfile'];
 
@@ -24,6 +24,7 @@ export default function PrepSettings() {
   const [deleting, setDeleting] = useState<Schemas['Subject'] | null>(null);
   const [schoolEdit, setSchoolEdit] = useState<string | null>(null);
   const [quota, setQuota] = useState(false);
+  const upgrade = useUpgradeActions(() => setQuota(false));
 
   const save = useMutation({
     mutationFn: (patch: Partial<Schemas['StudyProfileInput']>) => {
@@ -220,10 +221,8 @@ export default function PrepSettings() {
         onClose={() => setQuota(false)}
         title="免费版最多添加 3 门专业课"
         desc="开通会员后可以添加第 4 门。"
-        onUpgrade={() => {
-          setQuota(false);
-          router.push('/member');
-        }}
+        upgrade={upgrade}
+        freeDesc="免费版最多添加 3 门专业课，可以先删掉一门再添加。"
         freeOptions={[{ label: '先不加了', onPress: () => setQuota(false) }]}
       />
     </Screen>

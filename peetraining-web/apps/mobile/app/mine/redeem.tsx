@@ -1,18 +1,21 @@
 // 6.7 兑换码：输入框，不区分大小写；无效、已使用、已作废、已过期分别提示；说明一码一次、时长叠加到当前会员之后、过期不可用。
+// 「还没有兑换码？加客服企业微信购买」→ 6.5a（购买入口关闭的平台不显示）。
 import { ApiError } from '@training/api-client';
 import { fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
-import { Button, Card, Screen, Text } from '@/components';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Button, Card, Icon, Screen, Text } from '@/components';
 import { PageHeader } from '@/features/import/ui';
+import { usePurchaseEnabled } from '@/features/membership/purchase';
 import { mineKeys, tierNames, ymd } from '@/features/mine/api';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
 
 export default function RedeemPage() {
   const qc = useQueryClient();
+  const canBuy = usePurchaseEnabled();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string>();
   const redeem = useMutation({
@@ -44,7 +47,7 @@ export default function RedeemPage() {
             输入兑换码
           </Text>
           <Text variant="caption" style={styles.desc}>
-            兑换码来自官方活动，每个码只能使用一次
+            每个码只能使用一次，兑换后立即生效
           </Text>
           <TextInput
             accessibilityLabel="兑换码"
@@ -65,6 +68,17 @@ export default function RedeemPage() {
             </Text>
           ) : null}
           <Button title="兑换" disabled={code.replace(/[\s-]/g, '').length < 8} loading={redeem.isPending} onPress={() => redeem.mutate()} />
+          {canBuy ? (
+            <Pressable accessibilityRole="link" onPress={() => router.push('/member/getcode')} style={styles.buy}>
+              <View style={styles.flex}>
+                <Text variant="caption" color={semantic.textPrimary} style={styles.medium}>
+                  还没有兑换码？
+                </Text>
+                <Text variant="small">加客服企业微信购买</Text>
+              </View>
+              <Icon name="chevron" size={16} color={semantic.textSecondary} />
+            </Pressable>
+          ) : null}
         </View>
       )}
       <Card tone="fill" style={styles.gap}>
@@ -83,6 +97,9 @@ const styles = StyleSheet.create({
   desc: { fontSize: 14, marginTop: -6, marginBottom: 6 },
   bold: { fontWeight: '700' },
   lh: { lineHeight: 19 },
+  buy: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 18, borderWidth: 1, borderColor: semantic.border },
+  flex: { flex: 1, gap: 2 },
+  medium: { fontWeight: '500' },
   input: { minHeight: 56, paddingHorizontal: 16, borderRadius: radius.xl, borderWidth: 1.5, borderColor: semantic.inputBorder, backgroundColor: semantic.surface, fontSize: 20, fontFamily: fontFamily.numberSemiBold, letterSpacing: 3, color: semantic.textPrimary },
   inputError: { borderColor: semantic.danger },
 });

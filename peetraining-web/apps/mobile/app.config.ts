@@ -57,6 +57,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     'expo-document-picker',
+    // 6.5a 保存客服企业微信二维码到相册：只申请写入权限
+    ['expo-media-library', { photosPermission: '用于从相册导入题目和资料', savePhotosPermission: '用于把客服二维码保存到相册', isAccessMediaLocationEnabled: false, granularPermissions: ['photo'] }],
     ['expo-notifications', { color: '#231F55' }],
     // 口述背诵（4.16，功能开关 oral_recite）与语音作答（voice_answer）录音
     ['expo-audio', { microphonePermission: '用于语音作答和口述背诵' }],

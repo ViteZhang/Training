@@ -22,11 +22,13 @@ import {
   Text,
   toast,
 } from '@/components';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 export default function ComponentsDemo() {
   const [sheet, setSheet] = useState(false);
   const [dialog, setDialog] = useState(false);
   const [quota, setQuota] = useState(false);
+  const upgrade = useUpgradeActions(() => setQuota(false));
   return (
     <Screen scroll>
       <View style={styles.section}>
@@ -103,7 +105,8 @@ export default function ComponentsDemo() {
         onClose={() => setQuota(false)}
         title="今天的批改次数用完了"
         desc="答案已保存。免费版每天 3 次，会员不限次。"
-        onUpgrade={() => setQuota(false)}
+        upgrade={upgrade}
+        compare={{ free: '每天 3 次', member: '不限次数' }}
         freeOptions={[
           { label: '先对照参考答案', onPress: () => setQuota(false) },
           { label: '明天再批改', onPress: () => setQuota(false) },

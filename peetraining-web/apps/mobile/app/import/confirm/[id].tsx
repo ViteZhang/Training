@@ -17,6 +17,7 @@ import { todayKeys } from '@/features/today/api';
 import { Footer, StepHeader } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 type Filter = 'all' | 'needs_review' | 'subjective' | 'objective';
 
@@ -105,6 +106,7 @@ export default function ConfirmScreen() {
   const [filter, setFilter] = useState<Filter>('all');
   const [busy, setBusy] = useState(false);
   const [quota, setQuota] = useState(false);
+  const upgrade = useUpgradeActions(() => setQuota(false));
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [asking, setAsking] = useState(false);
@@ -289,10 +291,8 @@ export default function ConfirmScreen() {
         onClose={() => setQuota(false)}
         title="题目导入额度不够了"
         desc="免费版最多导入 500 题。开通会员后不限题数。"
-        onUpgrade={() => {
-          setQuota(false);
-          router.push('/member');
-        }}
+        upgrade={upgrade}
+        freeDesc="最多导入 500 题，可以先少选几题入库。"
         freeOptions={[{ label: '删掉一些再入库', onPress: () => setQuota(false) }]}
       />
     </Screen>

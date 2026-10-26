@@ -65,6 +65,7 @@ beforeEach(() => {
     'GET /practice-sessions/{sessionId}': () => ({ status: 200, data: session }),
     'GET /quota': () => quota(2),
     'GET /feature-flags': () => ({ status: 200, data: { flags: {} } }),
+    'GET /purchase-entry': () => ({ status: 200, data: { enabled: true } }),
   };
 });
 
@@ -128,8 +129,26 @@ describe('4.4 主观题 → 4.7 批改结果', () => {
     await fireEvent.changeText(await screen.findByLabelText('你的答案'), answer);
     await fireEvent.press(screen.getByText('提交批改'));
     expect(await screen.findByText('今天的免费批改次数用完了')).toBeTruthy();
+    // 购买入口打开（安卓）、在线支付开通前：免费版与会员对比，「获取兑换码」→ 6.5a、「我有兑换码」
+    expect(await screen.findByText('获取兑换码')).toBeTruthy();
+    expect(screen.getByText('我有兑换码')).toBeTruthy();
+    expect(screen.getByText('不限次数')).toBeTruthy();
     await fireEvent.press(screen.getByText('明天再批改'));
     expect(await screen.findByText('答案已保存为待批改，明天 0 点后在训练页一键提交')).toBeTruthy();
+  });
+
+  it('次数用完 · 购买入口关闭（4.9b）：不出现会员、价格与兑换码，只给免费出路', async () => {
+    mockResponses['GET /purchase-entry'] = () => ({ status: 200, data: { enabled: false } });
+    mockResponses['GET /quota'] = () => quota(3);
+    mockResponses['POST /practice-sessions/{sessionId}/gradings'] = () => ({ status: 200, data: { ...grading({ status: 'queued_quota', points: [], loss: [], suggestions: [], kp_changes: [], wrong_book: 'none' }), score: undefined, counts: undefined } });
+    await wrap(<PracticeRunner />);
+    await fireEvent.changeText(await screen.findByLabelText('你的答案'), answer);
+    await fireEvent.press(screen.getByText('提交批改'));
+    expect(await screen.findByText('今天的免费批改次数用完了')).toBeTruthy();
+    expect(screen.getByText('每天可批改 3 道主观题，明天 0 点恢复。你的答案已保存，明天可以一键提交批改。')).toBeTruthy();
+    expect(screen.queryByText('获取兑换码')).toBeNull();
+    expect(screen.queryByText(/会员/)).toBeNull();
+    expect(screen.getByText('明天再批改')).toBeTruthy();
   });
 
   it('批改失败：未扣除次数，重试成功', async () => {

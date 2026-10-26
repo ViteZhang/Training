@@ -11,6 +11,7 @@ import { PageHeader } from '@/features/import/ui';
 import { api, unwrap } from '@/lib/api';
 import { fmtScore, useCreateEssay, useEssayHome, useGenerateTopic } from '@/features/essay/api';
 import { HandwritingFlow } from '@/features/practice/handwriting';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 type Tab = 'exam' | 'ai' | 'custom';
 
@@ -46,6 +47,7 @@ export default function EssayHomePage() {
   const subject = subjects.data?.items?.find((x) => x.id === sid);
   const create = useCreateEssay();
   const [quotaOut, setQuotaOut] = useState(false);
+  const upgrade = useUpgradeActions(() => setQuotaOut(false));
   const gen = useGenerateTopic(sid, () => setQuotaOut(true));
   const [tab, setTab] = useState<Tab>();
   const [custom, setCustom] = useState('');
@@ -256,7 +258,9 @@ export default function EssayHomePage() {
         onClose={() => setQuotaOut(false)}
         title="今天的 AI 出题次数用完了"
         desc="免费版每天可让 AI 出 20 道题，明天 0 点恢复。可以先写真题或自拟题目。"
-        onUpgrade={() => toast('会员马上上线')}
+        upgrade={upgrade}
+        compare={{ free: '每天 20 题', member: '不限' }}
+        freeDesc="每天可让 AI 出 20 道题，明天 0 点恢复。可以先写真题或自拟题目。"
         freeOptions={[{ label: '写自拟题目', onPress: () => setTab('custom') }]}
       />
     </Screen>

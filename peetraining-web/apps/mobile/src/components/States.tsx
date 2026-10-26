@@ -132,13 +132,19 @@ export interface QuotaSheetProps {
   onClose: () => void;
   title: string;
   desc?: string;
+  /** 购买入口关闭（4.9b）时的说明：不出现会员、价格与兑换码；缺省时用 desc */
+  freeDesc?: string;
+  /** 免费版与会员的对比（4.9：免费版 每天 3 次 / 会员 不限次数）；购买入口关闭时不显示 */
+  compare?: { free: string; member: string };
   /** 永远给一条不付费也能继续的路：对照参考答案、明天再用 */
   freeOptions: { label: string; onPress: () => void }[];
-  onUpgrade?: () => void;
+  /** 购买按钮（features/membership/purchase 的 useUpgradeActions）；购买入口关闭时为空，只给免费出路（4.9b） */
+  upgrade?: { primary: { label: string; onPress: () => void }; secondary?: { label: string; onPress: () => void } };
 }
 
-/** 额度不足：底部弹层（设计稿 4.9）：锁形图标、标题、说明，「开通会员」+ 不付费也能继续的出路。 */
-export function QuotaSheet({ visible, onClose, title, desc, freeOptions, onUpgrade }: QuotaSheetProps) {
+/** 额度不足：底部弹层（设计稿 4.9 / 4.9b）：锁形图标、标题、说明，购买按钮 + 不付费也能继续的出路。 */
+export function QuotaSheet({ visible, onClose, title, desc: paidDesc, freeDesc, compare, freeOptions, upgrade }: QuotaSheetProps) {
+  const desc = upgrade ? paidDesc : freeDesc ?? paidDesc;
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <View style={styles.lock}>
@@ -152,11 +158,28 @@ export function QuotaSheet({ visible, onClose, title, desc, freeOptions, onUpgra
           {desc}
         </Text>
       ) : null}
+      {upgrade && compare ? (
+        <View style={styles.compare}>
+          <View style={[styles.compareCell, styles.compareFree]}>
+            <Text variant="small">免费版</Text>
+            <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>{compare.free}</Text>
+          </View>
+          <View style={[styles.compareCell, styles.compareMember]}>
+            <Text variant="small">会员</Text>
+            <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>{compare.member}</Text>
+          </View>
+        </View>
+      ) : null}
       <View style={styles.sheetActions}>
-        {onUpgrade ? <Button title="开通会员" onPress={onUpgrade} block /> : null}
+        {upgrade ? (
+          <View style={styles.upgradeRow}>
+            <Button title={upgrade.primary.label} onPress={upgrade.primary.onPress} style={styles.upgradeMain} />
+            {upgrade.secondary ? <Button title={upgrade.secondary.label} kind="secondary" onPress={upgrade.secondary.onPress} style={styles.upgradeSub} /> : null}
+          </View>
+        ) : null}
         <View style={styles.freeRow}>
           {freeOptions.map((o) => (
-            <Button key={o.label} title={o.label} kind={onUpgrade ? 'text' : 'secondary'} color={onUpgrade ? semantic.textPrimary : undefined} onPress={o.onPress} style={styles.free} />
+            <Button key={o.label} title={o.label} kind={upgrade ? 'text' : 'secondary'} color={upgrade ? semantic.textPrimary : undefined} onPress={o.onPress} style={styles.free} />
           ))}
         </View>
       </View>
@@ -186,5 +209,13 @@ const styles = StyleSheet.create({
   sheetDesc: { marginBottom: spacing.lg, lineHeight: 21 },
   sheetActions: { gap: 6 },
   freeRow: { flexDirection: 'row', gap: 8 },
+  compare: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  compareCell: { flex: 1, gap: 2, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16 },
+  compareFree: { backgroundColor: semantic.fill },
+  compareMember: { borderWidth: 1.5, borderColor: semantic.textPrimary },
+  bold: { fontWeight: '700' },
+  upgradeRow: { flexDirection: 'row', gap: 10 },
+  upgradeMain: { flex: 1.4 },
+  upgradeSub: { flex: 1 },
   free: { flex: 1 },
 });

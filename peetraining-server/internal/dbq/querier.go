@@ -30,6 +30,7 @@ type Querier interface {
 	AddQuotaBonus(ctx context.Context, arg AddQuotaBonusParams) error
 	// 批次明细：码只存哈希，明细显示末 3 位、状态、使用人与时间。
 	AdminBatchCodes(ctx context.Context, batchID uint64) ([]AdminBatchCodesRow, error)
+	AdminBumpBatchQuantity(ctx context.Context, id uint64) error
 	AdminDisableBatch(ctx context.Context, id uint64) (int64, error)
 	AdminDisputeReasons(ctx context.Context, since time.Time) ([]AdminDisputeReasonsRow, error)
 	// ---------- 7.6 批改异议 ----------
@@ -40,6 +41,8 @@ type Querier interface {
 	AdminFeedbackStats(ctx context.Context, arg AdminFeedbackStatsParams) (AdminFeedbackStatsRow, error)
 	AdminFeedbackTypes(ctx context.Context, since time.Time) ([]AdminFeedbackTypesRow, error)
 	AdminFindCode(ctx context.Context, codeHash string) (AdminFindCodeRow, error)
+	// 7.4 单个发码：每个档位一个「企业微信客服 · 单个发码」批次；码有效期不足 180 天时另开一批。
+	AdminFindSingleBatch(ctx context.Context, arg AdminFindSingleBatchParams) (RedeemBatch, error)
 	AdminGetBatch(ctx context.Context, id uint64) (RedeemBatch, error)
 	AdminGetCodeForUpdate(ctx context.Context, id uint64) (AdminGetCodeForUpdateRow, error)
 	AdminGetDispute(ctx context.Context, id uint64) (AdminGetDisputeRow, error)
@@ -52,6 +55,9 @@ type Querier interface {
 	AdminImportJobFiles(ctx context.Context, jobID uint64) ([]AdminImportJobFilesRow, error)
 	AdminInsertBatch(ctx context.Context, arg AdminInsertBatchParams) (int64, error)
 	AdminInsertCode(ctx context.Context, arg AdminInsertCodeParams) error
+	AdminInsertCodeReturning(ctx context.Context, arg AdminInsertCodeReturningParams) (int64, error)
+	// PRD v3 13.3：客服收款后单个发码，记一笔已支付订单，收入计入 7.3（渠道：企业微信客服）。
+	AdminInsertManualOrder(ctx context.Context, arg AdminInsertManualOrderParams) (int64, error)
 	AdminListBatches(ctx context.Context, arg AdminListBatchesParams) ([]AdminListBatchesRow, error)
 	AdminListDisputes(ctx context.Context, arg AdminListDisputesParams) ([]AdminListDisputesRow, error)
 	// 反馈是用户写给客服的，列表显示内容；截图与关联资料要授权才能看。
@@ -85,6 +91,8 @@ type Querier interface {
 	AnswerStagePrompt(ctx context.Context, arg AnswerStagePromptParams) error
 	// 「按结构写一道」用的题：同题型里最近没做过的。
 	AnyQuestionOfQType(ctx context.Context, arg AnyQuestionOfQTypeParams) (uint64, error)
+	// 手动收款的兑换码被兑换后，订单补上兑换人与会员时段，退款时据此收回会员。
+	AttachManualOrder(ctx context.Context, arg AttachManualOrderParams) error
 	BankCounts(ctx context.Context, arg BankCountsParams) (BankCountsRow, error)
 	// 每次报错计数；AI 出的题累计 3 次自动下线（PRD 4.3）。SET 从左到右执行，判断时 report_count 已经加过 1。
 	BumpQuestionReport(ctx context.Context, arg BumpQuestionReportParams) error
@@ -690,6 +698,7 @@ type Querier interface {
 	UpsertStat(ctx context.Context, arg UpsertStatParams) error
 	UpsertWrongBook(ctx context.Context, arg UpsertWrongBookParams) error
 	UseRedeemCode(ctx context.Context, arg UseRedeemCodeParams) (int64, error)
+	VoidCodeIfUnused(ctx context.Context, id uint64) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)

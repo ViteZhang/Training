@@ -13,6 +13,7 @@ import { clock } from '@/features/paper/api';
 import { HandwritingFlow } from '@/features/practice/handwriting';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 const SYNC_MS = 5000;
 
@@ -72,6 +73,7 @@ function Writer({ e }: { e: Essay }) {
   const [photo, setPhoto] = useState(false);
   const [leave, setLeave] = useState(false);
   const [quotaOut, setQuotaOut] = useState(false);
+  const upgrade = useUpgradeActions(() => setQuotaOut(false));
   const [saved, setSaved] = useState(true);
   const synced = useRef({ content: e.content, seconds: e.duration_seconds, timed: e.timed });
   const state = useRef({ text, seconds, timed });
@@ -235,7 +237,9 @@ function Writer({ e }: { e: Essay }) {
         onClose={() => setQuotaOut(false)}
         title="本周的作文批改次数用完了"
         desc="免费版每周可批改 1 篇作文，下周一恢复。草稿已保存，可以先写着。"
-        onUpgrade={() => toast('会员马上上线')}
+        upgrade={upgrade}
+        compare={{ free: '每周 1 篇', member: '不限' }}
+        freeDesc="每周可批改 1 篇作文，下周一 0 点恢复。草稿已保存，可以先写着。"
         freeOptions={[{ label: '先保存草稿', onPress: () => router.back() }]}
       />
     </Screen>

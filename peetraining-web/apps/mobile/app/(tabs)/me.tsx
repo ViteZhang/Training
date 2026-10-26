@@ -1,4 +1,4 @@
-// 6.1 我的：头像与昵称，专业课代码 + 阶段 + 距初试天数（→ 6.9）；会员条（免费版显示开通入口）；提分看板卡片（预估分、目标、失分归因占比）；
+// 6.1 我的：头像与昵称，专业课代码 + 阶段 + 距初试天数（→ 6.9）；会员条（免费版显示开通入口；购买入口关闭时只显示当前会员状态）；提分看板卡片（预估分、目标、失分归因占比）；
 // 我的资料、错题本、作文本、导出题库、备考设置、邀请研友、兑换码、意见反馈；考后回访开放时显示入口。
 import { colors, fontFamily, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
@@ -14,6 +14,7 @@ import { stageInfo } from '@/features/onboarding/api';
 import { appConfig } from '@/lib/config';
 import { api, unwrap } from '@/lib/api';
 import { useFeatureFlag } from '@/lib/flags';
+import { usePurchaseEnabled } from '@/features/membership/purchase';
 
 function Row({ title, desc, value, onPress, first }: { title: string; desc?: string; value?: string; onPress: () => void; first?: boolean }) {
   return (
@@ -34,6 +35,7 @@ export default function MeTab() {
   const subjects = useSubjects();
   const overview = useOverview();
   const inviteOn = useFeatureFlag('invite');
+  const canBuy = usePurchaseEnabled();
   const survey = useQuery({ queryKey: mineKeys.survey, queryFn: () => unwrap(api.GET('/me/survey')) });
   const list = subjects.data?.items ?? [];
   const main = list.find((s) => !s.is_essay) ?? list[0];
@@ -82,16 +84,20 @@ export default function MeTab() {
           </Pressable>
         </View>
 
-        <Pressable accessibilityRole="button" onPress={() => router.push('/member')} style={styles.member}>
+        <Pressable accessibilityRole={canBuy ? 'button' : undefined} disabled={!canBuy} onPress={() => router.push('/member')} style={styles.member}>
           <View style={styles.flex}>
             <Text variant="bodyStrong" color={colors.white} style={styles.bold}>
               {m.membership.is_member ? (m.membership.tier ? tierNames[m.membership.tier] : '会员') : '免费版'}
             </Text>
             <Text variant="small" color={colors.outline}>
-              {m.membership.is_member && m.membership.ends_at ? `有效期至 ${ymd(m.membership.ends_at)}` : '开通会员：批改、整卷、资料解析不限'}
+              {m.membership.is_member && m.membership.ends_at
+                ? `有效期至 ${ymd(m.membership.ends_at)}`
+                : canBuy
+                  ? '开通会员：批改、整卷、资料解析不限'
+                  : '每日额度 0 点恢复'}
             </Text>
           </View>
-          {!m.membership.is_member ? (
+          {!m.membership.is_member && canBuy ? (
             <View style={styles.open}>
               <Text variant="caption" color={colors.ink} style={styles.bold}>
                 开通
@@ -177,7 +183,7 @@ export default function MeTab() {
         <Card style={styles.list}>
           <Row first title="备考设置" desc="专业课、目标分、初试日期、阶段" onPress={() => router.push('/settings/prep')} />
           {inviteOn ? <Row title="邀请研友" desc="双方各得会员天数" onPress={() => router.push('/mine/invite')} /> : null}
-          <Row title="兑换码" onPress={() => router.push('/mine/redeem')} />
+          {canBuy ? <Row title="兑换码" onPress={() => router.push('/mine/redeem')} /> : null}
           <Row title="意见反馈" onPress={() => router.push('/mine/feedback')} />
           {survey.data?.submitted ? <Row title="考后回访" value="补充复试、录取结果" onPress={() => router.push('/mine/survey')} /> : null}
         </Card>

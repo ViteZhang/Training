@@ -13,6 +13,7 @@ import { RubricEditor } from '@/features/import/RubricEditor';
 import { PageHeader } from '@/features/import/ui';
 import { Footer } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 const originLabel: Partial<Record<Schemas['Origin'], string>> = { imported: '来自原文', ai_generated: 'AI 生成', user_confirmed: '你改过', ai_extracted: 'AI 提取' };
 
@@ -22,6 +23,7 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
   const [kp, setKp] = useState((item.question!.kp_path ?? []).join(' / '));
   const [busy, setBusy] = useState<'save' | 'gen' | 'delete' | null>(null);
   const [quota, setQuota] = useState(false);
+  const upgrade = useUpgradeActions(() => setQuota(false));
   const [removing, setRemoving] = useState(false);
   const subjective = isSubjective(q);
   const points = q.rubric_points ?? [];
@@ -145,10 +147,8 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
         onClose={() => setQuota(false)}
         title="今天的 AI 出题次数用完了"
         desc="明天会恢复。开通会员后不限次数。"
-        onUpgrade={() => {
-          setQuota(false);
-          router.push('/member');
-        }}
+        upgrade={upgrade}
+        freeDesc="今天的 AI 出题次数用完了，明天 0 点恢复。"
         freeOptions={[{ label: '自己填写参考答案', onPress: () => setQuota(false) }]}
       />
     </>

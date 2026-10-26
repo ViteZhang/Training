@@ -30,7 +30,10 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: semantic.background } }} />
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: semantic.background } }}>
+          {/* 6.5a 获取兑换码：底部弹层形态，盖在当前页上 */}
+          <Stack.Screen name="member/getcode" options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }} />
+        </Stack>
         <ToastHost />
       </QueryClientProvider>
     </SafeAreaProvider>

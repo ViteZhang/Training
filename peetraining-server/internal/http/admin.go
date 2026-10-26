@@ -319,8 +319,9 @@ func (h *Handlers) ListAdminOrders(c *gin.Context, p gen.ListAdminOrdersParams) 
 	}
 	items := make([]gen.AdminOrder, len(rows))
 	for i, o := range rows {
-		items[i] = gen.AdminOrder{OrderNo: o.OrderNo, UserId: int64(o.UserID), Tier: gen.PlanTier(o.Tier), Channel: gen.PayChannel(o.Channel), AmountCents: o.AmountCents,
-			Status: gen.OrderStatus(o.Status), RefundStatus: opt(o.RefundStatus), PaidAt: o.PaidAt, CreatedAt: o.CreatedAt}
+		items[i] = gen.AdminOrder{OrderNo: o.OrderNo, UserId: int64(o.UserID), Tier: gen.PlanTier(o.Tier), Channel: gen.OrderChannel(o.Channel), AmountCents: o.AmountCents,
+			Status: gen.OrderStatus(o.Status), RefundStatus: opt(o.RefundStatus), PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
+			PayMethod: opt(o.PayMethod), BuyerPhoneMasked: opt(o.BuyerPhone), Remark: opt(o.Remark)}
 	}
 	// 订单列表按内部 ID 翻页；对外只给订单号，cursor 用最后一单的创建时间不稳定，这里用序号。
 	var next *string
