@@ -143,3 +143,21 @@ func TestParsePrices(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadSMSTestPhones(t *testing.T) {
+	cfg, err := load(envFrom(nil))
+	if err != nil || len(cfg.SMS.TestPhones) != 10 || !cfg.SMS.TestPhones["18600010001"] || !cfg.SMS.TestPhones["18600010010"] {
+		t.Fatalf("默认测试账号 18600010001～18600010010：%v %v", cfg.SMS.TestPhones, err)
+	}
+	cfg, err = load(envFrom(map[string]string{"SMS_TEST_PHONES": "off"}))
+	if err != nil || len(cfg.SMS.TestPhones) != 0 {
+		t.Fatalf("off 应关闭测试账号：%v %v", cfg.SMS.TestPhones, err)
+	}
+	cfg, err = load(envFrom(map[string]string{"SMS_TEST_PHONES": " 13800000000 ,13900000000"}))
+	if err != nil || len(cfg.SMS.TestPhones) != 2 || !cfg.SMS.TestPhones["13900000000"] {
+		t.Fatalf("自定义测试账号：%v %v", cfg.SMS.TestPhones, err)
+	}
+	if _, err := load(envFrom(map[string]string{"SMS_TEST_PHONES": "1234"})); err == nil || !strings.Contains(err.Error(), "SMS_TEST_PHONES") {
+		t.Fatalf("非法手机号应报错：%v", err)
+	}
+}

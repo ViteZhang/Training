@@ -38,6 +38,9 @@ func ipKey(ip string, t time.Time) string {
 	return fmt.Sprintf("sms:ip:%s:%s", ip, t.UTC().Format("2006010215"))
 }
 
+// testCode 是测试账号（SMS_TEST_PHONES）的固定验证码。
+const testCode = "000000"
+
 // SendResult 是发送结果。
 type SendResult struct {
 	ResendAfterSeconds int
@@ -74,6 +77,19 @@ func (s *Service) sendCode(ctx context.Context, phone string, purpose Purpose, i
 		ttl, _ := s.rdb.TTL(ctx, cooldownKey(phone)).Result()
 		return SendResult{}, apperr.New(apperr.TooManyRequests, "验证码发送太频繁，请稍后再试").
 			With("reason", "cooldown").With("retry_after_seconds", int(ttl.Seconds()))
+	}
+
+	// 测试账号：不发短信、不占每日次数，验证码固定，方便反复登录测试。
+	if s.testPhones[phone] {
+		key := codeKey(purpose, phone)
+		pipe := s.rdb.TxPipeline()
+		pipe.Del(ctx, key)
+		pipe.HSet(ctx, key, "code", testCode, "attempts", 0)
+		pipe.Expire(ctx, key, time.Duration(acc.SMSCodeTTLSeconds)*time.Second)
+		if _, err := pipe.Exec(ctx); err != nil {
+			return SendResult{}, err
+		}
+		return SendResult{ResendAfterSeconds: acc.SMSResendSeconds, RemainingToday: acc.SMSDailyLimit}, nil
 	}
 
 	dk := dailyKey(phone, rules.DayOf(now))
