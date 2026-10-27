@@ -146,6 +146,31 @@ type SMSConfig struct {
 	TemplateParam string
 	// Endpoint 是短信接口地址，默认国内短信 dysmsapi.aliyuncs.com。
 	Endpoint string
+	// TestPhones 是测试账号：获取验证码时不发短信，验证码固定为 000000（SMS_TEST_PHONES）。
+	TestPhones map[string]bool
+}
+
+// defaultTestPhones 是默认的测试账号 18600010001～18600010010；设 SMS_TEST_PHONES=off 关闭。
+const defaultTestPhones = "18600010001,18600010002,18600010003,18600010004,18600010005," +
+	"18600010006,18600010007,18600010008,18600010009,18600010010"
+
+// parseTestPhones 解析逗号分隔的手机号；off 表示不设测试账号。
+func parseTestPhones(v string) (map[string]bool, error) {
+	out := map[string]bool{}
+	if v == "off" {
+		return out, nil
+	}
+	for _, p := range strings.Split(v, ",") {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if len(p) != 11 || strings.Trim(p, "0123456789") != "" {
+			return nil, fmt.Errorf("SMS_TEST_PHONES 里的 %q 不是 11 位手机号", p)
+		}
+		out[p] = true
+	}
+	return out, nil
 }
 
 type AIConfig struct {
@@ -279,6 +304,11 @@ func load(getenv func(string) string) (*Config, error) {
 		errs = append(errs, err)
 	}
 	cfg.AI.Prices = prices
+
+	cfg.SMS.TestPhones, err = parseTestPhones(get("SMS_TEST_PHONES", defaultTestPhones))
+	if err != nil {
+		errs = append(errs, err)
+	}
 
 	redisDB, err := strconv.Atoi(get("REDIS_DB", "0"))
 	if err != nil {
