@@ -29,6 +29,7 @@ type Service struct {
 	params     *params.Store
 	jwtSecret  []byte
 	logCodes   bool
+	testPhones map[string]bool
 	now        func() time.Time
 	log        *slog.Logger
 	onRegister func(ctx context.Context, q *dbq.Queries, userID uint64, inviteCode string, now time.Time) error
@@ -44,8 +45,10 @@ type Deps struct {
 	JWTSecret string
 	// LogCodes 为 true 时把验证码写进日志（只在本地与测试环境用 mock 短信时打开）。
 	LogCodes bool
-	Logger   *slog.Logger
-	Now      func() time.Time
+	// TestPhones 是测试账号：不发短信，验证码固定为 000000。
+	TestPhones map[string]bool
+	Logger     *slog.Logger
+	Now        func() time.Time
 	// OnRegister 在创建账号的事务里调用，带上注册时填的邀请码（T26 绑定邀请关系）；为空时不处理邀请码。
 	OnRegister func(ctx context.Context, q *dbq.Queries, userID uint64, inviteCode string, now time.Time) error
 }
@@ -57,7 +60,7 @@ func New(d Deps) *Service {
 	}
 	return &Service{
 		db: d.DB, q: dbq.New(d.DB), rdb: d.Redis, sms: d.SMS, oss: d.OSS, params: d.Params,
-		jwtSecret: []byte(d.JWTSecret), logCodes: d.LogCodes, now: now, log: d.Logger, onRegister: d.OnRegister,
+		jwtSecret: []byte(d.JWTSecret), logCodes: d.LogCodes, testPhones: d.TestPhones, now: now, log: d.Logger, onRegister: d.OnRegister,
 	}
 }
 

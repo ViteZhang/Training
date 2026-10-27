@@ -57,7 +57,8 @@ func setup(t *testing.T) *fixture {
 	f.svc = auth.New(auth.Deps{
 		DB: db, Redis: rdb, SMS: f.sms, OSS: f.oss, Params: params.New(dbq.New(db)),
 		JWTSecret: "test-secret-test-secret-test-secret", Logger: log,
-		Now: func() time.Time { return *f.clock },
+		Now:        func() time.Time { return *f.clock },
+		TestPhones: map[string]bool{testPhone: true},
 	})
 	f.flags = flags.New(dbq.New(db))
 	return f
@@ -66,6 +67,8 @@ func setup(t *testing.T) *fixture {
 var dev = auth.Device{ID: "device-0001", Name: "iPhone 15", Platform: "ios"}
 
 const phone = "13812345678"
+
+const testPhone = "18600010001"
 
 func (f *fixture) login(t *testing.T, p string, d auth.Device) auth.LoginResult {
 	t.Helper()
@@ -483,3 +486,24 @@ func TestMembershipInMe(t *testing.T) {
 }
 
 func itoa(n uint64) string { return fmtUint(n) }
+
+func TestTestPhoneFixedCode(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	for i := 0; i < 12; i++ { // 超过每天 10 次也能发
+		f.rdb.Del(ctx, "sms:cd:"+testPhone)
+		if _, err := f.svc.SendLoginCode(ctx, testPhone, true, ""); err != nil {
+			t.Fatalf("第 %d 次：%v", i+1, err)
+		}
+	}
+	if _, sent := f.sms.LastCode(testPhone); sent {
+		t.Fatal("测试账号不应真的发短信")
+	}
+	if _, err := f.svc.SendLoginCode(ctx, testPhone, true, ""); kindOf(err) != apperr.TooManyRequests {
+		t.Fatalf("测试账号仍有 60 秒冷却：%v", err)
+	}
+	res, err := f.svc.Login(ctx, testPhone, "000000", dev, "")
+	if err != nil || res.User.Phone != testPhone {
+		t.Fatalf("测试账号用 000000 登录：%+v %v", res, err)
+	}
+}

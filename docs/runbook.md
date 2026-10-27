@@ -173,6 +173,8 @@ PAY_PROVIDER=disabled
    # 返回 200 且手机收到短信；失败时：docker compose logs --since 10m api | grep "sms send failed"
    ```
 
+5. 测试账号：`18600010001`～`18600010010` 默认是测试账号，获取验证码时不发短信，直接输入 `000000` 登录；不占每日 10 次的限额，60 秒冷却照常。要改名单在 `.env` 设 `SMS_TEST_PHONES=<逗号分隔的手机号>`，要关闭设 `SMS_TEST_PHONES=off`，改完 `docker compose up -d`。测试账号的验证码是公开的，不要用来存真实资料。
+
 #### OSS、文字识别、内容安全（资料上传与解析）
 
 资料导入流程：App 用预签名地址把文件直传 OSS → Worker 从 OSS 读原件取文字（Word、Excel、文字版 PDF 在本机解析；照片、扫描页调文字识别）→ 内容安全审核 → 百炼结构化成题目。少开任何一项，导入都会失败。

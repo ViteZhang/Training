@@ -160,6 +160,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 			DB: db, Redis: rdb, SMS: clients.SMS, OSS: clients.OSS, Params: ps,
 			JWTSecret: cfg.JWTSecret, Logger: log,
 			LogCodes:   !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock,
+			TestPhones: cfg.SMS.TestPhones,
 			OnRegister: inv.Bind,
 		}),
 		Profile:    prof,
