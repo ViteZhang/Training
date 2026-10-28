@@ -13,13 +13,12 @@ export function saveTokens(t: Schemas['TokenPair']) {
   });
 }
 
-/** 退出登录：作废本设备令牌（失败也继续），清除本地登录态与缓存。题库和记录都在服务端，不受影响。 */
-export async function logout() {
-  try {
-    await api.POST('/auth/logout');
-  } catch {
-    // 离线时也允许退出，服务端令牌到期自然失效。
-  }
+/** 退出立即清本地状态；服务端撤销本设备令牌作为限时尽力请求。 */
+export function logout(): Promise<void> {
+  const revocation = api.POST('/auth/logout').catch(() => undefined);
   useSession.getState().clear();
+  void queryClient.cancelQueries();
   queryClient.clear();
+  void revocation;
+  return Promise.resolve();
 }

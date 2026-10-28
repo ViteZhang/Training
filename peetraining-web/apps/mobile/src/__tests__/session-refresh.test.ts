@@ -29,6 +29,28 @@ describe('刷新令牌', () => {
     expect(useSession.getState().session?.refreshToken).toBe('r2');
   });
 
+  it('退出期间刷新响应迟到时不恢复已清除的登录态', async () => {
+    let finishRequest!: (response: Response) => void;
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    globalThis.fetch = jest.fn(() => {
+      markStarted();
+      return new Promise<Response>((resolve) => {
+        finishRequest = resolve;
+      });
+    }) as unknown as typeof fetch;
+
+    const pending = refreshSession();
+    await started;
+    useSession.getState().clear();
+    finishRequest(respond(200, { access_token: 'a2', access_expires_at: '2099-01-01T00:00:00Z', refresh_token: 'r2', refresh_expires_at: '2099-01-01T00:00:00Z' }));
+
+    await expect(pending).resolves.toBeUndefined();
+    expect(useSession.getState().session).toBeUndefined();
+  });
+
   it('锁屏解锁后网络还没恢复：刷新失败但不退出登录', async () => {
     globalThis.fetch = jest.fn(async () => {
       throw new TypeError('Network request failed');

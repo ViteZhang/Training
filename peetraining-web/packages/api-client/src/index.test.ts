@@ -135,4 +135,20 @@ describe('unwrap', () => {
     });
     await expect(unwrap(client.GET('/subjects'))).resolves.toMatchObject({ max_subjects: 3 });
   });
+
+  it('hung request times out as a network error and retains the original cause', async () => {
+    const client = createApiClient({
+      baseUrl: 'https://x.test/api/v1',
+      getAccessToken: () => undefined,
+      requestTimeoutMs: 5,
+      fetch: async (_input, init) =>
+        new Promise<Response>((_resolve, _reject) => {
+          init?.signal?.addEventListener('abort', () => undefined, { once: true });
+        }),
+    });
+    const error = await unwrap(client.GET('/subjects')).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ status: 0, code: 'NETWORK', isNetwork: true, isTimeout: true });
+    expect((error as ApiError).originalCause).toBeInstanceOf(Error);
+  });
 });

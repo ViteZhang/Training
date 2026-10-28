@@ -22,13 +22,19 @@ export function refreshSession(): Promise<string | undefined> {
 
 /** 刷新因网络或 5xx 失败时的重试间隔：解锁后网络通常一两秒内恢复。 */
 export const REFRESH_RETRY_MS = [1000, 2500];
+export const API_REQUEST_TIMEOUT_MS = 20_000;
+export const REFRESH_REQUEST_TIMEOUT_MS = 8_000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function doRefresh(): Promise<string | undefined> {
   const s = useSession.getState().session;
   if (!s) return undefined;
-  const client = createApiClient({ baseUrl: appConfig.apiBaseUrl, getAccessToken: () => undefined });
+  const client = createApiClient({
+    baseUrl: appConfig.apiBaseUrl,
+    getAccessToken: () => undefined,
+    requestTimeoutMs: REFRESH_REQUEST_TIMEOUT_MS,
+  });
   try {
     let tokens;
     for (let attempt = 0; ; attempt++) {
@@ -43,6 +49,8 @@ async function doRefresh(): Promise<string | undefined> {
         await sleep(REFRESH_RETRY_MS[attempt] ?? 0);
       }
     }
+    // A logout or a new login may have replaced this session while the refresh was in flight.
+    if (useSession.getState().session?.refreshToken !== s.refreshToken) return undefined;
     useSession.getState().setSession({
       accessToken: tokens.access_token,
       accessExpiresAt: tokens.access_expires_at,
@@ -68,6 +76,7 @@ export const api = createApiClient({
   getAccessToken: () => useSession.getState().session?.accessToken,
   newIdempotencyKey: () => Crypto.randomUUID(),
   refresh: refreshSession,
+  requestTimeoutMs: API_REQUEST_TIMEOUT_MS,
 });
 
 /** 回到前台时访问令牌已过期（或快过期）就先刷新，免得页面的第一批请求都先吃一个 401。 */
