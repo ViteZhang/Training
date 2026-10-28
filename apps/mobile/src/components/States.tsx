@@ -63,16 +63,16 @@ export function EmptyState({ title, desc, actionText, onAction }: { title: strin
   );
 }
 
-/** 网络错误：图标 + 说明 + 重试。作答内容先存本地，恢复后自动提交（由调用方处理）。 */
-export function ErrorState({ error, onRetry }: { error?: unknown; onRetry?: () => void }) {
+/** 网络错误与登录恢复：作答内容先存本地，恢复后自动提交（由调用方处理）。 */
+export function ErrorState({ error, onRetry, title, desc }: { error?: unknown; onRetry?: () => void; title?: string; desc?: string }) {
   const network = !(error instanceof ApiError) || error.isNetwork;
   const hasSession = useSession((state) => !!state.session);
   const canReauthenticate = hasSession && (network || (error instanceof ApiError && error.isUnauthorized));
   return (
     <StateBlock
       icon="offline"
-      title={network ? '网络开小差了' : '出了点问题'}
-      desc={network ? (error instanceof ApiError && error.isTimeout ? '连接超时，检查网络后重试，已作答的内容不会丢' : '检查网络后重试，已作答的内容不会丢') : error instanceof ApiError ? error.message : undefined}
+      title={title ?? (network ? '网络开小差了' : '出了点问题')}
+      desc={desc ?? (network ? (error instanceof ApiError && error.isTimeout ? '连接超时，检查网络后重试，已作答的内容不会丢' : '检查网络后重试，已作答的内容不会丢') : error instanceof ApiError ? error.message : undefined)}
       action={onRetry || canReauthenticate ? (
         <View style={styles.errorActions}>
           {onRetry ? <Button title="重试" kind="secondary" onPress={onRetry} /> : null}

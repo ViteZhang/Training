@@ -5,7 +5,7 @@ import type { Schemas } from '@training/api-client';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { Logo, Text } from '@/components';
+import { ErrorState, Logo, Screen, Text } from '@/components';
 import { AgreementUpdateDialog } from '@/features/auth/AgreementUpdateDialog';
 import { logout } from '@/features/auth/actions';
 import { routeFor } from '@/features/auth/routing';
@@ -55,18 +55,26 @@ function decide(b: Schemas['Bootstrap'], setPending: (p: Pending | null) => void
 export default function Splash() {
   const [boot, setBoot] = useState<Schemas['Bootstrap'] | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
+  const [sessionRecovery, setSessionRecovery] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   useEffect(() => {
     const started = Date.now();
+    let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const load = async () => {
       let b = await fetchBootstrap();
+      if (!active) return;
       if (b && !b.logged_in && useSession.getState().session) {
         // /bootstrap 登录可选，访问令牌过期（如锁屏久了 App 被系统回收）时按未登录返回、不会触发刷新。
-        // 先用刷新令牌换新令牌再取一次；刷新因网络失败时保留登录态，按本地登录态进入。
+        // 先用刷新令牌换新令牌再取一次；刷新因网络失败时保留会话，并停在可恢复状态。
         if (await refreshSession()) b = await fetchBootstrap();
-        else if (useSession.getState().session) b = { ...b, logged_in: true };
+        else if (useSession.getState().session) {
+          setSessionRecovery(true);
+          return;
+        }
       }
+      if (!active) return;
       if (b?.logged_in && b.onboarding_step) storage.set(ONBOARDING_KEY, b.onboarding_step);
       let result = b ?? { server_time: '', app_name: appConfig.appName, flags: {}, logged_in: !!useSession.getState().session };
       // 没拿到服务端的引导进度（离线或刷新令牌没成功）时，用上次记下的，免得已完成引导的用户被带回第一步。
@@ -75,13 +83,33 @@ export default function Splash() {
         if (saved) result = { ...result, onboarding_step: saved };
       }
       timer = setTimeout(() => {
+        if (!active) return;
         setBoot(result);
         decide(result, setPending);
       }, Math.max(0, SPLASH_MS - (Date.now() - started)));
     };
     void load();
-    return () => clearTimeout(timer);
-  }, []);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [retryAttempt]);
+
+  if (sessionRecovery) {
+    return (
+      <Screen>
+        <ErrorState
+          error={new Error('Session verification unavailable')}
+          title="登录状态暂时无法验证"
+          desc="请重试连接，或重新登录。当前会话会保留，直到你选择重新登录。"
+          onRetry={() => {
+            setSessionRecovery(false);
+            setRetryAttempt((attempt) => attempt + 1);
+          }}
+        />
+      </Screen>
+    );
+  }
 
   return (
     <View style={styles.root}>
