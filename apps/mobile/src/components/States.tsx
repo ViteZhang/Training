@@ -67,7 +67,7 @@ export function ErrorState({ error, onRetry }: { error?: unknown; onRetry?: () =
     <StateBlock
       icon="offline"
       title={network ? '网络开小差了' : '出了点问题'}
-      desc={network ? '检查网络后重试，已作答的内容不会丢' : error instanceof ApiError ? error.message : undefined}
+      desc={network ? (error instanceof ApiError && error.isTimeout ? '连接超时，检查网络后重试，已作答的内容不会丢' : '检查网络后重试，已作答的内容不会丢') : error instanceof ApiError ? error.message : undefined}
       action={onRetry ? <Button title="重试" kind="secondary" onPress={onRetry} /> : undefined}
     />
   );
