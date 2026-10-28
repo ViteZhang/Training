@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react-native';
+import { act, render, screen } from '@testing-library/react-native';
 import Splash, { SPLASH_MS } from '../../app/index';
 import { useSession } from '../lib/session';
 import { storage } from '../lib/storage';
@@ -36,13 +36,15 @@ beforeEach(() => {
 });
 
 describe('0.1 启动页', () => {
-  it('锁屏久了令牌过期、刷新因网络失败：保留登录，按上次的引导进度进入今日', async () => {
+  it('启动时服务端确认未登录、刷新因网络失败：保留会话并提供恢复入口', async () => {
     storage.set('onboarding_step', 'done');
     mockGet.mockReturnValue(ok({ server_time: '', app_name: '考研Training', flags: {}, logged_in: false }));
     mockRefresh.mockResolvedValue(undefined);
     await launch();
     expect(useSession.getState().session).toBeDefined();
-    expect(mockReplace).toHaveBeenCalledWith('/(tabs)/today');
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(screen.getByText('登录状态暂时无法验证')).toBeTruthy();
+    expect(screen.getByText('重新登录')).toBeTruthy();
   });
 
   it('联网正常时记下引导进度', async () => {

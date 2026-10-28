@@ -1,7 +1,10 @@
 import { colors, radius, semantic, spacing, timing } from '@training/ui-tokens';
 import { ApiError } from '@training/api-client';
+import { router } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { logout } from '../features/auth/actions';
+import { useSession } from '../lib/session';
 import { useDelayed } from '../lib/useDelayed';
 import { BottomSheet } from './BottomSheet';
 import { Button } from './Button';
@@ -60,15 +63,30 @@ export function EmptyState({ title, desc, actionText, onAction }: { title: strin
   );
 }
 
-/** 网络错误：图标 + 说明 + 重试。作答内容先存本地，恢复后自动提交（由调用方处理）。 */
-export function ErrorState({ error, onRetry }: { error?: unknown; onRetry?: () => void }) {
+/** 网络错误与登录恢复：作答内容先存本地，恢复后自动提交（由调用方处理）。 */
+export function ErrorState({ error, onRetry, title, desc }: { error?: unknown; onRetry?: () => void; title?: string; desc?: string }) {
   const network = !(error instanceof ApiError) || error.isNetwork;
+  const hasSession = useSession((state) => !!state.session);
+  const canReauthenticate = hasSession && (network || (error instanceof ApiError && error.isUnauthorized));
   return (
     <StateBlock
       icon="offline"
-      title={network ? '网络开小差了' : '出了点问题'}
-      desc={network ? (error instanceof ApiError && error.isTimeout ? '连接超时，检查网络后重试，已作答的内容不会丢' : '检查网络后重试，已作答的内容不会丢') : error instanceof ApiError ? error.message : undefined}
-      action={onRetry ? <Button title="重试" kind="secondary" onPress={onRetry} /> : undefined}
+      title={title ?? (network ? '网络开小差了' : '出了点问题')}
+      desc={desc ?? (network ? (error instanceof ApiError && error.isTimeout ? '连接超时，检查网络后重试，已作答的内容不会丢' : '检查网络后重试，已作答的内容不会丢') : error instanceof ApiError ? error.message : undefined)}
+      action={onRetry || canReauthenticate ? (
+        <View style={styles.errorActions}>
+          {onRetry ? <Button title="重试" kind="secondary" onPress={onRetry} /> : null}
+          {canReauthenticate ? (
+            <Button
+              title="重新登录"
+              kind="text"
+              onPress={() => {
+                void logout().then(() => router.replace('/(auth)/login'));
+              }}
+            />
+          ) : null}
+        </View>
+      ) : undefined}
     />
   );
 }
@@ -195,6 +213,7 @@ const styles = StyleSheet.create({
   blockTitle: { marginTop: spacing.sm },
   center: { textAlign: 'center' },
   action: { marginTop: spacing.md },
+  errorActions: { gap: spacing.xs },
   ai: { gap: 8, paddingVertical: spacing.xxl, paddingHorizontal: 18 },
   dots: { flexDirection: 'row', gap: 6, marginBottom: 8 },
   aiDot: { width: 8, height: 8, borderRadius: 4 },
