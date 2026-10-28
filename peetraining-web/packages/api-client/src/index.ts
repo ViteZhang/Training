@@ -13,13 +13,15 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly detail?: Record<string, unknown>;
+  readonly originalCause?: unknown;
 
-  constructor(status: number, body: Partial<Schemas['Error']> | undefined) {
+  constructor(status: number, body: Partial<Schemas['Error']> | undefined, originalCause?: unknown) {
     super(body?.message ?? '网络开小差了，请稍后再试');
     this.name = 'ApiError';
     this.status = status;
     this.code = body?.code ?? (status === 0 ? 'NETWORK' : 'UNKNOWN');
     this.detail = body?.detail;
+    this.originalCause = originalCause;
   }
 
   get isQuotaExceeded() {
@@ -33,6 +35,9 @@ export class ApiError extends Error {
   }
   get isNetwork() {
     return this.code === 'NETWORK';
+  }
+  get isTimeout() {
+    return this.originalCause instanceof Error && this.originalCause.name === 'TimeoutError';
   }
 }
 
@@ -49,13 +54,21 @@ export interface ApiClientOptions {
   /** 生成幂等键，默认用 crypto.randomUUID */
   newIdempotencyKey?: () => string;
   fetch?: typeof fetch;
+  /** Optional request timeout. Mutations are not replayed automatically after a timeout. */
+  requestTimeoutMs?: number;
 }
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 /** 创建带鉴权、幂等键、错误转换的客户端。 */
 export function createApiClient(opts: ApiClientOptions) {
-  const client = createClient<paths>({ baseUrl: opts.baseUrl, fetch: opts.fetch });
+  const requestFetch: typeof fetch = (input, init) => {
+    const fetcher = opts.fetch ?? globalThis.fetch;
+    return opts.requestTimeoutMs && opts.requestTimeoutMs > 0
+      ? withTimeout(fetcher, opts.requestTimeoutMs)(input, init)
+      : fetcher(input, init);
+  };
+  const client = createClient<paths>({ baseUrl: opts.baseUrl, fetch: requestFetch });
   const newKey = opts.newIdempotencyKey ?? (() => globalThis.crypto.randomUUID());
   let refreshing: Promise<string | undefined> | undefined;
 
@@ -93,11 +106,43 @@ export function createApiClient(opts: ApiClientOptions) {
       const retry = new Request(request, { headers: new Headers(request.headers) });
       retry.headers.set('Authorization', `Bearer ${token}`);
       retry.headers.set('X-Retried', '1');
-      return toResponse(await (opts.fetch ?? fetch)(retry));
+      return toResponse(await requestFetch(retry));
     },
   };
   client.use(middleware);
   return client;
+}
+
+class ApiRequestTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`Request timed out after ${timeoutMs}ms`);
+    this.name = 'TimeoutError';
+  }
+}
+
+function withTimeout(fetcher: typeof fetch, timeoutMs: number): typeof fetch {
+  return async (input, init) => {
+    const controller = new AbortController();
+    const inheritedSignal = init?.signal ?? (typeof Request !== 'undefined' && input instanceof Request ? input.signal : undefined);
+    const abort = () => controller.abort();
+    if (inheritedSignal?.aborted) abort();
+    else inheritedSignal?.addEventListener('abort', abort, { once: true });
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new ApiRequestTimeoutError(timeoutMs));
+        controller.abort();
+      }, timeoutMs);
+    });
+
+    try {
+      return await Promise.race([fetcher(input, { ...init, signal: controller.signal }), timedOut]);
+    } finally {
+      if (timer) clearTimeout(timer);
+      inheritedSignal?.removeEventListener('abort', abort);
+    }
+  };
 }
 
 /** 把 expo/fetch 等返回的非标准响应转成全局 Response（中间件替换响应时 openapi-fetch 要求）。 */
@@ -124,8 +169,8 @@ export async function unwrap<T>(
   let res;
   try {
     res = await call;
-  } catch {
-    throw new ApiError(0, undefined);
+  } catch (e) {
+    throw new ApiError(0, undefined, e);
   }
   if (res.error !== undefined || !res.response.ok) {
     throw new ApiError(res.response.status, res.error as Partial<Schemas['Error']>);
