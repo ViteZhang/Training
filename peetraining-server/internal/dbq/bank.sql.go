@@ -305,7 +305,7 @@ func (q *Queries) GetMaterialPage(ctx context.Context, arg GetMaterialPageParams
 }
 
 const getQuestionFull = `-- name: GetQuestionFull :one
-SELECT q.id, q.owner_user_id, q.bank_id, q.qtype, q.stem, q.options, q.answer, q.answer_origin, q.analysis, q.score, q.difficulty, q.source, q.exam_year, q.question_no, q.is_recollection, q.source_material_id, q.source_page, q.generated_from_kp_id, q.content_hash, q.rubric_version, q.status, q.needs_review, q.review_reasons, q.report_count, q.official_question_id, q.created_at, q.updated_at, q.required_words, q.official_hash, q.passage, q.passage_key, q.group_label, q.group_majors, q.answer_match, q.answer_material_id, q.answer_page, q.ai_answer_at, q.ai_answer_outcome, q.ai_answer_reports, b.subject_id FROM questions q JOIN banks b ON b.id = q.bank_id
+SELECT q.id, q.owner_user_id, q.bank_id, q.qtype, q.stem, q.options, q.answer, q.answer_origin, q.analysis, q.score, q.difficulty, q.exam_year, q.question_no, q.is_recollection, q.source_material_id, q.source_page, q.generated_from_kp_id, q.content_hash, q.rubric_version, q.status, q.needs_review, q.review_reasons, q.report_count, q.official_question_id, q.created_at, q.updated_at, q.required_words, q.official_hash, q.passage, q.passage_key, q.group_label, q.group_majors, q.answer_match, q.answer_material_id, q.answer_page, q.ai_answer_at, q.ai_answer_outcome, q.ai_answer_reports, q.source, b.subject_id FROM questions q JOIN banks b ON b.id = q.bank_id
 WHERE q.id = ? AND q.owner_user_id = ?
 `
 
@@ -326,7 +326,6 @@ type GetQuestionFullRow struct {
 	Analysis           sql.NullString
 	Score              sql.NullString
 	Difficulty         NullQuestionsDifficulty
-	Source             QuestionsSource
 	ExamYear           sql.NullInt16
 	QuestionNo         sql.NullString
 	IsRecollection     bool
@@ -354,6 +353,7 @@ type GetQuestionFullRow struct {
 	AiAnswerAt         sql.NullTime
 	AiAnswerOutcome    NullQuestionsAiAnswerOutcome
 	AiAnswerReports    uint16
+	Source             QuestionsSource
 	SubjectID          sql.NullInt64
 }
 
@@ -372,7 +372,6 @@ func (q *Queries) GetQuestionFull(ctx context.Context, arg GetQuestionFullParams
 		&i.Analysis,
 		&i.Score,
 		&i.Difficulty,
-		&i.Source,
 		&i.ExamYear,
 		&i.QuestionNo,
 		&i.IsRecollection,
@@ -400,6 +399,7 @@ func (q *Queries) GetQuestionFull(ctx context.Context, arg GetQuestionFullParams
 		&i.AiAnswerAt,
 		&i.AiAnswerOutcome,
 		&i.AiAnswerReports,
+		&i.Source,
 		&i.SubjectID,
 	)
 	return i, err

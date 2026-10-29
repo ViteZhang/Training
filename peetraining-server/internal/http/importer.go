@@ -28,7 +28,14 @@ func (h *Handlers) CreateImportJob(c *gin.Context, _ gen.CreateImportJobParams) 
 		_ = c.Error(ErrBadRequest("补充答案文件请用 1.7c 的入口"))
 		return
 	}
-	j, err := h.deps.Importer.CreateJob(c.Request.Context(), currentUser(c), uint64(req.SubjectId), string(req.Mode), ids)
+	var sources []importer.FileQuestionSource
+	if req.QuestionSources != nil {
+		sources = make([]importer.FileQuestionSource, len(*req.QuestionSources))
+		for i, source := range *req.QuestionSources {
+			sources[i] = importer.FileQuestionSource{MaterialID: uint64(source.MaterialId), Source: string(source.Source)}
+		}
+	}
+	j, err := h.deps.Importer.CreateJobWithSources(c.Request.Context(), currentUser(c), uint64(req.SubjectId), string(req.Mode), ids, sources)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -165,6 +172,9 @@ func (h *Handlers) UpdateImportItem(c *gin.Context, id gen.ItemId) {
 			return
 		}
 	}
+	if req.Essay != nil {
+		p.Essay = *req.Essay
+	}
 	it, err := h.deps.Importer.UpdateItem(c.Request.Context(), currentUser(c), uint64(id), p)
 	if err != nil {
 		_ = c.Error(err)
@@ -249,6 +259,10 @@ func toImportJob(j importer.Job) gen.ImportJob {
 	for _, m := range j.Materials {
 		gm := gen.ImportJobMaterial{MaterialId: int64(m.MaterialID), FileName: m.FileName, Step: gen.ImportStep(m.Step),
 			Status: gen.ImportJobMaterialStatus(m.Status)}
+		if m.QuestionSource.Valid {
+			source := gen.ImportedQuestionSource(m.QuestionSource.ImportJobMaterialsQuestionSource)
+			gm.QuestionSource = &source
+		}
 		if m.FailReason.Valid {
 			gm.FailReason = &m.FailReason.String
 		}

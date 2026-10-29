@@ -126,8 +126,64 @@ func knownPages(m material.Material) int {
 	return 0
 }
 
+// FileQuestionSource records the user's source choice for one question-mode file.
+type FileQuestionSource struct {
+	MaterialID uint64
+	Source     string
+}
+
+func normalizeQuestionSources(mode dbq.ImportJobsMode, materialIDs []uint64, choices []FileQuestionSource) (map[uint64]string, error) {
+	if mode != dbq.ImportJobsModeQuestion {
+		if choices != nil {
+			return nil, apperr.New(apperr.BadRequest, "只有题目导入可以设置题目来源")
+		}
+		return nil, nil
+	}
+	expected := make(map[uint64]bool, len(materialIDs))
+	for _, id := range materialIDs {
+		expected[id] = true
+	}
+	if choices == nil {
+		defaults := make(map[uint64]string, len(expected))
+		for id := range expected {
+			defaults[id] = "unconfirmed"
+		}
+		return defaults, nil
+	}
+	if len(choices) == 0 {
+		return nil, apperr.New(apperr.BadRequest, "请为每份题目文件选择来源")
+	}
+	resolved := make(map[uint64]string, len(choices))
+	for _, c := range choices {
+		if !expected[c.MaterialID] {
+			return nil, apperr.New(apperr.BadRequest, "题目来源必须对应本次导入的文件")
+		}
+		switch c.Source {
+		case "exam", "exercise", "unconfirmed":
+			if old, exists := resolved[c.MaterialID]; exists {
+				if old != c.Source {
+					return nil, apperr.New(apperr.BadRequest, "同一份资料不能设置多个题目来源")
+				}
+				continue
+			}
+			resolved[c.MaterialID] = c.Source
+		default:
+			return nil, apperr.New(apperr.BadRequest, "题目来源不正确")
+		}
+	}
+	if len(resolved) != len(expected) {
+		return nil, apperr.New(apperr.BadRequest, "请为每份题目文件选择来源")
+	}
+	return resolved, nil
+}
+
 // CreateJob 开始解析（1.5 → 1.6）：核对资料都已上传且属于这门课，按页数预占解析额度（不足在开始前返回 402），提交后逐个文件入队。
 func (s *Service) CreateJob(ctx context.Context, userID, subjectID uint64, mode string, materialIDs []uint64) (Job, error) {
+	return s.CreateJobWithSources(ctx, userID, subjectID, mode, materialIDs, nil)
+}
+
+// CreateJobWithSources persists explicit file sources before queueing any parsing work.
+func (s *Service) CreateJobWithSources(ctx context.Context, userID, subjectID uint64, mode string, materialIDs []uint64, choices []FileQuestionSource) (Job, error) {
 	m := dbq.ImportJobsMode(mode)
 	if !m.Valid() {
 		return Job{}, apperr.New(apperr.BadRequest, "导入方式不正确")
@@ -156,8 +212,12 @@ func (s *Service) CreateJob(ctx context.Context, userID, subjectID uint64, mode 
 	if len(mats) == 0 {
 		return Job{}, apperr.New(apperr.BadRequest, "请选择要导入的资料")
 	}
+	sources, err := normalizeQuestionSources(m, materialIDs, choices)
+	if err != nil {
+		return Job{}, err
+	}
 	var jobID uint64
-	err := store.WithTx(ctx, s.db, func(q *dbq.Queries) error {
+	err = store.WithTx(ctx, s.db, func(q *dbq.Queries) error {
 		id, err := q.CreateImportJob(ctx, dbq.CreateImportJobParams{OwnerUserID: userID, BankID: bankID, Mode: m})
 		if err != nil {
 			return err
@@ -165,7 +225,14 @@ func (s *Service) CreateJob(ctx context.Context, userID, subjectID uint64, mode 
 		jobID = uint64(id)
 		total := 0
 		for _, mt := range mats {
-			if err := q.AddImportJobMaterial(ctx, dbq.AddImportJobMaterialParams{JobID: jobID, MaterialID: mt.ID, OwnerUserID: userID}); err != nil {
+			var questionSource dbq.NullImportJobMaterialsQuestionSource
+			if source := sources[mt.ID]; source != "" {
+				questionSource = dbq.NullImportJobMaterialsQuestionSource{
+					ImportJobMaterialsQuestionSource: dbq.ImportJobMaterialsQuestionSource(source), Valid: true,
+				}
+			}
+			if err := q.AddImportJobMaterial(ctx, dbq.AddImportJobMaterialParams{JobID: jobID, MaterialID: mt.ID, OwnerUserID: userID,
+				QuestionSource: questionSource}); err != nil {
 				return err
 			}
 			pages := knownPages(mt)

@@ -54,6 +54,7 @@ type Patch struct {
 	Status   string // confirmed / deleted / pending，空表示不改
 	Question *QuestionDraft
 	KP       *KPDraft
+	Essay    map[string]any
 }
 
 // UpdateItem 修改或删除待确认条目。主观题采分点有分值时合计必须等于题目分值（rubric_sum_mismatch）。
@@ -97,6 +98,30 @@ func (s *Service) UpdateItem(ctx context.Context, userID, itemID uint64, p Patch
 		k.SourcePage = old.SourcePage
 		reasons = nil
 		if payload, err = json.Marshal(k); err != nil {
+			return Item{}, err
+		}
+		status = dbq.ImportItemsStatusEdited
+	case p.Essay != nil:
+		if it.ItemType != dbq.ImportItemsItemTypeEssayTopic {
+			return Item{}, apperr.New(apperr.BadRequest, "只有作文题可以修改题目来源")
+		}
+		var old essayTopicDraft
+		if err := json.Unmarshal(it.Payload, &old); err != nil {
+			return Item{}, err
+		}
+		updated, err := json.Marshal(p.Essay)
+		if err != nil {
+			return Item{}, err
+		}
+		var next essayTopicDraft
+		if err := json.Unmarshal(updated, &next); err != nil {
+			return Item{}, err
+		}
+		if next.Source != "exam" && next.Source != "exercise" && next.Source != "unconfirmed" {
+			return Item{}, apperr.New(apperr.BadRequest, "题目来源不正确")
+		}
+		old.Source = next.Source
+		if payload, err = json.Marshal(old); err != nil {
 			return Item{}, err
 		}
 		status = dbq.ImportItemsStatusEdited
@@ -179,6 +204,12 @@ func validateQuestion(q *QuestionDraft, old QuestionDraft) error {
 	}
 	if q.Source == "" {
 		q.Source = old.Source
+	}
+	if q.Source == "" {
+		q.Source = "unconfirmed"
+	}
+	if q.Source != "exam" && q.Source != "exercise" && q.Source != "unconfirmed" {
+		return apperr.New(apperr.BadRequest, "题目来源不正确")
 	}
 	if q.Answer != old.Answer && q.Answer != "" {
 		q.AnswerOrigin = "user_confirmed"
@@ -530,7 +561,7 @@ func (s *Service) insertQuestion(ctx context.Context, q *dbq.Queries, t *tree, j
 		Difficulty: dbq.NullQuestionsDifficulty{QuestionsDifficulty: dbq.QuestionsDifficultyMedium, Valid: true},
 	}
 	if !p.Source.Valid() {
-		p.Source = dbq.QuestionsSourceExercise
+		p.Source = dbq.QuestionsSourceUnconfirmed
 	}
 	if len(d.Options) > 0 {
 		p.Options, _ = json.Marshal(d.Options)
@@ -643,6 +674,20 @@ func (s *Service) buildPaper(ctx context.Context, q *dbq.Queries, job dbq.GetImp
 		actual += sc
 	}
 	if len(es) == 0 {
+		p, err := q.GetRealExamPaper(ctx, dbq.GetRealExamPaperParams{BankID: job.BankID, OwnerUserID: owner, ExamYear: y})
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if err := q.DeletePaperQuestions(ctx, dbq.DeletePaperQuestionsParams{PaperID: p.ID, OwnerUserID: owner}); err != nil {
+			return false, err
+		}
+		if err := q.UpdatePaperScores(ctx, dbq.UpdatePaperScoresParams{FullScore: decimal(float64(job.SubjectFullScore)), ActualScore: "0.00",
+			Structure: []byte("[]"), MissingNote: sql.NullString{String: "目前没有已确认来源的真题题目", Valid: true}, ID: p.ID, OwnerUserID: owner}); err != nil {
+			return false, err
+		}
 		return false, nil
 	}
 	sort.SliceStable(es, func(i, j int) bool {

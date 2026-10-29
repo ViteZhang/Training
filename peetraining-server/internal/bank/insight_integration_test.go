@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"peetraining-server/internal/apperr"
+	"peetraining-server/internal/importer"
 )
 
 // 两年的真题：名词解释 2 题 × 10 分 + 简答 1 题 × 20 分，「意境」两年都考。
@@ -22,14 +23,23 @@ const twoYears = `2024 年某某大学中国语言文学基础考研真题
 二、简答题（每题 20 分）
 3. 简述建安风骨的内涵。`
 
-func (f *fx) importText(t *testing.T, uid, sid uint64, mode, title, text string) {
+func (f *fx) importText(t *testing.T, uid, sid uint64, mode, title, text string, selectedSource ...string) {
 	t.Helper()
 	ctx := context.Background()
 	m, err := f.mat.CreatePasted(ctx, uid, sid, mode, title, text, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := f.imp.CreateJob(ctx, uid, sid, mode, []uint64{m.ID})
+	var job importer.Job
+	if mode == "question" {
+		source := "exam"
+		if len(selectedSource) > 0 {
+			source = selectedSource[0]
+		}
+		job, err = f.imp.CreateJobWithSources(ctx, uid, sid, mode, []uint64{m.ID}, []importer.FileQuestionSource{{MaterialID: m.ID, Source: source}})
+	} else {
+		job, err = f.imp.CreateJob(ctx, uid, sid, mode, []uint64{m.ID})
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +289,7 @@ func TestExamProfileGroupsAndRepair(t *testing.T) {
 	check("按报考方向", "报考方向的「第二组」")
 
 	// 模拟早先的导入：题没有年份、算练习题，名词解释没有分值，也没有分组与材料
-	n, err := f.db.Exec("UPDATE questions SET exam_year = NULL, source = 'exercise', group_label = NULL, group_majors = NULL, passage = NULL, passage_key = NULL, "+
+	n, err := f.db.Exec("UPDATE questions SET exam_year = NULL, group_label = NULL, group_majors = NULL, passage = NULL, passage_key = NULL, "+
 		"score = IF(qtype = 'term', NULL, score) WHERE owner_user_id = ?", uid)
 	if err != nil {
 		t.Fatal(err)
@@ -322,7 +332,7 @@ func TestExamProfileGroupsAndRepair(t *testing.T) {
 	}
 	// 只导入过习题集（资料里没有年份）：没有能补全的题，不提示「重新识别」
 	uid3, sid3 := f.user(t)
-	f.importText(t, uid3, sid3, "question", "习题集", "一、名词解释（每题 5 分）\n1. 意境\n2. 典型\n二、简答题\n3. 简述唐传奇的艺术成就。")
+	f.importText(t, uid3, sid3, "question", "习题集", "一、名词解释（每题 5 分）\n1. 意境\n2. 典型\n二、简答题\n3. 简述唐传奇的艺术成就。", "exercise")
 	if n, err := f.imp.Repairable(ctx, uid3, sid3); err != nil || n != 0 {
 		t.Fatalf("习题集不当真题：%v %d", err, n)
 	}
@@ -339,5 +349,33 @@ func TestExamProfileGroupsAndRepair(t *testing.T) {
 	p, err = f.bank.ExamProfile(ctx, uid, sid)
 	if err != nil || p.PendingQuestions != 6 || p.PendingJobID != job.ID {
 		t.Fatalf("待确认：%v %d %d", err, p.PendingQuestions, p.PendingJobID)
+	}
+}
+
+func TestRepairExamInfoKeepsUnconfirmedSource(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	uid, sid := f.user(t)
+	f.importText(t, uid, sid, "question", "来源待确认", twoYears, "unconfirmed")
+	if _, err := f.db.Exec("UPDATE questions SET exam_year = NULL, score = NULL WHERE owner_user_id = ?", uid); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := f.imp.RepairExamInfo(ctx, uid, sid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Questions == 0 || r.Papers != 0 || len(r.Years) != 0 {
+		t.Fatalf("repair may restore year and score but must not create confirmed exam papers: %+v", r)
+	}
+	var unconfirmed, withYear int
+	if err := f.db.QueryRow("SELECT COUNT(*) FROM questions WHERE owner_user_id = ? AND source = 'unconfirmed'", uid).Scan(&unconfirmed); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.db.QueryRow("SELECT COUNT(*) FROM questions WHERE owner_user_id = ? AND source = 'unconfirmed' AND exam_year IS NOT NULL", uid).Scan(&withYear); err != nil {
+		t.Fatal(err)
+	}
+	if unconfirmed == 0 || withYear != unconfirmed {
+		t.Fatalf("repaired questions should retain source while restoring years: unconfirmed=%d with_year=%d", unconfirmed, withYear)
 	}
 }

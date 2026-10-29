@@ -5,12 +5,15 @@ import { File } from 'expo-file-system';
 import { api, unwrap } from '@/lib/api';
 
 export type Format = Schemas['MaterialFormat'];
+export type QuestionFileSource = 'exam' | 'exercise' | 'unconfirmed';
 
 /** 1.5 已选的一项：文件、照片或粘贴的文字。 */
 export interface Picked {
   key: string;
   name: string;
   format: Format;
+  /** 题目模式下由用户选择的文件级来源。 */
+  questionSource?: QuestionFileSource;
   /** 本地文件地址；粘贴的文字为空 */
   uri?: string;
   size: number;

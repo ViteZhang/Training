@@ -125,7 +125,12 @@ func (f *fx) imported(t *testing.T, uid, sid uint64) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		job, err := f.imp.CreateJob(ctx, uid, sid, c.mode, []uint64{m.ID})
+		var job importer.Job
+		if c.mode == "question" {
+			job, err = f.imp.CreateJobWithSources(ctx, uid, sid, c.mode, []uint64{m.ID}, []importer.FileQuestionSource{{MaterialID: m.ID, Source: "exam"}})
+		} else {
+			job, err = f.imp.CreateJob(ctx, uid, sid, c.mode, []uint64{m.ID})
+		}
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -541,5 +546,47 @@ func TestBankOwnership(t *testing.T) {
 	}
 	if _, err := f.bank.Question(ctx, uid, qid); err != nil {
 		t.Fatal("别人的操作不应影响我的题")
+	}
+}
+
+func TestQuestionSourceEditRebuildsOnlyConfirmedRealExamQuestions(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	uid, sid := f.user(t)
+	f.imported(t, uid, sid)
+
+	questions, _, _, err := f.bank.Questions(ctx, uid, sid, bank.QuestionFilter{Source: "exam"})
+	if err != nil || len(questions) == 0 {
+		t.Fatalf("confirmed imported questions: %v %+v", err, questions)
+	}
+	questionID := questions[0].ID
+	newYear := 2025
+	updated, err := f.bank.UpdateQuestion(ctx, uid, questionID, bank.QuestionInput{ExamYear: &newYear, ExamYearSet: true})
+	if err != nil || updated.Source != "exam" || updated.ExamYear == nil || *updated.ExamYear != newYear {
+		t.Fatalf("changing year must preserve source: %v %+v", err, updated)
+	}
+	if err := f.imp.RebuildRealExamPapers(ctx, uid, sid, 2024, newYear); err != nil {
+		t.Fatal(err)
+	}
+
+	unconfirmed := "unconfirmed"
+	updated, err = f.bank.UpdateQuestion(ctx, uid, questionID, bank.QuestionInput{Source: &unconfirmed})
+	if err != nil || updated.Source != unconfirmed {
+		t.Fatalf("source edit: %v %+v", err, updated)
+	}
+	if err := f.imp.RebuildRealExamPapers(ctx, uid, sid, 2024, newYear); err != nil {
+		t.Fatal(err)
+	}
+
+	var inPaper, invalidPaperItems int
+	if err := f.db.QueryRow("SELECT COUNT(*) FROM paper_questions WHERE question_id = ?", questionID).Scan(&inPaper); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.db.QueryRow(`SELECT COUNT(*) FROM paper_questions pq JOIN papers p ON p.id = pq.paper_id JOIN questions q ON q.id = pq.question_id
+		WHERE p.owner_user_id = ? AND p.kind = 'real_exam' AND (q.source <> 'exam' OR q.exam_year <> p.exam_year OR q.exam_year IS NULL)`, uid).Scan(&invalidPaperItems); err != nil {
+		t.Fatal(err)
+	}
+	if inPaper != 0 || invalidPaperItems != 0 {
+		t.Fatalf("real exam papers must contain confirmed exam questions only: question=%d invalid=%d", inPaper, invalidPaperItems)
 	}
 }

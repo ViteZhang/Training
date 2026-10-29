@@ -61,11 +61,13 @@ export const statusTagNames: Record<Schemas['QuestionStatusTag'], string> = {
   answered: '已做过',
 };
 
-export const sourceNames: Record<Schemas['QuestionSource'], string> = { exam: '真题', exercise: '习题', ai_generated: 'AI 出题', official: '官方' };
+export const sourceNames: Record<Schemas['QuestionSource'], string> = { exam: '历年真题', exercise: '习题', unconfirmed: '来源待确认', ai_generated: 'AI 出题', official: '官方' };
 
 /** 题目来源的展示：真题带年份。 */
 export function sourceLabel(source: Schemas['QuestionSource'], year?: number) {
-  return source === 'exam' && year ? `${year} 真题` : sourceNames[source];
+  if (source === 'exam' && year) return `${year} 真题`;
+  if (year && (source === 'exercise' || source === 'unconfirmed')) return `${year} 年 · ${sourceNames[source]}`;
+  return sourceNames[source];
 }
 
 export const formatBadge: Record<Schemas['MaterialFormat'], string> = { pdf: 'PDF', docx: 'DOC', xlsx: 'XLS', image: 'IMG', text: 'TXT' };
