@@ -67,7 +67,7 @@ SELECT EXISTS (SELECT 1 FROM essay_materials WHERE id = ? AND owner_user_id = ?)
 -- 从资料导入、却缺年份或缺分值的题（多是切题规则认不出试卷标题时导入的真题），按资料原文重新识别补全（3.8）。
 SELECT id, qtype, stem, score, exam_year, source, source_material_id, content_hash, group_label, group_majors, passage
 FROM questions
-WHERE bank_id = ? AND owner_user_id = ? AND status = 'active' AND source IN ('exam', 'exercise') AND source_material_id IS NOT NULL
+WHERE bank_id = ? AND owner_user_id = ? AND status = 'active' AND source IN ('exam', 'exercise', 'unconfirmed') AND source_material_id IS NOT NULL
   AND (exam_year IS NULL OR score IS NULL)
 ORDER BY source_material_id, id;
 

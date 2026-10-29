@@ -6898,6 +6898,13 @@ export interface components {
             subject_id: number;
             mode: components["schemas"]["ImportMode"];
             material_ids: number[];
+            /** @description 题目模式下逐文件指定来源；旧版客户端未传时按来源待确认处理。其他导入模式不能传此字段。 */
+            question_sources?: components["schemas"]["ImportQuestionSource"][];
+        };
+        ImportQuestionSource: {
+            /** Format: int64 */
+            material_id: number;
+            source: components["schemas"]["ImportedQuestionSource"];
         };
         /**
          * @description 识别文字 · 拆分题目 · 配答案和采分点（1.6）
@@ -6908,6 +6915,7 @@ export interface components {
             /** Format: int64 */
             material_id: number;
             file_name: string;
+            question_source?: components["schemas"]["ImportedQuestionSource"];
             step: components["schemas"]["ImportStep"];
             /** @enum {string} */
             status: "pending" | "running" | "done" | "partial" | "failed";
@@ -7008,7 +7016,7 @@ export interface components {
             answer_origin?: components["schemas"]["Origin"];
             analysis?: string;
             score?: number;
-            source?: components["schemas"]["QuestionSource"];
+            source?: components["schemas"]["ImportedQuestionSource"];
             exam_year?: number;
             question_no?: string;
             is_recollection?: boolean;
@@ -7214,10 +7222,15 @@ export interface components {
          */
         QuestionType: "single_choice" | "multi_choice" | "true_false" | "fill_blank" | "term" | "short_answer" | "discussion" | "essay" | "calculation" | "other";
         /**
-         * @description 真题 / 习题 / AI 出题 / 官方
+         * @description 历年真题 / 习题 / 来源待确认 / AI 出题 / 官方
          * @enum {string}
          */
-        QuestionSource: "exam" | "exercise" | "ai_generated" | "official";
+        QuestionSource: "exam" | "exercise" | "unconfirmed" | "ai_generated" | "official";
+        /**
+         * @description 历年真题 / 习题 / 来源待确认
+         * @enum {string}
+         */
+        ImportedQuestionSource: "exam" | "exercise" | "unconfirmed";
         ChoiceOption: {
             /** @example A */
             key: string;
@@ -7346,6 +7359,7 @@ export interface components {
             answer?: string;
             analysis?: string;
             score?: number;
+            source?: components["schemas"]["ImportedQuestionSource"];
             exam_year?: number | null;
             kp_ids?: number[];
             rubric_points?: components["schemas"]["RubricPointInput"][];

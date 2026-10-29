@@ -130,7 +130,11 @@ func (s *Service) ProcessMaterial(ctx context.Context, userID, jobID, materialID
 		if err := mark(dbq.ImportJobMaterialsStepStructure); err != nil {
 			return err
 		}
-		n, failed, err := s.structure(ctx, job, materialID)
+		questionSource := "unconfirmed"
+		if jm.QuestionSource.Valid {
+			questionSource = string(jm.QuestionSource.ImportJobMaterialsQuestionSource)
+		}
+		n, failed, err := s.structure(ctx, job, materialID, questionSource)
 		if err != nil {
 			return err
 		}
@@ -197,7 +201,7 @@ func (s *Service) topUp(ctx context.Context, jm *dbq.ImportJobMaterial) (bool, e
 }
 
 // structure 第 5–6 步：按导入方式结构化，写入待确认条目。返回写入条数与没能识别的批数。
-func (s *Service) structure(ctx context.Context, job dbq.GetImportJobRow, materialID uint64) (int, int, error) {
+func (s *Service) structure(ctx context.Context, job dbq.GetImportJobRow, materialID uint64, questionSource string) (int, int, error) {
 	userID := job.OwnerUserID
 	pages, err := s.q.ListMaterialPages(ctx, dbq.ListMaterialPagesParams{MaterialID: materialID, OwnerUserID: userID})
 	if err != nil {
@@ -220,18 +224,18 @@ func (s *Service) structure(ctx context.Context, job dbq.GetImportJobRow, materi
 	}
 	// 作文类资料不管 1.4 选的是什么都按作文资料整理（作文课不需要用户事先声明，PRD 1.4）。
 	if category == "essay" || job.Mode == dbq.ImportJobsModeEssay {
-		return s.organizeEssay(ctx, job, materialID, pages)
+		return s.organizeEssay(ctx, job, materialID, questionSource, pages)
 	}
 	switch job.Mode {
 	case dbq.ImportJobsModeQuestion, dbq.ImportJobsModeAnswers:
-		return s.structureQuestions(ctx, job, materialID, pages)
+		return s.structureQuestions(ctx, job, materialID, questionSource, pages)
 	case dbq.ImportJobsModeReference:
 		return s.extractKPs(ctx, job, materialID, pages)
 	}
 	return 0, 0, nil
 }
 
-func (s *Service) structureQuestions(ctx context.Context, job dbq.GetImportJobRow, materialID uint64, pages []dbq.MaterialPage) (int, int, error) {
+func (s *Service) structureQuestions(ctx context.Context, job dbq.GetImportJobRow, materialID uint64, questionSource string, pages []dbq.MaterialPage) (int, int, error) {
 	in := make([]Page, len(pages))
 	for i, p := range pages {
 		in[i] = Page{No: int(p.PageNo), Text: p.Text}
@@ -262,7 +266,7 @@ func (s *Service) structureQuestions(ctx context.Context, job dbq.GetImportJobRo
 		}
 		s.notePrompt(ctx, job, ai.Structure.Name, r.meta)
 		for _, it := range r.out.Items {
-			if err := s.saveStructured(ctx, job, materialID, it, blocks[it.Block]); err != nil {
+			if err := s.saveStructured(ctx, job, materialID, questionSource, it, blocks[it.Block]); err != nil {
 				return n, failed, err
 			}
 			n++ // 题目与「只有答案」的条目都算识别出的内容（答案文件里只有答案）
@@ -272,7 +276,7 @@ func (s *Service) structureQuestions(ctx context.Context, job dbq.GetImportJobRo
 }
 
 // saveStructured 写一条结构化结果；分组与共用材料取自切题规则识别的块（不经过模型）。
-func (s *Service) saveStructured(ctx context.Context, job dbq.GetImportJobRow, materialID uint64, it ai.QItem, blk ai.Block) error {
+func (s *Service) saveStructured(ctx context.Context, job dbq.GetImportJobRow, materialID uint64, questionSource string, it ai.QItem, blk ai.Block) error {
 	userID := job.OwnerUserID
 	if it.ExamYear == nil && blk.Year > 0 {
 		// 年份以规则从试卷标题识别的为准兜底（模型偶尔漏填），答案按年份 + 题号配对也要用到。
@@ -299,14 +303,14 @@ func (s *Service) saveStructured(ctx context.Context, job dbq.GetImportJobRow, m
 	}
 	q := QuestionDraft{QType: it.QType, Stem: strings.TrimSpace(it.Stem), Options: it.Options, Answer: strings.TrimSpace(it.Answer),
 		Score: it.Score, ExamYear: it.ExamYear, QuestionNo: it.QuestionNo, IsRecollection: it.IsRecollection, SourcePage: it.Page,
-		Source: "exercise"}
+		Source: questionSource}
+	if q.Source != "exam" && q.Source != "exercise" && q.Source != "unconfirmed" {
+		q.Source = "unconfirmed"
+	}
 	// 分值同样以题型标题里的「每题 N 分」兜底：漏了分值的真题考情分析不统计。
 	if q.Score == nil && blk.Score > 0 {
 		sc := blk.Score
 		q.Score = &sc
-	}
-	if q.ExamYear != nil {
-		q.Source = "exam"
 	}
 	if q.Answer != "" {
 		q.AnswerOrigin, q.AnswerMatch, q.AnswerMaterialID, q.AnswerPage = "imported", MatchOriginal, materialID, it.Page

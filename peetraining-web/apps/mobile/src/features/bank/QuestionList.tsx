@@ -14,7 +14,7 @@ import { api, unwrap } from '@/lib/api';
 import { bankKeys, sourceLabel, sourceNames, statusTagNames } from './api';
 
 type Source = Schemas['QuestionSource'] | 'all';
-const sources: Source[] = ['all', 'exam', 'exercise', 'ai_generated'];
+const sources: Source[] = ['all', 'exam', 'exercise', 'unconfirmed', 'ai_generated'];
 type AnswerFilter = 'all' | 'material' | 'confirmed' | 'ai' | 'missing';
 const answerFilters: AnswerFilter[] = ['all', 'material', 'confirmed', 'ai', 'missing'];
 export const answerFilterNames: Record<AnswerFilter, string> = { all: '全部', material: '来自你的资料', confirmed: '你已确认', ai: 'AI 答案待确认', missing: '缺答案' };

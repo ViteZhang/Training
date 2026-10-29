@@ -9,6 +9,8 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { AIGenerating, Button, Card, ConfirmDialog, ErrorState, GroupNote, Loading, PassageCard, QuotaSheet, Screen, Tag, Text, toast } from '@/components';
 import { essayTypeNames, importKeys, isSubjective, qtypeNames, rubricTotal, sourceText, useImportItem, useImportJob, type ImportItem, type QuestionDraft } from '@/features/import/api';
+import { QuestionSourceChoices } from '@/features/import/QuestionSourceChoices';
+import type { QuestionFileSource } from '@/features/import/files';
 import { RubricEditor } from '@/features/import/RubricEditor';
 import { PageHeader } from '@/features/import/ui';
 import { Footer } from '@/features/onboarding/ui';
@@ -27,7 +29,7 @@ function answerLabel(q: QuestionDraft) {
 
 function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: ImportItem) => void }) {
   const qc = useQueryClient();
-  const [q, setQ] = useState<QuestionDraft>(item.question!);
+  const [q, setQ] = useState<QuestionDraft>({ ...item.question!, source: item.question?.source ?? 'unconfirmed' });
   const [kp, setKp] = useState((item.question!.kp_path ?? []).join(' / '));
   const [busy, setBusy] = useState<'save' | 'gen' | 'delete' | null>(null);
   const [quota, setQuota] = useState(false);
@@ -99,6 +101,11 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
           </View>
           {item.source ? <Text variant="small">{sourceText(item.source)}</Text> : null}
         </View>
+        <QuestionSourceChoices
+          label="题目来源"
+          value={q.source as QuestionFileSource | undefined}
+          onChange={(source) => setQ({ ...q, source })}
+        />
         <GroupNote group={q.group} />
         {q.passage ? <PassageCard text={q.passage.text} /> : null}
         <TextInput accessibilityLabel="题干" value={q.stem} onChangeText={(v) => setQ({ ...q, stem: v })} multiline style={styles.stem} maxFontSizeMultiplier={layout.maxFontScale} />
@@ -176,10 +183,16 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
 function OtherItem({ item, onSaved }: { item: ImportItem; onSaved: (it: ImportItem) => void }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState<'confirmed' | 'deleted' | null>(null);
+  const e = item.essay ?? {};
+  const essayTopic = item.item_type === 'essay_topic';
+  const initialSource = e.source === 'exam' || e.source === 'exercise' ? e.source : 'unconfirmed';
+  const [source, setSource] = useState<QuestionFileSource>(initialSource);
   const set = async (status: 'confirmed' | 'deleted') => {
     setBusy(status);
     try {
-      const saved = await unwrap(api.PATCH('/import-items/{itemId}', { params: { path: { itemId: item.id } }, body: { status } }));
+      const body: Schemas['ImportItemPatch'] = { status };
+      if (essayTopic) body.essay = { ...e, source };
+      const saved = await unwrap(api.PATCH('/import-items/{itemId}', { params: { path: { itemId: item.id } }, body }));
       qc.setQueryData(importKeys.item(item.id), saved);
       await qc.invalidateQueries({ queryKey: ['import-items', item.job_id] });
       onSaved(saved);
@@ -190,7 +203,6 @@ function OtherItem({ item, onSaved }: { item: ImportItem; onSaved: (it: ImportIt
     }
   };
   const kp = item.knowledge_point;
-  const e = item.essay ?? {};
   return (
     <>
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -198,6 +210,7 @@ function OtherItem({ item, onSaved }: { item: ImportItem; onSaved: (it: ImportIt
           {kp ? `知识点 · ${kp.kp_path.join(' / ')}` : essayTypeNames[item.item_type]}
           {item.source ? ` · ${sourceText(item.source)}` : ''}
         </Text>
+        {essayTopic ? <QuestionSourceChoices label="题目来源" value={source} onChange={setSource} /> : null}
         {kp ? (
           <>
             <Text variant="h3">{kp.name}</Text>

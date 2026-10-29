@@ -15,17 +15,23 @@ import (
 )
 
 const addImportJobMaterial = `-- name: AddImportJobMaterial :exec
-INSERT INTO import_job_materials (job_id, material_id, owner_user_id) VALUES (?, ?, ?)
+INSERT INTO import_job_materials (job_id, material_id, owner_user_id, question_source) VALUES (?, ?, ?, ?)
 `
 
 type AddImportJobMaterialParams struct {
-	JobID       uint64
-	MaterialID  uint64
-	OwnerUserID uint64
+	JobID          uint64
+	MaterialID     uint64
+	OwnerUserID    uint64
+	QuestionSource NullImportJobMaterialsQuestionSource
 }
 
 func (q *Queries) AddImportJobMaterial(ctx context.Context, arg AddImportJobMaterialParams) error {
-	_, err := q.db.ExecContext(ctx, addImportJobMaterial, arg.JobID, arg.MaterialID, arg.OwnerUserID)
+	_, err := q.db.ExecContext(ctx, addImportJobMaterial,
+		arg.JobID,
+		arg.MaterialID,
+		arg.OwnerUserID,
+		arg.QuestionSource,
+	)
 	return err
 }
 
@@ -310,7 +316,7 @@ func (q *Queries) GetImportJob(ctx context.Context, arg GetImportJobParams) (Get
 }
 
 const getImportJobMaterial = `-- name: GetImportJobMaterial :one
-SELECT job_id, material_id, owner_user_id, step, status, attempts, fail_reason, failed_pages, eta_seconds, updated_at, reserved_pages, quota_period, settled FROM import_job_materials WHERE job_id = ? AND material_id = ? AND owner_user_id = ?
+SELECT job_id, material_id, owner_user_id, step, status, attempts, fail_reason, failed_pages, eta_seconds, updated_at, reserved_pages, quota_period, settled, question_source FROM import_job_materials WHERE job_id = ? AND material_id = ? AND owner_user_id = ?
 `
 
 type GetImportJobMaterialParams struct {
@@ -336,6 +342,7 @@ func (q *Queries) GetImportJobMaterial(ctx context.Context, arg GetImportJobMate
 		&i.ReservedPages,
 		&i.QuotaPeriod,
 		&i.Settled,
+		&i.QuestionSource,
 	)
 	return i, err
 }
@@ -546,7 +553,7 @@ func (q *Queries) ListImportItemsPage(ctx context.Context, arg ListImportItemsPa
 }
 
 const listImportJobMaterials = `-- name: ListImportJobMaterials :many
-SELECT jm.job_id, jm.material_id, jm.owner_user_id, jm.step, jm.status, jm.attempts, jm.fail_reason, jm.failed_pages, jm.eta_seconds, jm.updated_at, jm.reserved_pages, jm.quota_period, jm.settled, m.file_name, m.format, m.billed_pages, m.page_count, m.category,
+SELECT jm.job_id, jm.material_id, jm.owner_user_id, jm.step, jm.status, jm.attempts, jm.fail_reason, jm.failed_pages, jm.eta_seconds, jm.updated_at, jm.reserved_pages, jm.quota_period, jm.settled, jm.question_source, m.file_name, m.format, m.billed_pages, m.page_count, m.category,
   (SELECT COUNT(*) FROM import_items i WHERE i.job_id = jm.job_id AND i.material_id = jm.material_id AND i.status <> 'deleted') AS recognized_count
 FROM import_job_materials jm JOIN materials m ON m.id = jm.material_id
 WHERE jm.job_id = ? AND jm.owner_user_id = ?
@@ -572,6 +579,7 @@ type ListImportJobMaterialsRow struct {
 	ReservedPages   uint32
 	QuotaPeriod     sql.NullString
 	Settled         bool
+	QuestionSource  NullImportJobMaterialsQuestionSource
 	FileName        string
 	Format          MaterialsFormat
 	BilledPages     uint32
@@ -603,6 +611,7 @@ func (q *Queries) ListImportJobMaterials(ctx context.Context, arg ListImportJobM
 			&i.ReservedPages,
 			&i.QuotaPeriod,
 			&i.Settled,
+			&i.QuestionSource,
 			&i.FileName,
 			&i.Format,
 			&i.BilledPages,
