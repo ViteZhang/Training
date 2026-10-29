@@ -12,7 +12,7 @@ export { ProgressBar } from './ProgressBar';
 export { Screen } from './Screen';
 export { Segmented } from './Segmented';
 export { UnderlineTabs } from './Tabs';
-export { AIFailed, AIGenerating, EmptyState, ErrorState, Loading, QuotaSheet, Skeleton } from './States';
+export { AIFailed, AIGenerating, EmptyState, ErrorState, Loading, NETWORK_AUTO_RETRY_MS, QuotaSheet, Skeleton } from './States';
 export { Tag } from './Tag';
 export { Text } from './Text';
 export { toast, ToastHost } from './Toast';

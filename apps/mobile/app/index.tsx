@@ -102,6 +102,7 @@ export default function Splash() {
           error={new Error('Session verification unavailable')}
           title="登录状态暂时无法验证"
           desc="请重试连接，或重新登录。当前会话会保留，直到你选择重新登录。"
+          allowReauthenticate
           onRetry={() => {
             setSessionRecovery(false);
             setRetryAttempt((attempt) => attempt + 1);

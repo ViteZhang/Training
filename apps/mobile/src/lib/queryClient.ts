@@ -32,11 +32,15 @@ if (!isTest) {
   });
 }
 
+/** 网络/5xx 的重试间隔：覆盖手机熄屏唤醒后 2～5 秒才真正可用的窗口。 */
+export const QUERY_RETRY_DELAYS = [1_000, 3_000, 8_000];
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // 4xx 不重试（404 是越权或开关关闭，402 是额度不足），网络错误与 5xx 重试 2 次。
-      retry: (count, err) => !(err instanceof ApiError && err.status >= 400 && err.status < 500) && count < 2,
+      // 4xx 不重试（404 是越权或开关关闭，402 是额度不足），网络错误与 5xx 按 QUERY_RETRY_DELAYS 退避重试。
+      retry: (count, err) => !(err instanceof ApiError && err.status >= 400 && err.status < 500) && count < QUERY_RETRY_DELAYS.length,
+      retryDelay: (count) => QUERY_RETRY_DELAYS[count] ?? QUERY_RETRY_DELAYS[QUERY_RETRY_DELAYS.length - 1]!,
       staleTime: 30_000,
       refetchOnReconnect: true,
     },
