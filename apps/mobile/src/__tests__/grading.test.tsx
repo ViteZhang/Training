@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { BackHandler } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import TrainTab from '../../app/(tabs)/train';
 import PracticeRunner from '../../app/practice/[id]';
@@ -64,6 +65,7 @@ beforeEach(() => {
     'GET /practice-sessions/{sessionId}': () => ({ status: 200, data: session }),
     'GET /quota': () => quota(2),
     'GET /feature-flags': () => ({ status: 200, data: { flags: {} } }),
+    'GET /purchase-entry': () => ({ status: 200, data: { enabled: true } }),
   };
 });
 
@@ -91,6 +93,35 @@ describe('4.4 主观题 → 4.7 批改结果', () => {
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/bank/kp/[id]', params: { id: '3' } });
   });
 
+  it('看参考答案后按返回键回到作答；作答页按返回键先确认，不直接退出', async () => {
+    // 测试环境里 BackHandler 是空实现：截获注册的回调，按「后注册先调用」模拟安卓返回键
+    const handlers: Parameters<typeof BackHandler.addEventListener>[1][] = [];
+    const spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_e, h) => {
+      handlers.push(h);
+      return { remove: () => handlers.splice(handlers.indexOf(h), 1) };
+    });
+    const pressBack = () => [...handlers].reverse().some((h) => h({} as never));
+    const { router } = jest.requireMock('expo-router') as { router: { back: jest.Mock } };
+    router.back.mockClear();
+    await wrap(<PracticeRunner />);
+    await fireEvent.changeText(await screen.findByLabelText('你的答案'), answer);
+    await fireEvent.press(screen.getByText('看参考答案'));
+    expect(screen.getByText('对照参考答案，你掌握得怎么样？')).toBeTruthy();
+    await act(async () => {
+      pressBack();
+    });
+    expect(screen.getByLabelText('你的答案').props.value).toBe(answer);
+    await fireEvent.press(screen.getByText('看参考答案'));
+    await fireEvent.press(screen.getByText('返回作答'));
+    expect(screen.getByLabelText('你的答案')).toBeTruthy();
+    await act(async () => {
+      pressBack();
+    });
+    expect(screen.getByText('先休息一下？')).toBeTruthy();
+    expect(router.back).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   it('次数用完（4.9）：答案已保存，可以明天再批改', async () => {
     mockResponses['GET /quota'] = () => quota(3);
     mockResponses['POST /practice-sessions/{sessionId}/gradings'] = () => ({ status: 200, data: { ...grading({ status: 'queued_quota', points: [], loss: [], suggestions: [], kp_changes: [], wrong_book: 'none' }), score: undefined, counts: undefined } });
@@ -98,8 +129,26 @@ describe('4.4 主观题 → 4.7 批改结果', () => {
     await fireEvent.changeText(await screen.findByLabelText('你的答案'), answer);
     await fireEvent.press(screen.getByText('提交批改'));
     expect(await screen.findByText('今天的免费批改次数用完了')).toBeTruthy();
+    // 购买入口打开（安卓）、在线支付开通前：免费版与会员对比，「获取兑换码」→ 6.5a、「我有兑换码」
+    expect(await screen.findByText('获取兑换码')).toBeTruthy();
+    expect(screen.getByText('我有兑换码')).toBeTruthy();
+    expect(screen.getByText('不限次数')).toBeTruthy();
     await fireEvent.press(screen.getByText('明天再批改'));
     expect(await screen.findByText('答案已保存为待批改，明天 0 点后在训练页一键提交')).toBeTruthy();
+  });
+
+  it('次数用完 · 购买入口关闭（4.9b）：不出现会员、价格与兑换码，只给免费出路', async () => {
+    mockResponses['GET /purchase-entry'] = () => ({ status: 200, data: { enabled: false } });
+    mockResponses['GET /quota'] = () => quota(3);
+    mockResponses['POST /practice-sessions/{sessionId}/gradings'] = () => ({ status: 200, data: { ...grading({ status: 'queued_quota', points: [], loss: [], suggestions: [], kp_changes: [], wrong_book: 'none' }), score: undefined, counts: undefined } });
+    await wrap(<PracticeRunner />);
+    await fireEvent.changeText(await screen.findByLabelText('你的答案'), answer);
+    await fireEvent.press(screen.getByText('提交批改'));
+    expect(await screen.findByText('今天的免费批改次数用完了')).toBeTruthy();
+    expect(screen.getByText('每天可批改 3 道主观题，明天 0 点恢复。你的答案已保存，明天可以一键提交批改。')).toBeTruthy();
+    expect(screen.queryByText('获取兑换码')).toBeNull();
+    expect(screen.queryByText(/会员/)).toBeNull();
+    expect(screen.getByText('明天再批改')).toBeTruthy();
   });
 
   it('批改失败：未扣除次数，重试成功', async () => {
@@ -155,5 +204,55 @@ describe('待批改', () => {
     expect(await screen.findByText('1 道主观题待批改')).toBeTruthy();
     await fireEvent.press(screen.getByText('一键提交'));
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith({ pathname: '/practice/grading/[id]', params: { id: '9' } }));
+  });
+});
+
+describe('4.4 / 4.7b 按 AI 参考答案批改', () => {
+  const aiSession = (tier: string) => ({ ...session, questions: [{ ...termQ, answer_tier: tier }] });
+
+  it('4.4 标明按 AI 参考答案批改；4.7b 说明不计入预估分，可确认答案', async () => {
+    mockResponses['GET /practice-sessions/{sessionId}'] = () => ({ status: 200, data: aiSession('ai') });
+    mockResponses['POST /practice-sessions/{sessionId}/gradings'] = () => ({
+      status: 200,
+      data: grading({ rubric_source: 'ai_generated', answer_tier: 'ai', reference_only: true, answer_confirmed: false }),
+    });
+    mockResponses['POST /questions/{questionId}/answer/confirm'] = () => ({ status: 200, data: { ...termQ, answer_tier: 'confirmed' } });
+    await wrap(<PracticeRunner />);
+    expect(await screen.findByText(/这道题按 AI 参考答案批改，仅供参考/)).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('你的答案'), answer);
+    await fireEvent.press(screen.getByText('提交批改'));
+    expect(await screen.findByText('AI 参考答案 · 待确认')).toBeTruthy();
+    expect(screen.getByText(/不计入预估分/)).toBeTruthy();
+    expect(screen.getByText('这份参考答案对吗？')).toBeTruthy();
+    await fireEvent.press(screen.getByText('我来改'));
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/bank/question/[id]', params: { id: '201', edit: '1' } });
+    await fireEvent.press(screen.getByText('答案没问题，确认'));
+    expect(await screen.findByText(/已确认，答案来源变为「你已确认」/)).toBeTruthy();
+    expect(mockCalls.some((c) => c.method === 'POST' && c.path === '/questions/{questionId}/answer/confirm')).toBe(true);
+  });
+
+  it('还没有答案：提交时先生成 AI 参考答案；AI 出题次数用完时答案保留，可先自评', async () => {
+    mockResponses['GET /practice-sessions/{sessionId}'] = () => ({ status: 200, data: aiSession('missing') });
+    mockResponses['POST /practice-sessions/{sessionId}/gradings'] = () => ({
+      status: 402,
+      error: { code: 'QUOTA_EXCEEDED', message: '今天的 AI 出题次数用完了', detail: { quota_type: 'ai_questions', remaining: 0 } },
+    });
+    await wrap(<PracticeRunner />);
+    expect(await screen.findByText(/提交时 AI 先生成参考答案再批改/)).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('你的答案'), answer);
+    await fireEvent.press(screen.getByText('提交批改'));
+    expect(await screen.findByText('今天的 AI 出题次数用完了')).toBeTruthy();
+    await fireEvent.press(await screen.findByText('先自评，明天再批改'));
+    expect(screen.getByText('对照参考答案，你掌握得怎么样？')).toBeTruthy();
+  });
+
+  it('来自你的资料的答案：不显示 4.7b 的说明与确认卡', async () => {
+    mockResponses['POST /practice-sessions/{sessionId}/gradings'] = () => ({ status: 200, data: grading({ answer_tier: 'material' }) });
+    await wrap(<PracticeRunner />);
+    await fireEvent.changeText(await screen.findByLabelText('你的答案'), answer);
+    await fireEvent.press(screen.getByText('提交批改'));
+    expect(await screen.findByText('/ 5 分')).toBeTruthy();
+    expect(screen.queryByText('这份参考答案对吗？')).toBeNull();
+    expect(screen.queryByText('AI 参考答案 · 待确认')).toBeNull();
   });
 });

@@ -32,7 +32,7 @@ function Bars({ suggested, actual, status }: { suggested: number; actual: number
         <View style={styles.track}>
           <View style={[styles.bar, { width: `${(suggested / top) * 100}%` }, styles.barSuggested]} />
         </View>
-        <Text variant="small" style={styles.barValue}>
+        <Text variant="small" num style={styles.barValue}>
           {suggested}′
         </Text>
       </View>
@@ -43,7 +43,7 @@ function Bars({ suggested, actual, status }: { suggested: number; actual: number
         <View style={styles.track}>
           <View style={[styles.bar, { width: `${(actual / top) * 100}%` }, status === 'overtime' ? styles.barOver : styles.barActual]} />
         </View>
-        <Text variant="small" style={styles.barValue}>
+        <Text variant="small" num={600} color={semantic.textPrimary} style={styles.barValue}>
           {actual}′
         </Text>
       </View>
@@ -128,7 +128,7 @@ export default function TimeReportPage() {
             <Text variant="small" style={styles.flex}>
               近 {t.trend.length} 次整卷未答题
             </Text>
-            <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
+            <Text variant="caption" num={600} color={semantic.textPrimary}>
               {t.trend.map((p) => p.unanswered).join(' → ')}
             </Text>
           </View>

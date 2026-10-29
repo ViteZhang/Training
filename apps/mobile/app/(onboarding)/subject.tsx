@@ -1,10 +1,10 @@
 // 1.1 你考哪门专业课：选考试年份；添加专业课（名称必填、代码选填），最多 4 门，至少 1 门才能下一步；
 // 免费版最多 3 门，第 4 门提示开通会员；目标院校专业选填。
 import { ApiError, type Schemas } from '@training/api-client';
-import { fontFamily, layout, radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, fontFamily, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Button, ConfirmDialog, ErrorState, Icon, Loading, QuotaSheet, Screen, Text, toast } from '@/components';
 import { setStep } from '@/features/onboarding/api';
@@ -12,6 +12,7 @@ import { loadDraft, saveDraft } from '@/features/onboarding/draft';
 import { Footer, StepHeader } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 export default function SubjectStep() {
   const qc = useQueryClient();
@@ -21,7 +22,9 @@ export default function SubjectStep() {
   const [year, setYear] = useState<number | undefined>(draft.examYear);
   const [name, setName] = useState('');
   const [school, setSchool] = useState(draft.targetSchoolMajor ?? '');
+  const schoolRef = useRef<TextInput>(null);
   const [quota, setQuota] = useState(false);
+  const upgrade = useUpgradeActions(() => setQuota(false));
   const [removing, setRemoving] = useState<Schemas['Subject'] | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -131,7 +134,7 @@ export default function SubjectStep() {
                 <TextInput
                   accessibilityLabel="添加专业课"
                   placeholder="代码 + 名称，如 654 语言文学基础"
-                  placeholderTextColor="#A8A399"
+                  placeholderTextColor={colors.faint}
                   value={name}
                   onChangeText={setName}
                   onSubmitEditing={() => void add()}
@@ -150,19 +153,23 @@ export default function SubjectStep() {
           <Text variant="caption" color={semantic.textPrimary} style={styles.label}>
             目标院校专业 <Text variant="caption">选填</Text>
           </Text>
-          <View style={styles.school}>
+          {/* 以前是灰底卡片里一行「未填写」，看起来像普通文字、找不到点哪里输入；改成和专业课一样的白底描边输入框 */}
+          <Pressable accessibilityRole="none" onPress={() => schoolRef.current?.focus()} style={styles.school}>
+            <Icon name="edit" size={18} color={semantic.textSecondary} />
             <TextInput
+              ref={schoolRef}
               accessibilityLabel="目标院校专业"
-              placeholder="未填写"
-              placeholderTextColor={semantic.textPrimary}
+              placeholder="点这里输入，如 北京师范大学 · 中国语言文学"
+              placeholderTextColor={colors.faint}
               value={school}
               onChangeText={setSchool}
               style={styles.schoolInput}
               maxLength={64}
+              returnKeyType="done"
               maxFontSizeMultiplier={layout.maxFontScale}
             />
-            <Text variant="small">以后收录了你的院校专业，会给你推送官方题库</Text>
-          </View>
+          </Pressable>
+          <Text variant="small">以后收录了你的院校专业，会给你推送官方题库</Text>
         </View>
       </ScrollView>
       <Footer>
@@ -174,10 +181,8 @@ export default function SubjectStep() {
         onClose={() => setQuota(false)}
         title="免费版最多添加 3 门专业课"
         desc="开通会员后可以添加第 4 门，资料解析、批改次数也不再受限。"
-        onUpgrade={() => {
-          setQuota(false);
-          router.push('/member');
-        }}
+        upgrade={upgrade}
+        freeDesc="免费版最多添加 3 门专业课，可以先删掉一门再添加。"
         freeOptions={[{ label: '先不加了', onPress: () => setQuota(false) }]}
       />
       <ConfirmDialog
@@ -213,6 +218,6 @@ const styles = StyleSheet.create({
   remove: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
   input: { flex: 1, minWidth: 0, minHeight: 44, fontSize: 15, color: semantic.textPrimary },
-  school: { gap: 2, minHeight: 56, justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 18, borderRadius: radius.xl, backgroundColor: semantic.fill },
-  schoolInput: { fontSize: 14, minHeight: 24, padding: 0, color: semantic.textPrimary },
+  school: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingHorizontal: 18, borderRadius: radius.card, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
+  schoolInput: { flex: 1, minWidth: 0, minHeight: 44, fontSize: 15, padding: 0, color: semantic.textPrimary },
 });

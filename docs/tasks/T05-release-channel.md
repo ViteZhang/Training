@@ -12,7 +12,7 @@
 ## 范围
 
 - 后台：流水线构建后同步到应用机 Nginx 的 /admin/ 目录
-- EAS：development、preview（内测）、production 三个配置；iOS Bundle ID 与安卓包名 cn.dreamelab.training
+- EAS：development、preview（内测）、production 三个配置；iOS Bundle ID 与安卓包名 cn.dreamerlab.training
 - 安卓 preview 包上传 OSS 并生成下载链接；iOS 上传 TestFlight 内部测试
 - 版本号规则与「检查更新」接口对接位（0.6 / 0.6b 页面在 T06 做）
 - README.md 写真机调试与打包步骤
@@ -35,7 +35,7 @@
 
 - 实现要点：
   - apps/mobile/eas.json：development（开发客户端、内部分发、APK）、preview（内测：安卓 APK、iOS 走 TestFlight）、production（商店包、自动递增构建号）；APP_VARIANT 决定显示名与包名后缀，开发版与内测版可以和正式版同时装
-  - 包名与 Bundle ID 由 app.config.ts 从 APP_ID 读取，默认 cn.dreamelab.training（D4）
+  - 包名与 Bundle ID 由 app.config.ts 从 APP_ID 读取，默认 cn.dreamerlab.training（D4）
   - scripts/upload-apk.sh：安卓内测包上传 OSS 发布桶，输出版本链接与固定的 latest 链接
   - scripts/deploy-admin.sh：构建管理后台并同步到应用机 /opt/training/admin（云效主机部署或本机执行）
   - 版本号规则与「检查更新」对接位：App 启动调 GET /bootstrap（platform、app_version），0.6 / 0.6b 在 T06 实现

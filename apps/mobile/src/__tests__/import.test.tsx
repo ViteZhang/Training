@@ -114,7 +114,7 @@ describe('导入工具函数', () => {
     expect(itemStatus(item(1, { review_reasons: ['missing_answer'] })).label).toBe('缺答案');
     expect(itemStatus(item(1, { review_reasons: ['rubric_unconfirmed'] })).label).toBe('采分点待确认');
     expect(itemStatus(item(1, { status: 'confirmed' })).label).toBe('已确认');
-    expect(itemNote(item(1, { review_reasons: ['missing_answer'] }))).toContain('AI 生成');
+    expect(itemNote(item(1, { review_reasons: ['missing_answer'] }))).toContain('补充答案文件');
     expect(rubricTotal([{ content: 'a', score: 1.5 }, { content: 'b', score: 2 }, { content: 'c' }])).toBe(3.5);
     expect(stepIndex('extract')).toBe(0);
     expect(stepIndex('structure')).toBe(1);
@@ -193,6 +193,20 @@ describe('1.6 解析中与 1.6b 部分失败', () => {
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/import/confirm/[id]', params: { id: '7' } });
   });
 
+  it('已经设过学习提醒的，解析时不再提示设置', async () => {
+    mockParams = { id: '7' };
+    mockResponses['GET /import-jobs/{jobId}'] = () => ({
+      status: 200,
+      data: job('running', [{ material_id: 2, file_name: '讲义.docx', step: 'structure', status: 'running' }]),
+    });
+    mockResponses['GET /profile'] = () => ({ status: 200, data: { exam_year: 2027, stage: 'strengthen', stage_manual: false, daily_minutes: 60, reminder_times: ['20:00'] } });
+    await wrap(<JobScreen />);
+    expect(await screen.findByText('正在整理你的题库')).toBeTruthy();
+    await waitFor(() => expect(mockCalls.some((c) => c.path === '/profile')).toBe(true));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByText('趁这会儿，设置学习提醒')).toBeNull();
+  });
+
   it('失败的文件说明原因，可重新识别', async () => {
     mockParams = { id: '7' };
     const failed = job('reviewing', [
@@ -226,6 +240,66 @@ describe('1.7 确认导入结果', () => {
     await waitFor(() =>
       expect(mockReplace).toHaveBeenCalledWith({ pathname: '/import/done/[id]', params: expect.objectContaining({ id: '7', questions: '3', review: '1', without: '2' }) }),
     );
+  });
+
+  it('不需要的题可以单条删除，也可以多选后批量删除', async () => {
+    mockParams = { id: '7' };
+    mockResponses['GET /import-jobs/{jobId}'] = () => ({ status: 200, data: job('reviewing', []) });
+    mockResponses['GET /import-jobs/{jobId}/items'] = () => ({ status: 200, data: { counts, items: [item(1), item(2), item(3)] } });
+    mockResponses['POST /import-jobs/{jobId}/items/delete'] = () => ({ status: 200, data: { deleted: 1, counts } });
+    await wrap(<ConfirmScreen />);
+    await screen.findByText('题目 1');
+    await fireEvent.press(screen.getAllByLabelText('删除这一条')[0]!);
+    await waitFor(() =>
+      expect(mockCalls.find((c) => c.path === '/import-jobs/{jobId}/items/delete')?.init?.body).toEqual({ ids: [1] }),
+    );
+
+    mockCalls.length = 0;
+    mockResponses['POST /import-jobs/{jobId}/items/delete'] = () => ({ status: 200, data: { deleted: 2, counts } });
+    await fireEvent.press(screen.getByText('多选'));
+    await fireEvent.press(screen.getByText('题目 2'));
+    await fireEvent.press(screen.getByText('题目 3'));
+    await fireEvent.press(screen.getByText('删除所选 2 条'));
+    await fireEvent.press(await screen.findByText('删除'));
+    await waitFor(() =>
+      expect(mockCalls.find((c) => c.path === '/import-jobs/{jobId}/items/delete')?.init?.body).toEqual({ ids: [2, 3] }),
+    );
+    expect(mockCalls.some((c) => c.path === '/import-jobs/{jobId}/confirm')).toBe(false);
+  });
+
+  it('按专业分组：按报考方向一键只保留那一组；共用材料的小题前显示材料卡，可整组删除', async () => {
+    mockParams = { id: '7' };
+    const g3 = { label: '第三组', majors: '学科教学（语文）' };
+    const passage = { key: 'p1', text: '夫君子之行，静以修身，俭以养德。' };
+    mockResponses['GET /import-jobs/{jobId}'] = () => ({ status: 200, data: job('reviewing', []) });
+    mockResponses['GET /import-jobs/{jobId}/items'] = () => ({
+      status: 200,
+      data: {
+        counts,
+        groups: [
+          { label: '第一组', majors: '文艺学', total: 2, kept: 2, matches: false },
+          { label: '第二组', majors: '中国古代文学', total: 2, kept: 2, matches: false },
+          { label: '第三组', majors: '学科教学（语文）', total: 2, kept: 2, matches: true },
+        ],
+        items: [
+          item(1),
+          item(5, { question: { qtype: 'discussion', stem: '请翻译这段话', score: 35, group: g3, passage } }),
+          item(6, { question: { qtype: 'discussion', stem: '谈谈文章主题', score: 35, group: g3, passage } }),
+        ],
+      },
+    });
+    mockResponses['POST /import-jobs/{jobId}/groups'] = () => ({ status: 200, data: { deleted: 4, restored: 0, counts, groups: [] } });
+    mockResponses['POST /import-jobs/{jobId}/items/delete'] = () => ({ status: 200, data: { deleted: 2, counts } });
+    await wrap(<ConfirmScreen />);
+    expect(await screen.findByText('论述题按专业分了 3 组')).toBeTruthy();
+    expect(screen.getByText('共用材料 · 2 题')).toBeTruthy();
+    expect(screen.getAllByText('第三组').length).toBe(2);
+
+    await fireEvent.press(screen.getByText('只保留这一组'));
+    await waitFor(() => expect(mockCalls.find((c) => c.path === '/import-jobs/{jobId}/groups')?.init?.body).toEqual({ labels: ['第三组'] }));
+
+    await fireEvent.press(screen.getByText('删除材料和这 2 题'));
+    await waitFor(() => expect(mockCalls.find((c) => c.path === '/import-jobs/{jobId}/items/delete')?.init?.body).toEqual({ ids: [5, 6] }));
   });
 
   it('题目导入额度不够时弹出开会员', async () => {

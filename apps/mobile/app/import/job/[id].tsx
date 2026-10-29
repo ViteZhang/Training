@@ -45,7 +45,7 @@ function MaterialProgress({ m, first }: { m: JobMaterial; first?: boolean }) {
             <Icon name="check" size={14} color={semantic.mastered} />
           </View>
         ) : m.status === 'running' ? (
-          <Text variant="small">{pct}%</Text>
+          <Text variant="small" num>{pct}%</Text>
         ) : null}
       </View>
       {m.status === 'running' ? (
@@ -96,7 +96,7 @@ function FailedMaterial({ job, m }: { job: ImportJob; m: JobMaterial }) {
     <View style={styles.failed}>
       <View style={styles.failedHead}>
         <View style={styles.badge}>
-          <Text variant="small" color={semantic.danger} style={styles.badgeText}>
+          <Text variant="small" num={600} color={semantic.danger} style={styles.badgeText}>
             {fileBadge(m.file_name)}
           </Text>
         </View>
@@ -120,7 +120,8 @@ function FailedMaterial({ job, m }: { job: ImportJob; m: JobMaterial }) {
 
 const reminderOptions = ['07:30', '12:30', '20:00'];
 
-/** 等待时设置学习提醒（PRD 1.6）：保存到备考档案，开启时请求通知权限。 */
+/** 等待时设置学习提醒（PRD 1.6）：保存到备考档案，开启时请求通知权限。
+ * 已经设过提醒的不再显示（只需设一次，之后在「设置 · 每日训练提醒」里改）；这次刚设的继续显示，方便改选。 */
 function ReminderPicker() {
   const qc = useQueryClient();
   const profile = useQuery({ queryKey: ['profile'], queryFn: () => unwrap(api.GET('/profile')) });
@@ -129,10 +130,12 @@ function ReminderPicker() {
     return { granted: r.granted, canAskAgain: r.canAskAgain };
   });
   const times = profile.data?.reminder_times ?? [];
+  const [touched, setTouched] = useState(false);
 
   const toggle = async (t: string) => {
     const p = profile.data;
     if (!p) return;
+    setTouched(true);
     const on = !times.includes(t);
     if (on && !(await notify.ensure())) return;
     const next = on ? [...times, t].sort() : times.filter((x) => x !== t);
@@ -148,7 +151,7 @@ function ReminderPicker() {
     }
   };
 
-  if (!profile.data) return null;
+  if (!profile.data || (times.length > 0 && !touched)) return null;
   return (
     <Card tone="fill" style={styles.reminder}>
       <View style={styles.gap2}>
@@ -214,8 +217,8 @@ export default function JobScreen() {
           <View style={styles.runHead}>
             <View style={styles.dots} accessibilityElementsHidden>
               <View style={[styles.dot, { backgroundColor: colors.ink }]} />
-              <View style={[styles.dot, { backgroundColor: '#8C877D' }]} />
-              <View style={[styles.dot, { backgroundColor: '#CFCAC0' }]} />
+              <View style={[styles.dot, { backgroundColor: colors.dim }]} />
+              <View style={[styles.dot, { backgroundColor: colors.placeholder }]} />
             </View>
             <Text variant="h1">{title}</Text>
             <Text variant="caption" style={styles.desc}>
@@ -285,7 +288,7 @@ const styles = StyleSheet.create({
   divider: { borderTopWidth: 1, borderTopColor: semantic.border },
   ok: { width: 24, height: 24, borderRadius: 12, backgroundColor: semantic.masteredSoft, alignItems: 'center', justifyContent: 'center' },
   steps: { flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap' },
-  failed: { gap: 14, padding: 16, borderRadius: radius.xl, borderWidth: 1, borderColor: '#F0C6C2', backgroundColor: semantic.dangerSoft },
+  failed: { gap: 14, padding: 16, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.redLine, backgroundColor: semantic.dangerSoft },
   failedHead: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   badge: { width: 34, height: 34, borderRadius: 8, backgroundColor: semantic.surface, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontSize: 10, fontWeight: '700' },

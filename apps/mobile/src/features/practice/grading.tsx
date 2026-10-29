@@ -91,7 +91,7 @@ export function SubjectiveInput({
     <View style={styles.gap}>
       <Text variant="small">
         {q.source_ref ? `出自 ${q.source_ref.file_name} · ` : ''}
-        {q.rubric_count > 0 ? `按你资料里的 ${q.rubric_count} 个采分点批改` : '按参考答案批改'}
+        {gradingBasis(q)}
       </Text>
       <Text variant="small" style={styles.label}>
         你的答案
@@ -109,7 +109,7 @@ export function SubjectiveInput({
       <View style={styles.row}>
         {voice ? <Tool icon="mic" label="语音" onPress={() => toast('语音作答马上上线')} /> : null}
         <Tool icon="camera" label="拍手写稿" onPress={onPhoto} />
-        <Text variant="small" style={[styles.flex, styles.right]}>
+        <Text variant="small" num style={[styles.flex, styles.right]}>
           {wordHint(q.qtype, n)}
         </Text>
       </View>
@@ -124,6 +124,13 @@ export function SubjectiveInput({
   );
 }
 
+/** 4.4 的批改依据（PRD v3 4.4、11.16）：AI 参考答案或还没有答案时说明仅供参考。 */
+export function gradingBasis(q: PracticeQuestion) {
+  if (q.answer_tier === 'ai') return '这道题按 AI 参考答案批改，仅供参考';
+  if (q.answer_tier === 'missing') return '这道题还没有答案，提交时 AI 先生成参考答案再批改，仅供参考';
+  return q.rubric_count > 0 ? `按你资料里的 ${q.rubric_count} 个采分点批改` : '按参考答案批改';
+}
+
 /** 4.6 AI 批改中：三步进度，约 5 秒；写明采分点出处，超过 15 秒换安抚文案（AIGenerating 内置）。 */
 export function GradingProgress({ q }: { q: PracticeQuestion }) {
   const [step, setStep] = useState(0);
@@ -136,9 +143,13 @@ export function GradingProgress({ q }: { q: PracticeQuestion }) {
       <AIGenerating
         title="AI 正在批改"
         desc={`${qtypeNames[q.qtype]}：${q.stem.slice(0, 12)}`}
-        steps={['提取你的答案要点', `比对你资料里的 ${q.rubric_count || 1} 个采分点`, '生成修改建议']}
+        steps={
+          q.answer_tier === 'missing'
+            ? ['生成 AI 参考答案', '提取你的答案要点，比对采分点', '生成修改建议']
+            : ['提取你的答案要点', q.answer_tier === 'ai' ? '比对 AI 参考答案的采分点' : `比对你资料里的 ${q.rubric_count || 1} 个采分点`, '生成修改建议']
+        }
         current={step}
-        eta="大约需要 5 秒"
+        eta={q.answer_tier === 'missing' ? '大约需要 15 秒' : '大约需要 5 秒'}
       />
       <View style={styles.box}>
         {q.source_ref ? (
@@ -182,13 +193,15 @@ export function GradingResultView({
   regrading: boolean;
 }) {
   const [showRef, setShowRef] = useState(false);
+  const reference = g.reference_only || g.answer_tier === 'ai';
   return (
     <View style={styles.gap12}>
+      {reference ? <AIAnswerNotice /> : null}
       <View style={styles.scoreRow}>
         <Text variant="score" color={colors.ink} style={styles.score}>
           {g.score ?? '—'}
         </Text>
-        <Text variant="caption" style={styles.of}>
+        <Text variant="caption" num style={styles.of}>
           / {g.full_score} 分
         </Text>
         <View style={[styles.flex, styles.gap2]}>
@@ -250,7 +263,7 @@ export function GradingResultView({
             <View key={l.type} style={[styles.row, styles.lossRow]}>
               <View style={styles.flex}>
                 <Text variant="caption" color={colors.ink} style={styles.bold}>
-                  {lossNames[l.type]} <Text variant="caption" color={semantic.danger} style={styles.bold}>−{l.points}</Text>
+                  {lossNames[l.type]} <Text variant="caption" num color={semantic.danger}>−{l.points}</Text>
                 </Text>
                 {l.reason ? <Text variant="small">{l.reason}</Text> : null}
               </View>
@@ -288,6 +301,7 @@ export function GradingResultView({
         </Text>
         {g.wrong_book === 'added' || g.wrong_book === 'still' ? <Text variant="small">已加入错题本</Text> : null}
       </View>
+      {reference && !g.answer_confirmed ? <ConfirmAIAnswerCard questionId={g.question_id} /> : null}
       {g.reference_answer ? (
         <View>
           <Button title={showRef ? '收起参考答案' : '参考答案'} kind="secondary" onPress={() => setShowRef(!showRef)} />
@@ -305,7 +319,70 @@ export function GradingResultView({
   );
 }
 
-const verdictColor = { hit: colors.green, partial: '#B26A00', miss: colors.red } as const;
+/** 4.7b 顶部：按 AI 参考答案批改，分数仅供参考、不计入预估分（PRD v3 4.7b、11.6）。 */
+function AIAnswerNotice() {
+  return (
+    <View style={styles.gap8}>
+      <Tag label="AI 参考答案 · 待确认" tone="info" />
+      <View style={styles.aiNotice}>
+        <Text variant="small" color={colors.blueInk} style={styles.lh19}>
+          这道题你的资料里没有答案，按 <Text variant="small" color={colors.blueInk} style={styles.bold}>AI 参考答案</Text> 批改，分数仅供参考，
+          <Text variant="small" color={colors.blueInk} style={styles.bold}>不计入预估分</Text>。确认答案后，之后的批改会计入
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/** 4.7b「这份参考答案对吗？」：我来改 → 3.3b 编辑；答案没问题，确认 → 你已确认（本次分数不追溯）。 */
+function ConfirmAIAnswerCard({ questionId }: { questionId: number }) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  if (done) {
+    return (
+      <View style={[styles.box, styles.aiCard]}>
+        <Text variant="caption" color={colors.ink}>
+          已确认，答案来源变为「你已确认」，之后的批改会计入预估分
+        </Text>
+      </View>
+    );
+  }
+  const confirm = async () => {
+    setBusy(true);
+    try {
+      await unwrap(api.POST('/questions/{questionId}/answer/confirm', { params: { path: { questionId } } }));
+      track('ai_answer_confirm');
+      void qc.invalidateQueries({ queryKey: ['bank'] });
+      setDone(true);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : '没确认成功，请重试');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <View style={[styles.box, styles.aiCard]}>
+      <Text variant="body" color={colors.ink} style={styles.bold}>
+        这份参考答案对吗？
+      </Text>
+      <Text variant="small" style={styles.lh19}>
+        你确认后，它会变成这道题的正式答案；觉得不对可以改采分点，或补一份答案文件
+      </Text>
+      <View style={styles.row}>
+        <Button
+          title="我来改"
+          kind="secondary"
+          style={styles.flex}
+          onPress={() => router.push({ pathname: '/bank/question/[id]', params: { id: String(questionId), edit: '1' } })}
+        />
+        <Button title="答案没问题，确认" style={styles.flex} loading={busy} onPress={() => void confirm()} />
+      </View>
+    </View>
+  );
+}
+
+const verdictColor = { hit: colors.green, partial: colors.orange, miss: colors.red } as const;
 
 const reasons: { key: Schemas['DisputeRequest']['reason']; text: string }[] = [
   { key: 'hit_missed', text: '我其实答到了某个采分点' },
@@ -352,17 +429,17 @@ export function DisputeSheet({ g, visible, onClose, onDone }: { g: GradingResult
             }}
             style={styles.info}
           >
-            <Text variant="small" color="#1D4C77" style={styles.flex}>
+            <Text variant="small" color={colors.blueInk} style={styles.flex}>
               采分点{g.rubric_ref ? `来自你的资料「${g.rubric_ref.file_name}」` : '来自你的资料'}，可以直接改，改完这道题按新采分点重批，不消耗批改次数
             </Text>
-            <Text variant="caption" color="#1D4C77" style={styles.bold}>
+            <Text variant="caption" color={colors.blueInk} style={styles.bold}>
               去修改 ›
             </Text>
           </Pressable>
         ) : (
           <>
             <Text variant="small">补充说明（选填）</Text>
-            <TextInput accessibilityLabel="补充说明" value={note} onChangeText={setNote} multiline placeholder="比如：我写的「言外之意」就是韵味无穷的意思" placeholderTextColor="#A8A399" style={styles.note} textAlignVertical="top" />
+            <TextInput accessibilityLabel="补充说明" value={note} onChangeText={setNote} multiline placeholder="比如：我写的「言外之意」就是韵味无穷的意思" placeholderTextColor={colors.faint} style={styles.note} textAlignVertical="top" />
             <Checkbox checked={allow} onChange={setAllow} label="允许后台查看这道题和我的答案，用于排查批改问题" />
             <Text variant="small">提交后会重新批改一次，不消耗批改次数。</Text>
             <Button title="提交" disabled={!reason} loading={submit.isPending} onPress={() => submit.mutate()} />
@@ -396,6 +473,10 @@ export function useSubmitSubjective(sessionId: number) {
 const styles = StyleSheet.create({
   gap: { gap: spacing.sm },
   gap12: { gap: 12 },
+  gap8: { gap: 8 },
+  lh19: { lineHeight: 19 },
+  aiNotice: { paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.blueSoft },
+  aiCard: { gap: 10, backgroundColor: colors.white, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.blueLine },
   gap2: { gap: 2 },
   gap4: { gap: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

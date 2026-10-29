@@ -1,4 +1,4 @@
-import { flush, setAnalyticsContext, track } from '../lib/analytics';
+import { flush, onAppStateChange, setAnalyticsContext, track } from '../lib/analytics';
 import { useSession } from '../lib/session';
 import { getJSON, remove } from '../lib/storage';
 
@@ -50,5 +50,18 @@ describe('埋点（T32）', () => {
     mockPost.mockClear();
     await flush();
     expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  it('锁屏时访问令牌已过期就不上报（避免锁屏瞬间刷新令牌），没过期照常上报', async () => {
+    mockPost.mockResolvedValue({ response: { status: 200 } });
+    track('redeem');
+    useSession.getState().setSession({ ...session, accessExpiresAt: '2000-01-01T00:00:00Z' });
+    onAppStateChange('background');
+    await Promise.resolve();
+    expect(mockPost).not.toHaveBeenCalled();
+    useSession.getState().setSession(session);
+    onAppStateChange('background');
+    await Promise.resolve();
+    expect(mockPost).toHaveBeenCalledTimes(1);
   });
 });

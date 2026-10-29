@@ -1,4 +1,4 @@
-import { layout, radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { ActivityIndicator, Pressable, StyleSheet, View, type PressableProps } from 'react-native';
 import { Text } from './Text';
 
@@ -17,7 +17,7 @@ export interface ButtonProps extends Omit<PressableProps, 'children'> {
 }
 
 /**
- * 按钮（样式取自设计稿）：主（夜靛实底）、次（白底线色描边）、浅底胶囊、文字、危险（红色描边）。
+ * 按钮（样式取自设计稿）：主（墨黑实底）、次（白底线色描边）、浅底胶囊、文字、危险（红色描边）。
  * 不可用时换成灰底灰字；可点区域不小于 44×44。
  */
 export function Button({ title, kind = 'primary', size = 'md', loading, disabled, block, color, style, ...rest }: ButtonProps) {
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
 const kindStyles = {
   primary: StyleSheet.create({ container: { backgroundColor: semantic.primary }, text: { color: semantic.textOnBrand } }),
   secondary: StyleSheet.create({
-    container: { backgroundColor: semantic.surface, borderWidth: 1, borderColor: semantic.border },
+    container: { backgroundColor: semantic.surface, borderWidth: 1, borderColor: semantic.inputBorder },
     text: { color: semantic.textPrimary, fontWeight: '400' },
   }),
   soft: StyleSheet.create({ container: { backgroundColor: semantic.fill }, text: { color: semantic.textPrimary, fontWeight: '400' } }),
@@ -89,7 +89,7 @@ const kindStyles = {
     text: { color: semantic.textSecondary, fontWeight: '400' },
   }),
   danger: StyleSheet.create({
-    container: { backgroundColor: semantic.surface, borderWidth: 1, borderColor: '#F0C6C2' },
+    container: { backgroundColor: semantic.surface, borderWidth: 1, borderColor: colors.redLine },
     text: { color: semantic.danger, fontWeight: '400' },
   }),
 };

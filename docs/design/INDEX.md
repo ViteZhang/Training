@@ -1,16 +1,16 @@
 # 设计稿索引
 
-页面编号 → 视觉稿文件。编号与 docs/prd.md 一致。pages/ 下的 .dc.html 只用来读布局、文案和交互，颜色字体按 vi/ 替换（见 CLAUDE.md「视觉规则」）。
+页面编号 → 视觉稿文件。编号与 docs/prd.md 一致。pages/ 下的 .dc.html 是布局、颜色、文案和交互的依据，页面颜色一比一还原；vi/ 只管 Logo 和 App 图标（见 CLAUDE.md「视觉规则」）。
 
 在线预览（含交互与画布）：https://claude.ai/code/artifact/0fb1b154-6abd-41dd-bc16-0d03ee1a908c
 
-说明：文件 <title> 里的编号有少数是旧编号，一律以本表为准。spec.dc.html 是旧版设计规范板，组件形态可参考，颜色以 VI 为准。
+说明：文件 <title> 里的编号有少数是旧编号，一律以本表为准。spec.dc.html 是设计规范板（颜色、字号、组件形态），页面颜色以它为准。
 
 ## 0-启动与账号·登录注册
 
 | 页面 | 文件 |
 | --- | --- |
-| 0.1 启动页（按 VI 竖版组合重做，旧版仅作布局参考） | pages/m0_splash.dc.html |
+| 0.1 启动页（白底按设计稿，Logo 用 VI） | pages/m0_splash.dc.html |
 | 0.2 手机号登录（可交互） | pages/m0_login.dc.html |
 | 0.2a 已输入手机号 | pages/m0_login_filled.dc.html |
 | 0.2b 未同意协议 | pages/m0_login_agree.dc.html |
@@ -38,6 +38,7 @@
 | 1.6b 部分文件识别失败 | pages/m1_parse_fail.dc.html |
 | 1.7 确认导入结果（可交互） | pages/m1_confirm.dc.html |
 | 1.7b 核对主观题采分点 | pages/m1_confirm_item.dc.html |
+| 1.7c 补充答案文件 | pages/m1_answers.dc.html |
 | 1.8 题库建好了 | pages/m1_done.dc.html |
 
 ## 2-今日
@@ -63,6 +64,7 @@
 | 3.1d 删除资料确认 | pages/m3_delete.dc.html |
 | 3.2 搜索 | pages/m3_search.dc.html |
 | 3.3 题目详情 | pages/m3_question.dc.html |
+| 3.3b 题目详情 · AI 参考答案 | pages/m3_question_ai.dc.html |
 | 3.4 知识点卡片（可交互） | pages/m3_card.dc.html |
 | 3.5 知识点更多操作 | pages/m3_more.dc.html |
 | 3.6 编辑知识点 | pages/m3_edit.dc.html |
@@ -82,8 +84,10 @@
 | 4.5 拍手写稿识别 | pages/m4_photo.dc.html |
 | 4.6 AI 批改中 | pages/m4_grading.dc.html |
 | 4.7 批改结果 | pages/m4_result.dc.html |
+| 4.7b 批改结果 · 按 AI 参考答案 | pages/m4_result_ai.dc.html |
 | 4.8 批改有异议（可交互） | pages/m4_dispute.dc.html |
 | 4.9 批改次数用完 | pages/m4_quota.dc.html |
+| 4.9b 批改次数用完 · 购买入口关闭（iOS 提审前） | pages/m4_quota_off.dc.html |
 | 4.10 退出训练确认 | pages/m4_exit.dc.html |
 | 4.11 本组训练总结 | pages/m4_summary.dc.html |
 | 4.12 错题本 | pages/m4_wrong.dc.html |
@@ -125,6 +129,7 @@
 | 6.3 我的资料 | pages/m6_library.dc.html |
 | 6.4 导出题库 | pages/m6_export.dc.html |
 | 6.5 会员中心（可交互） | pages/m6_member.dc.html |
+| 6.5a 获取兑换码（企业微信） | pages/m6_getcode.dc.html |
 | 6.6 支付结果 | pages/m6_payresult.dc.html |
 | 6.7 兑换码 | pages/m6_redeem.dc.html |
 | 6.8 邀请研友 | pages/m6_invite.dc.html |

@@ -18,7 +18,7 @@ function Tile({ value, unit, label }: { value: number | string; unit?: string; l
   );
 }
 
-const lossColors = [colors.amber, colors.blue, '#8C80E0'];
+const lossColors = [colors.peach, colors.blue, colors.lavender];
 
 export default function TodaySummaryPage() {
   const q = useTodaySummary();
@@ -37,7 +37,7 @@ export default function TodaySummaryPage() {
         <View style={styles.gap4}>
           <Text variant="h1">今日训练完成</Text>
           <Text variant="caption">
-            已连续打卡 <Text variant="caption" color={colors.ink} style={styles.bold}>{s.streak_days}</Text> 天
+            已连续打卡 <Text variant="caption" num={600} color={colors.ink}>{s.streak_days}</Text> 天
           </Text>
         </View>
         <View style={styles.tiles}>
@@ -101,7 +101,7 @@ export default function TodaySummaryPage() {
               <View style={styles.lossLegend}>
                 {losses.map((k) => (
                   <Text key={k} variant="small">
-                    {lossNames[k]} <Text variant="small" color={colors.ink}>{Math.round((s.loss_shares[k] ?? 0) * 100)}%</Text>
+                    {lossNames[k]} <Text variant="small" num color={colors.ink}>{Math.round((s.loss_shares[k] ?? 0) * 100)}%</Text>
                   </Text>
                 ))}
               </View>
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
   tile: { flex: 1, gap: 2, paddingVertical: 14, paddingHorizontal: 14, borderRadius: radius.xl, backgroundColor: semantic.fill },
   tileNum: { fontFamily: fontFamily.numberSemiBold, fontSize: 28, lineHeight: 34, color: colors.ink },
   estimate: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  range: { fontFamily: fontFamily.numberSemiBold, fontSize: 22, lineHeight: 28, color: colors.indigo },
+  range: { fontFamily: fontFamily.numberSemiBold, fontSize: 22, lineHeight: 28, color: colors.ink },
   change: { fontFamily: fontFamily.numberSemiBold, fontSize: 20 },
   section: { gap: 10 },
   row: { flexDirection: 'row', alignItems: 'center' },

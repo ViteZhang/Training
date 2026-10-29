@@ -1,29 +1,41 @@
 // 3.1b 题目：按题型筛选（显示各题型题数）、按来源筛选、按章节或最近排序；每题显示得分或状态、所属板块章节、做过几次；
-// AI 出题注明由哪个知识点生成。
-import type { Schemas } from '@training/api-client';
-import { radius, semantic } from '@training/ui-tokens';
-import { useInfiniteQuery } from '@tanstack/react-query';
+// AI 出题注明由哪个知识点生成。「多选」后可以批量删除（如不是自己报考专业的题）。
+// 按答案状态筛选（PRD 11.16）：来自你的资料 / 你已确认 / AI 答案待确认 / 缺答案；缺答案时给「补充答案文件」（→ 1.7c）。
+import { ApiError, type Schemas } from '@training/api-client';
+import { colors, radius, semantic } from '@training/ui-tokens';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Button, EmptyState, ErrorState, Loading, Tag, Text } from '@/components';
+import { Button, ConfirmDialog, EmptyState, ErrorState, GroupTag, Icon, Loading, Tag, Text, toast } from '@/components';
 import { qtypeNames } from '@/features/import/api';
 import { Segments } from '@/features/import/ui';
 import { api, unwrap } from '@/lib/api';
 import { bankKeys, sourceLabel, sourceNames, statusTagNames } from './api';
 
 type Source = Schemas['QuestionSource'] | 'all';
-const sources: Source[] = ['all', 'exam', 'exercise', 'ai_generated'];
+const sources: Source[] = ['all', 'exam', 'exercise', 'unconfirmed', 'ai_generated'];
+type AnswerFilter = 'all' | 'material' | 'confirmed' | 'ai' | 'missing';
+const answerFilters: AnswerFilter[] = ['all', 'material', 'confirmed', 'ai', 'missing'];
+export const answerFilterNames: Record<AnswerFilter, string> = { all: '全部', material: '来自你的资料', confirmed: '你已确认', ai: 'AI 答案待确认', missing: '缺答案' };
 
-function QuestionRow({ q }: { q: Schemas['QuestionSummary'] }) {
+function QuestionRow({ q, selecting, selected, onToggle }: { q: Schemas['QuestionSummary']; selecting?: boolean; selected?: boolean; onToggle?: () => void }) {
   const meta = [q.path.join(' · ')];
   if (q.attempt_count > 0) meta.push(`做过 ${q.attempt_count} 次`);
   if (q.generated_from_kp) meta.push(`由「${q.generated_from_kp}」生成`);
-  const bad = q.status_tag === 'wrong' || q.status_tag === 'needs_review';
+  const bad = q.status_tag === 'wrong' || q.status_tag === 'needs_review' || q.status_tag === 'ai_answer';
   const state = q.last_score !== undefined && q.score !== undefined && q.status_tag !== 'needs_review' ? `${q.last_score} / ${q.score}` : statusTagNames[q.status_tag];
   return (
-    <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/bank/question/[id]', params: { id: String(q.id) } })} style={styles.row}>
+    <Pressable
+      accessibilityRole={selecting ? 'checkbox' : 'button'}
+      accessibilityState={selecting ? { checked: !!selected } : undefined}
+      onPress={() => (selecting ? onToggle?.() : router.push({ pathname: '/bank/question/[id]', params: { id: String(q.id) } }))}
+      style={[styles.row, selected && styles.rowSelected]}
+    >
       <View style={styles.head}>
+        {selecting ? (
+          <View style={[styles.box, selected && styles.boxOn]}>{selected ? <Icon name="check" size={12} color={semantic.textOnBrand} /> : null}</View>
+        ) : null}
         <View style={styles.pill}>
           <Text variant="small" color={semantic.textPrimary} style={styles.medium}>
             {qtypeNames[q.qtype]}
@@ -31,8 +43,9 @@ function QuestionRow({ q }: { q: Schemas['QuestionSummary'] }) {
           </Text>
         </View>
         {q.source === 'ai_generated' ? <Tag label="AI 出题" tone="ai" /> : <Text variant="small">{sourceLabel(q.source, q.exam_year)}</Text>}
+        <GroupTag group={q.group} />
         <View style={styles.flex} />
-        <Text variant="small" color={bad ? '#9A5B00' : q.status_tag === 'mastered' ? semantic.mastered : semantic.textPrimary} style={styles.medium}>
+        <Text variant="small" color={bad ? colors.orange : q.status_tag === 'mastered' ? semantic.mastered : semantic.textPrimary} style={styles.medium}>
           {state}
         </Text>
       </View>
@@ -44,11 +57,41 @@ function QuestionRow({ q }: { q: Schemas['QuestionSummary'] }) {
   );
 }
 
-export function QuestionList({ subjectId, kpId, status }: { subjectId: number; kpId?: number; status?: Schemas['QuestionStatusTag'] }) {
+export function QuestionList({ subjectId, kpId, status, answer: initialAnswer }: { subjectId: number; kpId?: number; status?: Schemas['QuestionStatusTag']; answer?: AnswerFilter }) {
   const [qtype, setQtype] = useState<Schemas['QuestionType'] | 'all'>('all');
   const [source, setSource] = useState<Source>('all');
+  const [answer, setAnswer] = useState<AnswerFilter>(initialAnswer ?? (status === 'ai_answer' ? 'ai' : 'all'));
   const [sort, setSort] = useState<'chapter' | 'recent'>('chapter');
-  const filter = { qtype, source, sort, kpId, status };
+  const qc = useQueryClient();
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [asking, setAsking] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const exitSelect = () => {
+    setSelecting(false);
+    setSelected(new Set());
+  };
+  const toggle = (id: number) =>
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const remove = async () => {
+    setDeleting(true);
+    try {
+      const r = await unwrap(api.POST('/questions/delete', { body: { ids: [...selected] } }));
+      await qc.invalidateQueries({ queryKey: ['bank'] });
+      toast(`已删除 ${r.deleted} 道题`);
+      exitSelect();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : '删除没成功，请重试');
+    } finally {
+      setDeleting(false);
+    }
+  };
+  const filter = { qtype, source, sort, kpId, status, answer };
   const list = useInfiniteQuery({
     queryKey: bankKeys.questions(subjectId, filter),
     queryFn: ({ pageParam }) =>
@@ -60,7 +103,8 @@ export function QuestionList({ subjectId, kpId, status }: { subjectId: number; k
               qtype: qtype === 'all' ? undefined : qtype,
               source: source === 'all' ? undefined : source,
               kp_id: kpId,
-              status: status === 'answered' ? undefined : status,
+              status: status === 'answered' || status === 'ai_answer' ? undefined : status,
+              answer_status: answer === 'all' ? undefined : answer,
               sort,
               cursor: pageParam,
               limit: 30,
@@ -77,6 +121,7 @@ export function QuestionList({ subjectId, kpId, status }: { subjectId: number; k
   const items = list.data?.pages.flatMap((p) => p.items) ?? [];
   const byQtype = first?.facets.by_qtype ?? {};
   const qtypes = Object.keys(byQtype) as Schemas['QuestionType'][];
+  const byAnswer = first?.facets.by_answer ?? {};
   return (
     <View style={styles.wrap}>
       {qtypes.length > 1 ? (
@@ -86,29 +131,80 @@ export function QuestionList({ subjectId, kpId, status }: { subjectId: number; k
           options={[{ key: 'all' as const, label: '全部' }, ...qtypes.map((t) => ({ key: t, label: qtypeNames[t], count: byQtype[t] }))]}
         />
       ) : null}
-      <View style={styles.tools}>
-        <Button
-          title={`按来源：${source === 'all' ? '全部' : sourceNames[source]}`}
-          kind="text"
-          size="sm"
-          style={styles.tool}
-          onPress={() => setSource(sources[(sources.indexOf(source) + 1) % sources.length]!)}
-        />
-        <Button title={sort === 'chapter' ? '按章节排序 ▾' : '最近做过 ▾'} kind="text" size="sm" color={semantic.textPrimary} style={styles.tool} onPress={() => setSort(sort === 'chapter' ? 'recent' : 'chapter')} />
-      </View>
-      {items.length === 0 ? <EmptyState title="没有符合条件的题" /> : items.map((q) => <QuestionRow key={q.id} q={q} />)}
+      {selecting ? (
+        <View style={styles.tools}>
+          <Text variant="small" color={semantic.textPrimary} style={styles.count}>
+            已选 {selected.size} 道
+          </Text>
+          <Button title="全选" kind="text" size="sm" style={styles.tool} onPress={() => setSelected(new Set(items.map((q) => q.id)))} />
+          <Button title="删除" kind="text" size="sm" color={semantic.danger} disabled={selected.size === 0} loading={deleting} style={styles.tool} onPress={() => setAsking(true)} />
+          <Button title="取消" kind="text" size="sm" color={semantic.textPrimary} style={styles.tool} onPress={exitSelect} />
+        </View>
+      ) : (
+        <View style={styles.tools}>
+          <Button
+            title={`来源：${source === 'all' ? '全部' : sourceNames[source]}`}
+            kind="text"
+            size="sm"
+            style={styles.tool}
+            onPress={() => setSource(sources[(sources.indexOf(source) + 1) % sources.length]!)}
+          />
+          <Button
+            title={`答案：${answerFilterNames[answer]}${answer !== 'all' && byAnswer[answer] !== undefined ? ` ${byAnswer[answer]}` : ''}`}
+            kind="text"
+            size="sm"
+            style={styles.tool}
+            onPress={() => setAnswer(answerFilters[(answerFilters.indexOf(answer) + 1) % answerFilters.length]!)}
+          />
+          <View style={styles.flex} />
+          <Button title={sort === 'chapter' ? '按章节排序 ▾' : '最近做过 ▾'} kind="text" size="sm" color={semantic.textPrimary} style={styles.tool} onPress={() => setSort(sort === 'chapter' ? 'recent' : 'chapter')} />
+          {items.length > 0 ? <Button title="多选" kind="text" size="sm" color={semantic.textPrimary} style={styles.tool} onPress={() => setSelecting(true)} /> : null}
+        </View>
+      )}
+      {answer === 'missing' || answer === 'ai' ? (
+        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/import/answers', params: { subject: String(subjectId) } })} style={styles.answerTip}>
+          <Text variant="small" color={colors.blueInk} style={styles.flex}>
+            {answer === 'missing' ? '这些题做到时由 AI 给参考答案；有答案文件的话，补充进来更准' : 'AI 参考答案在你确认前不计入预估分；有答案文件的话，补充进来更准'}
+          </Text>
+          <Text variant="small" color={colors.blueInk} style={styles.medium}>
+            补充答案文件 ›
+          </Text>
+        </Pressable>
+      ) : null}
+      {items.length === 0 ? (
+        <EmptyState title="没有符合条件的题" />
+      ) : (
+        items.map((q) => <QuestionRow key={q.id} q={q} selecting={selecting} selected={selected.has(q.id)} onToggle={() => toggle(q.id)} />)
+      )}
       {list.hasNextPage ? <Button title="加载更多" kind="secondary" loading={list.isFetchingNextPage} onPress={() => void list.fetchNextPage()} /> : null}
+      <ConfirmDialog
+        visible={asking}
+        title={`删除所选 ${selected.size} 道题？`}
+        message="会一起删除它们的作答记录和错题记录，删除后不能恢复。"
+        confirmText="删除"
+        danger
+        onCancel={() => setAsking(false)}
+        onConfirm={() => {
+          setAsking(false);
+          void remove();
+        }}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { gap: 10 },
-  tools: { flexDirection: 'row', justifyContent: 'space-between' },
+  tools: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   tool: { paddingHorizontal: 0 },
+  count: { flex: 1, fontWeight: '500' },
+  rowSelected: { borderColor: semantic.textPrimary },
+  box: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: colors.faint, alignItems: 'center', justifyContent: 'center' },
+  boxOn: { backgroundColor: semantic.textPrimary, borderColor: semantic.textPrimary },
   row: { gap: 8, paddingVertical: 14, paddingHorizontal: 16, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: semantic.fill },
   medium: { fontWeight: '500' },
   flex: { flex: 1 },
+  answerTip: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: radius.lg, backgroundColor: colors.blueSoft },
 });

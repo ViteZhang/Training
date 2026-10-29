@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, ErrorState, Icon, Loading, ProgressBar, Screen, Tag, Text } from '@/components';
+import { Button, Card, ErrorState, Icon, Loading, ProgressBar, Screen, Text } from '@/components';
 import { useUnreadCount } from '@/features/messages/api';
 import { isRunning, useActiveImportJobs } from '@/features/import/api';
 import { stageInfo } from '@/features/onboarding/api';
@@ -26,10 +26,17 @@ function Top({ days, stage }: { days?: number; stage?: keyof typeof stageInfo })
         </Text>
         <Text variant="caption">天后初试</Text>
       </View>
+      {/* 阶段胶囊和消息按钮同高、垂直居中对齐，整组与倒计时数字居中 */}
       <View style={styles.topRight}>
-        {stage ? <Tag label={stageInfo[stage].name} tone="outline" size="md" /> : null}
-        <Pressable accessibilityRole="button" accessibilityLabel={unread > 0 ? `消息，${unread} 条未读` : '消息'} onPress={() => router.push('/messages')} style={styles.bell}>
-          <Icon name="bell" />
+        {stage ? (
+          <View style={styles.stage}>
+            <Text variant="small" color={colors.ink} style={styles.stageText}>
+              {stageInfo[stage].name}
+            </Text>
+          </View>
+        ) : null}
+        <Pressable accessibilityRole="button" accessibilityLabel={unread > 0 ? `消息，${unread} 条未读` : '消息'} onPress={() => router.push('/messages')} hitSlop={6} style={styles.bell}>
+          <Icon name="bell" size={20} />
           {unread > 0 ? <View style={styles.badge} /> : null}
         </Pressable>
       </View>
@@ -102,8 +109,8 @@ export default function TodayTab() {
   const summary = useTodaySummary();
   const [editTarget, setEditTarget] = useState(false);
 
-  if (home.isLoading) return <Screen><Loading rows={6} /></Screen>;
-  if (home.isError || !home.data) return <Screen><ErrorState error={home.error} onRetry={() => void home.refetch()} /></Screen>;
+  if (home.isLoading) return <Screen edges={['top']}><Loading rows={6} /></Screen>;
+  if (home.isError || !home.data) return <Screen edges={['top']}><ErrorState error={home.error} onRetry={() => void home.refetch()} /></Screen>;
   const h = home.data;
   const list = subjects.data?.items ?? [];
   const top = <Top days={h.days_to_exam} stage={h.stage} />;
@@ -114,7 +121,7 @@ export default function TodayTab() {
   // 2.1c 还没导入资料
   if (h.state === 'no_material') {
     return (
-      <Screen>
+      <Screen edges={['top']}>
         <ScrollView contentContainerStyle={styles.scroll} refreshControl={refresh}>
           {top}
           <Card style={styles.emptyCard}>
@@ -133,7 +140,7 @@ export default function TodayTab() {
             </Text>
             <Tip color={colors.green} title="历年真题卷最合适" desc="有题有答案，导入就能刷；做完一套整卷还能算出预估分" />
             <Tip color={colors.blue} title="只有讲义或笔记" desc="AI 会拆出知识点和采分点，再按知识点出题" />
-            <Tip color="#8C80E0" title="纸质习题册" desc="直接拍照，一张拍一页" />
+            <Tip color={colors.lavender} title="纸质习题册" desc="直接拍照，一张拍一页" />
           </Card>
           <BanksCard banks={h.banks} />
         </ScrollView>
@@ -149,7 +156,7 @@ export default function TodayTab() {
     const recognized = j ? j.counts.questions + j.counts.knowledge_points + (j.counts.essay_items ?? 0) : 0;
     const jobId = j?.id ?? h.organizing_job_id;
     return (
-      <Screen>
+      <Screen edges={['top']}>
         <ScrollView contentContainerStyle={styles.scroll} refreshControl={refresh}>
           {top}
           <View style={styles.dashed}>
@@ -161,8 +168,8 @@ export default function TodayTab() {
           <Card tone="fill" style={styles.card}>
             <View style={styles.dots} accessibilityElementsHidden>
               <View style={[styles.dot, { backgroundColor: colors.ink }]} />
-              <View style={[styles.dot, { backgroundColor: '#8C877D' }]} />
-              <View style={[styles.dot, { backgroundColor: '#CFCAC0' }]} />
+              <View style={[styles.dot, { backgroundColor: colors.dim }]} />
+              <View style={[styles.dot, { backgroundColor: colors.placeholder }]} />
             </View>
             <Text variant="h3">{!j || isRunning(j) ? '正在整理你的题库' : '题库整理好了，等你核对'}</Text>
             {j ? <ProgressBar value={j.materials.length ? done / j.materials.length : 0} height={4} color={colors.ink} /> : null}
@@ -172,7 +179,7 @@ export default function TodayTab() {
                 {isRunning(j) ? '全部整理好后会重新排今天的计划，并通知你核对。' : ''}
               </Text>
             ) : null}
-            {jobId && j && !isRunning(j) ? (
+            {jobId && j && !isRunning(j) && recognized > 0 ? (
               <Button title="去核对" onPress={() => router.push({ pathname: '/import/confirm/[id]', params: { id: String(jobId) } })} />
             ) : null}
           </Card>
@@ -186,7 +193,7 @@ export default function TodayTab() {
 
   // 2.1d 今日已完成 / 2.1 正常
   return (
-    <Screen>
+    <Screen edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} refreshControl={refresh}>
         {top}
         {h.low_coverage ? (
@@ -214,13 +221,15 @@ const styles = StyleSheet.create({
   scroll: { paddingBottom: spacing.xxl, gap: spacing.md },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm },
   countdown: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-  topRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  stage: { height: 36, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  stageText: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
   flex: { flex: 1 },
   bold: { fontWeight: '700' },
   center: { textAlign: 'center', lineHeight: 21 },
   lh: { lineHeight: 21 },
-  bell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -10 },
-  badge: { position: 'absolute', top: 10, right: 11, width: 8, height: 8, borderRadius: 4, backgroundColor: semantic.danger, borderWidth: 2, borderColor: semantic.background },
+  bell: { width: 36, height: 36, borderRadius: 18, backgroundColor: semantic.fill, alignItems: 'center', justifyContent: 'center' },
+  badge: { position: 'absolute', top: 7, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: semantic.danger, borderWidth: 2, borderColor: semantic.background },
   card: { gap: 10 },
   emptyCard: { alignItems: 'center', gap: 10, paddingTop: 26 },
   emptyIcon: { width: 56, height: 56, borderRadius: 18, backgroundColor: semantic.fill, alignItems: 'center', justifyContent: 'center' },
@@ -229,6 +238,6 @@ const styles = StyleSheet.create({
   tip: { flexDirection: 'row', gap: 10 },
   dot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
   dots: { flexDirection: 'row', gap: 6 },
-  dashed: { gap: 4, paddingVertical: 16, paddingHorizontal: 18, borderRadius: radius.card, borderWidth: 1, borderStyle: 'dashed', borderColor: '#D6D2C8' },
+  dashed: { gap: 4, paddingVertical: 16, paddingHorizontal: 18, borderRadius: radius.card, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outline },
   notice: { flexDirection: 'row', gap: 10, padding: 14, borderRadius: radius.xl, backgroundColor: semantic.infoSoft },
 });

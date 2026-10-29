@@ -2,15 +2,37 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import MemberCenter from '../../app/member';
+import GetCodeSheet from '../../app/member/getcode';
 import PayResult from '../../app/member/result';
+import RedeemPage from '../../app/mine/redeem';
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
+const mockBack = jest.fn();
 let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
-  router: { push: (...a: unknown[]) => mockPush(...a), replace: (...a: unknown[]) => mockReplace(...a), back: jest.fn() },
+  router: { push: (...a: unknown[]) => mockPush(...a), replace: (...a: unknown[]) => mockReplace(...a), back: () => mockBack() },
   useLocalSearchParams: () => mockParams,
 }));
+const mockCopy = jest.fn();
+jest.mock('expo-clipboard', () => ({ setStringAsync: (...a: unknown[]) => mockCopy(...(a as [])) }));
+const mockSaveAsset = jest.fn();
+jest.mock('expo-media-library', () => ({
+  requestPermissionsAsync: () => Promise.resolve({ granted: true, canAskAgain: true }),
+  Asset: { create: (...a: unknown[]) => mockSaveAsset(...(a as [])) },
+}));
+jest.mock('expo-file-system', () => {
+  class File {
+    uri: string;
+    exists = false;
+    constructor(_dir: unknown, name: string) {
+      this.uri = 'file:///cache/' + name;
+    }
+    delete() {}
+    static downloadFileAsync = (_url: string, f: { uri: string }) => Promise.resolve(f);
+  }
+  return { File, Paths: { cache: 'cache' } };
+});
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'uuid-1234-5678' }));
 const mockLaunch = jest.fn();
 jest.mock('../features/membership/pay', () => ({ launchPay: (...a: unknown[]) => mockLaunch(...a) }));
@@ -57,6 +79,10 @@ const center = (over: object = {}) => ({
   ],
   ...over,
 });
+const contact = (over: object = {}) => ({
+  name: '考研Training 客服', wecom_id: 'kaoyan-training', qr_url: 'https://oss.example/qr.png', reply_time: '工作日 9:00–21:00 回复',
+  note: '暂未开放在线支付，加客服企业微信获取兑换码', ...over,
+});
 const order = (over: object = {}) => ({
   order_no: 'T20261003100000123456', tier: 'season', channel: 'apple_iap', amount_cents: 16900, status: 'created', created_at: '2026-10-03T02:00:00Z', ...over,
 });
@@ -67,22 +93,36 @@ beforeEach(() => {
   mockReplace.mockReset();
   mockLaunch.mockReset();
   mockParams = {};
-  mockResponses = { 'GET /membership/plans': () => ({ status: 200, data: center() }) };
+  mockBack.mockReset();
+  mockResponses = {
+    'GET /membership/plans': () => ({ status: 200, data: center() }),
+    'GET /purchase-entry': () => ({ status: 200, data: { enabled: true, contact: contact() } }),
+  };
 });
 
 describe('6.5 会员中心', () => {
-  it('支付关闭时只显示权益对比与兑换码入口，注明不自动续费', async () => {
+  it('在线支付开通前：列出档位与价格，主按钮「获取兑换码」→ 6.5a，「我已有兑换码」→ 6.7，注明不自动续费', async () => {
     const r = await wrap(<MemberCenter />);
     expect(await screen.findByText('开通会员')).toBeTruthy();
     expect(screen.getByLabelText('主观题批改 免费版 3 次/天 会员 不限')).toBeTruthy();
     expect(screen.getByLabelText('资料解析页数 免费版 100 页 会员 1000 页/月')).toBeTruthy();
     expect(screen.queryByText(/立即开通/)).toBeNull();
-    expect(screen.queryByText('冲刺卡')).toBeNull();
+    expect(screen.getByText('冲刺卡')).toBeTruthy();
+    expect(await screen.findByText('暂未开放在线支付，加客服企业微信获取兑换码')).toBeTruthy();
     expect(screen.getByText(/不自动续费/)).toBeTruthy();
-    await fireEvent.press(screen.getByText('有兑换码？'));
+    await fireEvent.press(screen.getByText('获取兑换码'));
+    expect(mockPush).toHaveBeenCalledWith('/member/getcode');
+    await fireEvent.press(screen.getByText('我已有兑换码'));
     expect(mockPush).toHaveBeenCalledWith('/mine/redeem');
     await fireEvent.press(screen.getByText('会员服务协议'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/(auth)/agreement', params: { kind: 'membership' } });
+    await r.unmount();
+  });
+
+  it('购买入口关闭的平台（iOS 提审前）误进来时直接退回', async () => {
+    mockResponses['GET /purchase-entry'] = () => ({ status: 200, data: { enabled: false } });
+    const r = await wrap(<MemberCenter />);
+    await waitFor(() => expect(mockBack).toHaveBeenCalled());
     await r.unmount();
   });
 
@@ -167,6 +207,50 @@ describe('6.6 支付结果', () => {
     expect(screen.getByText('已取消支付')).toBeTruthy();
     expect(screen.getByText('重新支付')).toBeTruthy();
     expect(mockCalls.some((c) => c.path === '/orders/{orderNo}')).toBe(false);
+    await r.unmount();
+  });
+});
+
+describe('6.5a 获取兑换码', () => {
+  it('客服二维码、名称与 ID；复制 ID、保存二维码；三步说明列出档位与价格；去兑换 → 6.7', async () => {
+    const r = await wrap(<GetCodeSheet />);
+    expect(await screen.findByText('加客服企业微信，获取兑换码')).toBeTruthy();
+    expect(screen.getByText('考研Training 客服')).toBeTruthy();
+    expect(screen.getByText('ID: kaoyan-training')).toBeTruthy();
+    expect(screen.getByText('工作日 9:00–21:00 回复')).toBeTruthy();
+    expect(await screen.findByText('冲刺卡 ¥59 · 考季卡 ¥169 · 月卡 ¥29.9')).toBeTruthy();
+    expect(screen.getByLabelText('客服企业微信二维码')).toBeTruthy();
+    await fireEvent.press(screen.getByText('复制 ID'));
+    expect(mockCopy).toHaveBeenCalledWith('kaoyan-training');
+    await fireEvent.press(screen.getByText('保存二维码'));
+    // 第一次先弹权限说明（0.5），同意后再调系统弹窗并保存
+    await fireEvent.press(await screen.findByText('去允许'));
+    await waitFor(() => expect(mockSaveAsset).toHaveBeenCalledWith('file:///cache/kefu-qrcode.png'));
+    await fireEvent.press(screen.getByText('我已有兑换码，去兑换'));
+    expect(mockReplace).toHaveBeenCalledWith('/mine/redeem');
+    await r.unmount();
+  });
+
+  it('购买入口关闭时直接退回，不出现价格', async () => {
+    mockResponses['GET /purchase-entry'] = () => ({ status: 200, data: { enabled: false } });
+    const r = await wrap(<GetCodeSheet />);
+    await waitFor(() => expect(mockBack).toHaveBeenCalled());
+    expect(screen.queryByText(/¥/)).toBeNull();
+    await r.unmount();
+  });
+});
+
+describe('6.7 兑换码', () => {
+  it('「还没有兑换码？」→ 6.5a；购买入口关闭时不显示', async () => {
+    let r = await wrap(<RedeemPage />);
+    await fireEvent.press(await screen.findByText('还没有兑换码？'));
+    expect(mockPush).toHaveBeenCalledWith('/member/getcode');
+    await r.unmount();
+    mockResponses['GET /purchase-entry'] = () => ({ status: 200, data: { enabled: false } });
+    r = await wrap(<RedeemPage />);
+    expect(await screen.findByText('输入兑换码')).toBeTruthy();
+    await waitFor(() => expect(mockCalls.some((c) => c.path === '/purchase-entry')).toBe(true));
+    expect(screen.queryByText('还没有兑换码？')).toBeNull();
     await r.unmount();
   });
 });

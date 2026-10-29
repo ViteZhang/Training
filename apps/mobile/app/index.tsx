@@ -1,21 +1,22 @@
-// 0.1 启动页：按 VI 竖版组合（夜靛底、琥珀「考研」、白色 Training），约 1.5 秒。
+// 0.1 启动页：按设计稿 m0_splash（白底、VI Logo、「考研Training」、一句说明），约 1.5 秒。
 // 分流：有强制更新 → 0.6b；协议有新版本 → 0.4b；未登录 → 0.2；已登录未完成引导 → 中断的步骤；完成引导 → 2.1。
-import { colors, fontFamily, spacing } from '@training/ui-tokens';
+import { fontFamily, semantic } from '@training/ui-tokens';
 import type { Schemas } from '@training/api-client';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { Logo, Text } from '@/components';
+import { ErrorState, Logo, Screen, Text } from '@/components';
 import { AgreementUpdateDialog } from '@/features/auth/AgreementUpdateDialog';
 import { logout } from '@/features/auth/actions';
 import { routeFor } from '@/features/auth/routing';
 import { UpdateDialog } from '@/features/auth/UpdateDialog';
-import { api, unwrap } from '@/lib/api';
+import { api, refreshSession, unwrap } from '@/lib/api';
 import { appConfig } from '@/lib/config';
 import { useSession } from '@/lib/session';
 import { storage } from '@/lib/storage';
 
 export const SPLASH_MS = 1500;
+const ONBOARDING_KEY = 'onboarding_step';
 
 type Pending = { kind: 'update'; update: Schemas['AppUpdate'] } | { kind: 'agreements'; list: Schemas['AgreementSummary'][] };
 
@@ -28,6 +29,17 @@ function proceed(b: Schemas['Bootstrap'], setPending: (p: Pending | null) => voi
   }
   if (!loggedIn && useSession.getState().session) useSession.getState().clear();
   router.replace(routeFor({ loggedIn, onboardingStep: b.onboarding_step }));
+}
+
+/** 取启动配置；离线时返回 null，按本地登录态进入，联网后各页面再拉数据。 */
+async function fetchBootstrap(): Promise<Schemas['Bootstrap'] | null> {
+  try {
+    return await unwrap(
+      api.GET('/bootstrap', { params: { query: { platform: Platform.OS === 'ios' ? 'ios' : 'android', app_version: appConfig.version } } }),
+    );
+  } catch {
+    return null;
+  }
 }
 
 /** 先看版本更新：强制更新不可跳过；普通更新每个版本只提示一次。 */
@@ -43,42 +55,73 @@ function decide(b: Schemas['Bootstrap'], setPending: (p: Pending | null) => void
 export default function Splash() {
   const [boot, setBoot] = useState<Schemas['Bootstrap'] | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
+  const [sessionRecovery, setSessionRecovery] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   useEffect(() => {
     const started = Date.now();
+    let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const load = async () => {
-      let b: Schemas['Bootstrap'] | null = null;
-      try {
-        b = await unwrap(
-          api.GET('/bootstrap', { params: { query: { platform: Platform.OS === 'ios' ? 'ios' : 'android', app_version: appConfig.version } } }),
-        );
-      } catch {
-        // 离线时按本地登录态进入，联网后各页面再拉数据。
+      let b = await fetchBootstrap();
+      if (!active) return;
+      if (b && !b.logged_in && useSession.getState().session) {
+        // /bootstrap 登录可选，访问令牌过期（如锁屏久了 App 被系统回收）时按未登录返回、不会触发刷新。
+        // 先用刷新令牌换新令牌再取一次；刷新因网络失败时保留会话，并停在可恢复状态。
+        if (await refreshSession()) b = await fetchBootstrap();
+        else if (useSession.getState().session) {
+          setSessionRecovery(true);
+          return;
+        }
       }
-      const result = b ?? { server_time: '', app_name: appConfig.appName, flags: {}, logged_in: !!useSession.getState().session };
+      if (!active) return;
+      if (b?.logged_in && b.onboarding_step) storage.set(ONBOARDING_KEY, b.onboarding_step);
+      let result = b ?? { server_time: '', app_name: appConfig.appName, flags: {}, logged_in: !!useSession.getState().session };
+      // 没拿到服务端的引导进度（离线或刷新令牌没成功）时，用上次记下的，免得已完成引导的用户被带回第一步。
+      if (result.logged_in && !result.onboarding_step) {
+        const saved = storage.getString(ONBOARDING_KEY);
+        if (saved) result = { ...result, onboarding_step: saved };
+      }
       timer = setTimeout(() => {
+        if (!active) return;
         setBoot(result);
         decide(result, setPending);
       }, Math.max(0, SPLASH_MS - (Date.now() - started)));
     };
     void load();
-    return () => clearTimeout(timer);
-  }, []);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [retryAttempt]);
+
+  if (sessionRecovery) {
+    return (
+      <Screen>
+        <ErrorState
+          error={new Error('Session verification unavailable')}
+          title="登录状态暂时无法验证"
+          desc="请重试连接，或重新登录。当前会话会保留，直到你选择重新登录。"
+          onRetry={() => {
+            setSessionRecovery(false);
+            setRetryAttempt((attempt) => attempt + 1);
+          }}
+        />
+      </Screen>
+    );
+  }
 
   return (
     <View style={styles.root}>
-      <Logo size={96} />
-      <View style={styles.wordmark}>
-        <Text style={styles.cn}>考研</Text>
-        <Text style={styles.en}>Training</Text>
+      <View style={styles.center}>
+        <Logo size={84} />
+        <Text style={styles.wordmark}>
+          考研<Text style={styles.en}>Training</Text>
+        </Text>
+        <Text variant="body" color={semantic.textSecondary} style={styles.slogan}>
+          考研文科专业课 AI 提分教练
+        </Text>
       </View>
-      <Text variant="body" color="#C4C0E0" style={styles.slogan}>
-        把你的专业课资料，变成能刷、能批改的题库
-      </Text>
-      <Text variant="caption" color="#8F8BBF" style={styles.footer}>
-        文科专业课 · {appConfig.variant === 'production' ? '' : '内测版'}
-      </Text>
       {pending?.kind === 'update' ? (
         <UpdateDialog
           update={pending.update}
@@ -107,10 +150,9 @@ export default function Splash() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.indigo, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xxl },
-  wordmark: { flexDirection: 'row', alignItems: 'baseline', marginTop: spacing.xl, gap: spacing.xs },
-  cn: { fontFamily: fontFamily.serifHeavy, fontSize: 32, lineHeight: 40, color: colors.amber },
-  en: { fontFamily: fontFamily.numberBold, fontSize: 30, lineHeight: 40, color: colors.white },
-  slogan: { marginTop: spacing.md, textAlign: 'center' },
-  footer: { position: 'absolute', bottom: 48 },
+  root: { flex: 1, backgroundColor: semantic.background },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 18, paddingHorizontal: 22 },
+  wordmark: { fontSize: 26, lineHeight: 35, fontWeight: '700', letterSpacing: 1, color: semantic.textPrimary },
+  en: { fontFamily: fontFamily.numberSemiBold, letterSpacing: 0 },
+  slogan: { fontSize: 14, textAlign: 'center' },
 });

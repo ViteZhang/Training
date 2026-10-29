@@ -28,6 +28,6 @@ export function Marked({ text, highlights, low }: { text: string; highlights: Sc
 
 const styles = StyleSheet.create({
   text: { lineHeight: 28 },
-  hl: { backgroundColor: semantic.amberSoft },
+  hl: { backgroundColor: semantic.peachSoft },
   low: { textDecorationLine: 'underline', textDecorationStyle: 'dashed', textDecorationColor: semantic.danger },
 });

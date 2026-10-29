@@ -4,7 +4,7 @@
 import { AppState, Platform } from 'react-native';
 import { api } from './api';
 import { appConfig } from './config';
-import { useSession } from './session';
+import { accessTokenFresh, useSession } from './session';
 import { getJSON, setJSON } from './storage';
 
 export type EventName =
@@ -14,7 +14,8 @@ export type EventName =
   | 'session_start' | 'session_finish' | 'answer_submit' | 'reveal_answer' | 'loss_attribution' | 'recite_finish'
   | 'paper_start' | 'time_reminder_shown' | 'paper_submit' | 'time_report_view' | 'essay_submit' | 'essay_rewrite'
   | 'grade_result' | 'grade_dispute' | 'grade_recheck' | 'rubric_edit' | 'question_report'
-  | 'quota_block' | 'member_page_view' | 'pay_success' | 'redeem' | 'invite_success' | 'export'
+  | 'quota_block' | 'member_page_view' | 'getcode_view' | 'getcode_copy_id' | 'getcode_save_qr' | 'pay_success' | 'redeem' | 'invite_success' | 'export'
+  | 'answer_status_import' | 'answer_match_done' | 'answer_file_import' | 'ai_answer_generate' | 'ai_answer_confirm' | 'ai_answer_edit'
   | 'survey_submit' | 'official_bank_add';
 
 type Props = Record<string, string | number | boolean | undefined>;
@@ -81,8 +82,12 @@ export async function flush() {
   if (queue().length > 0 && !isTest) timer = setTimeout(() => void flush(), INTERVAL);
 }
 
-if (!isTest) {
-  AppState.addEventListener('change', (s) => {
-    if (s === 'background') void flush();
-  });
+/**
+ * 切到后台（锁屏）时上报一次。访问令牌已过期就不报，留到回到前台：过期时上报会先刷新令牌，
+ * 而安卓锁屏后很快掐断网络，刷新请求到了服务端、响应却收不到，下次刷新就会被当成令牌复用。
+ */
+export function onAppStateChange(s: string) {
+  if (s === 'background' && accessTokenFresh()) void flush();
 }
+
+if (!isTest) AppState.addEventListener('change', onAppStateChange);

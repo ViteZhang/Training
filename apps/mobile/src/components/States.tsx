@@ -1,7 +1,10 @@
-import { radius, semantic, spacing, timing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing, timing } from '@training/ui-tokens';
 import { ApiError } from '@training/api-client';
+import { router } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { logout } from '../features/auth/actions';
+import { useSession } from '../lib/session';
 import { useDelayed } from '../lib/useDelayed';
 import { BottomSheet } from './BottomSheet';
 import { Button } from './Button';
@@ -60,15 +63,30 @@ export function EmptyState({ title, desc, actionText, onAction }: { title: strin
   );
 }
 
-/** 网络错误：图标 + 说明 + 重试。作答内容先存本地，恢复后自动提交（由调用方处理）。 */
-export function ErrorState({ error, onRetry }: { error?: unknown; onRetry?: () => void }) {
+/** 网络错误与登录恢复：作答内容先存本地，恢复后自动提交（由调用方处理）。 */
+export function ErrorState({ error, onRetry, title, desc }: { error?: unknown; onRetry?: () => void; title?: string; desc?: string }) {
   const network = !(error instanceof ApiError) || error.isNetwork;
+  const hasSession = useSession((state) => !!state.session);
+  const canReauthenticate = hasSession && (network || (error instanceof ApiError && error.isUnauthorized));
   return (
     <StateBlock
       icon="offline"
-      title={network ? '网络开小差了' : '出了点问题'}
-      desc={network ? '检查网络后重试，已作答的内容不会丢' : error instanceof ApiError ? error.message : undefined}
-      action={onRetry ? <Button title="重试" kind="secondary" onPress={onRetry} /> : undefined}
+      title={title ?? (network ? '网络开小差了' : '出了点问题')}
+      desc={desc ?? (network ? (error instanceof ApiError && error.isTimeout ? '连接超时，检查网络后重试，已作答的内容不会丢' : '检查网络后重试，已作答的内容不会丢') : error instanceof ApiError ? error.message : undefined)}
+      action={onRetry || canReauthenticate ? (
+        <View style={styles.errorActions}>
+          {onRetry ? <Button title="重试" kind="secondary" onPress={onRetry} /> : null}
+          {canReauthenticate ? (
+            <Button
+              title="重新登录"
+              kind="text"
+              onPress={() => {
+                void logout().then(() => router.replace('/(auth)/login'));
+              }}
+            />
+          ) : null}
+        </View>
+      ) : undefined}
     />
   );
 }
@@ -100,8 +118,8 @@ export function AIGenerating({ steps, current, eta, title, desc, onLeave }: AIGe
     <View style={styles.ai} accessibilityLiveRegion="polite">
       <View style={styles.dots} accessibilityElementsHidden>
         <View style={[styles.aiDot, { backgroundColor: semantic.textPrimary }]} />
-        <View style={[styles.aiDot, { backgroundColor: '#8C877D' }]} />
-        <View style={[styles.aiDot, { backgroundColor: '#CFCAC0' }]} />
+        <View style={[styles.aiDot, { backgroundColor: colors.dim }]} />
+        <View style={[styles.aiDot, { backgroundColor: colors.placeholder }]} />
       </View>
       {title ? <Text variant="h2">{title}</Text> : null}
       {sub ? <Text variant="caption">{sub}</Text> : null}
@@ -109,7 +127,7 @@ export function AIGenerating({ steps, current, eta, title, desc, onLeave }: AIGe
         {steps.map((st, i) => (
           <View key={st} style={styles.step}>
             <View style={[styles.dot, i < current && styles.dotDone, i === current && styles.dotActive]}>
-              {i < current ? <Icon name="check" size={12} color="#FFFFFF" /> : null}
+              {i < current ? <Icon name="check" size={12} color={colors.white} /> : null}
             </View>
             <Text variant="body" color={i > current ? semantic.textSecondary : undefined}>
               {st}
@@ -132,13 +150,19 @@ export interface QuotaSheetProps {
   onClose: () => void;
   title: string;
   desc?: string;
+  /** 购买入口关闭（4.9b）时的说明：不出现会员、价格与兑换码；缺省时用 desc */
+  freeDesc?: string;
+  /** 免费版与会员的对比（4.9：免费版 每天 3 次 / 会员 不限次数）；购买入口关闭时不显示 */
+  compare?: { free: string; member: string };
   /** 永远给一条不付费也能继续的路：对照参考答案、明天再用 */
   freeOptions: { label: string; onPress: () => void }[];
-  onUpgrade?: () => void;
+  /** 购买按钮（features/membership/purchase 的 useUpgradeActions）；购买入口关闭时为空，只给免费出路（4.9b） */
+  upgrade?: { primary: { label: string; onPress: () => void }; secondary?: { label: string; onPress: () => void } };
 }
 
-/** 额度不足：底部弹层（设计稿 4.9）：锁形图标、标题、说明，「开通会员」+ 不付费也能继续的出路。 */
-export function QuotaSheet({ visible, onClose, title, desc, freeOptions, onUpgrade }: QuotaSheetProps) {
+/** 额度不足：底部弹层（设计稿 4.9 / 4.9b）：锁形图标、标题、说明，购买按钮 + 不付费也能继续的出路。 */
+export function QuotaSheet({ visible, onClose, title, desc: paidDesc, freeDesc, compare, freeOptions, upgrade }: QuotaSheetProps) {
+  const desc = upgrade ? paidDesc : freeDesc ?? paidDesc;
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <View style={styles.lock}>
@@ -152,11 +176,28 @@ export function QuotaSheet({ visible, onClose, title, desc, freeOptions, onUpgra
           {desc}
         </Text>
       ) : null}
+      {upgrade && compare ? (
+        <View style={styles.compare}>
+          <View style={[styles.compareCell, styles.compareFree]}>
+            <Text variant="small">免费版</Text>
+            <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>{compare.free}</Text>
+          </View>
+          <View style={[styles.compareCell, styles.compareMember]}>
+            <Text variant="small">会员</Text>
+            <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>{compare.member}</Text>
+          </View>
+        </View>
+      ) : null}
       <View style={styles.sheetActions}>
-        {onUpgrade ? <Button title="开通会员" onPress={onUpgrade} block /> : null}
+        {upgrade ? (
+          <View style={styles.upgradeRow}>
+            <Button title={upgrade.primary.label} onPress={upgrade.primary.onPress} style={styles.upgradeMain} />
+            {upgrade.secondary ? <Button title={upgrade.secondary.label} kind="secondary" onPress={upgrade.secondary.onPress} style={styles.upgradeSub} /> : null}
+          </View>
+        ) : null}
         <View style={styles.freeRow}>
           {freeOptions.map((o) => (
-            <Button key={o.label} title={o.label} kind={onUpgrade ? 'text' : 'secondary'} color={onUpgrade ? semantic.textPrimary : undefined} onPress={o.onPress} style={styles.free} />
+            <Button key={o.label} title={o.label} kind={upgrade ? 'text' : 'secondary'} color={upgrade ? semantic.textPrimary : undefined} onPress={o.onPress} style={styles.free} />
           ))}
         </View>
       </View>
@@ -166,18 +207,19 @@ export function QuotaSheet({ visible, onClose, title, desc, freeOptions, onUpgra
 
 const styles = StyleSheet.create({
   skeleton: { gap: spacing.md, paddingVertical: spacing.lg },
-  bone: { height: 14, borderRadius: radius.sm, backgroundColor: '#EEEAE1' },
+  bone: { height: 14, borderRadius: radius.sm, backgroundColor: colors.line },
   boneTitle: { height: 22, width: '50%' },
   block: { alignItems: 'center', paddingVertical: spacing.xxxl, paddingHorizontal: spacing.xl, gap: spacing.sm },
   blockTitle: { marginTop: spacing.sm },
   center: { textAlign: 'center' },
   action: { marginTop: spacing.md },
+  errorActions: { gap: spacing.xs },
   ai: { gap: 8, paddingVertical: spacing.xxl, paddingHorizontal: 18 },
   dots: { flexDirection: 'row', gap: 6, marginBottom: 8 },
   aiDot: { width: 8, height: 8, borderRadius: 4 },
   steps: { gap: 14, marginTop: spacing.lg },
   step: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  dot: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#BDB8AD', alignItems: 'center', justifyContent: 'center' },
+  dot: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.faint, alignItems: 'center', justifyContent: 'center' },
   dotActive: { borderColor: semantic.textPrimary },
   dotDone: { backgroundColor: semantic.textPrimary, borderColor: semantic.textPrimary, borderStyle: 'solid' },
   leave: { alignSelf: 'flex-start', paddingHorizontal: 0, marginTop: spacing.md },
@@ -186,5 +228,13 @@ const styles = StyleSheet.create({
   sheetDesc: { marginBottom: spacing.lg, lineHeight: 21 },
   sheetActions: { gap: 6 },
   freeRow: { flexDirection: 'row', gap: 8 },
+  compare: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  compareCell: { flex: 1, gap: 2, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16 },
+  compareFree: { backgroundColor: semantic.fill },
+  compareMember: { borderWidth: 1.5, borderColor: semantic.textPrimary },
+  bold: { fontWeight: '700' },
+  upgradeRow: { flexDirection: 'row', gap: 10 },
+  upgradeMain: { flex: 1.4 },
+  upgradeSub: { flex: 1 },
   free: { flex: 1 },
 });

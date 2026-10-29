@@ -1,5 +1,5 @@
 // 3.1 题库：大标题 + 考情分析 / 图谱 / 导入 +「添加官方题库」（official_bank 开关，T30）+ 专业课切换 + 知识点 / 题目 / 资料三个分栏。作文课的作文知识库（3.10）在 T14。
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -18,7 +18,7 @@ import { useFeatureFlag } from '@/lib/flags';
 type Tab = 'kp' | 'question' | 'material';
 type TreeFilter = 'all' | 'unmastered' | 'exam' | 'needs_review';
 
-function KnowledgeTab({ subjectId }: { subjectId: number }) {
+function KnowledgeTab({ subjectId, missing, onMissing }: { subjectId: number; missing: number; onMissing: () => void }) {
   const [filter, setFilter] = useState<TreeFilter>('all');
   const tree = useQuery({
     queryKey: ['bank', subjectId, 'tree', filter],
@@ -39,16 +39,17 @@ function KnowledgeTab({ subjectId }: { subjectId: number }) {
           { key: 'needs_review', label: '待核对' },
         ]}
       />
-      {data.needs_review_count > 0 && filter !== 'needs_review' ? (
-        <Pressable accessibilityRole="button" onPress={() => setFilter('needs_review')} style={styles.banner}>
+      {/* 3.1 提醒条：「N 处待核对 · N 题缺答案 · 补全后批改更准」（PRD 11.16）；只有缺答案时点进去看缺答案的题 */}
+      {(data.needs_review_count > 0 && filter !== 'needs_review') || missing > 0 ? (
+        <Pressable accessibilityRole="button" onPress={() => (data.needs_review_count > 0 && filter !== 'needs_review' ? setFilter('needs_review') : onMissing())} style={styles.banner}>
           <View style={styles.dot} />
-          <Text variant="caption" color="#6B4A12" style={styles.flex}>
-            <Text variant="caption" color="#6B4A12" style={styles.bold}>
-              {data.needs_review_count} 处待核对
+          <Text variant="caption" color={colors.orangeInk} style={styles.flex}>
+            <Text variant="caption" color={colors.orangeInk} style={styles.bold}>
+              {[data.needs_review_count > 0 ? `${data.needs_review_count} 处待核对` : '', missing > 0 ? `${missing} 题缺答案` : ''].filter(Boolean).join(' · ')}
             </Text>{' '}
-            · 采分点核对后批改更准
+            · {missing > 0 ? '补全后批改更准' : '采分点核对后批改更准'}
           </Text>
-          <Icon name="chevron" size={16} color="#6B4A12" />
+          <Icon name="chevron" size={16} color={colors.orangeInk} />
         </Pressable>
       ) : null}
       {data.sections.length === 0 ? (
@@ -84,27 +85,28 @@ export default function BankTab() {
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => unwrap(api.GET('/subjects')) });
   const [picked, setPicked] = useState<number>();
   const [tab, setTab] = useState<Tab>('kp');
+  const [answerFilter, setAnswerFilter] = useState<'missing' | undefined>();
   const list = subjects.data?.items ?? [];
   const subject = list.find((s) => s.id === picked) ?? list[0];
   const overview = useOverview(subject?.id);
   const official = useFeatureFlag('official_bank');
 
-  if (subjects.isLoading) return <Screen><Loading rows={6} /></Screen>;
-  if (subjects.isError) return <Screen><ErrorState error={subjects.error} onRetry={() => void subjects.refetch()} /></Screen>;
-  if (!subject) return <Screen><EmptyState title="还没有专业课" actionText="去添加" onAction={() => router.push('/settings/prep')} /></Screen>;
+  if (subjects.isLoading) return <Screen edges={['top']}><Loading rows={6} /></Screen>;
+  if (subjects.isError) return <Screen edges={['top']}><ErrorState error={subjects.error} onRetry={() => void subjects.refetch()} /></Screen>;
+  if (!subject) return <Screen edges={['top']}><EmptyState title="还没有专业课" actionText="去添加" onAction={() => router.push('/settings/prep')} /></Screen>;
 
   const label = `${subject.code ? `${subject.code} ` : ''}${subject.name}`;
   const o = overview.data;
   const empty = o && o.question_count === 0 && o.kp_count === 0 && o.material_count === 0;
   return (
-    <Screen>
+    <Screen edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.title}>
           <Text variant="h1" style={styles.flex}>
             题库
           </Text>
           <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/bank/profile', params: { subjectId: String(subject.id) } })} style={[styles.chip, styles.chipGreen]}>
-            <Text variant="caption" color="#1F5C3E" style={styles.medium}>
+            <Text variant="caption" color={colors.mintInk} style={styles.medium}>
               考情分析
             </Text>
           </Pressable>
@@ -145,7 +147,10 @@ export default function BankTab() {
           <>
             <UnderlineTabs<Tab>
               value={tab}
-              onChange={setTab}
+              onChange={(t) => {
+                setAnswerFilter(undefined);
+                setTab(t);
+              }}
               options={[
                 { key: 'kp', label: '知识点', count: o?.kp_count },
                 { key: 'question', label: '题目', count: o?.question_count },
@@ -158,8 +163,17 @@ export default function BankTab() {
                 <Text variant="caption">搜索知识点、题目或原文</Text>
               </Pressable>
             ) : null}
-            {tab === 'kp' ? <KnowledgeTab subjectId={subject.id} /> : null}
-            {tab === 'question' ? <QuestionList subjectId={subject.id} /> : null}
+            {tab === 'kp' ? (
+              <KnowledgeTab
+                subjectId={subject.id}
+                missing={o?.missing_answer_count ?? 0}
+                onMissing={() => {
+                  setAnswerFilter('missing');
+                  setTab('question');
+                }}
+              />
+            ) : null}
+            {tab === 'question' ? <QuestionList key={answerFilter ?? 'all'} subjectId={subject.id} answer={answerFilter} /> : null}
             {tab === 'material' ? <MaterialTab subjectId={subject.id} label={label} /> : null}
           </>
         )}
@@ -180,7 +194,7 @@ const styles = StyleSheet.create({
   chipInk: { backgroundColor: semantic.primary },
   search: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 16, borderRadius: radius.lg, backgroundColor: semantic.fill },
   official: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.lg, backgroundColor: semantic.primarySoft },
-  banner: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.amberSoft },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#B26A00' },
-  append: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radius.lg, borderWidth: 1, borderStyle: 'dashed', borderColor: '#D6D2C8' },
+  banner: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.peachSoft },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.orange },
+  append: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radius.lg, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.outline },
 });

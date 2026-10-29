@@ -1,7 +1,7 @@
 // 0.2 手机号登录 / 0.2a 已输入手机号 / 0.2b 未同意协议。
 // 号码满 11 位且以 13–19 开头才可获取验证码；协议默认不勾选；未注册的手机号验证后自动创建账号。
 // 邀请开关打开时可填邀请码（选填，T26）；从邀请链接进入时（?invite=）自动带上。
-import { semantic, spacing, radius, layout } from '@training/ui-tokens';
+import { colors, fontFamily, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { ApiError } from '@training/api-client';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -59,12 +59,12 @@ export default function Login() {
           登录考研Training
         </Text>
         <Text variant="caption" style={styles.sub}>
-          题库和学习进度都保存在账号里，换手机也不会丢
+          考研文科专业课 AI 提分教练
         </Text>
       </View>
 
       <View style={[styles.inputRow, phone.length > 0 && styles.inputFilled, showFormatError && styles.inputError]}>
-        <Text variant="bodyStrong">+86</Text>
+        <Text num={600} style={styles.cc}>+86</Text>
         <View style={styles.divider} />
         <TextInput
           accessibilityLabel="手机号"
@@ -123,7 +123,7 @@ export default function Login() {
         }}
         style={[styles.agreeRow, highlight && styles.agreeHighlight]}
       >
-        <View style={[styles.checkbox, agreed && styles.checkboxOn]}>{agreed ? <Icon name="check" size={14} color="#FFFFFF" /> : null}</View>
+        <View style={[styles.checkbox, agreed && styles.checkboxOn]}>{agreed ? <Icon name="check" size={14} color={colors.white} /> : null}</View>
         <Text variant="caption" style={styles.agreeText}>
           已阅读并同意
           <Text variant="caption" color={semantic.textPrimary} onPress={() => router.push('/(auth)/agreement?kind=user')}>
@@ -136,10 +136,6 @@ export default function Login() {
           ，未注册的手机号验证后自动创建账号
         </Text>
       </Pressable>
-
-      <Text variant="caption" style={styles.footer}>
-        首期仅支持手机号验证码登录
-      </Text>
 
       <BottomSheet visible={agreeSheet} onClose={() => setAgreeSheet(false)} title="请阅读并同意以下条款">
         <Text variant="caption" color={semantic.textPrimary} style={styles.sheetText}>
@@ -190,22 +186,22 @@ const styles = StyleSheet.create({
     paddingRight: 6,
     borderRadius: radius.xl,
     borderWidth: 1.5,
-    borderColor: semantic.border,
+    borderColor: semantic.inputBorder,
     backgroundColor: semantic.surface,
   },
   inputFilled: { borderColor: semantic.textPrimary },
   inputError: { borderColor: semantic.danger },
   clear: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  clearDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: semantic.fill, alignItems: 'center', justifyContent: 'center' },
+  clearDot: { width: 32, height: 32, borderRadius: 16, backgroundColor: semantic.fill, alignItems: 'center', justifyContent: 'center' },
   divider: { width: 1, height: 20, backgroundColor: semantic.border, marginHorizontal: spacing.md },
-  input: { flex: 1, minWidth: 0, fontSize: 17, color: semantic.textPrimary, minHeight: layout.minTouch },
+  cc: { fontSize: 16, lineHeight: 22 },
+  input: { flex: 1, minWidth: 0, fontSize: 18, fontFamily: fontFamily.numberMedium, color: semantic.textPrimary, minHeight: layout.minTouch },
   tip: { marginTop: spacing.sm },
   button: { marginTop: 20 },
   agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginTop: spacing.md, padding: spacing.xs, borderRadius: radius.sm },
-  agreeHighlight: { backgroundColor: semantic.amberSoft },
-  checkbox: { width: 18, height: 18, marginTop: 1, borderRadius: 9, borderWidth: 1.5, borderColor: semantic.textSecondary, alignItems: 'center', justifyContent: 'center' },
+  agreeHighlight: { backgroundColor: semantic.warningSoft },
+  checkbox: { width: 18, height: 18, marginTop: 1, borderRadius: 9, borderWidth: 1.5, borderColor: colors.faint, alignItems: 'center', justifyContent: 'center' },
   checkboxOn: { backgroundColor: semantic.textPrimary, borderColor: semantic.textPrimary },
   agreeText: { flex: 1 },
-  footer: { position: 'absolute', bottom: 40, alignSelf: 'center' },
   sheetActions: { gap: spacing.sm, marginTop: spacing.xl },
 });

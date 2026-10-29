@@ -1,16 +1,17 @@
-// 6.9 备考设置：专业课与目标分（可改、可增删，删除时提示会一起删除它的题库）；目标院校选填；初试日期只读；
+// 6.9 备考设置：专业课与目标分（可改、可增删，删除时提示会一起删除它的题库）；目标院校选填；参考教材（每门专业课可填多本，选填）；考试年份可切换（初试日期随年份，只读）；
 // 每日学习时长；备考阶段（显示系统建议和理由）；作文每周目标篇数。改阶段或时长从明天起生效，改目标分立即生效。
 import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
 import { layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { BottomSheet, Button, Card, Icon, ListCard, NavBar, ConfirmDialog, ErrorState, Loading, QuotaSheet, Screen, Tag, Text, toast } from '@/components';
 import { stageInfo, stages } from '@/features/onboarding/api';
 import { Chips, OptionCard, Stepper } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
+import { useUpgradeActions } from '@/features/membership/purchase';
+import { TextbookSheet, textbookSummary } from '@/features/profile/textbooks';
 
 type Profile = Schemas['StudyProfile'];
 
@@ -18,11 +19,14 @@ export default function PrepSettings() {
   const qc = useQueryClient();
   const profile = useQuery({ queryKey: ['profile'], queryFn: () => unwrap(api.GET('/profile')) });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => unwrap(api.GET('/subjects')) });
+  const years = useQuery({ queryKey: ['exam-years'], queryFn: () => unwrap(api.GET('/exam-years')) });
   const [editing, setEditing] = useState<Schemas['Subject'] | null>(null);
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<Schemas['Subject'] | null>(null);
   const [schoolEdit, setSchoolEdit] = useState<string | null>(null);
+  const [bookEdit, setBookEdit] = useState<Schemas['Subject'] | null>(null);
   const [quota, setQuota] = useState(false);
+  const upgrade = useUpgradeActions(() => setQuota(false));
 
   const save = useMutation({
     mutationFn: (patch: Partial<Schemas['StudyProfileInput']>) => {
@@ -91,15 +95,48 @@ export default function PrepSettings() {
               <Text variant="caption">填了以后，有官方题库上线时会提醒你</Text>
             </View>
             <Text variant="body" color={semantic.textSecondary}>
-              {p.target_school_major ?? '未填写'}
+              {p.target_school_major ?? '点击填写'}
             </Text>
+            <Icon name="edit" size={16} color={semantic.textSecondary} />
           </Card>
         </Pressable>
+
+        {(subjects.data?.items.length ?? 0) > 0 ? (
+          <>
+            <Text variant="small" style={styles.section}>
+              参考教材（选填）
+            </Text>
+            <ListCard>
+              {subjects.data!.items.map((s, i) => (
+                <Pressable key={s.id} accessibilityRole="button" onPress={() => setBookEdit(s)} style={[styles.bookRow, i > 0 && styles.bookDivider]}>
+                  <View style={styles.flex}>
+                    <Text variant="body">{textbookSummary(s)}</Text>
+                    <Text variant="small">缺答案时 AI 按教材表述给参考答案</Text>
+                  </View>
+                  <Icon name="chevron" size={16} color={semantic.textSecondary} />
+                </Pressable>
+              ))}
+            </ListCard>
+          </>
+        ) : null}
 
         <Text variant="small" style={styles.section}>
           时间
         </Text>
         <Card style={styles.gap}>
+          {(years.data?.items.length ?? 0) > 1 ? (
+            <>
+              <Text variant="bodyStrong">参加哪一年的考试</Text>
+              <Chips
+                options={years.data!.items.map((y) => y.exam_year)}
+                value={p.exam_year}
+                onChange={(y) => {
+                  if (y !== p.exam_year) save.mutate({ exam_year: y }, { onSuccess: () => toast('已切换考试年份，备考阶段建议已更新') });
+                }}
+                format={(y) => years.data!.items.find((x) => x.exam_year === y)?.label ?? String(y)}
+              />
+            </>
+          ) : null}
           <View style={styles.row}>
             <Text variant="bodyStrong" style={styles.flex}>
               初试日期
@@ -116,9 +153,9 @@ export default function PrepSettings() {
         <View style={styles.gap}>
           {stages.map((k) => (
             <OptionCard key={k} label={stageInfo[k].name} selected={k === effectiveStage} onPress={() => save.mutate({ stage: k })}>
-              <View style={styles.row}>
+              <View style={styles.stageRow}>
                 <Text variant="bodyStrong">{stageInfo[k].name}</Text>
-                {k === p.suggested_stage ? <Tag label="系统建议" tone="progress" /> : null}
+                {k === p.suggested_stage ? <Tag label="系统建议" tone="progress" style={styles.inlineTag} /> : null}
               </View>
               <Text variant="caption">{stageInfo[k].desc}</Text>
             </OptionCard>
@@ -187,6 +224,17 @@ export default function PrepSettings() {
               .catch(() => toast('删除失败，请重试'));
         }}
       />
+      {bookEdit ? (
+        <TextbookSheet
+          subject={bookEdit}
+          onClose={() => setBookEdit(null)}
+          onSaved={() => {
+            setBookEdit(null);
+            toast('已保存');
+            void refreshSubjects();
+          }}
+        />
+      ) : null}
       {schoolEdit !== null ? (
         <BottomSheet visible onClose={() => setSchoolEdit(null)} title="目标院校与专业">
           <TextInput accessibilityLabel="目标院校专业" value={schoolEdit} onChangeText={setSchoolEdit} placeholder="如：海南大学 · 中国语言文学" style={styles.input} maxLength={64} maxFontSizeMultiplier={layout.maxFontScale} />
@@ -205,10 +253,8 @@ export default function PrepSettings() {
         onClose={() => setQuota(false)}
         title="免费版最多添加 3 门专业课"
         desc="开通会员后可以添加第 4 门。"
-        onUpgrade={() => {
-          setQuota(false);
-          router.push('/member');
-        }}
+        upgrade={upgrade}
+        freeDesc="免费版最多添加 3 门专业课，可以先删掉一门再添加。"
         freeOptions={[{ label: '先不加了', onPress: () => setQuota(false) }]}
       />
     </Screen>
@@ -218,11 +264,12 @@ export default function PrepSettings() {
 function SubjectSheet({ subject, onClose, onSaved, onDelete }: { subject: Schemas['Subject']; onClose: () => void; onSaved: () => void; onDelete: () => void }) {
   const [full, setFull] = useState<100 | 150 | 300>(subject.full_score as 100 | 150 | 300);
   const [target, setTarget] = useState<number | null>(subject.target_score ?? null);
+  const [majors, setMajors] = useState(subject.my_majors ?? '');
   const [busy, setBusy] = useState(false);
   const save = async () => {
     setBusy(true);
     try {
-      await unwrap(api.PATCH('/subjects/{subjectId}', { params: { path: { subjectId: subject.id } }, body: { full_score: full, target_score: target } }));
+      await unwrap(api.PATCH('/subjects/{subjectId}', { params: { path: { subjectId: subject.id } }, body: { full_score: full, target_score: target, my_majors: majors.trim() || null } }));
       onSaved();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : '保存失败，请重试');
@@ -244,6 +291,19 @@ function SubjectSheet({ subject, onClose, onSaved, onDelete }: { subject: Schema
           <Button title="设个目标分" kind="secondary" onPress={() => setTarget(Math.round((full * 0.7) / 5) * 5)} />
         )}
       </View>
+      <Text variant="caption" style={styles.sheetLabel}>
+        报考方向（选填）
+      </Text>
+      <TextInput
+        accessibilityLabel="报考方向"
+        value={majors}
+        onChangeText={setMajors}
+        placeholder="如：中国古代文学"
+        style={styles.input}
+        maxLength={255}
+        maxFontSizeMultiplier={layout.maxFontScale}
+      />
+      <Text variant="small">真题论述题按专业分组时，导入会默认只保留这个方向的那一组</Text>
       <Button title="保存" loading={busy} onPress={() => void save()} style={styles.sheetButton} />
       <Button title="删除这门专业课" kind="text" onPress={onDelete} />
     </BottomSheet>
@@ -282,10 +342,16 @@ const styles = StyleSheet.create({
   section: { marginTop: spacing.xl, marginBottom: spacing.sm },
   gap: { gap: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: layout.minTouch },
+  // 阶段卡片的标题行：整张卡片已是点击区域，这里不再撑到 44 高，标签与标题垂直居中
+  stageRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: 2 },
+  inlineTag: { alignSelf: 'center' },
   flex: { flex: 1 },
+  bookRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 6, paddingHorizontal: 16 },
+  bookDivider: { borderTopWidth: 1, borderTopColor: semantic.border },
   note: { marginTop: spacing.xl },
-  input: { minHeight: 48, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 16, color: semantic.textPrimary },
+  input: { minHeight: 48, borderWidth: 1, borderColor: semantic.inputBorder, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 16, color: semantic.textPrimary },
   inputGap: { marginTop: spacing.sm },
   sheetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md, flexWrap: 'wrap' },
   sheetButton: { marginTop: spacing.lg },
+  sheetLabel: { marginTop: spacing.lg, marginBottom: spacing.sm },
 });

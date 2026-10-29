@@ -5,8 +5,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { BackButton, BottomSheet, Button, ConfirmDialog, EmptyState, ErrorState, Loading, NavBar, Screen, Text, toast } from '@/components';
+import { BackHandler, ScrollView, StyleSheet, View } from 'react-native';
+import { BackButton, BottomSheet, Button, ConfirmDialog, EmptyState, ErrorState, GroupNote, Loading, NavBar, PassageCard, Screen, Text, toast } from '@/components';
 import { practiceKeys, useSession } from '@/features/practice/api';
 import { isObjective, judge } from '@/features/practice/judge';
 import { cacheSession, submitAttempt } from '@/features/practice/offline';
@@ -44,6 +44,15 @@ export default function PracticeRunner() {
   useEffect(() => {
     const t = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(t);
+  }, []);
+
+  // 安卓返回键和左上角「×」一样先确认，不直接离开答题页（进度在确认退出时保存）。
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setExiting(true);
+      return true;
+    });
+    return () => sub.remove();
   }, []);
 
   // 从断点继续：第一道还没做的题（4.10）。
@@ -144,13 +153,15 @@ export default function PracticeRunner() {
       <NavBar
         title={`${s.title} · ${index + 1} / ${s.questions.length}`}
         left={<BackButton icon="close" label="退出训练" onPress={() => setExiting(true)} />}
-        right={<Text variant="small">{clock(elapsed)}</Text>}
+        right={<Text variant="caption" num>{clock(elapsed)}</Text>}
       />
       <View style={styles.progress} accessibilityElementsHidden>
         <View style={[styles.progressFill, { width: `${((index + (result ? 1 : 0)) / Math.max(1, s.questions.length)) * 100}%` }]} />
       </View>
       <ScrollView contentContainerStyle={styles.scroll}>
         <QuestionHeader q={q} />
+        <GroupNote group={q.group} />
+        {q.passage ? <PassageCard key={q.id} text={q.passage.text} lines={6} defaultOpen /> : null}
         <Text variant="h2" style={styles.stem}>
           {q.qtype === 'term' ? `${qtypeNames.term}：${q.stem}` : q.stem}
         </Text>

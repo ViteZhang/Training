@@ -1,5 +1,7 @@
 // 7.8 AI 与额度：每活跃用户每天 AI 成本与预算、本月 AI 成本及占收入比例；AI 任务列表（当前提示词版本、单次成本、成本占比）；
 // 灰度（按比例放量、对比各版本表现、扩大比例 / 全量 / 回滚）；免费额度与会员权益、会员价格；
+// 购买入口（PRD v3 3.4、6.5a）：安卓 / iOS 两个开关（安卓默认开，iOS 默认关、提审通过后打开，改动即时生效、不用发版），
+// 客服企业微信名称、ID、二维码、回复时间与说明文案；
 // 系统配置：协议正文与版本、各年份初试日期、功能开关（支持指定用户）、App 最新与最低版本、规则参数。
 import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
@@ -27,11 +29,12 @@ export function Config() {
           { key: 'ai', label: 'AI 成本与灰度', children: <AIPanel /> },
           { key: 'quota', label: '免费额度与会员权益', children: <ParamsPanel keys={paramGroups.quota} /> },
           { key: 'pricing', label: '价格与奖励', children: <ParamsPanel keys={paramGroups.pricing} /> },
+          { key: 'purchase', label: '购买入口', children: <PurchaseEntryPanel /> },
           { key: 'agreements', label: '协议', children: <AgreementsPanel /> },
           { key: 'exam', label: '初试日期', children: <ExamDatesPanel /> },
           { key: 'flags', label: '功能开关', children: <FlagsPanel /> },
           { key: 'versions', label: 'App 版本', children: <VersionsPanel /> },
-          { key: 'rules', label: '规则参数', children: <ParamsPanel exclude={[...paramGroups.quota, ...paramGroups.pricing, 'system_messages']} /> },
+          { key: 'rules', label: '规则参数', children: <ParamsPanel exclude={[...paramGroups.quota, ...paramGroups.pricing, 'system_messages', 'purchase_entry']} /> },
         ]}
       />
     </>
@@ -165,6 +168,105 @@ function AIPanel() {
   );
 }
 
+function fileToBase64(f: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).replace(/^data:[^,]*,/, ''));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(f);
+  });
+}
+
+export function PurchaseEntryPanel() {
+  const qc = useQueryClient();
+  const { message } = AntApp.useApp();
+  const [form] = Form.useForm();
+  const q = useQuery({ queryKey: ['admin', 'purchase-entry'], queryFn: () => unwrap(api.GET('/admin/config/purchase-entry')) });
+  const done = (r: Schemas['AdminPurchaseEntry'], tip: string) => {
+    message.success(tip);
+    qc.setQueryData(['admin', 'purchase-entry'], r);
+    void qc.invalidateQueries({ queryKey: ['admin', 'params'] });
+  };
+  const save = useMutation({
+    mutationFn: (body: Schemas['AdminPurchaseEntryInput']) => unwrap(api.PUT('/admin/config/purchase-entry', { body })),
+    onSuccess: (r) => done(r, '已保存，App 下一次打开相关页面即生效'),
+    onError: (e) => message.error(errMsg(e)),
+  });
+  const upload = useMutation({
+    mutationFn: async (f: File) => {
+      if (f.type !== 'image/png' && f.type !== 'image/jpeg') throw new Error('二维码只支持 PNG 或 JPEG');
+      if (f.size > 2 * 1024 * 1024) throw new Error('图片不能超过 2 MB');
+      return unwrap(api.PUT('/admin/config/purchase-entry/qr', { body: { content_type: f.type, data_base64: await fileToBase64(f) } }));
+    },
+    onSuccess: (r) => done(r, '二维码已上传'),
+    onError: (e) => message.error(e instanceof Error ? e.message : errMsg(e)),
+  });
+  const e = q.data;
+  return (
+    <Loadable loading={q.isPending} error={q.error}>
+      {e ? (
+        <Row gutter={16}>
+          <Col span={14}>
+            <Card title="购买入口与客服企业微信" size="small">
+              <Form
+                key={e.version}
+                form={form}
+                layout="vertical"
+                initialValues={{ android: e.android, ios: e.ios, ...e.wecom }}
+                onFinish={(v: { android: boolean; ios: boolean; name: string; wecom_id: string; reply_time: string; note: string }) =>
+                  save.mutate({ android: v.android, ios: v.ios, version: e.version, wecom: { name: v.name, wecom_id: v.wecom_id, reply_time: v.reply_time, note: v.note } })
+                }
+              >
+                <Form.Item label="安卓 · 显示购买入口" name="android" valuePropName="checked" extra="会员中心「获取兑换码」、额度用完弹层、兑换码页">
+                  <Switch />
+                </Form.Item>
+                <Form.Item label="iOS · 显示购买入口" name="ios" valuePropName="checked" extra="默认关闭，App Store 审核通过后再打开；改动立即生效，不用发版">
+                  <Switch />
+                </Form.Item>
+                <Form.Item label="客服名称" name="name" rules={[{ max: 32 }]}>
+                  <Input placeholder="考研Training 客服" />
+                </Form.Item>
+                <Form.Item label="企业微信 ID" name="wecom_id" rules={[{ max: 64 }]}>
+                  <Input placeholder="kaoyan-training" />
+                </Form.Item>
+                <Form.Item label="回复时间" name="reply_time" rules={[{ max: 64 }]}>
+                  <Input placeholder="工作日 9:00–22:00 回复，周末会晚一些" />
+                </Form.Item>
+                <Form.Item label="说明文案" name="note" rules={[{ max: 200 }]} extra="显示在会员中心「获取兑换码」按钮上方和获取兑换码弹层里">
+                  <Input.TextArea rows={2} placeholder="暂未开放在线支付，加客服企业微信获取兑换码" />
+                </Form.Item>
+                <Button type="primary" htmlType="submit" loading={save.isPending}>
+                  保存
+                </Button>
+              </Form>
+            </Card>
+          </Col>
+          <Col span={10}>
+            <Card title="客服二维码" size="small">
+              {e.wecom.qr_url ? <img src={e.wecom.qr_url} alt="客服企业微信二维码" style={{ width: 200, height: 200, objectFit: 'contain', border: '1px solid #EFEFEF', borderRadius: 12 }} /> : <Typography.Text type="secondary">还没上传</Typography.Text>}
+              <div style={{ marginTop: 12 }}>
+                <input
+                  aria-label="上传客服二维码"
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  onChange={(ev) => {
+                    const f = ev.target.files?.[0];
+                    if (f) upload.mutate(f);
+                    ev.target.value = '';
+                  }}
+                />
+              </div>
+              <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
+                PNG 或 JPEG，不超过 2 MB。App 里用户可以保存到相册。
+              </Typography.Paragraph>
+            </Card>
+          </Col>
+        </Row>
+      ) : null}
+    </Loadable>
+  );
+}
+
 export function ParamsPanel({ keys, exclude }: { keys?: string[]; exclude?: string[] }) {
   const qc = useQueryClient();
   const { message } = AntApp.useApp();
@@ -286,12 +388,25 @@ function AgreementForm({ agreement, onDone }: { agreement?: Schemas['AdminAgreem
   );
 }
 
-function ExamDatesPanel() {
+type ExamDateForm = { year: number; label?: string; range: [dayjs.Dayjs, dayjs.Dayjs]; subject: dayjs.Dayjs };
+
+export function ExamDatesPanel() {
   const qc = useQueryClient();
   const { message } = AntApp.useApp();
+  const [form] = Form.useForm<ExamDateForm>();
+  // 正在修改的年份；为空时表单用于新增。保存按年份覆盖，所以修改与新增调同一个接口。
+  const [editing, setEditing] = useState<number | null>(null);
   const q = useQuery({ queryKey: ['admin', 'exam-dates'], queryFn: () => unwrap(api.GET('/admin/config/exam-dates')) });
+  const reset = () => {
+    setEditing(null);
+    form.resetFields();
+  };
+  const edit = (d: Schemas['AdminExamDate']) => {
+    setEditing(d.year);
+    form.setFieldsValue({ year: d.year, label: d.label, range: [dayjs(d.first_exam_start), dayjs(d.first_exam_end)], subject: dayjs(d.subject_exam_date) });
+  };
   const save = useMutation({
-    mutationFn: (v: { year: number; label?: string; range: [dayjs.Dayjs, dayjs.Dayjs]; subject: dayjs.Dayjs }) =>
+    mutationFn: (v: ExamDateForm) =>
       unwrap(
         api.PUT('/admin/config/exam-dates/{year}', {
           params: { path: { year: v.year } },
@@ -300,6 +415,7 @@ function ExamDatesPanel() {
       ),
     onSuccess: () => {
       message.success('已保存');
+      reset();
       void qc.invalidateQueries({ queryKey: ['admin', 'exam-dates'] });
     },
     onError: (e) => message.error(errMsg(e)),
@@ -315,15 +431,22 @@ function ExamDatesPanel() {
           { title: '名称', dataIndex: 'label' },
           { title: '初试', render: (_, d) => `${d.first_exam_start} 至 ${d.first_exam_end}` },
           { title: '专业课考试日（倒计时以它为准）', dataIndex: 'subject_exam_date' },
+          { title: '操作', render: (_, d) => <Button type="link" onClick={() => edit(d)}>修改</Button> },
         ]}
       />
-      <Card size="small" title="新增或修改某年" style={{ marginTop: 16 }}>
-        <Form layout="inline" onFinish={save.mutate}>
-          <Form.Item name="year" rules={[{ required: true, message: '年份' }]}><InputNumber placeholder="2028" min={2000} max={2100} /></Form.Item>
-          <Form.Item name="label"><Input placeholder="2028 研考" /></Form.Item>
+      <Card size="small" title={editing ? `修改 ${editing} 年` : '新增某年'} style={{ marginTop: 16 }}>
+        <Form form={form} layout="inline" onFinish={save.mutate}>
+          <Form.Item name="year" rules={[{ required: true, message: '年份' }]}>
+            {/* 修改时年份锁定，避免误改成另一年而新增一条 */}
+            <InputNumber placeholder="2028" min={2000} max={2100} disabled={editing !== null} aria-label="年份" />
+          </Form.Item>
+          <Form.Item name="label"><Input placeholder="2028 研考" aria-label="名称" /></Form.Item>
           <Form.Item name="range" rules={[{ required: true, message: '初试日期' }]}><DatePicker.RangePicker /></Form.Item>
           <Form.Item name="subject" rules={[{ required: true, message: '专业课考试日' }]}><DatePicker placeholder="专业课考试日" /></Form.Item>
-          <Button type="primary" htmlType="submit" loading={save.isPending}>保存</Button>
+          <Space>
+            <Button type="primary" htmlType="submit" loading={save.isPending}>保存</Button>
+            {editing !== null && <Button onClick={reset}>取消修改</Button>}
+          </Space>
         </Form>
         <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
           冲刺卡至当年初试结束、考季卡至次年初试结束，都按这里的日期算；次年日期没配置时考季卡暂不能购买。

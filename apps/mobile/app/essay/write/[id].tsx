@@ -2,7 +2,7 @@
 // 工具栏：素材（5.3 素材弹层：来自写作笔记、按主题分组、AI 补充单独标、插入到光标处、去素材库看更多）、拍照上传（5.4）。
 import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -13,6 +13,7 @@ import { clock } from '@/features/paper/api';
 import { HandwritingFlow } from '@/features/practice/handwriting';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 const SYNC_MS = 5000;
 
@@ -72,6 +73,7 @@ function Writer({ e }: { e: Essay }) {
   const [photo, setPhoto] = useState(false);
   const [leave, setLeave] = useState(false);
   const [quotaOut, setQuotaOut] = useState(false);
+  const upgrade = useUpgradeActions(() => setQuotaOut(false));
   const [saved, setSaved] = useState(true);
   const synced = useRef({ content: e.content, seconds: e.duration_seconds, timed: e.timed });
   const state = useRef({ text, seconds, timed });
@@ -138,7 +140,7 @@ function Writer({ e }: { e: Essay }) {
         {timed ? (
           <View style={styles.clock}>
             <Icon name="clock" size={16} color={left <= 0 ? semantic.danger : semantic.textPrimary} />
-            <Text variant="bodyStrong" style={styles.clockText} color={left <= 0 ? semantic.danger : semantic.textPrimary} accessibilityLabel="剩余时间">
+            <Text variant="bodyStrong" num={600} style={styles.clockText} color={left <= 0 ? semantic.danger : semantic.textPrimary} accessibilityLabel="剩余时间">
               {left > 0 ? clock(left) : '时间到'}
             </Text>
           </View>
@@ -155,7 +157,7 @@ function Writer({ e }: { e: Essay }) {
           <Button title={timed ? '关闭计时' : '开启计时'} kind="text" size="sm" style={styles.exit} onPress={() => setTimed((v) => !v)} />
         </View>
         <View style={styles.topic}>
-          <Text variant="caption" color="#7A4E00" style={styles.lh}>
+          <Text variant="caption" color={colors.creamInk} style={styles.lh}>
             {e.topic}
           </Text>
         </View>
@@ -182,8 +184,8 @@ function Writer({ e }: { e: Essay }) {
       </ScrollView>
       <View style={styles.toolbar}>
         <Pressable accessibilityRole="button" accessibilityLabel="素材" onPress={() => setMaterials(true)} style={[styles.tool, styles.toolAmber]}>
-          <Icon name="book" size={15} color="#7A4E00" />
-          <Text variant="caption" color="#7A4E00">
+          <Icon name="book" size={15} color={colors.creamInk} />
+          <Text variant="caption" color={colors.creamInk}>
             素材
           </Text>
         </Pressable>
@@ -196,7 +198,7 @@ function Writer({ e }: { e: Essay }) {
         <View style={styles.flex} />
         <View style={styles.count}>
           <Text variant="small" color={semantic.textPrimary}>
-            <Text variant="small" color={semantic.textPrimary} style={styles.bold}>
+            <Text variant="small" num={600} color={semantic.textPrimary}>
               {words}
             </Text>
             {e.required_words ? ` / ${e.required_words}` : ''} 字
@@ -235,7 +237,9 @@ function Writer({ e }: { e: Essay }) {
         onClose={() => setQuotaOut(false)}
         title="本周的作文批改次数用完了"
         desc="免费版每周可批改 1 篇作文，下周一恢复。草稿已保存，可以先写着。"
-        onUpgrade={() => toast('会员马上上线')}
+        upgrade={upgrade}
+        compare={{ free: '每周 1 篇', member: '不限' }}
+        freeDesc="每周可批改 1 篇作文，下周一 0 点恢复。草稿已保存，可以先写着。"
         freeOptions={[{ label: '先保存草稿', onPress: () => router.back() }]}
       />
     </Screen>
@@ -264,11 +268,11 @@ const styles = StyleSheet.create({
   exit: { paddingHorizontal: 0 },
   clock: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   clockText: { fontWeight: '700' },
-  topic: { padding: 14, borderRadius: radius.lg, backgroundColor: semantic.amberSoft },
+  topic: { padding: 14, borderRadius: radius.lg, backgroundColor: colors.creamSoft },
   editor: { minHeight: 360, paddingVertical: 4, fontSize: 16, lineHeight: 30, color: semantic.textPrimary },
   toolbar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, borderTopWidth: 1, borderTopColor: semantic.border },
   tool: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: semantic.fill },
-  toolAmber: { backgroundColor: semantic.amberSoft },
+  toolAmber: { backgroundColor: colors.creamSoft },
   count: { alignItems: 'flex-end' },
   sheetList: { maxHeight: 320 },
   material: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 12, borderTopWidth: 1, borderTopColor: semantic.border },

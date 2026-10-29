@@ -92,6 +92,7 @@ export function itemStatus(it: ImportItem): { label: string; tone: 'mastered' | 
   }
   if (r.includes('duplicate')) return { label: '疑似重复', tone: 'danger' };
   if (r.includes('low_confidence') || r.includes('rubric_sum_mismatch')) return { label: '需核对', tone: 'danger' };
+  if (r.includes('answer_matched')) return { label: '答案来自你的资料', tone: 'danger' };
   if (r.includes('missing_answer')) return { label: '缺答案', tone: 'progress' };
   if (r.includes('rubric_unconfirmed')) return { label: '采分点待确认', tone: 'info' };
   return { label: '待确认', tone: 'neutral' };
@@ -103,7 +104,12 @@ export function itemNote(it: ImportItem): string | undefined {
   if (r.includes('duplicate')) return '题库里已有相同或很像的题，入库后会有两道';
   if (r.includes('low_confidence')) return '原文不太清楚，请对照原文核对题干和答案';
   if (r.includes('rubric_sum_mismatch')) return '采分点分值合计不等于题目分值';
-  if (r.includes('missing_answer')) return '没找到参考答案，可以让 AI 生成';
+  // 缺答案（PRD 11.16）：从其他资料找到的标出处请核对；都没找到的，补充答案文件或做到时 AI 给参考答案
+  if (r.includes('answer_matched')) {
+    const src = sourceText(it.question?.answer_source);
+    return src ? `原文没有答案，从 ${src} 找到，待确认` : '原文没有答案，从你的其他资料里找到，待确认';
+  }
+  if (r.includes('missing_answer')) return '原文和你的其他资料里都没找到答案；补充答案文件，或做到时 AI 给参考答案';
   if (r.includes('rubric_unconfirmed')) return 'AI 从参考答案里提取了采分点，请核对';
   return undefined;
 }

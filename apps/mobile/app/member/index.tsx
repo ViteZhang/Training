@@ -1,5 +1,7 @@
 // 6.5 会员中心（T25）：权益对比表（PRD 13.1）；三档会员（冲刺卡、考季卡推荐、月卡）与现在购买的有效期截止；
-// 「立即开通」在支付开关关闭时隐藏，只显示兑换码入口；会员服务协议；注明不自动续费。
+// 在线支付开通前主按钮为「获取兑换码」（→ 6.5a），上方说明「暂未开放在线支付，加客服企业微信获取兑换码」；
+// 开通后为「立即开通 ¥价格」；「我已有兑换码」→ 6.7；会员服务协议；注明不自动续费。
+// 购买入口关闭的平台（iOS 提审前）不显示本页入口，误进来时直接退回（PRD v3 3.4）。
 import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
 import { colors, fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
@@ -12,6 +14,7 @@ import { Button, Card, ErrorState, Loading, Screen, Tag, Text } from '@/componen
 import { PageHeader } from '@/features/import/ui';
 import { channelNames, ruleText, useMemberCenter, yuan } from '@/features/membership/api';
 import { launchPay } from '@/features/membership/pay';
+import { usePurchaseEntry } from '@/features/membership/purchase';
 import { tierNames, ymd } from '@/features/mine/api';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
@@ -20,7 +23,11 @@ const positioning: Record<Schemas['PlanTier'], string> = { sprint: '冲刺期考
 
 export default function MemberCenter() {
   const center = useMemberCenter();
+  const entry = usePurchaseEntry();
   useEffect(() => track('member_page_view'), []);
+  useEffect(() => {
+    if (entry.data && !entry.data.enabled) router.back();
+  }, [entry.data]);
   const c = center.data;
   const plans = useMemo(() => c?.plans ?? [], [c]);
   // iOS 只能用 App 内购买；安卓用微信支付、支付宝（PRD 13.3）。
@@ -62,7 +69,7 @@ export default function MemberCenter() {
             <Text variant="h2" color={colors.white}>
               {`${c.membership.tier ? tierNames[c.membership.tier] : '会员'}生效中`}
             </Text>
-            <Text variant="small" color="#C4C0E0">
+            <Text variant="small" color={colors.faint}>
               {c.membership.ends_at ? `有效期至 ${ymd(c.membership.ends_at)}，续费时长叠加` : ''}
             </Text>
           </View>
@@ -81,42 +88,42 @@ export default function MemberCenter() {
           {c.benefits.map((b) => (
             <View key={b.quota_type} style={[styles.tableRow, styles.divider]} accessibilityLabel={`${b.name} 免费版 ${ruleText(b.quota_type, b.free)} 会员 ${ruleText(b.quota_type, b.member)}`}>
               <Text variant="caption" color={semantic.textPrimary} style={styles.cellName}>{b.name}</Text>
-              <Text variant="small" style={styles.cell}>{ruleText(b.quota_type, b.free)}</Text>
-              <Text variant="caption" color={semantic.textPrimary} style={[styles.cell, styles.bold]}>{ruleText(b.quota_type, b.member)}</Text>
+              <Text variant="small" num style={styles.cell}>{ruleText(b.quota_type, b.free)}</Text>
+              <Text variant="caption" num={700} color={semantic.textPrimary} style={styles.cell}>{ruleText(b.quota_type, b.member)}</Text>
             </View>
           ))}
         </Card>
         <Text variant="small">客观题判分、背诵、错题本、复习计划、考情分析、导出题库，免费版也不限</Text>
 
+        {plans.map((p) => {
+          const on = p.tier === tier;
+          return (
+            <Pressable
+              key={p.tier}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on, disabled: !p.available }}
+              accessibilityLabel={`${p.name} ${yuan(p.price_cents)}`}
+              disabled={!p.available || !canPay}
+              onPress={() => setTier(p.tier)}
+              style={[styles.plan, on && styles.planOn, !p.available && styles.planOff]}
+            >
+              <View style={styles.flex}>
+                <View style={styles.inline}>
+                  <Text variant="bodyStrong" style={styles.bold}>
+                    {p.name}
+                  </Text>
+                  {p.recommended ? <Tag label="推荐" tone="outline" /> : null}
+                </View>
+                <Text variant="small">
+                  {p.available ? (p.ends_at ? `有效期至 ${ymd(p.ends_at)} · ${positioning[p.tier]}` : positioning[p.tier]) : p.unavailable_reason ?? '暂未开放'}
+                </Text>
+              </View>
+              <Text style={styles.price}>{yuan(p.price_cents)}</Text>
+            </Pressable>
+          );
+        })}
         {canPay ? (
           <>
-            {plans.map((p) => {
-              const on = p.tier === tier;
-              return (
-                <Pressable
-                  key={p.tier}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: on, disabled: !p.available }}
-                  accessibilityLabel={`${p.name} ${yuan(p.price_cents)}`}
-                  disabled={!p.available}
-                  onPress={() => setTier(p.tier)}
-                  style={[styles.plan, on && styles.planOn, !p.available && styles.planOff]}
-                >
-                  <View style={styles.flex}>
-                    <View style={styles.inline}>
-                      <Text variant="bodyStrong" style={styles.bold}>
-                        {p.name}
-                      </Text>
-                      {p.recommended ? <Tag label="推荐" tone="outline" /> : null}
-                    </View>
-                    <Text variant="small">
-                      {p.available ? (p.ends_at ? `有效期至 ${ymd(p.ends_at)} · ${positioning[p.tier]}` : positioning[p.tier]) : p.unavailable_reason ?? '暂未开放'}
-                    </Text>
-                  </View>
-                  <Text style={styles.price}>{yuan(p.price_cents)}</Text>
-                </Pressable>
-              );
-            })}
             {channels.length > 1 ? (
               <View style={styles.inline}>
                 {channels.map((ch) => (
@@ -144,9 +151,16 @@ export default function MemberCenter() {
               onPress={() => buy.mutate()}
             />
           </>
-        ) : null}
+        ) : (
+          <>
+            <Text variant="small" style={styles.center}>
+              {entry.data?.contact?.note || '暂未开放在线支付，加客服企业微信获取兑换码'}
+            </Text>
+            <Button title="获取兑换码" onPress={() => router.push('/member/getcode')} />
+          </>
+        )}
 
-        <Button title="有兑换码？" kind={canPay ? 'text' : 'primary'} onPress={() => router.push('/mine/redeem')} />
+        <Button title="我已有兑换码" kind="text" onPress={() => router.push('/mine/redeem')} />
         <View style={styles.footer}>
           <Pressable accessibilityRole="link" onPress={() => router.push({ pathname: '/(auth)/agreement', params: { kind: 'membership' } })}>
             <Text variant="caption" color={semantic.primary}>会员服务协议</Text>
@@ -178,4 +192,5 @@ const styles = StyleSheet.create({
   price: { fontFamily: fontFamily.numberSemiBold, fontSize: 24, color: semantic.textPrimary },
   channel: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.lg, borderRadius: radius.lg, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
   footer: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap' },
+  center: { textAlign: 'center' },
 });

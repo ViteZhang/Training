@@ -1,8 +1,8 @@
 // 7.11 官方题库：项目列表与进度（立项 → 授权资料入库 → 知识框架 → 内容生产 → 审核 → 发布上线），
-// 分配编辑、维护授权资料清单（须有授权或为公开真题）。
+// 分配编辑、维护授权资料清单（须有授权或为公开真题）；官方参考素材：录入有授权的教材、讲义，切分后供 7.12 生成参考答案时优先引用。
 import { ApiError } from '@training/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { App as AntApp, Button, Descriptions, Drawer, Form, Input, Select, Space, Steps, Table, Typography } from 'antd';
+import { App as AntApp, Button, Card, Checkbox, Descriptions, Drawer, Form, Input, List, Modal, Popconfirm, Select, Space, Steps, Table, Tag, Typography } from 'antd';
 import { useState } from 'react';
 import { Loadable, PageTitle } from '../components/Page';
 import { stageNames, useProjects } from '../components/ProjectPicker';
@@ -120,9 +120,110 @@ function ProjectDrawer({ id, onClose }: { id: number; onClose: () => void }) {
                 </Button>
               </div>
             </Form>
+            <References projectId={id} />
           </>
         ) : null}
       </Loadable>
     </Drawer>
+  );
+}
+
+const refKindNames: Record<string, string> = { textbook: '教材', handout: '讲义' };
+
+/** 官方参考素材（PRD v3 7.11）：只录入有授权的教材、讲义，粘贴原文后按章节切分。 */
+function References({ projectId }: { projectId: number }) {
+  const qc = useQueryClient();
+  const { message } = AntApp.useApp();
+  const path = { params: { path: { projectId } } };
+  const key = ['admin', 'official', 'references', projectId];
+  const list = useQuery({ queryKey: key, queryFn: () => unwrap(api.GET('/admin/official/projects/{projectId}/references', path)) });
+  const [adding, setAdding] = useState(false);
+  const remove = useMutation({
+    mutationFn: (referenceId: number) => unwrap(api.DELETE('/admin/official/projects/{projectId}/references/{referenceId}', { params: { path: { projectId, referenceId } } })),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: key }),
+    onError: (e) => message.error(e instanceof ApiError ? e.message : '删除失败'),
+  });
+  return (
+    <Card
+      size="small"
+      title="官方参考素材"
+      style={{ marginTop: 24 }}
+      extra={<Button size="small" onClick={() => setAdding(true)}>+ 录入素材</Button>}
+    >
+      <Loadable loading={list.isPending} error={list.error}>
+        <List
+          size="small"
+          locale={{ emptyText: '还没有录入素材' }}
+          dataSource={list.data?.items ?? []}
+          renderItem={(r) => (
+            <List.Item
+              actions={[
+                <Popconfirm key="del" title="删除这份素材？已写进草稿的答案不受影响" onConfirm={() => remove.mutate(r.id)}>
+                  <Button size="small" type="link" danger>删除</Button>
+                </Popconfirm>,
+              ]}
+            >
+              <List.Item.Meta
+                title={r.title}
+                description={
+                  <Space size={4} wrap>
+                    <Tag>{refKindNames[r.kind]}</Tag>
+                    <Tag color="green">已授权</Tag>
+                    <span>已切分 {r.segments} 段 · {r.chars} 字 · {r.license_note}</span>
+                  </Space>
+                }
+              />
+            </List.Item>
+          )}
+        />
+      </Loadable>
+      <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
+        AI 生成官方题库的参考答案和采分点时优先引用这些素材，并标出处
+      </Typography.Paragraph>
+      {adding ? <AddReference projectId={projectId} onClose={() => setAdding(false)} onDone={() => void qc.invalidateQueries({ queryKey: key })} /> : null}
+    </Card>
+  );
+}
+
+interface ReferenceForm {
+  title: string;
+  kind: 'textbook' | 'handout';
+  license_note: string;
+  authorized: boolean;
+  text: string;
+}
+
+function AddReference({ projectId, onClose, onDone }: { projectId: number; onClose: () => void; onDone: () => void }) {
+  const { message } = AntApp.useApp();
+  const [form] = Form.useForm<ReferenceForm>();
+  const create = useMutation({
+    mutationFn: (v: ReferenceForm) => unwrap(api.POST('/admin/official/projects/{projectId}/references', { params: { path: { projectId } }, body: v })),
+    onSuccess: (r) => {
+      message.success(`已录入，切分为 ${r.segments} 段`);
+      onDone();
+      onClose();
+    },
+    onError: (e) => message.error(e instanceof ApiError ? e.message : '录入失败'),
+  });
+  return (
+    <Modal open title="录入官方参考素材" width={720} okText="录入" confirmLoading={create.isPending} onCancel={onClose} onOk={() => form.submit()}>
+      <Form form={form} layout="vertical" initialValues={{ kind: 'textbook', authorized: false }} onFinish={(v) => create.mutate(v)}>
+        <Form.Item name="title" label="素材名称" rules={[{ required: true, message: '填素材名称' }]}>
+          <Input placeholder="如：童庆炳《文学理论教程》第五版" maxLength={128} />
+        </Form.Item>
+        <Form.Item name="kind" label="类型">
+          <Select options={Object.entries(refKindNames).map(([value, label]) => ({ value, label }))} />
+        </Form.Item>
+        <Form.Item name="license_note" label="授权说明" rules={[{ required: true, message: '写明授权方与依据' }]}>
+          <Input placeholder="授权方、合同编号或授权日期" maxLength={255} />
+        </Form.Item>
+        <Form.Item name="text" label="素材原文" extra="粘贴整章或整册的文字；按「第 X 章」「一、」等标题和段落自动切分" rules={[{ required: true, min: 20, message: '至少 20 字' }]}>
+          <Input.TextArea rows={10} />
+        </Form.Item>
+        <Form.Item name="authorized" valuePropName="checked" rules={[{ validator: (_, v) => (v ? Promise.resolve() : Promise.reject(new Error('只能录入已获授权的素材'))) }]}>
+          <Checkbox>我确认这份素材已获授权</Checkbox>
+        </Form.Item>
+      </Form>
+    </Modal>
   );
 }

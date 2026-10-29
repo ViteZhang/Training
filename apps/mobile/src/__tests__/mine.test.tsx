@@ -90,6 +90,7 @@ beforeEach(() => {
   mockLogout.mockClear();
   mockResponses = {
     'GET /me': () => ({ status: 200, data: me() }),
+    'GET /purchase-entry': () => ({ status: 200, data: { enabled: true } }),
     'GET /profile': () => ({ status: 200, data: profile }),
     'GET /subjects': () => ({ status: 200, data: subjects }),
     'GET /me/overview': () => ({ status: 200, data: { materials: 3, questions: 246, wrong: 23, essays: 0 } }),
@@ -108,7 +109,7 @@ describe('6.1 我的', () => {
     const r = await wrap(<MeTab />);
     expect(await screen.findByText('小林同学')).toBeTruthy();
     expect(screen.getByText('654 · 强化期 · 83 天后初试')).toBeTruthy();
-    expect(screen.getByText('开通会员：批改、整卷、资料解析不限')).toBeTruthy();
+    expect(await screen.findByText('开通会员：批改、整卷、资料解析不限')).toBeTruthy();
     expect(await screen.findByText('失分：知识没掌握 50% · 答题不规范 25% · 时间不够 25%')).toBeTruthy();
     expect(screen.getByText('3 份 · 246 题')).toBeTruthy();
     expect(screen.getByText('还没有作文')).toBeTruthy();
@@ -118,12 +119,38 @@ describe('6.1 我的', () => {
     await r.unmount();
   });
 
+  it('购买入口关闭的平台：会员条只显示当前状态，不出现开通与兑换码入口', async () => {
+    mockResponses['GET /purchase-entry'] = () => ({ status: 200, data: { enabled: false } });
+    const r = await wrap(<MeTab />);
+    expect(await screen.findByText('小林同学')).toBeTruthy();
+    expect(await screen.findByText('每日额度 0 点恢复')).toBeTruthy();
+    expect(screen.queryByText('开通')).toBeNull();
+    expect(screen.queryByLabelText('兑换码')).toBeNull();
+    await r.unmount();
+  });
+
   it('会员显示档位与有效期', async () => {
     mockResponses['GET /me'] = () => ({ status: 200, data: me({ membership: { is_member: true, tier: 'season', ends_at: '2027-12-26T16:00:00Z' } }) });
     const r = await wrap(<MeTab />);
     expect(await screen.findByText('考季卡')).toBeTruthy();
     expect(screen.getByText(/有效期至 2027 年 12 月/)).toBeTruthy();
     expect(screen.queryByText('开通')).toBeNull();
+    await r.unmount();
+  });
+
+  it('点昵称修改：自己填写保存，或随机换一个', async () => {
+    mockResponses['PATCH /me'] = () => ({ status: 200, data: me({ nickname: '一战上岸的锦鲤' }) });
+    const r = await wrap(<MeTab />);
+    await fireEvent.press(await screen.findByLabelText('修改昵称'));
+    await fireEvent.press(screen.getByText('随机换一个'));
+    await waitFor(() => expect(screen.getByLabelText('昵称').props.value).toBe('一战上岸的锦鲤'));
+    expect(mockCalls.find((c) => c.method === 'PATCH')?.init).toEqual({ body: { nickname: '' } });
+    mockResponses['PATCH /me'] = () => ({ status: 200, data: me({ nickname: '小林' }) });
+    await fireEvent.changeText(screen.getByLabelText('昵称'), '  小林  ');
+    await fireEvent.press(screen.getByText('保存'));
+    await waitFor(() => expect(screen.queryByLabelText('昵称')).toBeNull());
+    expect(mockCalls.filter((c) => c.method === 'PATCH').at(-1)?.init).toEqual({ body: { nickname: '小林' } });
+    expect(await screen.findByText('小林')).toBeTruthy();
     await r.unmount();
   });
 });

@@ -1,4 +1,4 @@
-import { radius, spacing, timing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing, timing } from '@training/ui-tokens';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,7 +21,10 @@ export const useToast = create<ToastState>((set) => ({
 
 export const toast = (message: string) => useToast.getState().show(message);
 
-/** 放在根布局里一次。 */
+/**
+ * 根布局里放一次；弹层（BottomSheet、ConfirmDialog）里也各放一个：Modal 是盖在页面上的独立窗口，
+ * 根布局的 toast 会被挡住，弹层里操作（如随机换昵称失败）的提示就看不到了。
+ */
 export function ToastHost() {
   const { message, seq, hide } = useToast();
   const insets = useSafeAreaInsets();
@@ -34,7 +37,7 @@ export function ToastHost() {
   return (
     <View pointerEvents="none" style={[styles.wrap, { bottom: insets.bottom + 96 }]}>
       <View style={styles.toast} accessibilityLiveRegion="polite">
-        <Text variant="body" color="#FFFFFF">
+        <Text variant="caption" color={colors.white} style={styles.text}>
           {message}
         </Text>
       </View>
@@ -43,6 +46,8 @@ export function ToastHost() {
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  toast: { backgroundColor: 'rgba(27,26,23,0.88)', paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.md },
+  // 两侧留足边距、限制最大宽度：长文案换行而不是横跨整屏
+  wrap: { position: 'absolute', left: 48, right: 48, alignItems: 'center' },
+  toast: { maxWidth: 280, backgroundColor: semantic.toast, paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: radius.md },
+  text: { fontSize: 14, lineHeight: 20, textAlign: 'center' },
 });

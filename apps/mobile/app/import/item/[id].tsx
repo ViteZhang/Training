@@ -2,27 +2,40 @@
 // 缺答案时可让 AI 生成参考答案（标「AI 生成」，计入 AI 出题次数）；可改知识点归属；「稍后再看」或「确认」。
 // 知识点与作文资料条目可以确认或删除。
 import { ApiError, type Schemas } from '@training/api-client';
-import { layout, radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { AIGenerating, Button, Card, ConfirmDialog, ErrorState, Loading, QuotaSheet, Screen, Tag, Text, toast } from '@/components';
-import { essayTypeNames, importKeys, isSubjective, qtypeNames, rubricTotal, sourceText, useImportItem, type ImportItem, type QuestionDraft } from '@/features/import/api';
+import { AIGenerating, Button, Card, ConfirmDialog, ErrorState, GroupNote, Loading, PassageCard, QuotaSheet, Screen, Tag, Text, toast } from '@/components';
+import { essayTypeNames, importKeys, isSubjective, qtypeNames, rubricTotal, sourceText, useImportItem, useImportJob, type ImportItem, type QuestionDraft } from '@/features/import/api';
+import { QuestionSourceChoices } from '@/features/import/QuestionSourceChoices';
+import type { QuestionFileSource } from '@/features/import/files';
 import { RubricEditor } from '@/features/import/RubricEditor';
 import { PageHeader } from '@/features/import/ui';
 import { Footer } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 const originLabel: Partial<Record<Schemas['Origin'], string>> = { imported: '来自原文', ai_generated: 'AI 生成', user_confirmed: '你改过', ai_extracted: 'AI 提取' };
 
+/** 参考答案的来源（PRD 11.16）：原文自带 / 从你的其他资料找到 / 答案文件配上的，带出处。 */
+function answerLabel(q: QuestionDraft) {
+  const src = sourceText(q.answer_source);
+  if (q.answer_origin === 'imported' && q.answer_match === 'other_material') return src ? `来自你的资料 · ${src}（原文没有，待你确认）` : '来自你的资料（原文没有，待你确认）';
+  if (q.answer_origin === 'imported' && q.answer_match === 'answer_file') return src ? `来自你的资料 · ${src}` : '来自答案文件';
+  return (q.answer_origin && originLabel[q.answer_origin]) ?? '';
+}
+
 function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: ImportItem) => void }) {
   const qc = useQueryClient();
-  const [q, setQ] = useState<QuestionDraft>(item.question!);
+  const [q, setQ] = useState<QuestionDraft>({ ...item.question!, source: item.question?.source ?? 'unconfirmed' });
   const [kp, setKp] = useState((item.question!.kp_path ?? []).join(' / '));
   const [busy, setBusy] = useState<'save' | 'gen' | 'delete' | null>(null);
   const [quota, setQuota] = useState(false);
+  const upgrade = useUpgradeActions(() => setQuota(false));
   const [removing, setRemoving] = useState(false);
+  const job = useImportJob(item.job_id);
   const subjective = isSubjective(q);
   const points = q.rubric_points ?? [];
   const mismatch = subjective && q.score !== undefined && points.length > 0 && rubricTotal(points) !== q.score;
@@ -88,6 +101,13 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
           </View>
           {item.source ? <Text variant="small">{sourceText(item.source)}</Text> : null}
         </View>
+        <QuestionSourceChoices
+          label="题目来源"
+          value={q.source as QuestionFileSource | undefined}
+          onChange={(source) => setQ({ ...q, source })}
+        />
+        <GroupNote group={q.group} />
+        {q.passage ? <PassageCard text={q.passage.text} /> : null}
         <TextInput accessibilityLabel="题干" value={q.stem} onChangeText={(v) => setQ({ ...q, stem: v })} multiline style={styles.stem} maxFontSizeMultiplier={layout.maxFontScale} />
         {q.options?.map((o) => (
           <Text key={o.key} variant="body">
@@ -98,17 +118,25 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
         <View style={styles.sectionHead}>
           <Text variant="caption" color={semantic.textPrimary} style={styles.medium}>
             参考答案
-            {q.answer && q.answer_origin ? <Text variant="caption"> · {originLabel[q.answer_origin] ?? ''}</Text> : null}
+            {q.answer ? <Text variant="caption"> · {answerLabel(q)}</Text> : null}
           </Text>
-          {q.answer && q.answer_origin === 'ai_generated' ? <Tag label="AI 生成" tone="ai" /> : null}
+          {q.answer && q.answer_origin === 'ai_generated' ? <Tag label="AI 参考答案 · 待确认" tone="ai" /> : null}
         </View>
         {q.answer ? (
           <TextInput accessibilityLabel="参考答案" value={q.answer} onChangeText={(v) => setQ({ ...q, answer: v })} multiline style={styles.input} maxFontSizeMultiplier={layout.maxFontScale} />
         ) : (
           <Card style={styles.missing}>
-            <Text variant="caption">没找到参考答案。可以自己填，也可以让 AI 生成（标「AI 生成」，计入今天的 AI 出题次数）</Text>
+            <Text variant="caption">原文和你的其他资料里都没找到答案。可以自己填、补充答案文件，或让 AI 生成（标「AI 参考答案 · 待确认」，计入今天的 AI 出题次数，确认前不计入预估分）</Text>
             <TextInput accessibilityLabel="参考答案" placeholder="填写参考答案" value={q.answer ?? ''} onChangeText={(v) => setQ({ ...q, answer: v })} multiline style={styles.input} maxFontSizeMultiplier={layout.maxFontScale} />
-            <Button title="让 AI 生成参考答案" kind="secondary" onPress={() => void generate()} />
+            <View style={styles.actions}>
+              <Button
+                title="补充答案文件"
+                kind="secondary"
+                style={styles.flex}
+                onPress={() => router.push({ pathname: '/import/answers', params: { subject: String(job.data?.subject_id ?? ''), job: String(item.job_id) } })}
+              />
+              <Button title="让 AI 生成" kind="secondary" style={styles.flex} onPress={() => void generate()} />
+            </View>
           </Card>
         )}
 
@@ -143,10 +171,8 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
         onClose={() => setQuota(false)}
         title="今天的 AI 出题次数用完了"
         desc="明天会恢复。开通会员后不限次数。"
-        onUpgrade={() => {
-          setQuota(false);
-          router.push('/member');
-        }}
+        upgrade={upgrade}
+        freeDesc="今天的 AI 出题次数用完了，明天 0 点恢复。"
         freeOptions={[{ label: '自己填写参考答案', onPress: () => setQuota(false) }]}
       />
     </>
@@ -157,10 +183,16 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
 function OtherItem({ item, onSaved }: { item: ImportItem; onSaved: (it: ImportItem) => void }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState<'confirmed' | 'deleted' | null>(null);
+  const e = item.essay ?? {};
+  const essayTopic = item.item_type === 'essay_topic';
+  const initialSource = e.source === 'exam' || e.source === 'exercise' ? e.source : 'unconfirmed';
+  const [source, setSource] = useState<QuestionFileSource>(initialSource);
   const set = async (status: 'confirmed' | 'deleted') => {
     setBusy(status);
     try {
-      const saved = await unwrap(api.PATCH('/import-items/{itemId}', { params: { path: { itemId: item.id } }, body: { status } }));
+      const body: Schemas['ImportItemPatch'] = { status };
+      if (essayTopic) body.essay = { ...e, source };
+      const saved = await unwrap(api.PATCH('/import-items/{itemId}', { params: { path: { itemId: item.id } }, body }));
       qc.setQueryData(importKeys.item(item.id), saved);
       await qc.invalidateQueries({ queryKey: ['import-items', item.job_id] });
       onSaved(saved);
@@ -171,7 +203,6 @@ function OtherItem({ item, onSaved }: { item: ImportItem; onSaved: (it: ImportIt
     }
   };
   const kp = item.knowledge_point;
-  const e = item.essay ?? {};
   return (
     <>
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -179,6 +210,7 @@ function OtherItem({ item, onSaved }: { item: ImportItem; onSaved: (it: ImportIt
           {kp ? `知识点 · ${kp.kp_path.join(' / ')}` : essayTypeNames[item.item_type]}
           {item.source ? ` · ${sourceText(item.source)}` : ''}
         </Text>
+        {essayTopic ? <QuestionSourceChoices label="题目来源" value={source} onChange={setSource} /> : null}
         {kp ? (
           <>
             <Text variant="h3">{kp.name}</Text>
@@ -234,11 +266,11 @@ const styles = StyleSheet.create({
   meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: spacing.sm },
   pill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: semantic.fill },
   medium: { fontWeight: '500' },
-  input: { minHeight: 48, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.xl, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, lineHeight: 24, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  input: { minHeight: 48, borderWidth: 1, borderColor: semantic.inputBorder, borderRadius: radius.xl, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, lineHeight: 24, color: semantic.textPrimary, backgroundColor: semantic.surface },
   stem: { fontSize: 20, lineHeight: 28, fontWeight: '700', color: semantic.textPrimary, padding: 0 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
   section: { marginTop: spacing.sm },
-  missing: { gap: spacing.sm, backgroundColor: semantic.amberSoft, borderColor: '#F3DDB3' },
+  missing: { gap: spacing.sm, backgroundColor: semantic.peachSoft, borderColor: colors.orangeLine },
   actions: { flexDirection: 'row', gap: 10 },
   flex: { flex: 1 },
   flex2: { flex: 1.6 },

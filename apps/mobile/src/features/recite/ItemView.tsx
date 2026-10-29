@@ -1,6 +1,6 @@
 // 4.14 挖空、4.15 默写结果、4.16 口述：一条知识点的三种背法。
 import type { Schemas } from '@training/api-client';
-import { radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { File } from 'expo-file-system';
 import { useEffect, useState } from 'react';
@@ -70,7 +70,7 @@ export function CoverageView({ item, result }: { item: ReciteItem; result: Recor
           关键词覆盖
         </Text>
         <Text variant="score">{result.coverage?.hit ?? 0}</Text>
-        <Text variant="body">/ {result.coverage?.total ?? 0}</Text>
+        <Text variant="body" num>/ {result.coverage?.total ?? 0}</Text>
       </View>
       <Text variant="bodyStrong" color={result.result === 'remembered' ? semantic.mastered : result.result === 'vague' ? semantic.info : semantic.danger}>
         {levelNames[result.result]}
@@ -191,12 +191,12 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   flex: { flex: 1 },
   text: { fontSize: 17, lineHeight: 30 },
-  blank: { backgroundColor: '#EEEBFB', borderRadius: radius.sm },
-  shown: { backgroundColor: '#EEEBFB', color: '#3E3190' },
+  blank: { backgroundColor: colors.lavenderSoft, borderRadius: radius.sm },
+  shown: { backgroundColor: colors.lavenderSoft, color: colors.lavenderInk },
   left: { alignSelf: 'flex-start' },
   box: { gap: spacing.xs, padding: spacing.md, borderRadius: radius.md, backgroundColor: semantic.infoSoft },
   legend: { flexDirection: 'row', gap: spacing.lg },
-  input: { minHeight: 160, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.md, padding: spacing.md, fontSize: 16, lineHeight: 24, color: semantic.textPrimary, backgroundColor: semantic.surface },
+  input: { minHeight: 160, borderWidth: 1, borderColor: semantic.inputBorder, borderRadius: radius.md, padding: spacing.md, fontSize: 16, lineHeight: 24, color: semantic.textPrimary, backgroundColor: semantic.surface },
   mic: { alignSelf: 'center', width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: semantic.primary },
   micOn: { backgroundColor: semantic.danger },
 });

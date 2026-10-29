@@ -7,7 +7,7 @@ import { BottomSheet, Button, Icon, Text } from '@/components';
 import type { IconName } from '@/components/Icon';
 import { storage } from '@/lib/storage';
 
-export type PermissionKind = 'camera' | 'photos' | 'microphone' | 'notifications';
+export type PermissionKind = 'camera' | 'photos' | 'savePhotos' | 'microphone' | 'notifications';
 
 const copy: Record<PermissionKind, { title: string; desc: string; deniedTitle: string; deniedDesc: string }> = {
   camera: {
@@ -21,6 +21,12 @@ const copy: Record<PermissionKind, { title: string; desc: string; deniedTitle: s
     desc: '用于从相册导入题目、讲义的照片和截图。只读取你选中的图片，仅你本人可见。',
     deniedTitle: '相册权限未开启',
     deniedDesc: '从相册导入需要相册权限，请在系统设置中打开。也可以拍照或从文件导入。',
+  },
+  savePhotos: {
+    title: '允许保存到相册',
+    desc: '用于把客服企业微信二维码保存到相册，方便在微信里扫码添加。只写入这一张图片。',
+    deniedTitle: '相册权限未开启',
+    deniedDesc: '保存二维码需要相册写入权限，请在系统设置中打开。也可以复制 ID，在微信里搜索添加。',
   },
   microphone: {
     title: '允许使用麦克风',
@@ -42,7 +48,7 @@ export interface PermissionResult {
   canAskAgain: boolean;
 }
 
-const kindIcon: Record<PermissionKind, IconName> = { camera: 'camera', photos: 'image', microphone: 'mic', notifications: 'bell' };
+const kindIcon: Record<PermissionKind, IconName> = { camera: 'camera', photos: 'image', savePhotos: 'image', microphone: 'mic', notifications: 'bell' };
 
 /** 弹窗顶部的图标块：说明时为浅蓝，被拒时为浅红。 */
 function IconBadge({ kind, denied }: { kind: PermissionKind; denied?: boolean }) {

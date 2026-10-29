@@ -47,9 +47,9 @@ export default function TrainTab() {
     if (pending > 0) void flush().then((n) => n > 0 && toast(`已补交 ${n} 道离线作答`));
   }, [pending]);
 
-  if (subjects.isLoading) return <Screen><Loading rows={6} /></Screen>;
-  if (subjects.isError) return <Screen><ErrorState error={subjects.error} onRetry={() => void subjects.refetch()} /></Screen>;
-  if (!subject) return <Screen><EmptyState title="还没有专业课" actionText="去添加" onAction={() => router.push('/settings/prep')} /></Screen>;
+  if (subjects.isLoading) return <Screen edges={['top']}><Loading rows={6} /></Screen>;
+  if (subjects.isError) return <Screen edges={['top']}><ErrorState error={subjects.error} onRetry={() => void subjects.refetch()} /></Screen>;
+  if (!subject) return <Screen edges={['top']}><EmptyState title="还没有专业课" actionText="去添加" onAction={() => router.push('/settings/prep')} /></Screen>;
   const h = home.data;
   const sid = subject.id;
   const essay = list.find((x) => x.is_essay && x.id !== sid);
@@ -70,7 +70,7 @@ export default function TrainTab() {
   );
 
   return (
-    <Screen>
+    <Screen edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={home.isRefetching} onRefresh={() => void home.refetch()} />}>
         <View style={styles.header}>
           <Text variant="h1">训练</Text>
@@ -115,7 +115,7 @@ export default function TrainTab() {
                   今日训练
                 </Text>
                 {h.today ? (
-                  <Text variant="caption" color="#C4C0E0">
+                  <Text variant="caption" num color={colors.faint}>
                     {h.today.done} / {h.today.total} · 约 {Math.round(h.today.minutes)} 分钟
                   </Text>
                 ) : null}
@@ -131,21 +131,21 @@ export default function TrainTab() {
                   }
                   style={styles.todayBtn}
                 >
-                  <Text variant="bodyStrong" color={colors.indigo} style={styles.bold}>
+                  <Text variant="bodyStrong" color={colors.ink} style={styles.bold}>
                     {h.today.session_id ? '继续训练' : '开始训练'}
                   </Text>
                 </Pressable>
               ) : (
-                <Text variant="caption" color="#C4C0E0">
+                <Text variant="caption" color={colors.faint}>
                   这门课今天没有安排题目，可以按题型练或自定义练习
                 </Text>
               )}
               {h.today && !h.today.session_id ? (
                 <View style={styles.rowInline}>
-                  <Text variant="small" color="#C4C0E0" style={styles.flex}>
+                  <Text variant="small" color={colors.faint} style={styles.flex}>
                     题量不够时 AI 按你的知识点补变式题
                   </Text>
-                  <Switch accessibilityLabel="今日训练 AI 补题" value={aiFill} onValueChange={setAiFill} trackColor={{ true: colors.amber, false: colors.track }} />
+                  <Switch accessibilityLabel="今日训练 AI 补题" value={aiFill} onValueChange={setAiFill} trackColor={{ true: colors.peach, false: colors.line }} />
                 </View>
               ) : null}
             </View>
@@ -187,7 +187,7 @@ export default function TrainTab() {
                     <Text variant="caption" color={colors.ink} style={styles.medium} numberOfLines={1}>
                       {qtypeNames[q.qtype]}
                     </Text>
-                    <Text variant="small" style={styles.tiny}>
+                    <Text variant="small" num style={styles.tiny}>
                       {q.count} 题
                     </Text>
                   </Pressable>
@@ -232,7 +232,7 @@ export default function TrainTab() {
   );
 }
 
-const pushInk = '#8A4B12';
+const pushInk = colors.peachInk;
 
 const styles = StyleSheet.create({
   scroll: { gap: 12, paddingBottom: spacing.xxl },
@@ -252,9 +252,9 @@ const styles = StyleSheet.create({
   title16: { fontSize: 16, fontWeight: '700' },
   tiny: { fontSize: 11 },
   link: { paddingHorizontal: 0 },
-  today: { gap: 12, padding: 18, borderRadius: radius.card, backgroundColor: colors.indigo },
+  today: { gap: 12, padding: 18, borderRadius: radius.card, backgroundColor: colors.ink },
   todayBtn: { minHeight: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white },
-  push: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.amberSoft },
+  push: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.peachSoft },
   pushBtn: { minHeight: 32, paddingHorizontal: 12, borderRadius: 16, justifyContent: 'center', backgroundColor: colors.white },
   section: { gap: 10, marginTop: 6 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

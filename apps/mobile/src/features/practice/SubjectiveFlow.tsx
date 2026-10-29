@@ -1,13 +1,15 @@
 // 4.4 主观题作答 → 4.6 批改中 → 4.7（由答题页显示）；次数用完 4.9；批改失败显示「未扣除次数」可重试；「看参考答案」进入自评。
+// 参考答案、拍照作答是同一页里切换的视图：按安卓返回键或「返回作答」回到作答，不退出答题页。
 import { ApiError } from '@training/api-client';
 import { semantic, spacing } from '@training/ui-tokens';
 import * as Crypto from 'expo-crypto';
-import { useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { BackHandler, StyleSheet, View } from 'react-native';
 import { AIFailed, Button, QuotaSheet, Text, toast } from '@/components';
 import type { PracticeQuestion } from './api';
 import { HandwritingFlow } from './handwriting';
 import { GradingProgress, SubjectiveInput, useDraft, useSubmitSubjective, type GradingResult } from './grading';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 type Level = 'unknown' | 'vague' | 'mastered';
 
@@ -28,12 +30,29 @@ export function SubjectiveFlow({
   const [timed, setTimed] = useState(false);
   const [showRef, setShowRef] = useState(false);
   const [quotaOut, setQuotaOut] = useState(false);
+  const [aiOut, setAiOut] = useState(false);
+  const upgrade = useUpgradeActions(() => {
+    setQuotaOut(false);
+    setAiOut(false);
+  });
   const [failed, setFailed] = useState(false);
   const [photo, setPhoto] = useState(false);
   const last = useRef<{ text: string; keys?: string[] }>({ text: '' });
   const [started] = useState(() => Date.now());
   const key = useRef('');
   const submit = useSubmitSubjective(sessionId);
+
+  // 在参考答案或拍照视图时，安卓返回键先回到作答。进入视图时才注册，比答题页的返回拦截后注册，所以先被调用。
+  const inSubView = showRef || photo;
+  useEffect(() => {
+    if (!inSubView) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setShowRef(false);
+      setPhoto(false);
+      return true;
+    });
+    return () => sub.remove();
+  }, [inSubView]);
 
   // 拍照作答时提交的是识别后核对过的文字与照片；重试沿用上一次的内容。
   const send = (answer?: { text: string; keys?: string[] }) => {
@@ -61,6 +80,8 @@ export function SubjectiveFlow({
           // 批改失败不扣次数、不保存；换一个幂等键重试。
           key.current = '';
           if (e instanceof ApiError && e.code === 'AI_FAILED') setFailed(true);
+          // 还没有答案的题要先生成 AI 参考答案，计入每日 AI 出题额度（PRD v3 11.16 第 4 条）。
+          else if (e instanceof ApiError && e.isQuotaExceeded && e.detail?.quota_type === 'ai_questions') setAiOut(true);
           else toast(e instanceof Error ? e.message : '提交失败，请重试');
         },
       },
@@ -94,6 +115,7 @@ export function SubjectiveFlow({
             <Button key={k} title={label} kind="soft" style={styles.flex} onPress={() => onSelfAssess(k)} />
           ))}
         </View>
+        <Button title="返回作答" kind="text" onPress={() => setShowRef(false)} />
       </View>
     );
   }
@@ -113,10 +135,12 @@ export function SubjectiveFlow({
         }}
         title="今天的免费批改次数用完了"
         desc="免费版每天可批改 3 道主观题，明天 0 点恢复。你的答案已保存。"
-        onUpgrade={() => toast('会员马上上线')}
+        upgrade={upgrade}
+        compare={{ free: '每天 3 次', member: '不限次数' }}
+        freeDesc="每天可批改 3 道主观题，明天 0 点恢复。你的答案已保存，明天可以一键提交批改。"
         freeOptions={[
           {
-            label: '先对照参考答案',
+            label: upgrade ? '先对照参考答案' : '先对照参考答案自评',
             onPress: () => {
               setQuotaOut(false);
               setShowRef(true);
@@ -127,6 +151,23 @@ export function SubjectiveFlow({
             onPress: () => {
               setQuotaOut(false);
               onQueued();
+            },
+          },
+        ]}
+      />
+      <QuotaSheet
+        visible={aiOut}
+        onClose={() => setAiOut(false)}
+        title="今天的 AI 出题次数用完了"
+        desc="这道题还没有参考答案，批改前要先由 AI 生成，计入每天的 AI 出题次数。你的答案已保存。"
+        upgrade={upgrade}
+        freeDesc="这道题还没有参考答案，批改前要先由 AI 生成。今天的 AI 出题次数用完了，明天 0 点恢复，你的答案已保存。"
+        freeOptions={[
+          {
+            label: '先自评，明天再批改',
+            onPress: () => {
+              setAiOut(false);
+              setShowRef(true);
             },
           },
         ]}

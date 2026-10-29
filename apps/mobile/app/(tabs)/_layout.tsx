@@ -25,9 +25,9 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.indigo,
-        tabBarInactiveTintColor: '#8C877D',
-        tabBarStyle: { backgroundColor: semantic.surface, borderTopColor: semantic.border, minHeight: 56 },
+        tabBarActiveTintColor: colors.ink,
+        tabBarInactiveTintColor: colors.muted,
+        tabBarStyle: { backgroundColor: semantic.surface, borderTopColor: semantic.divider, minHeight: 56 },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
         tabBarItemStyle: { minHeight: layout.minTouch },
         sceneStyle: { backgroundColor: semantic.background },

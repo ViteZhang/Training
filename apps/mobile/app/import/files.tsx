@@ -1,5 +1,5 @@
 // 1.5 选择文件：文件（Word、PDF、Excel）、相册、拍照、粘贴文字；可多选、显示上传进度、可移除；
-// 必须勾选使用权才能开始；解析额度不足在开始前提示（PRD 1.5、11.12）。
+// 使用权声明默认勾选，取消勾选不能开始；解析额度不足在开始前提示（PRD 1.5、11.12）。
 import { ApiError } from '@training/api-client';
 import { radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -11,6 +11,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, EmptyState, Icon, QuotaSheet, Screen, Text, toast } from '@/components';
 import { importKeys } from '@/features/import/api';
 import { checkLimits, formatOf, limits, uploadAll, UnsupportedFile, type Picked } from '@/features/import/files';
+import { QuestionSourceChoices } from '@/features/import/QuestionSourceChoices';
 import { useImportFlow } from '@/features/import/store';
 import { Checkbox, FileRow, PageHeader } from '@/features/import/ui';
 import { setStep } from '@/features/onboarding/api';
@@ -18,6 +19,7 @@ import { Footer, StepHeader } from '@/features/onboarding/ui';
 import { usePermissionPrompt } from '@/features/permissions/PermissionPrompt';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 let seq = 0;
 const nextKey = () => `f${Date.now()}-${seq++}`;
@@ -27,9 +29,13 @@ export default function FilesScreen() {
   const { mode, subjectId, files, add, update, remove, onboarding } = useImportFlow();
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => unwrap(api.GET('/subjects')) });
   const subject = subjects.data?.items.find((s) => s.id === subjectId);
-  const [agreed, setAgreed] = useState(false);
+  // 默认勾选：用户要求不用每次手动点；声明文字保留，取消勾选就不能开始（服务端仍要求 right_confirmed）。
+  const [agreed, setAgreed] = useState(true);
   const [busy, setBusy] = useState(false);
   const [quota, setQuota] = useState<{ need?: number; remaining?: number } | null>(null);
+  const upgrade = useUpgradeActions(() => setQuota(null));
+  const missingQuestionSource = mode === 'question' && files.some((f) => !f.questionSource);
+  const commonSource = files.length > 1 && files.every((f) => f.questionSource === files[0]?.questionSource) ? files[0]?.questionSource : undefined;
 
   const addPicked = (items: Omit<Picked, 'key' | 'status' | 'progress'>[]) => {
     const err = checkLimits(files, items);
@@ -94,10 +100,15 @@ export default function FilesScreen() {
 
   const start = async () => {
     if (!subjectId) return;
+    if (missingQuestionSource) {
+      toast('请先为每份题目文件选择来源');
+      return;
+    }
     setBusy(true);
     try {
       const ids = await uploadAll(subjectId, mode, files, update);
-      const job = await unwrap(api.POST('/import-jobs', { body: { subject_id: subjectId, mode, material_ids: ids } }));
+      const question_sources = mode === 'question' ? files.map((file) => ({ material_id: file.materialId!, source: file.questionSource! })) : undefined;
+      const job = await unwrap(api.POST('/import-jobs', { body: { subject_id: subjectId, mode, material_ids: ids, question_sources } }));
       track('import_start', { mode, files: ids.length });
       await qc.invalidateQueries({ queryKey: importKeys.jobs(true) });
       if (onboarding) void setStep('1.6');
@@ -182,8 +193,24 @@ export default function FilesScreen() {
         </View>
         {files.length > 0 ? (
           <Card style={styles.list}>
+            {mode === 'question' && files.length > 1 ? (
+              <QuestionSourceChoices
+                label="批量设置文件来源"
+                value={commonSource}
+                onChange={(questionSource) => files.forEach((f) => update(f.key, { questionSource }))}
+              />
+            ) : null}
             {files.map((f) => (
-              <FileRow key={f.key} file={f} onRemove={busy ? undefined : () => remove(f.key)} />
+              <View key={f.key} style={styles.fileItem}>
+                <FileRow file={f} onRemove={busy ? undefined : () => remove(f.key)} />
+                {mode === 'question' ? (
+                  <QuestionSourceChoices
+                    label={`「${f.name}」中的题目来源`}
+                    value={f.questionSource}
+                    onChange={(questionSource) => update(f.key, { questionSource })}
+                  />
+                ) : null}
+              </View>
             ))}
           </Card>
         ) : null}
@@ -199,7 +226,7 @@ export default function FilesScreen() {
       </ScrollView>
       <Footer>
         <Checkbox checked={agreed} onChange={setAgreed} label="我确认对这些资料有合法的使用权，仅用于本人学习" />
-        <Button title="开始解析" disabled={!agreed || files.length === 0} loading={busy} onPress={() => void start()} />
+        <Button title="开始解析" disabled={!agreed || files.length === 0 || missingQuestionSource} loading={busy} onPress={() => void start()} />
       </Footer>
 
       {album.element}
@@ -213,10 +240,7 @@ export default function FilesScreen() {
             ? `这次大约需要 ${quota.need} 页，还剩 ${quota.remaining} 页。开通会员每月 1000 页。`
             : '开通会员每月可解析 1000 页。'
         }
-        onUpgrade={() => {
-          setQuota(null);
-          router.push('/member');
-        }}
+        upgrade={upgrade}
         freeOptions={[{ label: '少选几个文件', onPress: () => setQuota(null) }]}
       />
     </Screen>
@@ -236,6 +260,7 @@ const styles = StyleSheet.create({
   listHead: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.md, marginTop: spacing.sm },
   limit: { flex: 1, textAlign: 'right', fontSize: 11 },
   list: { paddingVertical: 4, paddingHorizontal: 16 },
+  fileItem: { paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: semantic.border },
   tip: { flexDirection: 'row', gap: 10, padding: 16, borderRadius: radius.xl, backgroundColor: semantic.fill },
   dot: { width: 8, height: 8, borderRadius: 4, marginTop: 5, backgroundColor: semantic.info },
 });

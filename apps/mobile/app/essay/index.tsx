@@ -1,7 +1,7 @@
 // 5.1 作文训练：本周目标篇数与完成情况、平均分；当前评分标准及来源（→ 5.9）；三个 Tab：真题题目（年份、已写稿数、最高分、附了几篇范文）、
 // AI 命题（标「AI 出题」，可「再出一道」）、自拟题目（粘贴或拍照识别）；作文本入口。
 // 5.1b 还没导入资料：引导导入作文资料；没有资料也可以 AI 命题或自拟先写，按通用五维度评分，分数只作参考、不计入预估分。
-import { fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
+import { colors, fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -11,6 +11,7 @@ import { PageHeader } from '@/features/import/ui';
 import { api, unwrap } from '@/lib/api';
 import { fmtScore, useCreateEssay, useEssayHome, useGenerateTopic } from '@/features/essay/api';
 import { HandwritingFlow } from '@/features/practice/handwriting';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 type Tab = 'exam' | 'ai' | 'custom';
 
@@ -46,6 +47,7 @@ export default function EssayHomePage() {
   const subject = subjects.data?.items?.find((x) => x.id === sid);
   const create = useCreateEssay();
   const [quotaOut, setQuotaOut] = useState(false);
+  const upgrade = useUpgradeActions(() => setQuotaOut(false));
   const gen = useGenerateTopic(sid, () => setQuotaOut(true));
   const [tab, setTab] = useState<Tab>();
   const [custom, setCustom] = useState('');
@@ -74,7 +76,7 @@ export default function EssayHomePage() {
           <>
             <Card style={styles.emptyCard}>
               <View style={styles.emptyIcon}>
-                <Icon name="paper" size={24} color="#7A4E00" />
+                <Icon name="paper" size={24} color={colors.creamInk} />
               </View>
               <Text variant="h3">导入作文资料，练得更准</Text>
               <Text variant="caption" style={styles.center}>
@@ -256,14 +258,16 @@ export default function EssayHomePage() {
         onClose={() => setQuotaOut(false)}
         title="今天的 AI 出题次数用完了"
         desc="免费版每天可让 AI 出 20 道题，明天 0 点恢复。可以先写真题或自拟题目。"
-        onUpgrade={() => toast('会员马上上线')}
+        upgrade={upgrade}
+        compare={{ free: '每天 20 题', member: '不限' }}
+        freeDesc="每天可让 AI 出 20 道题，明天 0 点恢复。可以先写真题或自拟题目。"
         freeOptions={[{ label: '写自拟题目', onPress: () => setTab('custom') }]}
       />
     </Screen>
   );
 }
 
-const goalInk = '#7A4E00';
+const goalInk = colors.creamInk;
 
 const styles = StyleSheet.create({
   scroll: { gap: 12, paddingBottom: spacing.xl },
@@ -276,14 +280,14 @@ const styles = StyleSheet.create({
   lh: { lineHeight: 19 },
   mt: { marginTop: 8 },
   emptyCard: { alignItems: 'center', gap: 10, paddingTop: 24 },
-  emptyIcon: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: semantic.amberSoft },
+  emptyIcon: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.creamSoft },
   choice: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 64, paddingHorizontal: 16, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },
   choiceOn: { borderColor: semantic.textPrimary },
-  goal: { gap: 10, padding: 16, borderRadius: radius.xl, backgroundColor: semantic.amberSoft },
+  goal: { gap: 10, padding: 16, borderRadius: radius.xl, backgroundColor: colors.creamSoft },
   rubric: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: 16, borderRadius: radius.lg, backgroundColor: semantic.fill },
   topic: { gap: 6, padding: 16, borderRadius: radius.card, backgroundColor: semantic.surface, borderWidth: 1, borderColor: semantic.border },
   best: { fontFamily: fontFamily.numberSemiBold, fontSize: 16, color: semantic.textPrimary },
   go: { minHeight: 26, paddingHorizontal: 10, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: semantic.primary },
   draft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44 },
-  input: { minHeight: 120, padding: 14, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface, fontSize: 15, lineHeight: 24, color: semantic.textPrimary },
+  input: { minHeight: 120, padding: 14, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.inputBorder, backgroundColor: semantic.surface, fontSize: 15, lineHeight: 24, color: semantic.textPrimary },
 });

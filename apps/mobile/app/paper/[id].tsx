@@ -14,6 +14,7 @@ import { PageHeader } from '@/features/import/ui';
 import { paperKeys, usePaper } from '@/features/paper/api';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
+import { useUpgradeActions } from '@/features/membership/purchase';
 
 type Mode = Schemas['PaperMode'];
 
@@ -28,6 +29,7 @@ export default function PaperModePage() {
   const paper = usePaper(Number(id));
   const [mode, setMode] = useState<Mode>();
   const [quotaOut, setQuotaOut] = useState(false);
+  const upgrade = useUpgradeActions(() => setQuotaOut(false));
   const start = useMutation({
     mutationFn: (m: Mode) => unwrap(api.POST('/papers/{paperId}/sessions', { params: { path: { paperId: Number(id) } }, body: { mode: m, idempotency_key: Crypto.randomUUID() } })),
     onSuccess: (s) => {
@@ -53,9 +55,9 @@ export default function PaperModePage() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <PageHeader title={p.title} onBack={() => router.back()} />
         <View style={styles.facts}>
-          <Text variant="caption">{p.question_count} 题</Text>
-          <Text variant="caption">{p.full_score} 分</Text>
-          <Text variant="caption">{p.duration_minutes} 分钟</Text>
+          <Text variant="caption" num>{p.question_count} 题</Text>
+          <Text variant="caption" num>{p.full_score} 分</Text>
+          <Text variant="caption" num>{p.duration_minutes} 分钟</Text>
         </View>
         {p.missing_note ? <Text variant="caption" color={semantic.info}>{p.missing_note}</Text> : null}
         {!p.counts_for_estimate ? <Text variant="caption">AI 组卷的成绩只作参考，不计入预估分</Text> : null}
@@ -107,7 +109,9 @@ export default function PaperModePage() {
         onClose={() => setQuotaOut(false)}
         title="本周的整卷批改次数用完了"
         desc="免费版每周可批改 1 套整卷，下周一恢复。"
-        onUpgrade={() => toast('会员马上上线')}
+        upgrade={upgrade}
+        compare={{ free: '每周 1 套', member: '不限' }}
+        freeDesc="每周可批改 1 套整卷，下周一 0 点恢复。"
         freeOptions={[{ label: '先去练题', onPress: () => router.replace('/(tabs)/train') }]}
       />
     </Screen>
