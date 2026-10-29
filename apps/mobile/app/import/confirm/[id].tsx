@@ -32,8 +32,9 @@ function title(it: ImportItem) {
 function kindLabel(it: ImportItem) {
   if (it.question) {
     const score = it.question.score !== undefined ? ` · ${it.question.score} 分` : '';
-    const year = it.question.exam_year ? ` · ${it.question.exam_year} 真题` : '';
-    return `${qtypeNames[it.question.qtype]}${score}${year}`;
+    const source = it.question.source === 'exam' ? '历年真题' : it.question.source === 'exercise' ? '习题' : '来源待确认';
+    const year = it.question.exam_year ? ` · ${it.question.exam_year} 年` : '';
+    return `${qtypeNames[it.question.qtype]}${score} · ${source}${year}`;
   }
   if (it.knowledge_point) return `知识点 · ${it.knowledge_point.kp_path.join(' / ')}`;
   return essayTypeNames[it.item_type] ?? '作文资料';
