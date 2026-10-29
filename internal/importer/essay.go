@@ -40,7 +40,7 @@ func (s *Service) classify(ctx context.Context, job dbq.GetImportJobRow, m dbq.G
 // 作文资料条目的 payload：AI 输出的结构，页码字段统一为 page（出处）。
 
 // organizeEssay 作文资料整理（T11）：作文真题、评分细则、写作方法、素材、范文都写进待确认。
-func (s *Service) organizeEssay(ctx context.Context, job dbq.GetImportJobRow, materialID uint64, pages []dbq.MaterialPage) (int, int, error) {
+func (s *Service) organizeEssay(ctx context.Context, job dbq.GetImportJobRow, materialID uint64, questionSource string, pages []dbq.MaterialPage) (int, int, error) {
 	in := ai.EssayIn{Subject: job.SubjectName}
 	for _, p := range pages {
 		in.Pages = append(in.Pages, ai.KPPage{No: int(p.PageNo), Text: p.Text})
@@ -59,7 +59,11 @@ func (s *Service) organizeEssay(ctx context.Context, job dbq.GetImportJobRow, ma
 		return s.putEssayItem(ctx, job, materialID, typ, payload, key, reasons)
 	}
 	for _, t := range out.Topics {
-		if err := put(dbq.ImportItemsItemTypeEssayTopic, t, "topic:"+Normalize(t.Title), nil); err != nil {
+		source := questionSource
+		if source != "exam" && source != "exercise" && source != "unconfirmed" {
+			source = "unconfirmed"
+		}
+		if err := put(dbq.ImportItemsItemTypeEssayTopic, essayTopicDraft{EssayTopic: t, Source: source}, "topic:"+Normalize(t.Title), nil); err != nil {
 			return n, 0, err
 		}
 	}
@@ -84,6 +88,11 @@ func (s *Service) organizeEssay(ctx context.Context, job dbq.GetImportJobRow, ma
 		}
 	}
 	return n, 0, nil
+}
+
+type essayTopicDraft struct {
+	ai.EssayTopic
+	Source string `json:"source,omitempty"`
 }
 
 func (s *Service) putEssayItem(ctx context.Context, job dbq.GetImportJobRow, materialID uint64, typ dbq.ImportItemsItemType, payload any, key string, reasons []string) error {
@@ -125,15 +134,19 @@ func (s *Service) confirmEssayItem(ctx context.Context, q *dbq.Queries, job dbq.
 	page := func(p int) sql.NullInt32 { return sql.NullInt32{Int32: int32(p), Valid: p > 0} }
 	switch it.ItemType {
 	case dbq.ImportItemsItemTypeEssayTopic:
-		var t ai.EssayTopic
+		var t essayTopicDraft
 		if err := json.Unmarshal(it.Payload, &t); err != nil {
 			return 0, err
 		}
+		source := t.Source
+		if source != "exam" && source != "exercise" && source != "unconfirmed" {
+			source = "unconfirmed"
+		}
 		p := dbq.InsertQuestionParams{OwnerUserID: owner, BankID: job.BankID, Qtype: dbq.QuestionsQtypeEssay, Stem: t.Title,
-			Source: dbq.QuestionsSourceExercise, SourceMaterialID: it.MaterialID, SourcePage: page(t.Page), ContentHash: ContentHash(t.Title),
+			Source: dbq.QuestionsSource(source), SourceMaterialID: it.MaterialID, SourcePage: page(t.Page), ContentHash: ContentHash(t.Title),
 			Difficulty: dbq.NullQuestionsDifficulty{QuestionsDifficulty: dbq.QuestionsDifficultyMedium, Valid: true}}
 		if t.Year != nil {
-			p.Source, p.ExamYear = dbq.QuestionsSourceExam, sql.NullInt16{Int16: int16(*t.Year), Valid: true}
+			p.ExamYear = sql.NullInt16{Int16: int16(*t.Year), Valid: true}
 		}
 		id, err := q.InsertQuestion(ctx, p)
 		if err != nil {

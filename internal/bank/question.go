@@ -596,6 +596,17 @@ func (s *Service) UpdateQuestion(ctx context.Context, userID, id uint64, in Ques
 	p := dbq.UpdateQuestionParams{Qtype: dbq.QuestionsQtype(qtype), Stem: stem, Options: q.Options, Answer: q.Answer, AnswerOrigin: q.AnswerOrigin,
 		Analysis: q.Analysis, Score: scoreStr(score), ExamYear: q.ExamYear, Source: q.Source, ContentHash: importer.ContentHash(stem),
 		RubricVersion: q.RubricVersion, NeedsReview: q.NeedsReview, ReviewReasons: q.ReviewReasons, ID: id, OwnerUserID: owner(userID)}
+	if in.Source != nil {
+		if q.Source != dbq.QuestionsSourceExam && q.Source != dbq.QuestionsSourceExercise && q.Source != dbq.QuestionsSourceUnconfirmed {
+			return QuestionDetail{}, apperr.New(apperr.BadRequest, "这类题目的来源不能修改")
+		}
+		switch *in.Source {
+		case "exam", "exercise", "unconfirmed":
+			p.Source = dbq.QuestionsSource(*in.Source)
+		default:
+			return QuestionDetail{}, apperr.New(apperr.BadRequest, "题目来源不正确")
+		}
+	}
 	if in.Options != nil {
 		p.Options = nil
 		if len(*in.Options) > 0 {
@@ -620,12 +631,6 @@ func (s *Service) UpdateQuestion(ctx context.Context, userID, id uint64, in Ques
 		p.ExamYear = sql.NullInt16{}
 		if in.ExamYear != nil {
 			p.ExamYear = sql.NullInt16{Int16: int16(*in.ExamYear), Valid: true}
-		}
-		if q.Source == dbq.QuestionsSourceExam || q.Source == dbq.QuestionsSourceExercise {
-			p.Source = dbq.QuestionsSourceExercise
-			if p.ExamYear.Valid {
-				p.Source = dbq.QuestionsSourceExam
-			}
 		}
 	}
 	if in.Rubric != nil {

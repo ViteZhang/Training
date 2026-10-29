@@ -9412,6 +9412,16 @@ components:
         subject_id: { type: integer, format: int64 }
         mode: { $ref: "#/components/schemas/ImportMode" }
         material_ids: { type: array, minItems: 1, maxItems: 30, items: { type: integer, format: int64 } }
+        question_sources:
+          type: array
+          description: 题目模式下逐文件指定来源；旧版客户端未传时按来源待确认处理。其他导入模式不能传此字段。
+          items: { $ref: "#/components/schemas/ImportQuestionSource" }
+    ImportQuestionSource:
+      type: object
+      required: [material_id, source]
+      properties:
+        material_id: { type: integer, format: int64 }
+        source: { $ref: "#/components/schemas/ImportedQuestionSource" }
     ImportStep:
       type: string
       description: 识别文字 · 拆分题目 · 配答案和采分点（1.6）
@@ -9422,6 +9432,7 @@ components:
       properties:
         material_id: { type: integer, format: int64 }
         file_name: { type: string }
+        question_source: { $ref: "#/components/schemas/ImportedQuestionSource" }
         step: { $ref: "#/components/schemas/ImportStep" }
         status: { type: string, enum: [pending, running, done, partial, failed] }
         fail_reason: { type: string, description: 如「照片模糊」「只识别出 4 题」 }
@@ -9517,7 +9528,7 @@ components:
         answer_origin: { $ref: "#/components/schemas/Origin" }
         analysis: { type: string }
         score: { type: number }
-        source: { $ref: "#/components/schemas/QuestionSource" }
+        source: { $ref: "#/components/schemas/ImportedQuestionSource" }
         exam_year: { type: integer }
         question_no: { type: string }
         is_recollection: { type: boolean }
@@ -9724,8 +9735,12 @@ components:
       enum: [single_choice, multi_choice, true_false, fill_blank, term, short_answer, discussion, essay, calculation, other]
     QuestionSource:
       type: string
-      description: 真题 / 习题 / AI 出题 / 官方
-      enum: [exam, exercise, ai_generated, official]
+      description: 历年真题 / 习题 / 来源待确认 / AI 出题 / 官方
+      enum: [exam, exercise, unconfirmed, ai_generated, official]
+    ImportedQuestionSource:
+      type: string
+      description: 历年真题 / 习题 / 来源待确认
+      enum: [exam, exercise, unconfirmed]
     ChoiceOption:
       type: object
       required: [key, text]
@@ -9861,6 +9876,7 @@ components:
         answer: { type: string }
         analysis: { type: string }
         score: { type: number, minimum: 0 }
+        source: { $ref: "#/components/schemas/ImportedQuestionSource" }
         exam_year: { type: integer, nullable: true }
         kp_ids: { type: array, items: { type: integer, format: int64 } }
         rubric_points: { type: array, items: { $ref: "#/components/schemas/RubricPointInput" } }

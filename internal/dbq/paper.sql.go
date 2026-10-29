@@ -117,6 +117,12 @@ func (q *Queries) FinishPaperGrading(ctx context.Context, arg FinishPaperGrading
 
 const getPaper = `-- name: GetPaper :one
 SELECT p.id, p.owner_user_id, p.bank_id, p.kind, p.title, p.exam_year, p.full_score, p.actual_score, p.duration_minutes, p.structure, p.missing_note, p.source_material_id, p.created_at, b.subject_id FROM papers p JOIN banks b ON b.id = p.bank_id WHERE p.id = ? AND p.owner_user_id = ?
+  AND (p.kind <> 'real_exam' OR (
+    EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
+      WHERE pq.paper_id = p.id AND q.source = 'exam' AND q.exam_year = p.exam_year)
+    AND NOT EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
+      WHERE pq.paper_id = p.id AND (q.source <> 'exam' OR q.exam_year <> p.exam_year OR q.exam_year IS NULL))
+  ))
 `
 
 type GetPaperParams struct {
@@ -482,7 +488,12 @@ func (q *Queries) LastAttemptDays(ctx context.Context, ownerUserID uint64) ([]La
 }
 
 const latestRealExamPaper = `-- name: LatestRealExamPaper :one
-SELECT id, owner_user_id, bank_id, kind, title, exam_year, full_score, actual_score, duration_minutes, structure, missing_note, source_material_id, created_at FROM papers WHERE bank_id = ? AND owner_user_id = ? AND kind = 'real_exam' ORDER BY exam_year DESC, id DESC LIMIT 1
+SELECT id, owner_user_id, bank_id, kind, title, exam_year, full_score, actual_score, duration_minutes, structure, missing_note, source_material_id, created_at FROM papers p WHERE p.bank_id = ? AND p.owner_user_id = ? AND p.kind = 'real_exam'
+  AND EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
+    WHERE pq.paper_id = p.id AND q.source = 'exam' AND q.exam_year = p.exam_year)
+  AND NOT EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
+    WHERE pq.paper_id = p.id AND (q.source <> 'exam' OR q.exam_year <> p.exam_year OR q.exam_year IS NULL))
+ORDER BY p.exam_year DESC, p.id DESC LIMIT 1
 `
 
 type LatestRealExamPaperParams struct {
@@ -517,6 +528,12 @@ SELECT p.id, p.owner_user_id, p.bank_id, p.kind, p.title, p.exam_year, p.full_sc
   (SELECT COUNT(*) FROM paper_questions pq JOIN questions q ON q.id = pq.question_id WHERE pq.paper_id = p.id AND q.source = 'ai_generated') AS ai_filled
 FROM papers p
 WHERE p.bank_id = ? AND p.owner_user_id = ?
+  AND (p.kind <> 'real_exam' OR (
+    EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
+      WHERE pq.paper_id = p.id AND q.source = 'exam' AND q.exam_year = p.exam_year)
+    AND NOT EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
+      WHERE pq.paper_id = p.id AND (q.source <> 'exam' OR q.exam_year <> p.exam_year OR q.exam_year IS NULL))
+  ))
 ORDER BY p.kind = 'real_exam' DESC, p.exam_year DESC, p.id DESC
 `
 
@@ -585,8 +602,8 @@ func (q *Queries) ListBankPapers(ctx context.Context, arg ListBankPapersParams) 
 
 const listPaperQuestions = `-- name: ListPaperQuestions :many
 SELECT pq.seq, pq.question_id, pq.section, pq.score, q.qtype, q.source FROM paper_questions pq
-JOIN questions q ON q.id = pq.question_id
-WHERE pq.paper_id = ? AND q.owner_user_id = ?
+JOIN questions q ON q.id = pq.question_id JOIN papers p ON p.id = pq.paper_id
+WHERE pq.paper_id = ? AND q.owner_user_id = ? AND (p.kind <> 'real_exam' OR (q.source = 'exam' AND q.exam_year = p.exam_year))
 ORDER BY pq.seq
 `
 

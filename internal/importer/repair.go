@@ -17,7 +17,7 @@ import (
 // 补全真题信息（3.8）：早先的切题规则认不出「## 2024 北师大 808 中国语言文学真题」这类标题（年份后没有「年」字、
 // 带 Markdown 符号），这样导入的真题没有年份、分值和专业分组，入库后算练习题，考情分析显示「还没有导入真题」。
 // 这里用现在的切题规则重新切一遍资料原文（不调用模型、不扣额度），按题干对上题库里的题，只补空着的字段：
-// 年份（补上后来源改为真题）、分值、专业分组、共用材料；用户改过的题型、题干、答案都不动。
+// 年份、分值、专业分组、共用材料；用户改过的题型、题干、答案和来源都不动。
 
 // RepairResult 是补全的结果。
 type RepairResult struct {
@@ -129,7 +129,6 @@ func (s *Service) RepairExamInfo(ctx context.Context, userID, subjectID uint64) 
 				GroupMajors: c.GroupMajors, Passage: c.Passage, PassageKey: sql.NullString{}, ID: f.ID, OwnerUserID: owner}
 			if f.Year > 0 {
 				p.ExamYear = sql.NullInt16{Int16: int16(f.Year), Valid: true}
-				p.Source = dbq.QuestionsSourceExam
 			}
 			if f.Score > 0 {
 				p.Score = sql.NullString{String: decimal(f.Score), Valid: true}
@@ -180,6 +179,36 @@ func (s *Service) RepairExamInfo(ctx context.Context, userID, subjectID uint64) 
 		s.AfterConfirm(ctx, userID, subjectID)
 	}
 	return res, nil
+}
+
+// RebuildRealExamPapers refreshes current paper composition after a confirmed source or year edit.
+func (s *Service) RebuildRealExamPapers(ctx context.Context, userID, subjectID uint64, years ...int) error {
+	if len(years) == 0 {
+		return nil
+	}
+	owner := sql.NullInt64{Int64: int64(userID), Valid: true}
+	b, err := s.q.GetSubjectBank(ctx, dbq.GetSubjectBankParams{ID: subjectID, OwnerUserID: userID, OwnerUserID_2: owner})
+	if errors.Is(err, sql.ErrNoRows) {
+		return apperr.NotFoundErr()
+	}
+	if err != nil {
+		return err
+	}
+	job := dbq.GetImportJobRow{OwnerUserID: userID, BankID: b.BankID, SubjectID: sql.NullInt64{Int64: int64(subjectID), Valid: true},
+		SubjectName: b.Name, SubjectFullScore: b.FullScore}
+	seen := map[int]bool{}
+	return store.WithTx(ctx, s.db, func(q *dbq.Queries) error {
+		for _, year := range years {
+			if year <= 0 || seen[year] {
+				continue
+			}
+			seen[year] = true
+			if _, err := s.buildPaper(ctx, q, job, year); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func examKey(hash string, year int) string { return hash + ":" + strconv.Itoa(year) }

@@ -4,7 +4,7 @@
 INSERT INTO import_jobs (owner_user_id, bank_id, mode, status, reserved_pages) VALUES (?, ?, ?, 'queued', 0);
 
 -- name: AddImportJobMaterial :exec
-INSERT INTO import_job_materials (job_id, material_id, owner_user_id) VALUES (?, ?, ?);
+INSERT INTO import_job_materials (job_id, material_id, owner_user_id, question_source) VALUES (?, ?, ?, ?);
 
 -- name: GetImportJob :one
 SELECT j.*, b.subject_id, s.name AS subject_name, s.full_score AS subject_full_score FROM import_jobs j

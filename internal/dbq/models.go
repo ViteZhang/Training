@@ -1758,6 +1758,67 @@ func AllImportItemsStatusValues() []ImportItemsStatus {
 	}
 }
 
+type ImportJobMaterialsQuestionSource string
+
+const (
+	ImportJobMaterialsQuestionSourceExam        ImportJobMaterialsQuestionSource = "exam"
+	ImportJobMaterialsQuestionSourceExercise    ImportJobMaterialsQuestionSource = "exercise"
+	ImportJobMaterialsQuestionSourceUnconfirmed ImportJobMaterialsQuestionSource = "unconfirmed"
+)
+
+func (e *ImportJobMaterialsQuestionSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ImportJobMaterialsQuestionSource(s)
+	case string:
+		*e = ImportJobMaterialsQuestionSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ImportJobMaterialsQuestionSource: %T", src)
+	}
+	return nil
+}
+
+type NullImportJobMaterialsQuestionSource struct {
+	ImportJobMaterialsQuestionSource ImportJobMaterialsQuestionSource
+	Valid                            bool // Valid is true if ImportJobMaterialsQuestionSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullImportJobMaterialsQuestionSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.ImportJobMaterialsQuestionSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ImportJobMaterialsQuestionSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullImportJobMaterialsQuestionSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ImportJobMaterialsQuestionSource), nil
+}
+
+func (e ImportJobMaterialsQuestionSource) Valid() bool {
+	switch e {
+	case ImportJobMaterialsQuestionSourceExam,
+		ImportJobMaterialsQuestionSourceExercise,
+		ImportJobMaterialsQuestionSourceUnconfirmed:
+		return true
+	}
+	return false
+}
+
+func AllImportJobMaterialsQuestionSourceValues() []ImportJobMaterialsQuestionSource {
+	return []ImportJobMaterialsQuestionSource{
+		ImportJobMaterialsQuestionSourceExam,
+		ImportJobMaterialsQuestionSourceExercise,
+		ImportJobMaterialsQuestionSourceUnconfirmed,
+	}
+}
+
 type ImportJobMaterialsStatus string
 
 const (
@@ -4142,6 +4203,7 @@ type QuestionsSource string
 const (
 	QuestionsSourceExam        QuestionsSource = "exam"
 	QuestionsSourceExercise    QuestionsSource = "exercise"
+	QuestionsSourceUnconfirmed QuestionsSource = "unconfirmed"
 	QuestionsSourceAiGenerated QuestionsSource = "ai_generated"
 	QuestionsSourceOfficial    QuestionsSource = "official"
 )
@@ -4185,6 +4247,7 @@ func (e QuestionsSource) Valid() bool {
 	switch e {
 	case QuestionsSourceExam,
 		QuestionsSourceExercise,
+		QuestionsSourceUnconfirmed,
 		QuestionsSourceAiGenerated,
 		QuestionsSourceOfficial:
 		return true
@@ -4196,6 +4259,7 @@ func AllQuestionsSourceValues() []QuestionsSource {
 	return []QuestionsSource{
 		QuestionsSourceExam,
 		QuestionsSourceExercise,
+		QuestionsSourceUnconfirmed,
 		QuestionsSourceAiGenerated,
 		QuestionsSourceOfficial,
 	}
@@ -6322,7 +6386,8 @@ type ImportJobMaterial struct {
 	// 预占时的额度周期键
 	QuotaPeriod sql.NullString
 	// 额度已结算（成功按计费页数扣，失败全部退回）
-	Settled bool
+	Settled        bool
+	QuestionSource NullImportJobMaterialsQuestionSource
 }
 
 // 邀请研友（6.8）
@@ -6737,7 +6802,6 @@ type Question struct {
 	Score sql.NullString
 	// 首个版本不识别，按中（D16）
 	Difficulty NullQuestionsDifficulty
-	Source     QuestionsSource
 	ExamYear   sql.NullInt16
 	// 原卷题号，用于答案配对
 	QuestionNo sql.NullString
@@ -6782,6 +6846,7 @@ type Question struct {
 	AiAnswerOutcome NullQuestionsAiAnswerOutcome
 	// 客观题 AI 答案被报错次数，3 次自动撤回（PRD 11.16 第 7 条）
 	AiAnswerReports uint16
+	Source          QuestionsSource
 }
 
 // 题目与知识点多对多

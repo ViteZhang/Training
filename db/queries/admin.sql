@@ -309,10 +309,10 @@ SELECT code, COUNT(DISTINCT owner_user_id) AS users FROM subjects WHERE code IS 
 -- name: AdminAnswerStats :one
 -- 7.5 缺答案（PRD v3 11.16）：只统计数量，不读题目与答案内容。
 SELECT
-  (SELECT COUNT(*) FROM questions q WHERE q.created_at >= CAST(sqlc.arg(since) AS DATETIME) AND q.source_material_id IS NOT NULL AND q.source IN ('exam', 'exercise')) AS imported_questions,
-  (SELECT COUNT(*) FROM questions q WHERE q.created_at >= CAST(sqlc.arg(since) AS DATETIME) AND q.source_material_id IS NOT NULL AND q.source IN ('exam', 'exercise')
+  (SELECT COUNT(*) FROM questions q WHERE q.created_at >= CAST(sqlc.arg(since) AS DATETIME) AND q.source_material_id IS NOT NULL AND q.source IN ('exam', 'exercise', 'unconfirmed')) AS imported_questions,
+  (SELECT COUNT(*) FROM questions q WHERE q.created_at >= CAST(sqlc.arg(since) AS DATETIME) AND q.source_material_id IS NOT NULL AND q.source IN ('exam', 'exercise', 'unconfirmed')
     AND (q.answer_match IS NULL OR q.answer_match <> 'original')) AS missing_original,
-  (SELECT COUNT(*) FROM questions q WHERE q.created_at >= CAST(sqlc.arg(since) AS DATETIME) AND q.source_material_id IS NOT NULL AND q.source IN ('exam', 'exercise')
+  (SELECT COUNT(*) FROM questions q WHERE q.created_at >= CAST(sqlc.arg(since) AS DATETIME) AND q.source_material_id IS NOT NULL AND q.source IN ('exam', 'exercise', 'unconfirmed')
     AND q.answer_match IN ('other_material', 'answer_file')) AS matched,
   (SELECT COUNT(*) FROM questions q WHERE q.ai_answer_at >= CAST(sqlc.arg(since) AS DATETIME)) AS ai_answers,
   (SELECT COUNT(*) FROM questions q WHERE q.ai_answer_at >= CAST(sqlc.arg(since) AS DATETIME) AND q.ai_answer_outcome = 'confirmed') AS ai_confirmed,

@@ -406,7 +406,17 @@ func (h *Handlers) UpdateQuestion(c *gin.Context, id gen.QuestionId) {
 	if !bind(c, &req) {
 		return
 	}
-	in := bank.QuestionInput{Stem: req.Stem, Options: toOptions(req.Options), Answer: req.Answer, Analysis: req.Analysis,
+	old, err := h.deps.Bank.Question(c.Request.Context(), currentUser(c), uint64(id))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	var source *string
+	if req.Source != nil {
+		value := string(*req.Source)
+		source = &value
+	}
+	in := bank.QuestionInput{Stem: req.Stem, Options: toOptions(req.Options), Answer: req.Answer, Analysis: req.Analysis, Source: source,
 		Score: f64(req.Score), ScoreSet: req.Score != nil, KPIDs: toKPIDs(req.KpIds), NeedsReview: req.NeedsReview}
 	if req.Qtype != nil {
 		t := string(*req.Qtype)
@@ -427,6 +437,24 @@ func (h *Handlers) UpdateQuestion(c *gin.Context, id gen.QuestionId) {
 	if err != nil {
 		_ = c.Error(err)
 		return
+	}
+	if (req.Source != nil && string(*req.Source) != old.Source) || req.ExamYear.IsSpecified() {
+		years := make([]int, 0, 2)
+		if old.ExamYear != nil {
+			years = append(years, *old.ExamYear)
+		}
+		if d.ExamYear != nil {
+			years = append(years, *d.ExamYear)
+		}
+		if err := h.deps.Importer.RebuildRealExamPapers(c.Request.Context(), currentUser(c), d.SubjectID, years...); err != nil {
+			_ = c.Error(err)
+			return
+		}
+		d, err = h.deps.Bank.Question(c.Request.Context(), currentUser(c), uint64(id))
+		if err != nil {
+			_ = c.Error(err)
+			return
+		}
 	}
 	c.JSON(http.StatusOK, toQuestionDetail(d))
 }

@@ -499,7 +499,7 @@ func (q *Queries) ListEssayTopicsKB(ctx context.Context, arg ListEssayTopicsKBPa
 const listExamRepairCandidates = `-- name: ListExamRepairCandidates :many
 SELECT id, qtype, stem, score, exam_year, source, source_material_id, content_hash, group_label, group_majors, passage
 FROM questions
-WHERE bank_id = ? AND owner_user_id = ? AND status = 'active' AND source IN ('exam', 'exercise') AND source_material_id IS NOT NULL
+WHERE bank_id = ? AND owner_user_id = ? AND status = 'active' AND source IN ('exam', 'exercise', 'unconfirmed') AND source_material_id IS NOT NULL
   AND (exam_year IS NULL OR score IS NULL)
 ORDER BY source_material_id, id
 `

@@ -157,7 +157,9 @@ func TestQuestionImportPipeline(t *testing.T) {
 	paper := f.upload(t, uid, sid, "pdf", examPaper)
 	ans := f.upload(t, uid, sid, "pdf", answerFile)
 
-	job, err := f.svc.CreateJob(ctx, uid, sid, "question", []uint64{paper, ans})
+	job, err := f.svc.CreateJobWithSources(ctx, uid, sid, "question", []uint64{paper, ans}, []importer.FileQuestionSource{
+		{MaterialID: paper, Source: "exam"}, {MaterialID: ans, Source: "unconfirmed"},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,6 +297,108 @@ func TestQuestionImportPipeline(t *testing.T) {
 	items2, c2, _ := f.svc.Items(ctx, uid, job2.ID, "needs_review", 0, 100)
 	if c2.NeedsReview != 4 || !items2[0].DuplicateOfQuestionID.Valid {
 		t.Fatalf("疑似重复：%+v", c2)
+	}
+}
+
+func TestLegacyQuestionImportDoesNotInferExamSourceFromYear(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	uid, sid := f.user(t)
+	materialID := f.upload(t, uid, sid, "pdf", examPaper)
+
+	job, err := f.svc.CreateJob(ctx, uid, sid, "question", []uint64{materialID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(job.Materials) != 1 || !job.Materials[0].QuestionSource.Valid || string(job.Materials[0].QuestionSource.ImportJobMaterialsQuestionSource) != "unconfirmed" {
+		t.Fatalf("legacy client must persist the safe source default: %+v", job.Materials)
+	}
+	items, _, err := f.svc.Items(ctx, uid, job.ID, "all", 0, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundYear := false
+	for _, item := range items {
+		var q importer.QuestionDraft
+		if err := json.Unmarshal(item.Payload, &q); err != nil {
+			t.Fatal(err)
+		}
+		if q.Source != "unconfirmed" {
+			t.Errorf("year may be extracted, but source must stay unconfirmed: %+v", q)
+		}
+		if q.ExamYear != nil && *q.ExamYear == 2024 {
+			foundYear = true
+		}
+	}
+	if !foundYear {
+		t.Fatal("the fixture should retain its extracted exam year")
+	}
+	if _, err := f.svc.Confirm(ctx, uid, job.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	var source string
+	if err := f.db.QueryRow("SELECT source FROM questions WHERE owner_user_id = ? ORDER BY id LIMIT 1", uid).Scan(&source); err != nil {
+		t.Fatal(err)
+	}
+	if source != "unconfirmed" {
+		t.Fatalf("year-only import entered the bank as %q", source)
+	}
+	var papers int
+	if err := f.db.QueryRow("SELECT COUNT(*) FROM papers WHERE owner_user_id = ? AND kind = 'real_exam'", uid).Scan(&papers); err != nil {
+		t.Fatal(err)
+	}
+	if papers != 0 {
+		t.Fatalf("unconfirmed source must not create a real exam paper: %d", papers)
+	}
+}
+
+func TestQuestionItemSourceOverridesFileChoice(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	uid, sid := f.user(t)
+	materialID := f.upload(t, uid, sid, "pdf", examPaper)
+	job, err := f.svc.CreateJobWithSources(ctx, uid, sid, "question", []uint64{materialID}, []importer.FileQuestionSource{{MaterialID: materialID, Source: "exam"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, _, err := f.svc.Items(ctx, uid, job.ID, "all", 0, 100)
+	if err != nil || len(items) == 0 {
+		t.Fatalf("import items: %v %d", err, len(items))
+	}
+	var draft importer.QuestionDraft
+	if err := json.Unmarshal(items[0].Payload, &draft); err != nil {
+		t.Fatal(err)
+	}
+	draft.Source = "exercise"
+	updated, err := f.svc.UpdateItem(ctx, uid, items[0].ID, importer.Patch{Question: &draft})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(updated.Payload, &draft); err != nil || draft.Source != "exercise" {
+		t.Fatalf("item-level source override: %v %+v", err, draft)
+	}
+	if _, err := f.svc.Confirm(ctx, uid, job.ID, []uint64{items[0].ID}); err != nil {
+		t.Fatal(err)
+	}
+	if !updated.CreatedEntityID.Valid {
+		updated, err = f.svc.GetItem(ctx, uid, items[0].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	var source string
+	if err := f.db.QueryRow("SELECT source FROM questions WHERE id = ? AND owner_user_id = ?", updated.CreatedEntityID.Int64, uid).Scan(&source); err != nil {
+		t.Fatal(err)
+	}
+	if source != "exercise" {
+		t.Fatalf("confirmed item should use its override: %q", source)
+	}
+	var inRealExamPaper int
+	if err := f.db.QueryRow("SELECT COUNT(*) FROM paper_questions pq JOIN papers p ON p.id = pq.paper_id WHERE pq.question_id = ? AND p.kind = 'real_exam'", updated.CreatedEntityID.Int64).Scan(&inRealExamPaper); err != nil {
+		t.Fatal(err)
+	}
+	if inRealExamPaper != 0 {
+		t.Fatalf("overridden exercise must not enter a real exam paper: %d", inRealExamPaper)
 	}
 }
 
@@ -458,7 +562,7 @@ func TestEssayImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := f.svc.CreateJob(ctx, uid, sid, "question", []uint64{m.ID})
+	job, err := f.svc.CreateJobWithSources(ctx, uid, sid, "question", []uint64{m.ID}, []importer.FileQuestionSource{{MaterialID: m.ID, Source: "exam"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -503,11 +607,11 @@ func TestEssayImport(t *testing.T) {
 		return n
 	}
 	checks := map[string]int{
-		"SELECT COUNT(*) FROM questions WHERE owner_user_id = ? AND qtype = 'essay' AND exam_year = 2024 AND required_words = 800":           1,
-		"SELECT COUNT(*) FROM essay_rubrics WHERE owner_user_id = ? AND is_active = 1 AND source = 'user_material' AND source_page = 1":      1,
-		"SELECT COUNT(*) FROM writing_methods WHERE owner_user_id = ? AND source_material_id IS NOT NULL AND source_page = 1":                1,
-		"SELECT COUNT(*) FROM essay_materials WHERE owner_user_id = ? AND theme = '创新' AND origin = 'ai_extracted'":                          1,
-		"SELECT COUNT(*) FROM model_essays WHERE owner_user_id = ? AND topic_question_id IS NULL AND JSON_LENGTH(structure, '$.points') = 1": 1,
+		"SELECT COUNT(*) FROM questions WHERE owner_user_id = ? AND qtype = 'essay' AND exam_year = 2024 AND required_words = 800 AND source = 'exam'": 1,
+		"SELECT COUNT(*) FROM essay_rubrics WHERE owner_user_id = ? AND is_active = 1 AND source = 'user_material' AND source_page = 1":                1,
+		"SELECT COUNT(*) FROM writing_methods WHERE owner_user_id = ? AND source_material_id IS NOT NULL AND source_page = 1":                          1,
+		"SELECT COUNT(*) FROM essay_materials WHERE owner_user_id = ? AND theme = '创新' AND origin = 'ai_extracted'":                                    1,
+		"SELECT COUNT(*) FROM model_essays WHERE owner_user_id = ? AND topic_question_id IS NULL AND JSON_LENGTH(structure, '$.points') = 1":           1,
 	}
 	for q, want := range checks {
 		if n := count(q); n != want {
@@ -532,6 +636,30 @@ func TestEssayImport(t *testing.T) {
 	}
 }
 
+func TestEssayModeYearDoesNotInferRealExamSource(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	uid, sid := f.user(t)
+	m, err := f.mat.CreatePasted(ctx, uid, sid, "essay", "作文资料", essayNotes, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := f.svc.CreateJob(ctx, uid, sid, "essay", []uint64{m.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.Confirm(ctx, uid, job.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	var source string
+	if err := f.db.QueryRow("SELECT source FROM questions WHERE owner_user_id = ? AND qtype = 'essay' LIMIT 1", uid).Scan(&source); err != nil {
+		t.Fatal(err)
+	}
+	if source != "unconfirmed" {
+		t.Fatalf("essay mode year must not infer a real exam source: %q", source)
+	}
+}
+
 // 仿照按专业分组的论述题自拟（北师大 808 的结构）：Markdown 标记、分组、组内共用材料。
 const groupedExam = "## 2024 某某大学 808 中国语言文学真题\n### 一、名词解释（共 12 分，每题 6 分）\n1. 意境\n2. 典型\n" +
 	"### 三、论述题（本题共分三组，请按专业分组答题，每组共 70 分，组内 2 小题，每小题 35 分，回答非报考专业不得分）\n" +
@@ -546,7 +674,7 @@ func TestGroupedExamImport(t *testing.T) {
 	uid, sid := f.user(t)
 	other, _ := f.user(t)
 	m := f.upload(t, uid, sid, "pdf", groupedExam)
-	job, err := f.svc.CreateJob(ctx, uid, sid, "question", []uint64{m})
+	job, err := f.svc.CreateJobWithSources(ctx, uid, sid, "question", []uint64{m}, []importer.FileQuestionSource{{MaterialID: m, Source: "exam"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -624,7 +752,7 @@ func TestGroupedExamImport(t *testing.T) {
 
 	// 下一次导入同一门课的分组真题：与报考方向匹配的组标出来
 	m2 := f.upload(t, uid, sid, "pdf", strings.Replace(groupedExam, "2024", "2025", 1))
-	job2, err := f.svc.CreateJob(ctx, uid, sid, "question", []uint64{m2})
+	job2, err := f.svc.CreateJobWithSources(ctx, uid, sid, "question", []uint64{m2}, []importer.FileQuestionSource{{MaterialID: m2, Source: "exam"}})
 	if err != nil {
 		t.Fatal(err)
 	}
