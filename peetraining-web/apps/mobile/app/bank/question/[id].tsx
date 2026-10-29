@@ -15,6 +15,8 @@ import { track } from '@/lib/analytics';
 import { isSubjective, qtypeNames, rubricTotal } from '@/features/import/api';
 import { RubricEditor } from '@/features/import/RubricEditor';
 import { PageHeader } from '@/features/import/ui';
+import { QuestionSourceChoices } from '@/features/import/QuestionSourceChoices';
+import type { QuestionFileSource } from '@/features/import/files';
 import { api, unwrap } from '@/lib/api';
 
 const lossNames: Record<string, string> = { knowledge: '知识没掌握', norm: '答题不规范', time: '时间不够' };
@@ -26,6 +28,7 @@ function Editor({ q, onDone }: { q: QuestionDetail; onDone: () => void }) {
   const [stem, setStem] = useState(q.stem);
   const [answer, setAnswer] = useState(q.answer ?? '');
   const [score, setScore] = useState(q.score !== undefined ? String(q.score) : '');
+  const [source, setSource] = useState<QuestionFileSource>(q.source === 'exam' || q.source === 'exercise' ? q.source : 'unconfirmed');
   const [points, setPoints] = useState<Schemas['RubricPointInput'][]>(q.rubric_points.map((r) => ({ content: r.content, score: r.score, keywords: r.keywords })));
   const [busy, setBusy] = useState(false);
   const s = score.trim() === '' ? undefined : Number(score);
@@ -39,7 +42,7 @@ function Editor({ q, onDone }: { q: QuestionDetail; onDone: () => void }) {
       const saved = await unwrap(
         api.PATCH('/questions/{questionId}', {
           params: { path: { questionId: q.id } },
-          body: { stem, answer, score: s, rubric_points: rubricChanged ? points.filter((p) => p.content.trim()) : undefined, needs_review: false },
+          body: { stem, answer, score: s, source: q.source === 'exam' || q.source === 'exercise' || q.source === 'unconfirmed' ? source : undefined, rubric_points: rubricChanged ? points.filter((p) => p.content.trim()) : undefined, needs_review: false },
         }),
       );
       qc.setQueryData(bankKeys.question(q.id), saved);
@@ -58,6 +61,9 @@ function Editor({ q, onDone }: { q: QuestionDetail; onDone: () => void }) {
       <TextInput accessibilityLabel="题干" value={stem} onChangeText={setStem} multiline style={[styles.input, styles.multi]} maxFontSizeMultiplier={layout.maxFontScale} />
       <Text variant="bodyStrong">分值</Text>
       <TextInput accessibilityLabel="分值" value={score} onChangeText={setScore} keyboardType="decimal-pad" style={styles.input} maxFontSizeMultiplier={layout.maxFontScale} />
+      {q.source === 'exam' || q.source === 'exercise' || q.source === 'unconfirmed' ? (
+        <QuestionSourceChoices label="题目来源" value={source} onChange={setSource} />
+      ) : null}
       <Text variant="bodyStrong">参考答案</Text>
       <TextInput accessibilityLabel="参考答案" value={answer} onChangeText={setAnswer} multiline style={[styles.input, styles.multi]} maxFontSizeMultiplier={layout.maxFontScale} />
       {subjective ? <RubricEditor points={points} score={s} onChange={setPoints} /> : null}
