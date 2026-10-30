@@ -88,6 +88,25 @@ func (q *Queries) CopyKPSources(ctx context.Context, arg CopyKPSourcesParams) er
 	return err
 }
 
+const copySplitMastery = `-- name: CopySplitMastery :exec
+INSERT INTO kp_mastery (owner_user_id, kp_id, m, state, viewed, answered, last_self_assess, last_self_assess_at,
+  correct_dates, next_review_on, interval_step, recite_next_review_on, recite_interval_step, decay_applied_on)
+SELECT src.owner_user_id, ?, src.m, src.state, src.viewed, src.answered, src.last_self_assess, src.last_self_assess_at,
+  src.correct_dates, src.next_review_on, src.interval_step, src.recite_next_review_on, src.recite_interval_step, src.decay_applied_on
+FROM kp_mastery src WHERE src.kp_id = ? AND src.owner_user_id = ?
+`
+
+type CopySplitMasteryParams struct {
+	TargetID uint64
+	SourceID uint64
+	Owner    uint64
+}
+
+func (q *Queries) CopySplitMastery(ctx context.Context, arg CopySplitMasteryParams) error {
+	_, err := q.db.ExecContext(ctx, copySplitMastery, arg.TargetID, arg.SourceID, arg.Owner)
+	return err
+}
+
 const deleteKP = `-- name: DeleteKP :execrows
 DELETE FROM knowledge_points WHERE id = ? AND owner_user_id = ?
 `
@@ -477,6 +496,45 @@ func (q *Queries) InsertKPMasteryCopy(ctx context.Context, arg InsertKPMasteryCo
 	return err
 }
 
+const listBankFilterKPLinks = `-- name: ListBankFilterKPLinks :many
+SELECT qk.question_id, qk.kp_id FROM question_kps qk JOIN questions q ON q.id = qk.question_id
+WHERE q.bank_id = ? AND q.owner_user_id = ? AND qk.owner_user_id = ?
+`
+
+type ListBankFilterKPLinksParams struct {
+	BankID        uint64
+	OwnerUserID   sql.NullInt64
+	OwnerUserID_2 sql.NullInt64
+}
+
+type ListBankFilterKPLinksRow struct {
+	QuestionID uint64
+	KpID       uint64
+}
+
+func (q *Queries) ListBankFilterKPLinks(ctx context.Context, arg ListBankFilterKPLinksParams) ([]ListBankFilterKPLinksRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBankFilterKPLinks, arg.BankID, arg.OwnerUserID, arg.OwnerUserID_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBankFilterKPLinksRow{}
+	for rows.Next() {
+		var i ListBankFilterKPLinksRow
+		if err := rows.Scan(&i.QuestionID, &i.KpID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBankKPsFull = `-- name: ListBankKPsFull :many
 SELECT k.id, k.parent_id, k.level, k.name, k.exam_count, k.needs_review, k.official_kp_id, k.origin, k.official_new_until, k.sort_order,
   COALESCE(m.m, 0) AS m, COALESCE(m.state, 'unlearned') AS state
@@ -545,7 +603,7 @@ func (q *Queries) ListBankKPsFull(ctx context.Context, arg ListBankKPsFullParams
 
 const listBankQuestionsFull = `-- name: ListBankQuestionsFull :many
 SELECT q.id, q.qtype, LEFT(q.stem, 120) AS stem, q.score, q.source, q.exam_year, q.needs_review, q.generated_from_kp_id, q.created_at,
-  q.group_label, q.group_majors, q.passage_key, q.answer_origin, CAST(IFNULL(q.answer, '') <> '' AS SIGNED) AS has_answer,
+  q.group_label, q.group_majors, q.passage_key, q.answer_origin, CAST(TRIM(REPLACE(REPLACE(REPLACE(IFNULL(q.answer, ''), CHAR(9), ''), CHAR(10), ''), CHAR(13), '')) <> '' AS SIGNED) AS has_answer,
   CAST(COALESCE((SELECT qk.kp_id FROM question_kps qk WHERE qk.question_id = q.id ORDER BY qk.is_primary DESC, qk.kp_id LIMIT 1), 0) AS UNSIGNED) AS primary_kp_id,
   (SELECT COUNT(*) FROM attempts a WHERE a.question_id = q.id AND a.owner_user_id = ?) AS attempt_count,
   (SELECT a.score FROM attempts a WHERE a.question_id = q.id AND a.owner_user_id = ? ORDER BY a.answered_at DESC, a.id DESC LIMIT 1) AS last_score,
@@ -705,6 +763,59 @@ func (q *Queries) ListKPSourcesOfKP(ctx context.Context, arg ListKPSourcesOfKPPa
 	for rows.Next() {
 		var i ListKPSourcesOfKPRow
 		if err := rows.Scan(&i.MaterialID, &i.PageNo, &i.FileName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listKPSplitQuestions = `-- name: ListKPSplitQuestions :many
+SELECT q.id, q.qtype, q.stem, q.source, q.exam_year, qk.is_primary
+FROM question_kps qk JOIN questions q ON q.id = qk.question_id
+WHERE qk.kp_id = ? AND qk.owner_user_id = ? AND q.owner_user_id = ?
+ORDER BY q.id FOR UPDATE
+`
+
+type ListKPSplitQuestionsParams struct {
+	KpID          uint64
+	OwnerUserID   sql.NullInt64
+	OwnerUserID_2 sql.NullInt64
+}
+
+type ListKPSplitQuestionsRow struct {
+	ID        uint64
+	Qtype     QuestionsQtype
+	Stem      string
+	Source    QuestionsSource
+	ExamYear  sql.NullInt16
+	IsPrimary bool
+}
+
+// 不截断，包含非主关联与历史题，拆分前必须分配完整。
+func (q *Queries) ListKPSplitQuestions(ctx context.Context, arg ListKPSplitQuestionsParams) ([]ListKPSplitQuestionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listKPSplitQuestions, arg.KpID, arg.OwnerUserID, arg.OwnerUserID_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListKPSplitQuestionsRow{}
+	for rows.Next() {
+		var i ListKPSplitQuestionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Qtype,
+			&i.Stem,
+			&i.Source,
+			&i.ExamYear,
+			&i.IsPrimary,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -943,6 +1054,22 @@ func (q *Queries) ListRelatedQuestions(ctx context.Context, arg ListRelatedQuest
 	return items, nil
 }
 
+const lockKPForSplit = `-- name: LockKPForSplit :one
+SELECT id FROM knowledge_points WHERE id = ? AND owner_user_id = ? FOR UPDATE
+`
+
+type LockKPForSplitParams struct {
+	ID          uint64
+	OwnerUserID sql.NullInt64
+}
+
+func (q *Queries) LockKPForSplit(ctx context.Context, arg LockKPForSplitParams) (uint64, error) {
+	row := q.db.QueryRowContext(ctx, lockKPForSplit, arg.ID, arg.OwnerUserID)
+	var id uint64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const moveKPChildren = `-- name: MoveKPChildren :exec
 UPDATE knowledge_points SET parent_id = ? WHERE parent_id = ? AND owner_user_id = ?
 `
@@ -994,6 +1121,31 @@ type MoveQuestionKPsParams struct {
 func (q *Queries) MoveQuestionKPs(ctx context.Context, arg MoveQuestionKPsParams) error {
 	_, err := q.db.ExecContext(ctx, moveQuestionKPs, arg.TargetID, arg.SourceID, arg.Owner)
 	return err
+}
+
+const reassignSplitQuestion = `-- name: ReassignSplitQuestion :execrows
+UPDATE question_kps SET kp_id = ?
+WHERE kp_id = ? AND question_id = ? AND owner_user_id = ?
+`
+
+type ReassignSplitQuestionParams struct {
+	TargetID   uint64
+	SourceID   uint64
+	QuestionID uint64
+	Owner      sql.NullInt64
+}
+
+func (q *Queries) ReassignSplitQuestion(ctx context.Context, arg ReassignSplitQuestionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, reassignSplitQuestion,
+		arg.TargetID,
+		arg.SourceID,
+		arg.QuestionID,
+		arg.Owner,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const searchKPs = `-- name: SearchKPs :many

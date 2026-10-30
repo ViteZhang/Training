@@ -255,9 +255,13 @@ func TestMergeSplitMoveDelete(t *testing.T) {
 		t.Fatal("不同层级不能合并")
 	}
 
-	// 拆分：典型 → 两个知识点，都关联原来的题
-	parts, err := f.bank.Split(ctx, uid, dianxing.ID, []bank.SplitPart{{Name: "典型人物"}, {Name: "典型环境"}})
-	if err != nil || len(parts) != 2 || len(parts[0].Related) != 1 || len(parts[1].Related) != 1 {
+	// 拆分：原题只分配给其中一个新知识点
+	beforeSplit, err := f.bank.SplitQuestions(ctx, uid, dianxing.ID)
+	if err != nil || len(beforeSplit) != 1 {
+		t.Fatalf("split fixture: %v %+v", err, beforeSplit)
+	}
+	parts, err := f.bank.Split(ctx, uid, dianxing.ID, []bank.SplitPart{{Name: "典型人物", QuestionIDs: []uint64{beforeSplit[0].ID}}, {Name: "典型环境"}})
+	if err != nil || len(parts) != 2 || len(parts[0].Related) != 1 || len(parts[1].Related) != 0 {
 		t.Fatalf("拆分：%v %+v", err, parts)
 	}
 	if _, err := f.bank.Split(ctx, uid, parts[0].ID, []bank.SplitPart{{Name: "x"}}); !apperr.IsKind(err, apperr.BadRequest) {
@@ -511,7 +515,8 @@ func TestBankOwnership(t *testing.T) {
 			_, err := f.bank.CreateNode(ctx, other, sid, bank.NodeInput{Level: "section", Name: "x"})
 			return err
 		},
-		"kp": func() error { _, err := f.bank.KnowledgePoint(ctx, other, kp); return err },
+		"kp":              func() error { _, err := f.bank.KnowledgePoint(ctx, other, kp); return err },
+		"split questions": func() error { _, err := f.bank.SplitQuestions(ctx, other, kp); return err },
 		"update kp": func() error {
 			_, err := f.bank.UpdateKnowledgePoint(ctx, other, kp, bank.KPPatch{Name: &name})
 			return err
