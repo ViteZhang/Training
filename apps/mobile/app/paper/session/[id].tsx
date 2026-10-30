@@ -3,12 +3,16 @@
 // 模拟考试被系统中断（杀掉 App、来电）后，10 分钟内可恢复一次并补回中断时长（PRD 11.9）。
 import { colors, fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { BackButton, BottomSheet, Button, Card, ConfirmDialog, ErrorState, GroupNote, Icon, Loading, PassageCard, Screen, Tag, Text, toast } from '@/components';
 import { qtypeNames } from '@/features/import/api';
 import { clearDrafts, clock, lastActive, loadDrafts, markActive, paperKeys, saveDrafts, type PaperItem, type PaperSession } from '@/features/paper/api';
+import { PaperTimer } from '@/features/paper/timer';
+import { HandwritingFlow } from '@/features/practice/handwriting';
+import { Tool } from '@/features/practice/grading';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
 
@@ -39,17 +43,28 @@ function useServerClock(s: PaperSession | undefined, fetchedAt: number) {
   return now + offset;
 }
 
-function ResultView({ s }: { s: PaperSession }) {
+function ResultView({ s, refreshError, onRefresh }: { s: PaperSession; refreshError?: boolean; onRefresh: () => void }) {
+  const qc = useQueryClient();
+  const [previewSeq, setPreviewSeq] = useState<number>();
+  const preview = s.items.find((it) => it.seq === previewSeq);
+  const retry = useMutation({
+    mutationFn: () => unwrap(api.POST('/paper-sessions/{sessionId}/submit', { params: { path: { sessionId: s.id } } })),
+    onSuccess: (v) => { qc.setQueryData(paperKeys.session(s.id), v); void qc.invalidateQueries({ queryKey: ['papers'] }); },
+    onError: (e) => toast(e instanceof Error ? e.message : '恢复批改失败，请稍后重试'),
+  });
   const grading = s.status === 'grading';
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text variant="h2">{s.title}</Text>
+        {refreshError ? <Card style={styles.gap}><Text variant="caption">暂时无法刷新批改进度，已提交的答卷已保存。</Text><Button title="刷新进度" kind="secondary" onPress={onRefresh} /></Card> : null}
         <Card style={styles.gap}>
           {grading ? (
             <>
-              <Text variant="h3">正在整卷批改</Text>
-              <Text variant="caption">按你资料里的采分点逐题批改，大约需要 2 分钟。批改完成后会发消息提醒你，可以先离开。</Text>
+              <Text variant="h3">{s.grading_error ? '批改暂时中断' : '正在整卷批改'}</Text>
+              <Text variant="caption">{s.grading_error ?? '按采分点逐题批改，通常需要几分钟，题目较多时可能更久。批改完成后会发消息提醒你，可以先离开。'}</Text>
+              {s.grading_error ? <Button title="恢复批改" loading={retry.isPending} onPress={() => retry.mutate()} /> : null}
+              <Text variant="small">已提交的答案已保存，可从整卷历史记录回来查看。</Text>
             </>
           ) : (
             <>
@@ -62,14 +77,14 @@ function ResultView({ s }: { s: PaperSession }) {
             </>
           )}
         </Card>
+        <Button title="历史答卷" kind="text" onPress={() => router.push({ pathname: '/paper/history', params: { subjectId: String(s.subject_id) } })} />
         <Card style={styles.list}>
           {s.items.map((it) => (
             <Pressable
               key={it.seq}
               accessibilityRole="button"
               accessibilityLabel={`第 ${it.seq} 题`}
-              disabled={!it.grading_id}
-              onPress={() => it.grading_id && router.push({ pathname: '/practice/grading/[id]', params: { id: String(it.grading_id) } })}
+              onPress={() => setPreviewSeq(it.seq)}
               style={styles.resultRow}
             >
               <Text variant="bodyStrong" style={styles.seq}>
@@ -78,11 +93,19 @@ function ResultView({ s }: { s: PaperSession }) {
               <Text variant="caption" style={styles.flex}>
                 {qtypeNames[it.qtype]} · {it.answered ? '已答' : '未答'}
               </Text>
-              <Text variant="bodyStrong" num={600}>{it.got !== undefined ? `${it.got} / ${it.score}` : grading ? '批改中' : `- / ${it.score}`}</Text>
+              <Text variant="bodyStrong" num={600}>{it.got !== undefined ? `${it.got} / ${it.score}` : grading ? (it.answered ? '待批改' : '未作答') : `- / ${it.score}`}</Text>
             </Pressable>
           ))}
         </Card>
       </ScrollView>
+      <BottomSheet visible={preview !== undefined} onClose={() => setPreviewSeq(undefined)} title={`第 ${previewSeq ?? ''} 题答卷`}>
+        <ScrollView contentContainerStyle={styles.gap}>
+          <Text variant="bodyStrong">{preview?.stem}</Text>
+          <Text variant="caption">你的答案</Text>
+          <Text variant="body">{preview?.draft_text?.trim() || '未作答'}</Text>
+          {preview?.grading_id ? <Button title="查看逐题批改" onPress={() => { const id = preview.grading_id; setPreviewSeq(undefined); router.push({ pathname: '/practice/grading/[id]', params: { id: String(id) } }); }} /> : null}
+        </ScrollView>
+      </BottomSheet>
       <View style={styles.nav}>
         <Button
           title="返回整卷列表"
@@ -162,10 +185,19 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
   });
   const [recoverAsk, setRecoverAsk] = useState(interrupted !== undefined);
   const synced = useRef<Record<number, string>>(Object.fromEntries(s.items.map((it) => [it.seq, it.draft_text ?? ''])));
-  const tickStart = useRef(0);
+  const [timer] = useState(() => new PaperTimer(s.items, seq, s.status !== 'paused'));
+  const [photoSeq, setPhotoSeq] = useState<number>();
+  const [syncError, setSyncError] = useState(false);
+  const syncQueue = useRef(Promise.resolve());
+  const pendingWrites = useRef<Record<number, { draft: string; delta: number; total: number; key: string }>>({});
+  useEffect(() => { timer.setRunning(s.status === 'in_progress'); }, [s.status, timer]);
+  useEffect(() => {
+    if (photoSeq === undefined) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { setPhotoSeq(undefined); return true; });
+    return () => sub.remove();
+  }, [photoSeq]);
   const state = useRef({ drafts, seq });
   useEffect(() => {
-    tickStart.current = Date.now();
     markActive(s.id);
   }, [s.id]);
   useEffect(() => {
@@ -181,31 +213,47 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
 
   const setSession = (v: PaperSession) => qc.setQueryData(paperKeys.session(v.id), v);
 
-  const sync = useCallback(async () => {
-    const { drafts: d, seq: cur } = state.current;
-    saveDrafts(s.id, d);
-    markActive(s.id);
-    const delta = Math.round((Date.now() - tickStart.current) / 1000);
-    tickStart.current = Date.now();
-    const changed = Object.keys(d).map(Number).filter((k) => d[k] !== synced.current[k]);
-    if (!changed.includes(cur)) changed.push(cur);
-    for (const k of changed) {
-      const res = await api.PUT('/paper-sessions/{sessionId}/items/{seq}', {
-        params: { path: { sessionId: s.id, seq: k } },
-        body: { draft_text: d[k] ?? '', time_spent_delta: k === cur ? delta : 0 },
-      });
-      if (res.response.status === 409) {
-        // 时间到了服务端已自动交卷。
-        void qc.invalidateQueries({ queryKey: paperKeys.session(s.id) });
-        return;
+  const sync = useCallback(() => {
+    // 串行同步：切题、定时保存、交卷不能互相覆盖；失败沿用同一幂等键重试。
+    const run = async () => {
+      const d = state.current.drafts;
+      saveDrafts(s.id, d);
+      markActive(s.id);
+      for (const k of Object.keys(d).map(Number)) {
+        const throughSeconds = timer.seconds(k);
+        while (true) {
+          let write = pendingWrites.current[k];
+          if (!write) {
+            const delta = timer.pending(k, throughSeconds);
+            if (d[k] === synced.current[k] && delta === 0) break;
+            write = { draft: d[k] ?? '', delta, total: throughSeconds, key: Crypto.randomUUID() };
+            pendingWrites.current[k] = write;
+          }
+          const res = await api.PUT('/paper-sessions/{sessionId}/items/{seq}', {
+            params: { path: { sessionId: s.id, seq: k } },
+            headers: { 'Idempotency-Key': write.key },
+            body: { draft_text: write.draft, time_spent_seconds: write.total },
+          });
+          if (res.response.status === 409) {
+            void qc.invalidateQueries({ queryKey: paperKeys.session(s.id) });
+            return;
+          }
+          await unwrap(Promise.resolve(res));
+          timer.acknowledge(k, write.delta);
+          synced.current[k] = write.draft;
+          delete pendingWrites.current[k];
+        }
       }
-      if (res.response.ok) synced.current[k] = d[k] ?? '';
-    }
-  }, [qc, s.id]);
+      setSyncError(false);
+    };
+    const next = syncQueue.current.catch(() => undefined).then(run);
+    syncQueue.current = next;
+    return next.catch((e: unknown) => { setSyncError(true); throw e; });
+  }, [qc, s.id, timer]);
 
   useEffect(() => {
     if (paused) return;
-    const t = setInterval(() => void sync(), SYNC_MS);
+    const t = setInterval(() => { void sync().catch(() => undefined); }, SYNC_MS);
     return () => clearInterval(t);
   }, [paused, sync]);
 
@@ -253,7 +301,7 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
         }),
       ),
     onSuccess: (v) => {
-      tickStart.current = Date.now();
+      timer.setRunning(true);
       markActive(s.id);
       setSession(v);
     },
@@ -261,15 +309,27 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
   });
   const mark = useMutation({
     mutationFn: (v: boolean) => unwrap(api.PUT('/paper-sessions/{sessionId}/items/{seq}', { params: { path: { sessionId: s.id, seq } }, body: { marked: v } })),
-    onSuccess: (it) => setSession({ ...s, items: s.items.map((x) => (x.seq === it.seq ? { ...x, marked: it.marked } : x)) }),
+    onSuccess: (it) => setSession({ ...s,
+      server_now: new Date(Date.now() + fetchedServer - fetchedAt).toISOString(),
+      elapsed_seconds: Math.floor(paused ? s.elapsed_seconds : s.elapsed_seconds + (Date.now() - fetchedAt) / 1000),
+      items: s.items.map((x) => (x.seq === it.seq ? { ...x, marked: it.marked } : x)),
+    }),
   });
 
   const go = (to: number) => {
-    void sync();
+    timer.select(to);
+    void sync().catch(() => undefined);
+    state.current = { ...state.current, seq: to };
+    setPhotoSeq(undefined);
     setSeq(to);
     setCardOpen(false);
   };
-  const setDraft = (v: string) => setDrafts((d) => ({ ...d, [seq]: v }));
+  const setDraft = (v: string) => {
+    const next = { ...state.current.drafts, [seq]: v };
+    state.current = { ...state.current, drafts: next };
+    saveDrafts(s.id, next);
+    setDrafts(next);
+  };
   const toggleKey = (k: string) => {
     const cur = drafts[seq] ?? '';
     if (item.qtype === 'multi_choice') {
@@ -317,6 +377,7 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
           </Text>
         </View>
       ) : null}
+      {syncError ? <Text variant="small" color={semantic.danger}>草稿已保存在本机，暂未同步。恢复网络后会重试，交卷前需同步成功。</Text> : null}
       {paused ? (
         <Card style={styles.gap}>
           <Text variant="h3">已暂停</Text>
@@ -369,9 +430,20 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
             </View>
           ) : (
             <>
+              {photoSeq === seq ? <HandwritingFlow
+                confirmLabel="确认并填入答案"
+                onCancel={() => setPhotoSeq(undefined)}
+                onConfirm={(recognized) => {
+                  if (timeUp || submitting) { toast('考试已结束，不能再修改答案'); return; }
+                  const previous = state.current.drafts[seq] ?? '';
+                  setDraft(previous.trim() ? `${previous}\n${recognized}` : recognized);
+                  setPhotoSeq(undefined);
+                }}
+              /> : <>
               <TextInput
                 accessibilityLabel="你的答案"
                 multiline
+                editable={!submitting}
                 value={text}
                 onChangeText={setDraft}
                 placeholder="写下你的答案"
@@ -379,21 +451,25 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
                 style={styles.answer}
                 textAlignVertical="top"
               />
-              <Text variant="small" num>
+              <View style={styles.nav}>
+              {!submitting ? <Tool icon="camera" label="拍手写稿" onPress={() => setPhotoSeq(seq)} /> : null}
+              <Text variant="small" num style={styles.flex}>
                 {chars(text)} 字{item.required_words ? ` · 建议 ${item.required_words} 字左右` : ''}
               </Text>
+              </View>
+              </>}
             </>
           )}
-          <Text variant="small" num>本题已用 {clock(item.time_spent_seconds)}</Text>
+          <Text variant="small" num>本题已用 {clock(timer.seconds(seq))}</Text>
         </ScrollView>
       )}
       {!paused ? (
         <View style={styles.nav}>
-          <Button title="上一题" kind="secondary" disabled={idx <= 0} onPress={() => go(s.items[idx - 1]!.seq)} style={styles.flex} />
+          <Button title="上一题" kind="secondary" disabled={idx <= 0 || submitting} onPress={() => go(s.items[idx - 1]!.seq)} style={styles.flex} />
           {idx < s.items.length - 1 ? (
-            <Button title="下一题" onPress={() => go(s.items[idx + 1]!.seq)} style={styles.flex} />
+            <Button title="下一题" disabled={submitting} onPress={() => go(s.items[idx + 1]!.seq)} style={styles.flex} />
           ) : (
-            <Button title="交卷" onPress={() => setConfirm(true)} style={styles.flex} />
+            <Button title="交卷" loading={submitting} onPress={() => setConfirm(true)} style={styles.flex} />
           )}
         </View>
       ) : null}
@@ -433,7 +509,7 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
         onConfirm={() => {
           setLeave(false);
           if (mock) {
-            void sync();
+            void sync().catch(() => undefined);
             router.back();
           } else pause.mutate(undefined, { onSuccess: () => router.back() });
         }}
@@ -461,7 +537,7 @@ export default function PaperSessionPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const session = useSession(Number(id));
   if (session.isLoading) return <Screen><Loading rows={6} /></Screen>;
-  if (session.isError || !session.data) return <Screen><ErrorState error={session.error} onRetry={() => void session.refetch()} /></Screen>;
+  if (!session.data) return <Screen><ErrorState error={session.error} onRetry={() => void session.refetch()} /></Screen>;
   const s = session.data;
   if (s.status === 'abandoned') {
     return (
@@ -470,7 +546,7 @@ export default function PaperSessionPage() {
       </Screen>
     );
   }
-  if (s.status === 'grading' || s.status === 'graded') return <ResultView s={s} />;
+  if (s.status === 'grading' || s.status === 'graded') return <ResultView s={s} refreshError={session.isError} onRefresh={() => void session.refetch()} />;
   return <Answering key={s.id} s={s} fetchedAt={session.dataUpdatedAt} />;
 }
 

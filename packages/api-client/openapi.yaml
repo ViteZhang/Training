@@ -2030,6 +2030,29 @@ paths:
               schema: { $ref: "#/components/schemas/ReciteSummary" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /subjects/{subjectId}/paper-sessions:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [paper]
+      operationId: listPaperHistory
+      summary: 当前专业课逐次整卷作答历史（包含批改中、已完成、进行中和已放弃）
+      parameters:
+        - name: before
+          in: query
+          schema: { type: integer, format: int64, minimum: 1 }
+          description: 上页 next_before，按 session ID 倒序分页
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaperHistory" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /subjects/{subjectId}/papers:
     parameters:
       - $ref: "#/components/parameters/SubjectId"
@@ -2149,6 +2172,7 @@ paths:
               properties:
                 draft_text: { type: string, maxLength: 20000 }
                 marked: { type: boolean }
+                time_spent_seconds: { type: integer, minimum: 0, maximum: 604800, description: 本题累计作答秒数，重试取最大值避免重复计时；新版客户端优先使用，与 delta 不同时发送 }
                 time_spent_delta: { type: integer, minimum: 0, maximum: 600, description: 距上次同步在这道题上停留的秒数 }
       responses:
         "200":
@@ -2205,7 +2229,8 @@ paths:
     post:
       tags: [paper]
       operationId: submitPaper
-      summary: 交卷（4.23）：客观题即时出分，主观题后台按采分点逐题批改（约 2 分钟），完成后发消息；重复交卷返回同一结果
+      summary: 交卷（4.23）：客观题即时出分，主观题后台逐题批改；重复提交恢复原任务
+      description: 首次交卷保存答卷并结算一次整卷额度；重复调用对批改中的原答卷重新排队或恢复失败任务，不重复扣次。批改任务的状态提示通过 grading_error 返回。
       responses:
         "200":
           description: OK
@@ -6173,6 +6198,27 @@ components:
         at_minutes: { type: integer, description: 开考后第几分钟提醒（这一题型的累计建议用时） }
         suggested_minutes: { type: integer }
         text: { type: string }
+    PaperHistory:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/PaperHistoryItem" } }
+        next_before: { type: integer, format: int64 }
+    PaperHistoryItem:
+      type: object
+      required: [id, title, kind, mode, status, started_at, full_score, answered, total]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        kind: { $ref: "#/components/schemas/PaperKind" }
+        mode: { $ref: "#/components/schemas/PaperMode" }
+        status: { $ref: "#/components/schemas/PaperSessionStatus" }
+        started_at: { type: string, format: date-time }
+        submitted_at: { type: string, format: date-time }
+        score: { type: number }
+        full_score: { type: number }
+        answered: { type: integer }
+        total: { type: integer }
     PaperSession:
       type: object
       required: [id, paper_id, subject_id, title, kind, mode, status, started_at, server_now, elapsed_seconds, total_minutes, check_minutes, remind_left_minutes, reminders, items, resume_available, full_score]
@@ -6184,6 +6230,8 @@ components:
         kind: { $ref: "#/components/schemas/PaperKind" }
         mode: { $ref: "#/components/schemas/PaperMode" }
         status: { $ref: "#/components/schemas/PaperSessionStatus" }
+        submitted_at: { type: string, format: date-time }
+        grading_error: { type: string, description: 批改任务异常的用户可读提示；可重复调用 submit 恢复原答卷，不再次扣次数 }
         started_at: { type: string, format: date-time }
         deadline_at: { type: string, format: date-time, description: 模拟考试的截止时间，倒计时以它为准 }
         server_now: { type: string, format: date-time, description: 服务端当前时间，客户端据此校准倒计时 }

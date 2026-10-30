@@ -1,5 +1,5 @@
 import { ApiError, type Schemas } from '@training/api-client';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '@/lib/api';
 import { getJSON, remove, setJSON } from '@/lib/storage';
 
@@ -8,6 +8,7 @@ export type PaperItem = Schemas['PaperItem'];
 
 export const paperKeys = {
   list: (subjectId: number) => ['papers', subjectId] as const,
+  history: (subjectId: number) => ['papers', subjectId, 'history'] as const,
   paper: (id: number) => ['paper', id] as const,
   session: (id: number) => ['paper-session', id] as const,
 };
@@ -64,3 +65,13 @@ export function usePaperReport(sessionId: number) {
 }
 
 export const lossNames: Record<keyof Schemas['LossPoints'], string> = { knowledge: '知识没掌握', norm: '答题不规范', time: '时间不够' };
+
+export function usePaperHistory(subjectId: number) {
+  return useInfiniteQuery({
+    queryKey: paperKeys.history(subjectId),
+    initialPageParam: undefined as number | undefined,
+    queryFn: ({ pageParam }) => unwrap(api.GET('/subjects/{subjectId}/paper-sessions', { params: { path: { subjectId }, query: { before: pageParam, limit: 20 } } })),
+    getNextPageParam: (last) => last.next_before,
+    refetchInterval: (q) => q.state.data?.pages.some((p) => p.items.some((it) => it.status === 'grading')) ? 15000 : false,
+  });
+}

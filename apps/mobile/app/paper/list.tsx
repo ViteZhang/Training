@@ -3,7 +3,8 @@
 import type { Schemas } from '@training/api-client';
 import { colors, fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useCallback } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, EmptyState, ErrorState, Icon, Loading, Screen, Tag, Text, toast } from '@/components';
@@ -22,7 +23,7 @@ function PaperRow({ p, first }: { p: Brief; first?: boolean }) {
   const open = () =>
     p.session
       ? router.push({ pathname: '/paper/session/[id]', params: { id: String(p.session.id) } })
-      : router.push({ pathname: '/paper/[id]', params: { id: String(p.id) } });
+      : p.last ? router.push({ pathname: '/paper/session/[id]', params: { id: String(p.last.session_id) } }) : router.push({ pathname: '/paper/[id]', params: { id: String(p.id) } });
   let desc = `${p.question_count} 题 · ${p.full_score} 分 · ${p.duration_minutes} 分钟`;
   if (p.session) desc = `进行中 · 已答 ${p.session.answered} / ${p.session.total} · ${modeNames[p.session.mode]}`;
   else if (p.last) desc = `${day(p.last.finished_at)} · ${modeNames[p.last.mode]}${p.last.status === 'grading' ? ' · 批改中' : ''}`;
@@ -48,10 +49,11 @@ function PaperRow({ p, first }: { p: Brief; first?: boolean }) {
       ) : (
         <View style={[styles.pill, p.session && styles.pillInk]}>
           <Text variant="caption" color={p.session ? semantic.textOnBrand : semantic.textPrimary}>
-            {p.session ? '继续' : p.status === 'done' ? '再做' : '开始'}
+            {p.session ? '继续' : p.last ? '查看答卷' : '开始'}
           </Text>
         </View>
       )}
+      {p.last && !p.session ? <Button title="再做" kind="text" size="sm" onPress={(e) => { e.stopPropagation(); router.push({ pathname: '/paper/[id]', params: { id: String(p.id) } }); }} /> : null}
     </Pressable>
   );
 }
@@ -61,6 +63,7 @@ export default function PaperList() {
   const sid = Number(subjectId);
   const qc = useQueryClient();
   const list = usePapers(sid);
+  useFocusEffect(useCallback(() => { void qc.invalidateQueries({ queryKey: paperKeys.list(sid) }); }, [qc, sid]));
   const [all, setAll] = useState(false);
   const compose = useMutation({
     mutationFn: (kind: 'ai_standard' | 'ai_targeted') => unwrap(api.POST('/subjects/{subjectId}/papers', { params: { path: { subjectId: sid } }, body: { kind } })),
@@ -86,6 +89,7 @@ export default function PaperList() {
           onBack={() => router.back()}
           right={<Button title="+ 导入卷子" kind="text" size="sm" color={semantic.textPrimary} style={styles.link} onPress={() => router.push({ pathname: '/import', params: { subjectId: String(sid) } })} />}
         />
+        <Button title="历史答卷" kind="secondary" onPress={() => router.push({ pathname: '/paper/history', params: { subjectId: String(sid) } })} />
         {l.in_progress && l.in_progress.subject_id !== sid ? (
           <Card style={styles.card}>
             <Text variant="caption">「{l.in_progress.title}」还没做完，同一时间只能做一套</Text>
