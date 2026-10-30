@@ -1805,6 +1805,90 @@ paths:
                   remaining_pending: { type: integer }
                   results: { type: array, items: { $ref: "#/components/schemas/GradingResult" } }
 
+  /voice/upload-requests:
+    post:
+      tags: [practice]
+      operationId: requestVoiceUpload
+      summary: 语音作答录音直传地址，功能开关 voice_answer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content_type, size]
+              properties:
+                content_type: { type: string, enum: [audio/m4a, audio/mp4, audio/aac, audio/wav, audio/mpeg] }
+                size: { type: integer, minimum: 1, maximum: 10485760 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VoiceUpload" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /practice-sessions/{sessionId}/questions/{questionId}/voice:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+      - $ref: "#/components/parameters/QuestionId"
+    get:
+      tags: [practice]
+      operationId: listPracticeVoice
+      summary: 原题的语音识别任务，切题及重启后可恢复
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/VoiceTranscription" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [practice]
+      operationId: startPracticeVoice
+      summary: 登记语音录音并后台识别，同一幂等键可恢复或重试
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [object_key, idempotency_key]
+              properties:
+                object_key: { type: string }
+                capture_order: { type: integer, format: int64, minimum: 0, maximum: 9007199254740991 }
+                idempotency_key: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        "200":
+          description: 已保存
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VoiceTranscription" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /practice-sessions/{sessionId}/questions/{questionId}/voice/{voiceId}:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+      - $ref: "#/components/parameters/QuestionId"
+      - name: voiceId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    delete:
+      tags: [practice]
+      operationId: discardPracticeVoice
+      summary: 弃用原题录音
+      responses:
+        "204": { description: 已弃用 }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /handwriting/upload-requests:
     post:
       tags: [practice]
@@ -2180,6 +2264,83 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PaperItem" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /paper-sessions/{sessionId}/items/{seq}/handwriting:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+      - name: seq
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    post:
+      tags: [paper]
+      operationId: startPaperHandwriting
+      summary: 登记已上传的手写稿并在后台识别，切题不取消；同一幂等键可重试失败任务
+      description: 必须在交卷及截止时间前登记。交卷后后台先完成这些照片的识别，未核对的结果默认确认，再开始批改。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [object_keys, idempotency_key]
+              properties:
+                object_keys: { type: array, minItems: 1, maxItems: 6, items: { type: string } }
+                idempotency_key: { type: string, minLength: 1, maxLength: 128 }
+                capture_order: { type: integer, format: int64, minimum: 0, maximum: 9007199254740991, description: 本次拍照或录音的顺序；上传乱序完成时仍按先后拼接 }
+                input_kind: { type: string, enum: [photo, voice], default: photo, description: voice 时 object_keys 是一个语音上传接口返回的对象键 }
+      responses:
+        "200":
+          description: 已保存，识别在后台进行
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaperHandwriting" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /paper-sessions/{sessionId}/items/{seq}/handwriting/{handwritingId}:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+      - name: seq
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+      - name: handwritingId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    put:
+      tags: [paper]
+      operationId: confirmPaperHandwriting
+      summary: 核对后将手写稿文字追加到原题草稿，重复确认不会重复追加
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 20000 }
+                confirm: { type: boolean, default: true, description: false 时只保存核对文字，交卷后按拍照顺序统一追加；true 时立即确认填入草稿 }
+      responses:
+        "200":
+          description: 含更新后的答案及照片状态
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaperItem" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+    delete:
+      tags: [paper]
+      operationId: discardPaperHandwriting
+      summary: 作答期间弃用尚未确认的照片，不影响已经写下的答案
+      responses:
+        "204": { description: 已弃用 }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
 
@@ -6169,6 +6330,39 @@ components:
             check_minutes: { type: integer, description: 留给检查的时间 }
             recommended_mode: { $ref: "#/components/schemas/PaperMode" }
             counts_for_estimate: { type: boolean, description: 做完计入预估分（只有导入的真题卷） }
+    VoiceUpload:
+      type: object
+      required: [object_key, upload_url, upload_headers, expires_at]
+      properties:
+        object_key: { type: string }
+        upload_url: { type: string }
+        upload_headers: { type: object, additionalProperties: { type: string } }
+        expires_at: { type: string, format: date-time }
+    VoiceTranscription:
+      type: object
+      required: [id, idempotency_key, object_key, status, text]
+      properties:
+        id: { type: integer, format: int64 }
+        idempotency_key: { type: string }
+        object_key: { type: string }
+        capture_order: { type: integer, format: int64 }
+        status: { type: string, enum: [pending, ready, failed, discarded] }
+        text: { type: string }
+        error: { type: string }
+    PaperHandwriting:
+      type: object
+      required: [id, seq, idempotency_key, object_keys, status, text, low_confidence]
+      properties:
+        id: { type: integer, format: int64 }
+        seq: { type: integer }
+        idempotency_key: { type: string }
+        capture_order: { type: integer, format: int64 }
+        input_kind: { type: string, enum: [photo, voice] }
+        object_keys: { type: array, items: { type: string } }
+        status: { type: string, enum: [pending, ready, confirmed, failed, discarded] }
+        text: { type: string }
+        low_confidence: { type: array, items: { $ref: "#/components/schemas/TextRange" } }
+        error: { type: string }
     PaperItem:
       type: object
       required: [seq, section, qtype, score, question_id, stem, marked, answered, time_spent_seconds]
@@ -6190,6 +6384,7 @@ components:
         required_words: { type: integer }
         got: { type: number, description: 批改后的得分 }
         grading_id: { type: integer, format: int64 }
+        handwriting: { type: array, items: { $ref: "#/components/schemas/PaperHandwriting" } }
     PaperReminder:
       type: object
       required: [qtype, at_minutes, suggested_minutes, text]

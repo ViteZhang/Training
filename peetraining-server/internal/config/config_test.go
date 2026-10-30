@@ -161,3 +161,14 @@ func TestLoadSMSTestPhones(t *testing.T) {
 		t.Fatalf("非法手机号应报错：%v", err)
 	}
 }
+
+func TestVoiceModelConfigIsIndependent(t *testing.T) {
+	cfg, err := load(envFrom(map[string]string{"BAILIAN_BASE_URL": "https://model.invalid/v1", "BAILIAN_API_KEY": "test-key", "AI_MODEL_STRONG": "qwen3.8-flash"}))
+	if err != nil || cfg.ASRBaseURL != "https://model.invalid/v1" || cfg.ASRAPIKey != "test-key" || cfg.ASRModel != "qwen3-asr-flash" {
+		t.Fatal("ASR must inherit connection configuration but keep its own speech model")
+	}
+	cfg, err = load(envFrom(map[string]string{"ASR_BASE_URL": "https://speech.invalid/v1", "ASR_API_KEY": "speech-test", "ASR_MODEL": "speech-model"}))
+	if err != nil || cfg.ASRBaseURL != "https://speech.invalid/v1" || cfg.ASRAPIKey != "speech-test" || cfg.ASRModel != "speech-model" {
+		t.Fatal("ASR overrides must take precedence")
+	}
+}

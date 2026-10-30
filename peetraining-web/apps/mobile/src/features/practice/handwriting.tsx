@@ -11,7 +11,7 @@ import { usePermissionPrompt } from '@/features/permissions/PermissionPrompt';
 import { api, unwrap } from '@/lib/api';
 
 export type Recognized = Schemas['HandwritingResult'];
-type Shot = { uri: string; mimeType: string; size: number };
+export type Shot = { uri: string; mimeType: string; size: number };
 
 const allowed = ['image/jpeg', 'image/png', 'image/heic', 'image/webp'] as const;
 type PhotoType = (typeof allowed)[number];
@@ -21,8 +21,8 @@ function photoType(mime?: string | null): PhotoType {
   return (allowed as readonly string[]).includes(mime ?? '') ? (mime as PhotoType) : 'image/jpeg';
 }
 
-/** 上传照片并识别。返回照片的对象键与识别结果。 */
-export async function uploadAndRecognize(shots: Shot[]): Promise<{ keys: string[]; result: Recognized }> {
+/** 原图直传可独立于识别执行，模拟考试登记后台任务时复用。 */
+export async function uploadPhotos(shots: Shot[]): Promise<string[]> {
   const req = await unwrap(
     api.POST('/handwriting/upload-requests', { body: { files: shots.map((s) => ({ content_type: photoType(s.mimeType), size: s.size })) } }),
   );
@@ -32,7 +32,12 @@ export async function uploadAndRecognize(shots: Shot[]): Promise<{ keys: string[
       if (r.status < 200 || r.status >= 300) throw new Error(`第 ${i + 1} 张上传失败`);
     }),
   );
-  const keys = req.items.map((t) => t.object_key);
+  return req.items.map((t) => t.object_key);
+}
+
+/** 上传照片并识别。返回照片的对象键与识别结果。 */
+export async function uploadAndRecognize(shots: Shot[]): Promise<{ keys: string[]; result: Recognized }> {
+  const keys = await uploadPhotos(shots);
   const result = await unwrap(api.POST('/handwriting/recognize', { body: { object_keys: keys } }));
   return { keys, result };
 }
@@ -64,7 +69,7 @@ export function Highlighted({ text, ranges }: { text: string; ranges: Schemas['T
 }
 
 /** 拍照与 4.5 核对。onConfirm 交给批改；onCancel 回到打字作答。 */
-export function HandwritingFlow({ onConfirm, onCancel, onStart, confirmLabel = '确认并提交批改' }: { confirmLabel?: string; onConfirm: (text: string, keys: string[]) => void; onCancel: () => void; onStart?: () => void }) {
+export function HandwritingFlow({ onConfirm, onCancel, onStart, confirmLabel = '确认并提交批改', onCapture }: { onCapture?: (shots: Shot[]) => void;  confirmLabel?: string; onConfirm: (text: string, keys: string[]) => void; onCancel: () => void; onStart?: () => void }) {
   const [shots, setShots] = useState<Shot[]>([]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ keys: string[]; recognized: Recognized }>();
@@ -91,6 +96,7 @@ export function HandwritingFlow({ onConfirm, onCancel, onStart, confirmLabel = '
     const next = append ? [...shots, shot] : [shot];
     setShots(next);
     onStart?.();
+    if (onCapture) { onCapture(next); return; }
     setBusy(true);
     try {
       const r = await uploadAndRecognize(next);

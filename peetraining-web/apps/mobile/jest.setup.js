@@ -15,3 +15,14 @@ jest.mock('react-native-mmkv', () => {
     },
   };
 });
+
+// 原生录音器在测试中用可控实例代替，业务队列和接口仍走实际代码。
+jest.mock('expo-audio', () => ({
+  AudioModule: { AudioRecorder: jest.fn().mockImplementation(() => ({
+    uri: 'file:///recording.m4a', prepareToRecordAsync: jest.fn(async () => {}),
+    record: jest.fn(), stop: jest.fn(async () => {}), release: jest.fn(),
+  })) },
+  RecordingPresets: { HIGH_QUALITY: { extension: '.m4a', sampleRate: 44100, numberOfChannels: 2, bitRate: 128000, ios: {}, android: {} } },
+  requestRecordingPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true })),
+  setAudioModeAsync: jest.fn(async () => {}),
+}));

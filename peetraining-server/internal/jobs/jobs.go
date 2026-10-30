@@ -29,17 +29,19 @@ var Queues = map[string]int{QueueCritical: 6, QueueDefault: 3, QueueLow: 1}
 
 // 任务类型。命名为「领域:动作」。
 const (
-	TypePing          = "system:ping"
-	TypePurgeAccounts = "account:purge_deleted"
-	TypeExtract       = "material:extract"
-	TypeImportFile    = "import:material"
-	TypeImportFinish  = "import:finalize"
-	TypeDailyPlan     = "plan:daily"
-	TypePaperGrade    = "paper:grade"
-	TypePaperDeadline = "paper:deadline"
-	TypeEssayGrade    = "essay:grade"
-	TypeExport        = "export:generate"
-	TypeExportCleanup = "export:cleanup"
+	TypePing             = "system:ping"
+	TypePurgeAccounts    = "account:purge_deleted"
+	TypeExtract          = "material:extract"
+	TypeImportFile       = "import:material"
+	TypeImportFinish     = "import:finalize"
+	TypeDailyPlan        = "plan:daily"
+	TypeVoiceTranscribe  = "practice:voice"
+	TypePaperHandwriting = "paper:handwriting"
+	TypePaperGrade       = "paper:grade"
+	TypePaperDeadline    = "paper:deadline"
+	TypeEssayGrade       = "essay:grade"
+	TypeExport           = "export:generate"
+	TypeExportCleanup    = "export:cleanup"
 	// 消息中心（T27）。
 	TypeMessageCleanup  = "message:cleanup"
 	TypeAnnouncements   = "message:announcements"
@@ -122,11 +124,14 @@ type Handlers struct {
 	Import    Importer
 	Plan      PlanGenerator
 	Paper     PaperGrader
-	Essay     EssayGrader
-	Export    Exporter
-	Notify    Notifier
-	Stats     StatsAggregator
-	Monitor   Monitor
+	Voice     interface {
+		RecognizePracticeVoice(context.Context, uint64, uint64) error
+	}
+	Essay   EssayGrader
+	Export  Exporter
+	Notify  Notifier
+	Stats   StatsAggregator
+	Monitor Monitor
 }
 
 // Monitor 每 5 分钟检查接口错误率、队列积压、AI 失败率与成本（monitor.Checker 实现）。
@@ -195,12 +200,35 @@ func NewEssayGradeTask(userID, essayID uint64, round int) (*asynq.Task, error) {
 type PaperGrader interface {
 	GradePaper(ctx context.Context, userID, sessionID uint64) error
 	AutoSubmitPaper(ctx context.Context, userID, sessionID uint64) error
+	RecognizePaperHandwriting(ctx context.Context, userID, handwritingID uint64) error
 }
 
 // PaperPayload 指定一次整卷作答。
 type PaperPayload struct {
 	UserID    uint64 `json:"user_id"`
 	SessionID uint64 `json:"session_id"`
+}
+
+type PaperHandwritingPayload struct {
+	UserID        uint64 `json:"user_id"`
+	HandwritingID uint64 `json:"handwriting_id"`
+}
+
+func NewVoiceTask(userID, id uint64) (*asynq.Task, error) {
+	b, err := json.Marshal(PaperHandwritingPayload{UserID: userID, HandwritingID: id})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TypeVoiceTranscribe, b, asynq.Queue(QueueCritical), asynq.MaxRetry(3), asynq.Timeout(6*time.Minute), asynq.TaskID(fmt.Sprintf("%s:%d", TypeVoiceTranscribe, id))), nil
+}
+
+// NewPaperHandwritingTask 在切题后继续识别手写稿，照片归属保存在数据库中。
+func NewPaperHandwritingTask(userID, id uint64) (*asynq.Task, error) {
+	b, err := json.Marshal(PaperHandwritingPayload{UserID: userID, HandwritingID: id})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TypePaperHandwriting, b, asynq.Queue(QueueCritical), asynq.MaxRetry(3), asynq.Timeout(6*time.Minute), asynq.TaskID(fmt.Sprintf("%s:%d", TypePaperHandwriting, id))), nil
 }
 
 // NewPaperGradeTask 创建整卷批改任务（约 2 分钟，用户在等，放 critical 队列）。同一次交卷只排一个。
@@ -254,6 +282,17 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 	mux.HandleFunc(TypeImportFile, h.handleImportFile)
 	mux.HandleFunc(TypeImportFinish, h.handleImportFinish)
 	mux.HandleFunc(TypeDailyPlan, h.handleDailyPlan)
+	mux.HandleFunc(TypeVoiceTranscribe, func(ctx context.Context, t *asynq.Task) error {
+		var p PaperHandwritingPayload
+		if err := json.Unmarshal(t.Payload(), &p); err != nil || p.UserID == 0 || p.HandwritingID == 0 {
+			return asynq.SkipRetry
+		}
+		if h.Voice == nil {
+			return errors.New("voice worker unavailable")
+		}
+		return h.Voice.RecognizePracticeVoice(ctx, p.UserID, p.HandwritingID)
+	})
+	mux.HandleFunc(TypePaperHandwriting, h.handlePaperHandwriting)
 	mux.HandleFunc(TypePaperGrade, h.handlePaperGrade)
 	mux.HandleFunc(TypePaperDeadline, h.handlePaperDeadline)
 	mux.HandleFunc(TypeEssayGrade, h.handleEssayGrade)
@@ -353,6 +392,14 @@ func (h *Handlers) handleDailyPlan(ctx context.Context, _ *asynq.Task) error {
 	n, err := h.Plan.GenerateAll(ctx, 200)
 	logx.From(ctx).Info("daily plans generated", "users", n)
 	return err
+}
+
+func (h *Handlers) handlePaperHandwriting(ctx context.Context, t *asynq.Task) error {
+	var p PaperHandwritingPayload
+	if err := json.Unmarshal(t.Payload(), &p); err != nil {
+		return errors.Join(err, asynq.SkipRetry)
+	}
+	return h.Paper.RecognizePaperHandwriting(ctx, p.UserID, p.HandwritingID)
 }
 
 func (h *Handlers) handlePaperGrade(ctx context.Context, t *asynq.Task) error {

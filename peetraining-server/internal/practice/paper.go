@@ -439,6 +439,7 @@ type PaperItem struct {
 	TimeSpent     int
 	RequiredWords *int
 	Got           *float64
+	Handwriting   []PaperHandwriting
 	GradingID     uint64
 	// 专业分组与共用材料（迁移 00020）：组名、适用专业、材料原文与归组键
 	GroupLabel, GroupMajors, Passage, PassageKey string
@@ -630,6 +631,10 @@ func (s *Service) PaperSession(ctx context.Context, userID, id uint64) (PaperSes
 	if err != nil {
 		return PaperSessionView{}, err
 	}
+	handwriting, err := s.q.ListPaperHandwriting(ctx, dbq.ListPaperHandwritingParams{PaperSessionID: id, OwnerUserID: userID})
+	if err != nil {
+		return PaperSessionView{}, err
+	}
 	var secs []rules.SectionCount
 	for _, it := range items {
 		pi := PaperItem{Seq: int(it.Seq), Section: it.Section, QType: it.Qtype, Score: dec(it.ScoreMax), Stem: it.Stem.String, Draft: it.DraftText.String,
@@ -647,6 +652,11 @@ func (s *Service) PaperSession(ctx context.Context, userID, id uint64) (PaperSes
 		}
 		if g, ok := parseScore(it.Got); ok && !open(row.Status) {
 			pi.Got = &g
+		}
+		for _, h := range handwriting {
+			if h.Seq == it.Seq {
+				pi.Handwriting = append(pi.Handwriting, paperHandwritingView(h))
+			}
 		}
 		pi.Answered = strings.TrimSpace(pi.Draft) != ""
 		v.Items = append(v.Items, pi)
@@ -851,8 +861,18 @@ func (s *Service) SubmitPaper(ctx context.Context, userID, sessionID uint64) (Pa
 		if err != nil {
 			return err
 		}
+		photos, err := q.ListPaperHandwriting(ctx, dbq.ListPaperHandwritingParams{PaperSessionID: sessionID, OwnerUserID: userID})
+		if err != nil {
+			return err
+		}
+		photoPending := map[uint16]bool{}
+		for _, photo := range photos {
+			if photo.Status != "confirmed" && photo.Status != "discarded" {
+				photoPending[photo.Seq] = true
+			}
+		}
 		for _, it := range items {
-			if !it.QuestionID.Valid || !rules.IsObjective(rules.QType(it.Qtype)) || strings.TrimSpace(it.DraftText.String) == "" {
+			if !it.QuestionID.Valid || !rules.IsObjective(rules.QType(it.Qtype)) || strings.TrimSpace(it.DraftText.String) == "" || photoPending[it.Seq] {
 				continue
 			}
 			if err := s.judgePaperObjective(ctx, q, p, userID, sessionID, row, it, at); err != nil {
@@ -1016,6 +1036,9 @@ func (s *Service) GradePaper(ctx context.Context, userID, sessionID uint64) erro
 	}
 	if row.Status != dbq.PaperSessionsStatusGrading {
 		return nil
+	}
+	if err := s.finishPaperHandwriting(ctx, userID, sessionID); err != nil {
+		return err
 	}
 	p, err := s.params.Rules(ctx)
 	if err != nil {

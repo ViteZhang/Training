@@ -5,7 +5,7 @@ import Setup from '../../app/(onboarding)/setup';
 import SubjectStep from '../../app/(onboarding)/subject';
 import Target from '../../app/(onboarding)/target';
 import { routeFor } from '../features/auth/routing';
-import { saveDraft } from '../features/onboarding/draft';
+import { loadDraft, saveDraft } from '../features/onboarding/draft';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
@@ -99,6 +99,7 @@ describe('1.2 设定目标分', () => {
     };
     await wrap(<Target />);
     expect((await screen.findAllByText(/^105/)).length).toBe(2);
+    expect(screen.getAllByLabelText('满分 150').every((item) => item.props.accessibilityState.selected)).toBe(true);
     await fireEvent.press(screen.getAllByText('先不设这门')[1]!);
     await fireEvent.press(screen.getByText('下一步'));
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/(onboarding)/setup'));
@@ -151,4 +152,27 @@ describe('1.3 备考安排', () => {
     const patches = mockCalls.filter((c) => c.path === '/subjects/{subjectId}');
     expect(patches.map((c) => c.init)).toEqual([{ params: { path: { subjectId: 1 } }, body: { textbooks: ['童庆炳《文学理论教程》'] } }]);
   });
+});
+
+
+it('考试年份默认最近一届；底部纵向列表可切换且下一步保留选择', async () => {
+  saveDraft({ examYear: undefined });
+  const nextYear = { ...years.items[0]!, exam_year: 2028, label: '2028 研考', subject_exam_date: '2027-12-20' };
+  mockResponses = {
+    'GET /exam-years': () => ({ status: 200, data: { items: [...years.items, nextYear] } }),
+    'GET /subjects': () => ({ status: 200, data: { items: [subject(1, '中国文学')], can_add: true, max_subjects: 3 } }),
+    'PATCH /me': () => ({ status: 200, data: {} }),
+  };
+  const r = await wrap(<SubjectStep />);
+  expect(await screen.findByText('2027 研考')).toBeTruthy();
+  expect(screen.queryByText('2028 研考')).toBeNull();
+  await fireEvent.press(screen.getByLabelText('选择考试年份'));
+  await fireEvent.press(screen.getByLabelText('2028 研考'));
+  expect(screen.getByText('专业课考试日期：2027-12-20')).toBeTruthy();
+  await fireEvent.press(screen.getByText('下一步'));
+  await waitFor(() => expect(loadDraft().examYear).toBe(2028));
+  await r.unmount();
+  const restored = await wrap(<SubjectStep />);
+  expect(await screen.findByText('2028 研考')).toBeTruthy();
+  await restored.unmount();
 });

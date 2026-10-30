@@ -1,5 +1,7 @@
 // 6.9 备考设置：专业课与目标分（可改、可增删，删除时提示会一起删除它的题库）；目标院校选填；参考教材（每门专业课可填多本，选填）；考试年份可切换（初试日期随年份，只读）；
 // 每日学习时长；备考阶段（显示系统建议和理由）；作文每周目标篇数。改阶段或时长从明天起生效，改目标分立即生效。
+import { ExamYearSelect } from '@/features/profile/ExamYearSelect';
+import { FullScoreSelect } from '@/features/profile/FullScoreSelect';
 import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
 import { layout, radius, semantic, spacing } from '@training/ui-tokens';
@@ -127,14 +129,9 @@ export default function PrepSettings() {
           {(years.data?.items.length ?? 0) > 1 ? (
             <>
               <Text variant="bodyStrong">参加哪一年的考试</Text>
-              <Chips
-                options={years.data!.items.map((y) => y.exam_year)}
-                value={p.exam_year}
-                onChange={(y) => {
-                  if (y !== p.exam_year) save.mutate({ exam_year: y }, { onSuccess: () => toast('已切换考试年份，备考阶段建议已更新') });
-                }}
-                format={(y) => years.data!.items.find((x) => x.exam_year === y)?.label ?? String(y)}
-              />
+              <ExamYearSelect items={years.data!.items} value={p.exam_year} onChange={(y) => {
+                if (y !== p.exam_year) save.mutate({ exam_year: y }, { onSuccess: () => toast('已切换考试年份，备考阶段建议已更新') });
+              }} />
             </>
           ) : null}
           <View style={styles.row}>
@@ -279,8 +276,7 @@ function SubjectSheet({ subject, onClose, onSaved, onDelete }: { subject: Schema
   };
   return (
     <BottomSheet visible onClose={onClose} title={subject.name}>
-      <Text variant="caption">满分</Text>
-      <Chips options={[100, 150, 300] as const} value={full} onChange={(f) => { setFull(f); if (target !== null) setTarget(Math.min(target, f)); }} />
+      <FullScoreSelect value={full} onChange={(f) => { setFull(f); if (target !== null) setTarget(Math.min(target, f)); }} />
       <View style={styles.sheetRow}>
         {target !== null ? (
           <>
