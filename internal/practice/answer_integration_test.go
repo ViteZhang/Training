@@ -40,8 +40,8 @@ func TestAIReferenceAnswer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if g.Status != "done" || g.Rubric.AnswerTier != "ai" || !strings.Contains(g.Rubric.Reference, "据你的资料") || aiUsed() != 1 {
-		t.Fatalf("先生成 AI 参考答案（贴近用户资料）再批改，计入 AI 出题额度：%+v 已用 %d", g.Rubric, aiUsed())
+	if g.Rubric.AnswerSnapshotID == 0 || g.Status != "done" || g.Rubric.AnswerTier != "ai" || strings.Contains(g.Rubric.Reference, "据你的资料") || aiUsed() != 1 {
+		t.Fatalf("先生成 AI 参考答案（mock 未核验引用时降级）再批改，计入 AI 出题额度：%+v 已用 %d", g.Rubric, aiUsed())
 	}
 	var origin string
 	var ref int
@@ -49,6 +49,10 @@ func TestAIReferenceAnswer(t *testing.T) {
 	_ = f.db.QueryRow("SELECT reference_only FROM attempts WHERE id = ?", g.AttemptID).Scan(&ref)
 	if origin != "ai_generated" || ref != 1 {
 		t.Fatalf("答案缓存在题目上，这次作答不计入预估分：%s %d", origin, ref)
+	}
+	var snapshotID uint64
+	if err := f.db.QueryRow("SELECT answer_snapshot_id FROM questions WHERE id=?", q.ID).Scan(&snapshotID); err != nil || snapshotID != g.Rubric.AnswerSnapshotID {
+		t.Fatalf("批改须冻结答案来源快照：%d, %+v, %v", snapshotID, g.Rubric, err)
 	}
 	// 再做一次不重复生成。
 	g2, err := f.pr.SubmitSubjective(ctx, uid, s.ID, practice.SubjectiveInput{QuestionID: q.ID, Key: nextKey(), Answer: "意境"})
@@ -69,6 +73,13 @@ func TestAIReferenceAnswer(t *testing.T) {
 	}
 	if old, err := f.pr.Grading(ctx, uid, g.ID); err != nil || !old.AnswerConfirmed {
 		t.Errorf("4.7b 重新打开：答案已确认，不再问「这份参考答案对吗？」：%v %+v", err, old.AnswerConfirmed)
+	}
+
+	if _, err := f.db.Exec("UPDATE questions SET answer='更新后的答案', answer_snapshot_id=NULL, rubric_version=rubric_version+1 WHERE id=?", q.ID); err != nil {
+		t.Fatal(err)
+	}
+	if old, err := f.pr.Grading(ctx, uid, g.ID); err != nil || old.Rubric.AnswerSnapshotID != snapshotID || old.Rubric.Reference != g.Rubric.Reference {
+		t.Fatalf("历史批改依据被改写：%+v %v", old.Rubric, err)
 	}
 
 	// 客观题缺答案：作答时由 AI 给答案与解析，判分不计入预估分。

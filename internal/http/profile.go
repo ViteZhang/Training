@@ -121,6 +121,13 @@ func (h *Handlers) UpdateSubject(c *gin.Context, subjectID int64) {
 		in.MyMajors = nullableStr(req.MyMajors)
 	}
 	in.Textbooks = req.Textbooks
+	if req.TextbookSelections != nil {
+		selections := []rules.TextbookSelection{}
+		for _, v := range *req.TextbookSelections {
+			selections = append(selections, rules.TextbookSelection{Input: v.Input, EditionID: uint64(v.EditionId)})
+		}
+		in.TextbookSelections = &selections
+	}
 	s, err := h.deps.Profile.UpdateSubject(c.Request.Context(), currentUser(c), uint64(subjectID), in)
 	if err != nil {
 		_ = c.Error(err)
@@ -154,6 +161,10 @@ func toSubject(s profile.Subject) gen.Subject {
 	}
 	if books := profile.Textbooks(s.Textbooks); len(books) > 0 {
 		out.Textbooks = &books
+	}
+	var selections []gen.UserTextbookSelection
+	if json.Unmarshal(s.TextbookSelections, &selections) == nil && len(selections) > 0 {
+		out.TextbookSelections = &selections
 	}
 	return out
 }

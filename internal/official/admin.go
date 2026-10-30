@@ -428,6 +428,16 @@ func (s *Service) SaveDraft(ctx context.Context, editorID, projectID, id uint64,
 	if len(payload) == 0 {
 		payload = json.RawMessage(`{}`)
 	}
+	if entityType == "question" && changeType != "offline" {
+		var question QuestionPayload
+		if json.Unmarshal(payload, &question) == nil && question.AnswerSnapshotID > 0 {
+			hash, err := s.q.GetOfficialAnswerCandidate(ctx, dbq.GetOfficialAnswerCandidateParams{ProjectID: projectID, SnapshotID: question.AnswerSnapshotID})
+			if err != nil || hash != officialEvidenceHash(question) {
+				question.AnswerSnapshotID = 0
+			}
+			payload, _ = json.Marshal(question)
+		}
+	}
 	if err := s.validateDraft(ctx, uint64(p.BankID.Int64), entityType, changeType, entityID, payload); err != nil {
 		return Draft{}, err
 	}
@@ -612,7 +622,7 @@ func (c content) payloadOf(entityType string, id uint64) json.RawMessage {
 		if x.ID != id {
 			continue
 		}
-		p := QuestionPayload{QType: string(x.Qtype), Stem: x.Stem, Answer: x.Answer.String, Analysis: x.Analysis.String, Rubric: pts(c.qRubric[x.ID]), KPNames: []string{}}
+		p := QuestionPayload{AnswerSnapshotID: uint64(x.AnswerSnapshotID.Int64), QType: string(x.Qtype), Stem: x.Stem, Answer: x.Answer.String, Analysis: x.Analysis.String, Rubric: pts(c.qRubric[x.ID]), KPNames: []string{}}
 		_ = json.Unmarshal(x.Options, &p.Options)
 		if x.Score.Valid {
 			v, _ := strconv.ParseFloat(x.Score.String, 64)
@@ -1159,6 +1169,31 @@ func (s *Service) apply(ctx context.Context, q *dbq.Queries, bankID uint64, enti
 		if err := q.SetOfficialQuestionStatus(ctx, dbq.SetOfficialQuestionStatusParams{Status: dbq.QuestionsStatusActive, ID: id, BankID: bankID}); err != nil {
 			return 0, err
 		}
+	}
+	if p.AnswerSnapshotID > 0 {
+		hash, err := q.GetOfficialAnswerCandidateByBank(ctx, dbq.GetOfficialAnswerCandidateByBankParams{BankID: sql.NullInt64{Int64: int64(bankID), Valid: true}, SnapshotID: p.AnswerSnapshotID})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return 0, err
+		}
+		if errors.Is(err, sql.ErrNoRows) || hash != officialEvidenceHash(p) {
+			p.AnswerSnapshotID = 0
+		}
+	}
+	if p.AnswerSnapshotID > 0 {
+		row, err := q.GetAnswerSnapshot(ctx, dbq.GetAnswerSnapshotParams{ID: p.AnswerSnapshotID})
+		if err != nil {
+			return 0, err
+		}
+		var snap ai.AnswerSnapshot
+		if json.Unmarshal(row.Payload, &snap) != nil {
+			return 0, apperr.New(apperr.BadRequest, "答案依据损坏")
+		}
+		if err = s.d.AI.ValidateAnswerSnapshot(ctx, q, &snap); err != nil {
+			return 0, err
+		}
+	}
+	if err := q.SetQuestionAnswerSnapshot(ctx, dbq.SetQuestionAnswerSnapshotParams{ID: id, AnswerSnapshotID: sql.NullInt64{Int64: int64(p.AnswerSnapshotID), Valid: p.AnswerSnapshotID > 0}}); err != nil {
+		return 0, err
 	}
 	if err := insertPoints(ctx, q, sql.NullInt64{Int64: int64(id), Valid: true}, sql.NullInt64{}, p.Rubric); err != nil {
 		return 0, err

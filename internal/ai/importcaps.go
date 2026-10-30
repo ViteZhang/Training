@@ -277,32 +277,53 @@ func splitPoints(answer string, score float64) []RubricPoint {
 // 生成时依次参考：用户同课资料里的相关原文（Context）→ 用户填的参考教材（Textbooks，只给书名）→ 通用知识（PRD v3 11.16 第 5 条）。
 // 官方题库的题，Context 是后台录入的官方参考素材（7.11），Sources 给出处，答案优先引用并标明。
 type GenerateAnswerIn struct {
-	Subject   string          `json:"subject"`
-	QType     string          `json:"qtype"`
-	Stem      string          `json:"stem"`
-	Score     float64         `json:"score"`
-	Textbooks []string        `json:"textbooks,omitempty"`
-	Context   []AnswerContext `json:"context,omitempty"`
+	Evidence   []EvidenceFragment `json:"evidence,omitempty"`
+	Coverage   string             `json:"coverage,omitempty"`
+	EditionIDs []uint64           `json:"-"`
+	Subject    string             `json:"subject"`
+	QType      string             `json:"qtype"`
+	Stem       string             `json:"stem"`
+	Score      float64            `json:"score"`
+	Textbooks  []string           `json:"textbooks,omitempty"`
+	Context    []AnswerContext    `json:"context,omitempty"`
 }
 
 // AnswerContext 是一段用户资料（或官方参考素材）的原文。
 type AnswerContext struct {
-	Source string `json:"source"`
-	Text   string `json:"text"`
+	MaterialID uint64 `json:"material_id,omitempty"`
+	Page       int    `json:"page,omitempty"`
+	Source     string `json:"source"`
+	Text       string `json:"text"`
 }
 
 type GenerateAnswerOut struct {
-	Answer string        `json:"answer"`
-	Points []RubricPoint `json:"points"`
+	Snapshot             *AnswerSnapshot  `json:"-"`
+	Citations            []AnswerCitation `json:"citations"`
+	UsesGeneralKnowledge bool             `json:"uses_general_knowledge"`
+	Answer               string           `json:"answer"`
+	Points               []RubricPoint    `json:"points"`
 }
 
 var GenerateAnswer = &Cap[GenerateAnswerIn, GenerateAnswerOut]{
-	Def: Def{Name: "answer_generate", Version: "v2", Tier: "strong", Temperature: 0.3, Schema: `{
-		"type": "object", "required": ["answer", "points"],
+	Def: Def{Name: "answer_generate", Version: "v3", Tier: "strong", Temperature: 0.3, Schema: `{
+		"type": "object", "required": ["answer", "points", "citations", "uses_general_knowledge"],
 		"properties": {
 			"answer": {"type": "string", "minLength": 1},
-			"points": ` + rubricPoints + `}}`},
+			"points": ` + rubricPoints + `,"citations":{"type":"array","maxItems":16,"items":{"type":"object","required":["source_id","quote","claim"],"properties":{"source_id":{"type":"string"},"quote":{"type":"string","minLength":1,"maxLength":1500},"claim":{"type":"string","minLength":1}}}},"uses_general_knowledge":{"type":"boolean"}}}`},
 	Check: func(in GenerateAnswerIn, out *GenerateAnswerOut) error {
+		if err := validateAnswerCitations(in, out); err != nil {
+			return err
+		}
+		for _, point := range out.Points {
+			if !strings.Contains(out.Answer, point.Content) {
+				return fmt.Errorf("采分点不是答案原句")
+			}
+			for _, kw := range point.Keywords {
+				if !strings.Contains(out.Answer, kw) {
+					return fmt.Errorf("关键词不在答案中")
+				}
+			}
+		}
 		if in.Score > 0 {
 			sum := 0.0
 			for _, p := range out.Points {
@@ -319,7 +340,7 @@ var GenerateAnswer = &Cap[GenerateAnswerIn, GenerateAnswerOut]{
 		if len(in.Context) > 0 {
 			ans = "（AI 生成）据你的资料：" + truncRunes(in.Context[0].Text, 60)
 		}
-		return GenerateAnswerOut{Answer: ans, Points: splitPoints(ans, in.Score)}, nil
+		return GenerateAnswerOut{Answer: ans, Points: splitPoints(ans, in.Score), Citations: []AnswerCitation{}, UsesGeneralKnowledge: true}, nil
 	},
 }
 

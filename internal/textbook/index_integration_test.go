@@ -14,6 +14,7 @@ import (
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/params"
 	"peetraining-server/internal/rules"
+	"peetraining-server/internal/store"
 )
 
 // fakeVector 只测试故障/状态，不替代真实 Qdrant 协议与索引验收。
@@ -219,5 +220,87 @@ func TestIndexPublishAuthorizationAndConcurrentVersion(t *testing.T) {
 	current, _ := s.Get(ctx, b.ID)
 	if current.Editions[0].Authorized || current.Editions[0].ExcerptsEnabled {
 		t.Fatal("授权未保存")
+	}
+}
+
+func TestMatchingIsUnambiguousAndSnapshotAvailability(t *testing.T) {
+	s, db := setup(t)
+	ctx := context.Background()
+	b, r, g, _ := indexedRevision(t, s)
+	e := b.Editions[0]
+	if err := s.ProcessIndex(ctx, g.ID); err != nil {
+		t.Fatal(err)
+	}
+	published, err := s.Publish(ctx, b.ID, e.ID, r.ID, 1, PublishInput{"first-publish-key", r.Version, e.Version, g.ID, "首版"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	matches, err := s.MatchEditions(ctx, []string{"文论教程"}, "文学", nil)
+	if err != nil || len(matches) != 1 || matches[0].ID != e.ID {
+		t.Fatal(matches, err)
+	}
+	// 第二版未设默认时不自动选新旧版；用数据库准备另一完整发布版次测试目录规则。
+	next := edition()
+	next.Edition = "第六版"
+	updated, err := s.AddEdition(ctx, b.ID, 1, "another-edition", next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var nextID uint64
+	for _, item := range updated.Editions {
+		if item.Edition == next.Edition {
+			nextID = item.ID
+		}
+	}
+	if _, err = db.Exec("UPDATE textbook_editions SET status='published',current_revision_id=?,current_generation_id=? WHERE id=?", r.ID, g.ID, nextID); err != nil {
+		t.Fatal(err)
+	}
+	matches, err = s.MatchEditions(ctx, []string{"文学理论教程"}, "文学", nil)
+	if err != nil || len(matches) != 0 {
+		t.Fatal("未设默认不应猜版次", matches, err)
+	}
+	if _, err = s.SetDefault(ctx, b.ID, e.ID, 1, updated.Version, published.Editions[0].Version, "set-default-test", true); err != nil {
+		t.Fatal(err)
+	}
+	matches, _ = s.MatchEditions(ctx, []string{"文学理论教程"}, "文学", nil)
+	if len(matches) != 1 || matches[0].ID != e.ID {
+		t.Fatal(matches)
+	}
+	matches, _ = s.MatchEditions(ctx, []string{"文学理论教程第六版"}, "文学", nil)
+	if len(matches) != 1 || matches[0].ID != nextID {
+		t.Fatal(matches)
+	}
+	chunk, err := dbq.New(db).GetTextbookChunk(ctx, dbq.GetTextbookChunkParams{GenerationID: g.ID, Ordinal: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := ai.AnswerSource{EvidenceFragment: ai.EvidenceFragment{Kind: "official_textbook", BookID: b.ID, EditionID: e.ID, RevisionID: r.ID, GenerationID: g.ID, Ordinal: 1, SectionNo: chunk.SectionNo, StartRune: chunk.StartRune, EndRune: chunk.EndRune, TextHash: chunk.TextHash}, Quote: "文学具有审美意识形态性质。", Claim: "文学具有审美意识形态性质。"}
+	snap := &ai.AnswerSnapshot{Sources: []ai.AnswerSource{source}}
+	if err = store.WithTx(ctx, db, func(q *dbq.Queries) error { return s.ValidateAnswerSources(ctx, q, snap.Sources) }); err != nil {
+		t.Fatal(err)
+	}
+	current, _ := s.Get(ctx, b.ID)
+	var currentE dbq.TextbookEdition
+	for _, item := range current.Editions {
+		if item.ID == e.ID {
+			currentE = item.TextbookEdition
+		}
+	}
+	if _, err = s.Availability(ctx, b.ID, e.ID, 1, AvailabilityInput{Key: "withdraw-source-key", Version: currentE.Version, Withdrawn: true, Authorized: true, ExcerptsEnabled: true, LicenseNote: "授权仍允许历史展示", Summary: "运营下架"}); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.WithTx(ctx, db, func(q *dbq.Queries) error { return s.ValidateAnswerSources(ctx, q, snap.Sources) }); err == nil {
+		t.Fatal("下架来源被用于新答案")
+	}
+	visible, err := VisibleSnapshot(ctx, dbq.New(db), snap)
+	if err != nil || visible.Sources[0].Quote == "" {
+		t.Fatal("运营下架不应隐藏历史摘录", err)
+	}
+	if _, err = db.Exec("UPDATE textbook_editions SET excerpts_enabled=FALSE WHERE id=?", e.ID); err != nil {
+		t.Fatal(err)
+	}
+	visible, err = VisibleSnapshot(ctx, dbq.New(db), snap)
+	if err != nil || visible.Sources[0].Quote != "" || !visible.Sources[0].Unavailable {
+		t.Fatal("撤销摘录展示未生效", visible, err)
 	}
 }

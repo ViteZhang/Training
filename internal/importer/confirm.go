@@ -75,6 +75,10 @@ func (s *Service) UpdateItem(ctx context.Context, userID, itemID uint64, p Patch
 		q := *p.Question
 		var old QuestionDraft
 		_ = json.Unmarshal(it.Payload, &old)
+		q.AnswerSnapshotID = old.AnswerSnapshotID
+		if q.Answer != old.Answer || !rubricEqual(q.RubricPoints, old.RubricPoints) || q.Stem != old.Stem || q.QType != old.QType {
+			q.AnswerSnapshotID = 0
+		}
 		if err := validateQuestion(&q, old); err != nil {
 			return Item{}, err
 		}
@@ -272,7 +276,7 @@ func (s *Service) GenerateAnswer(ctx context.Context, userID, itemID uint64) (It
 	if err != nil {
 		return Item{}, err
 	}
-	out, _, err := ai.GenerateAnswer.Run(ctx, s.ai, userID, in)
+	out, _, err := s.ai.GenerateReferenceAnswer(ctx, userID, in)
 	if err != nil {
 		return Item{}, err
 	}
@@ -286,6 +290,33 @@ func (s *Service) GenerateAnswer(ctx context.Context, userID, itemID uint64) (It
 		return Item{}, err
 	}
 	err = store.WithTx(ctx, s.db, func(tx *dbq.Queries) error {
+		current, err := tx.LockImportAnswer(ctx, dbq.LockImportAnswerParams{ID: itemID, OwnerUserID: userID})
+		if err != nil {
+			return err
+		}
+		if current.CreatedEntityID.Valid {
+			return apperr.New(apperr.Conflict, "条目已入库，请刷新")
+		}
+		var existing QuestionDraft
+		if json.Unmarshal(current.Payload, &existing) != nil {
+			return apperr.NotFoundErr()
+		}
+		if existing.Answer != "" {
+			return nil
+		}
+		if existing.Stem != q.Stem || current.Status != it.Status {
+			return apperr.New(apperr.Conflict, "条目已修改，请重新生成")
+		}
+		snapshotID, err := s.ai.SaveAnswerSnapshot(ctx, tx, sql.NullInt64{Int64: int64(userID), Valid: true}, out.Answer, q.RubricPoints, out.Snapshot)
+		if err != nil {
+			return err
+		}
+		q.AnswerSnapshotID = snapshotID
+		b, err = json.Marshal(q)
+		if err != nil {
+			return err
+		}
+
 		if err := s.quota.Consume(ctx, tx, quota.Charge{UserID: userID, Type: quota.AIQuestions, Amount: 1,
 			Ref: quota.Ref{Type: "import_item", ID: itemID}, Key: quota.KeyFor("import_answer", itemID)}); err != nil {
 			return err
@@ -605,6 +636,26 @@ func (s *Service) insertQuestion(ctx context.Context, q *dbq.Queries, t *tree, j
 			return 0, err
 		}
 	}
+	if d.AnswerSnapshotID > 0 {
+		snap, err := q.GetAnswerSnapshot(ctx, dbq.GetAnswerSnapshotParams{ID: d.AnswerSnapshotID, OwnerUserID: t.owner})
+		if err != nil {
+			return 0, err
+		}
+		var snapshot ai.AnswerSnapshot
+		if json.Unmarshal(snap.Payload, &snapshot) != nil {
+			return 0, apperr.New(apperr.BadRequest, "答案依据损坏")
+		}
+		if snap.AnswerHash != ai.AnswerHash(d.Answer, d.RubricPoints) {
+			return 0, apperr.New(apperr.Conflict, "答案或采分点已变化，请重新核对依据")
+		}
+		if err = s.ai.ValidateAnswerSnapshot(ctx, q, &snapshot); err != nil {
+			return 0, err
+		}
+		if err = q.SetQuestionAnswerSnapshot(ctx, dbq.SetQuestionAnswerSnapshotParams{AnswerSnapshotID: sql.NullInt64{Int64: int64(d.AnswerSnapshotID), Valid: true}, ID: qid, OwnerUserID: t.owner}); err != nil {
+			return 0, err
+		}
+	}
+
 	origin := dbq.RubricPointsOrigin(d.RubricOrigin)
 	if !origin.Valid() || origin == dbq.RubricPointsOriginOfficial {
 		origin = dbq.RubricPointsOriginAiExtracted

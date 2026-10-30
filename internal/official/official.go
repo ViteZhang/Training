@@ -50,15 +50,16 @@ type KPPayload struct {
 
 // QuestionPayload 是题目草稿。
 type QuestionPayload struct {
-	QType    string      `json:"qtype"`
-	Stem     string      `json:"stem"`
-	Options  []ai.Option `json:"options,omitempty"`
-	Answer   string      `json:"answer"`
-	Analysis string      `json:"analysis,omitempty"`
-	Score    *float64    `json:"score,omitempty"`
-	ExamYear *int        `json:"exam_year,omitempty"`
-	KPNames  []string    `json:"kp_names"`
-	Rubric   []Point     `json:"rubric"`
+	AnswerSnapshotID uint64      `json:"answer_snapshot_id,omitempty"`
+	QType            string      `json:"qtype"`
+	Stem             string      `json:"stem"`
+	Options          []ai.Option `json:"options,omitempty"`
+	Answer           string      `json:"answer"`
+	Analysis         string      `json:"analysis,omitempty"`
+	Score            *float64    `json:"score,omitempty"`
+	ExamYear         *int        `json:"exam_year,omitempty"`
+	KPNames          []string    `json:"kp_names"`
+	Rubric           []Point     `json:"rubric"`
 }
 
 // Deps 是创建服务的依赖。

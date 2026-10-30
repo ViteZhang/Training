@@ -280,7 +280,7 @@ func (q *Queries) GetOfficialDraft(ctx context.Context, id uint64) (OfficialDraf
 }
 
 const getOfficialProject = `-- name: GetOfficialProject :one
-SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at FROM official_projects WHERE id = ?
+SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at, textbook_link_version FROM official_projects WHERE id = ?
 `
 
 func (q *Queries) GetOfficialProject(ctx context.Context, id uint64) (OfficialProject, error) {
@@ -299,12 +299,13 @@ func (q *Queries) GetOfficialProject(ctx context.Context, id uint64) (OfficialPr
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TextbookLinkVersion,
 	)
 	return i, err
 }
 
 const getOfficialProjectByBank = `-- name: GetOfficialProjectByBank :one
-SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at FROM official_projects WHERE bank_id = ?
+SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at, textbook_link_version FROM official_projects WHERE bank_id = ?
 `
 
 func (q *Queries) GetOfficialProjectByBank(ctx context.Context, bankID sql.NullInt64) (OfficialProject, error) {
@@ -323,6 +324,7 @@ func (q *Queries) GetOfficialProjectByBank(ctx context.Context, bankID sql.NullI
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TextbookLinkVersion,
 	)
 	return i, err
 }
@@ -1001,7 +1003,7 @@ func (q *Queries) ListOfficialKPs(ctx context.Context, bankID uint64) ([]ListOff
 }
 
 const listOfficialProjects = `-- name: ListOfficialProjects :many
-SELECT p.id, p.school, p.major, p.subject_code, p.subject_name, p.bank_id, p.stage, p.editor_ids, p.authorized_materials, p.created_by, p.created_at, p.updated_at,
+SELECT p.id, p.school, p.major, p.subject_code, p.subject_name, p.bank_id, p.stage, p.editor_ids, p.authorized_materials, p.created_by, p.created_at, p.updated_at, p.textbook_link_version,
   (SELECT COUNT(*) FROM knowledge_points k WHERE k.bank_id = p.bank_id AND k.owner_user_id IS NULL AND k.level = 'point') AS kp_count,
   (SELECT COUNT(*) FROM questions q WHERE q.bank_id = p.bank_id AND q.owner_user_id IS NULL AND q.status = 'active') AS question_count,
   (SELECT COUNT(*) FROM questions q WHERE q.bank_id = p.bank_id AND q.owner_user_id IS NULL AND q.status = 'active' AND q.source = 'official' AND q.exam_year IS NOT NULL) AS exam_count,
@@ -1023,6 +1025,7 @@ type ListOfficialProjectsRow struct {
 	CreatedBy           sql.NullInt64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	TextbookLinkVersion uint64
 	KpCount             int64
 	QuestionCount       int64
 	ExamCount           int64
@@ -1052,6 +1055,7 @@ func (q *Queries) ListOfficialProjects(ctx context.Context) ([]ListOfficialProje
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TextbookLinkVersion,
 			&i.KpCount,
 			&i.QuestionCount,
 			&i.ExamCount,
@@ -1105,19 +1109,20 @@ func (q *Queries) ListOfficialQuestionKPs(ctx context.Context, bankID uint64) ([
 }
 
 const listOfficialQuestions = `-- name: ListOfficialQuestions :many
-SELECT id, qtype, stem, options, answer, analysis, score, exam_year, status FROM questions WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY id
+SELECT id, qtype, stem, options, answer, analysis, score, exam_year, status, answer_snapshot_id FROM questions WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY id
 `
 
 type ListOfficialQuestionsRow struct {
-	ID       uint64
-	Qtype    QuestionsQtype
-	Stem     string
-	Options  dbtypes.NullJSON
-	Answer   sql.NullString
-	Analysis sql.NullString
-	Score    sql.NullString
-	ExamYear sql.NullInt16
-	Status   QuestionsStatus
+	ID               uint64
+	Qtype            QuestionsQtype
+	Stem             string
+	Options          dbtypes.NullJSON
+	Answer           sql.NullString
+	Analysis         sql.NullString
+	Score            sql.NullString
+	ExamYear         sql.NullInt16
+	Status           QuestionsStatus
+	AnswerSnapshotID sql.NullInt64
 }
 
 func (q *Queries) ListOfficialQuestions(ctx context.Context, bankID uint64) ([]ListOfficialQuestionsRow, error) {
@@ -1139,6 +1144,7 @@ func (q *Queries) ListOfficialQuestions(ctx context.Context, bankID uint64) ([]L
 			&i.Score,
 			&i.ExamYear,
 			&i.Status,
+			&i.AnswerSnapshotID,
 		); err != nil {
 			return nil, err
 		}

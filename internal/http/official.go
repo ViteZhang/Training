@@ -516,5 +516,5 @@ func (h *Handlers) GenerateOfficialAnswer(c *gin.Context, projectID int64) {
 	for i, x := range a.Citations {
 		out.Citations[i].Heading, out.Citations[i].ReferenceId, out.Citations[i].Title = x.Heading, int64(x.ReferenceID), x.Title
 	}
-	c.JSON(http.StatusOK, out)
+	c.JSON(http.StatusOK, gin.H{"answer": a.Answer, "points": out.Points, "citations": out.Citations, "snapshot_id": a.SnapshotID, "snapshot": a.Snapshot})
 }

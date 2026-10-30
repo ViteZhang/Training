@@ -90,17 +90,18 @@ type Price struct{ InputPer1K, OutputPer1K int64 }
 
 // Engine 执行能力调用。
 type Engine struct {
-	client   cloudai.Client
-	fallback *Fallback
-	q        dbq.Querier
-	useMock  bool
-	models   Models
-	prices   map[string]Price
-	salt     string
-	now      func() time.Time
-	override map[string]Meta
-	onCall   func(Call)
-	moderate TextChecker
+	answerEvidence AnswerEvidenceProvider
+	client         cloudai.Client
+	fallback       *Fallback
+	q              dbq.Querier
+	useMock        bool
+	models         Models
+	prices         map[string]Price
+	salt           string
+	now            func() time.Time
+	override       map[string]Meta
+	onCall         func(Call)
+	moderate       TextChecker
 }
 
 // TextChecker 是内容安全的文本审核（cloud/moderation.Checker 满足它）。

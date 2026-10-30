@@ -102,11 +102,11 @@ func healthcheck() error {
 }
 
 func checkHealthEndpoint(ctx context.Context, client *http.Client, target string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil) //nolint:gosec // healthcheck only constructs a loopback URL from HTTP_ADDR port; tests supply a local test server.
 	if err != nil {
 		return err
 	}
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:gosec // The only production caller supplies the loopback health endpoint.
 	if err != nil {
 		return err
 	}

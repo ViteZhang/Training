@@ -20,6 +20,7 @@ import (
 
 	"peetraining-server/internal/admin"
 	"peetraining-server/internal/ai"
+	"peetraining-server/internal/answerupdate"
 	"peetraining-server/internal/auth"
 	"peetraining-server/internal/bank"
 	"peetraining-server/internal/cloud"
@@ -99,9 +100,10 @@ type Base struct {
 	// T27 消息中心。
 	Notify *notify.Service
 	// T28 管理后台。
-	Admin     *admin.Service
-	Official  *official.Service
-	Textbooks *textbook.Service
+	Admin         *admin.Service
+	Official      *official.Service
+	Textbooks     *textbook.Service
+	AnswerUpdates *answerupdate.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -190,6 +192,9 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	base.Textbooks = textbook.New(db)
 	base.Textbooks.ConfigureIndexes(textbook.IndexDeps{Embedding: ai.NewEmbedder(cfg.Textbook).WithAudit(engine), Vector: vector.New(cfg.Textbook.VectorURL, cfg.Textbook.VectorAPIKey), Params: ps, Queue: queue, Production: cfg.IsProduction(), VectorConfigured: cfg.Textbook.VectorURL != ""})
 	base.Textbooks.ConfigureImports(textbook.ImportDeps{OSS: clients.OSS, AI: engine, Renderer: ocr.NewPDFium(nil), Queue: queue, Params: ps})
+	base.Textbooks.ConfigureEvidence(engine, fl)
+	engine.SetAnswerEvidenceProvider(base.Textbooks)
+	base.AnswerUpdates = answerupdate.New(db, engine, qs, queue)
 	base.Official = official.New(official.Deps{DB: db, AI: engine, Log: log})
 	return base, nil
 }
@@ -234,36 +239,37 @@ func appName() string {
 // Handler 组装 API 的 HTTP 处理器。
 func (b *Base) Handler() (http.Handler, error) {
 	return apihttp.NewRouter(apihttp.Deps{
-		Logger:     b.Logger,
-		Version:    Version,
-		AppName:    appName(),
-		MySQL:      store.SQLPinger{DB: b.DB},
-		Redis:      store.RedisPinger{Client: b.Redis},
-		Auth:       b.Auth,
-		Flags:      b.Flags,
-		Profile:    b.Profile,
-		Material:   b.Material,
-		Quota:      b.Quota,
-		Importer:   b.Importer,
-		Bank:       b.Bank,
-		Plan:       b.Plan,
-		Practice:   b.Practice,
-		Score:      b.Score,
-		Essay:      b.Essay,
-		Membership: b.Membership,
-		Feedback:   b.Feedback,
-		Export:     b.Export,
-		DevOSS:     b.devOSS(),
-		Payment:    b.Payment,
-		Invite:     b.Invite,
-		Notify:     b.Notify,
-		Admin:      b.Admin,
-		Official:   b.Official,
-		Textbooks:  b.Textbooks,
-		Events:     events.New(b.Logger, nil),
-		Metrics:    monitor.NewHTTPCounter(b.Redis),
-		DevMockPay: b.devMockPay(),
-		DevDocs:    b.Config.AppEnv == config.EnvLocal,
+		Logger:        b.Logger,
+		Version:       Version,
+		AppName:       appName(),
+		MySQL:         store.SQLPinger{DB: b.DB},
+		Redis:         store.RedisPinger{Client: b.Redis},
+		Auth:          b.Auth,
+		Flags:         b.Flags,
+		Profile:       b.Profile,
+		Material:      b.Material,
+		Quota:         b.Quota,
+		Importer:      b.Importer,
+		Bank:          b.Bank,
+		Plan:          b.Plan,
+		Practice:      b.Practice,
+		Score:         b.Score,
+		Essay:         b.Essay,
+		Membership:    b.Membership,
+		Feedback:      b.Feedback,
+		Export:        b.Export,
+		DevOSS:        b.devOSS(),
+		Payment:       b.Payment,
+		Invite:        b.Invite,
+		Notify:        b.Notify,
+		Admin:         b.Admin,
+		Official:      b.Official,
+		Textbooks:     b.Textbooks,
+		AnswerUpdates: b.AnswerUpdates,
+		Events:        events.New(b.Logger, nil),
+		Metrics:       monitor.NewHTTPCounter(b.Redis),
+		DevMockPay:    b.devMockPay(),
+		DevDocs:       b.Config.AppEnv == config.EnvLocal,
 	})
 }
 
@@ -327,7 +333,7 @@ func NewWorker(b *Base) (*Worker, error) {
 	if err := jobs.RegisterSchedules(scheduler); err != nil {
 		return nil, fmt.Errorf("注册定时任务：%w", err)
 	}
-	h := &jobs.Handlers{Textbooks: b.Textbooks, Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice, Voice: b.Practice, Essay: b.Essay, Export: b.Export, Notify: b.Notify, Stats: b.Admin,
+	h := &jobs.Handlers{AnswerCandidates: b.AnswerUpdates, Textbooks: b.Textbooks, Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice, Voice: b.Practice, Essay: b.Essay, Export: b.Export, Notify: b.Notify, Stats: b.Admin,
 		Monitor: monitor.New(monitor.Deps{DB: b.DB, Redis: b.Redis, Queues: asynq.NewInspector(opt), Names: []string{jobs.QueueCritical, jobs.QueueDefault, jobs.QueueLow},
 			Cost: b.Admin, Log: b.Logger, Webhook: b.Config.AlertWebhookURL})}
 	return &Worker{server: server, scheduler: scheduler, mux: h.Mux()}, nil

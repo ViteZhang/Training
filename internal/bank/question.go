@@ -573,17 +573,17 @@ func (s *Service) UpdateQuestion(ctx context.Context, userID, id uint64, in Ques
 	if in.ScoreSet {
 		score = in.Score
 	}
-	var rubric []RubricInput
+	cur, err := s.q.ListQuestionRubric(ctx, dbq.ListQuestionRubricParams{QuestionID: sql.NullInt64{Int64: int64(id), Valid: true}, OwnerUserID: owner(userID)})
+	if err != nil {
+		return QuestionDetail{}, err
+	}
+	var currentRubric []RubricInput
+	for _, r := range toRubric(cur) {
+		currentRubric = append(currentRubric, RubricInput{Content: r.Content, Score: r.Score, Keywords: r.Keywords})
+	}
+	rubric := currentRubric
 	if in.Rubric != nil {
 		rubric = *in.Rubric
-	} else {
-		cur, err := s.q.ListQuestionRubric(ctx, dbq.ListQuestionRubricParams{QuestionID: sql.NullInt64{Int64: int64(id), Valid: true}, OwnerUserID: owner(userID)})
-		if err != nil {
-			return QuestionDetail{}, err
-		}
-		for _, r := range toRubric(cur) {
-			rubric = append(rubric, RubricInput{Content: r.Content, Score: r.Score, Keywords: r.Keywords})
-		}
 	}
 	if err := checkRubricSum(qtype, score, rubric); err != nil {
 		return QuestionDetail{}, err
@@ -640,6 +640,12 @@ func (s *Service) UpdateQuestion(ctx context.Context, userID, id uint64, in Ques
 		p.NeedsReview, p.ReviewReasons = false, nil
 	}
 	err = store.WithTx(ctx, s.db, func(tx *dbq.Queries) error {
+		// 题干/题型等依据变化也使出处失效；仅重复保存原答案不丢失出处。
+		if p.Answer != q.Answer || p.Stem != q.Stem || p.Qtype != q.Qtype || p.Score != q.Score || in.Options != nil || ai.AnswerHash("", currentRubric) != ai.AnswerHash("", rubric) {
+			if err := tx.SetQuestionAnswerSnapshot(ctx, dbq.SetQuestionAnswerSnapshotParams{ID: id, OwnerUserID: owner(userID)}); err != nil {
+				return err
+			}
+		}
 		if err := tx.UpdateQuestion(ctx, p); err != nil {
 			return err
 		}

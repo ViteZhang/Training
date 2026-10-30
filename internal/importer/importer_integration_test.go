@@ -13,6 +13,7 @@ import (
 	"github.com/hibiken/asynq"
 
 	"peetraining-server/internal/ai"
+	"peetraining-server/internal/answerupdate"
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/cloud/moderation"
 	"peetraining-server/internal/cloud/ocr"
@@ -236,7 +237,7 @@ func TestQuestionImportPipeline(t *testing.T) {
 	}
 	var g importer.QuestionDraft
 	_ = json.Unmarshal(it2.Payload, &g)
-	if g.AnswerOrigin != "ai_generated" || g.RubricOrigin != "ai_generated" || used(t, f, uid, quota.AIQuestions) != 1 {
+	if g.AnswerSnapshotID == 0 || g.AnswerOrigin != "ai_generated" || g.RubricOrigin != "ai_generated" || used(t, f, uid, quota.AIQuestions) != 1 {
 		t.Fatalf("生成参考答案：%+v", g)
 	}
 
@@ -258,6 +259,10 @@ func TestQuestionImportPipeline(t *testing.T) {
 			t.Fatal(err)
 		}
 		return n
+	}
+	var confirmedSnapshot uint64
+	if err := f.db.QueryRow("SELECT answer_snapshot_id FROM questions WHERE owner_user_id=? AND question_no='2'", uid).Scan(&confirmedSnapshot); err != nil || confirmedSnapshot != g.AnswerSnapshotID {
+		t.Fatalf("导入确认丢失依据快照：%d != %d, %v", confirmedSnapshot, g.AnswerSnapshotID, err)
 	}
 	if n := count("SELECT COUNT(*) FROM questions WHERE owner_user_id = ?", uid); n != 4 {
 		t.Fatalf("题目 %d", n)
@@ -507,6 +512,7 @@ func TestImportOwnership(t *testing.T) {
 	_, checks["get"] = f.svc.Get(ctx, other, job.ID)
 	_, _, checks["items"] = f.svc.Items(ctx, other, job.ID, "all", 0, 10)
 	_, checks["item"] = f.svc.GetItem(ctx, other, items[0].ID)
+	_, checks["answer-evidence"] = answerupdate.New(f.db, nil, nil, nil).ImportSnapshot(ctx, other, items[0].ID)
 	_, checks["update"] = f.svc.UpdateItem(ctx, other, items[0].ID, importer.Patch{Status: "deleted"})
 	_, checks["generate"] = f.svc.GenerateAnswer(ctx, other, items[0].ID)
 	_, checks["confirm"] = f.svc.Confirm(ctx, other, job.ID, nil)

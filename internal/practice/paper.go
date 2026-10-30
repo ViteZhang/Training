@@ -1101,7 +1101,7 @@ func (s *Service) GradePaper(ctx context.Context, userID, sessionID uint64) erro
 			}
 			continue
 		}
-		snap, err := s.snapshot(ctx, s.q, userID, qr)
+		snap, err := s.snapshot(ctx, userID, qr)
 		if err != nil {
 			return err // 保留答卷，补齐参考答案后可以恢复批改。
 		}

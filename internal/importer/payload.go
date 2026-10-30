@@ -15,22 +15,23 @@ import (
 
 // QuestionDraft 是待确认题目（import_items.payload），JSON 与契约里的 QuestionDraft 一致，多出的 source_page 只在服务端用。
 type QuestionDraft struct {
-	QType          string           `json:"qtype"`
-	Stem           string           `json:"stem"`
-	Options        []ai.Option      `json:"options,omitempty"`
-	Answer         string           `json:"answer,omitempty"`
-	AnswerOrigin   string           `json:"answer_origin,omitempty"`
-	Analysis       string           `json:"analysis,omitempty"`
-	Score          *float64         `json:"score,omitempty"`
-	Source         string           `json:"source,omitempty"`
-	ExamYear       *int             `json:"exam_year,omitempty"`
-	QuestionNo     string           `json:"question_no,omitempty"`
-	IsRecollection bool             `json:"is_recollection,omitempty"`
-	RubricPoints   []ai.RubricPoint `json:"rubric_points,omitempty"`
-	RubricOrigin   string           `json:"rubric_origin,omitempty"`
-	KPPath         []string         `json:"kp_path,omitempty"`
-	KPID           *int64           `json:"kp_id,omitempty"`
-	SourcePage     int              `json:"source_page,omitempty"`
+	AnswerSnapshotID uint64           `json:"answer_snapshot_id,omitempty"`
+	QType            string           `json:"qtype"`
+	Stem             string           `json:"stem"`
+	Options          []ai.Option      `json:"options,omitempty"`
+	Answer           string           `json:"answer,omitempty"`
+	AnswerOrigin     string           `json:"answer_origin,omitempty"`
+	Analysis         string           `json:"analysis,omitempty"`
+	Score            *float64         `json:"score,omitempty"`
+	Source           string           `json:"source,omitempty"`
+	ExamYear         *int             `json:"exam_year,omitempty"`
+	QuestionNo       string           `json:"question_no,omitempty"`
+	IsRecollection   bool             `json:"is_recollection,omitempty"`
+	RubricPoints     []ai.RubricPoint `json:"rubric_points,omitempty"`
+	RubricOrigin     string           `json:"rubric_origin,omitempty"`
+	KPPath           []string         `json:"kp_path,omitempty"`
+	KPID             *int64           `json:"kp_id,omitempty"`
+	SourcePage       int              `json:"source_page,omitempty"`
 	// AnswerMatch 是「来自你的资料」的答案怎么来的（PRD v3 11.16）：original 原文自带 / other_material 从用户其他资料匹配 / answer_file 1.7c 答案文件配对。
 	// AnswerMaterialID、AnswerPage 是答案出处（文件 + 页码）。
 	AnswerMatch      string `json:"answer_match,omitempty"`

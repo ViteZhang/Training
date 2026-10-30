@@ -5948,6 +5948,14 @@ type Announcement struct {
 	CreatedAt   time.Time
 }
 
+type AnswerEvidenceSnapshot struct {
+	ID          uint64
+	OwnerUserID sql.NullInt64
+	AnswerHash  string
+	Payload     json.RawMessage
+	CreatedAt   time.Time
+}
+
 // 1.7c 答案文件配对结果，用户确认后写进题目
 type AnswerPairing struct {
 	ID          uint64
@@ -5964,6 +5972,21 @@ type AnswerPairing struct {
 	Status    AnswerPairingsStatus
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type AnswerUpdateCandidate struct {
+	ID             uint64
+	OwnerUserID    uint64
+	QuestionID     uint64
+	RequestKey     string
+	BaseHash       string
+	Status         string
+	Answer         sql.NullString
+	Points         dbtypes.NullJSON
+	SnapshotID     sql.NullInt64
+	FailureMessage string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type AppVersion struct {
@@ -6480,6 +6503,18 @@ type KpSource struct {
 	OwnerUserID sql.NullInt64
 }
 
+type LegacyTextbookMigration struct {
+	ReferenceID     uint64
+	BookID          uint64
+	EditionID       uint64
+	RevisionID      uint64
+	CreatedAt       time.Time
+	SourceHash      string
+	Manifest        json.RawMessage
+	SourceProjectID uint64
+	SourceTitle     string
+}
+
 // 用户上传的资料文件
 type Material struct {
 	ID          uint64
@@ -6570,6 +6605,12 @@ type ModelEssay struct {
 	CreatedAt        time.Time
 }
 
+type OfficialAnswerCandidateEvidence struct {
+	ProjectID   uint64
+	SnapshotID  uint64
+	ContentHash string
+}
+
 // 7.10 标为未规划的专业课
 type OfficialDemandMark struct {
 	SubjectCode string
@@ -6610,6 +6651,19 @@ type OfficialProject struct {
 	CreatedBy           sql.NullInt64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	TextbookLinkVersion uint64
+}
+
+type OfficialProjectTextbook struct {
+	ProjectID uint64
+	EditionID uint64
+	CreatedAt time.Time
+}
+
+type OfficialProjectTextbookWrite struct {
+	ProjectID   uint64
+	RequestKey  string
+	RequestHash string
 }
 
 // 7.11 官方参考素材
@@ -6861,8 +6915,9 @@ type Question struct {
 	// AI 参考答案被用户确认还是修改过
 	AiAnswerOutcome NullQuestionsAiAnswerOutcome
 	// 客观题 AI 答案被报错次数，3 次自动撤回（PRD 11.16 第 7 条）
-	AiAnswerReports uint16
-	Source          QuestionsSource
+	AiAnswerReports  uint16
+	Source           QuestionsSource
+	AnswerSnapshotID sql.NullInt64
 }
 
 // 题目与知识点多对多
@@ -7119,7 +7174,8 @@ type Subject struct {
 	// 报考方向：导入按专业分组的真题时默认只保留与它匹配的组
 	MyMajors sql.NullString
 	// 参考教材书名列表，如 ["童庆炳《文学理论教程》"]
-	Textbooks dbtypes.NullJSON
+	Textbooks          dbtypes.NullJSON
+	TextbookSelections dbtypes.NullJSON
 }
 
 // 考后回访（6.14），每人一次
