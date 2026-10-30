@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import PaperModePage from '../../app/paper/[id]';
+import PaperHistoryPage from '../../app/paper/history';
+import { PaperTimer } from '../features/paper/timer';
 import PaperList from '../../app/paper/list';
 import PaperSessionPage from '../../app/paper/session/[id]';
 import { clock } from '../features/paper/api';
@@ -13,10 +15,19 @@ let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
   router: { push: (...a: unknown[]) => mockPush(...a), replace: (...a: unknown[]) => mockReplace(...a), back: jest.fn() },
   useLocalSearchParams: () => mockParams,
+  useFocusEffect: (effect: () => void) => jest.requireActual('react').useEffect(effect, [effect]),
 }));
 let mockUuid = 0;
 jest.mock('expo-crypto', () => ({ randomUUID: () => `uuid-${++mockUuid}` }));
 
+const mockUpload = jest.fn(async () => ({ status: 200 }));
+let mockCameraGranted = true;
+jest.mock('expo-file-system', () => ({ File: class { size = 2048; upload = (...a: unknown[]) => mockUpload(...(a as [])); } }));
+jest.mock('expo-image-picker', () => ({
+  requestCameraPermissionsAsync: async () => ({ granted: mockCameraGranted, canAskAgain: true }),
+  launchCameraAsync: async () => ({ canceled: false, assets: [{ uri: 'file:///paper-answer.jpg', mimeType: 'image/jpeg', fileSize: 2048 }] }),
+}));
+let queryClient: QueryClient;
 const mockCalls: { method: string; path: string; init?: unknown }[] = [];
 let mockResponses: Record<string, () => unknown> = {};
 function mockRespond(method: string, path: string, init?: unknown) {
@@ -33,7 +44,8 @@ jest.mock('../lib/api', () => {
 });
 
 function wrap(ui: React.ReactElement) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  queryClient = qc;
   const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
   return render(
     <SafeAreaProvider initialMetrics={metrics}>
@@ -64,11 +76,13 @@ const session = (over: object = {}) => ({
 
 beforeEach(() => {
   mockCalls.length = 0;
+  mockCameraGranted = true;
+  mockUpload.mockClear();
   mockPush.mockReset();
   mockReplace.mockReset();
   storage.clearAll();
   mockParams = {};
-  mockResponses = {};
+  mockResponses = { 'GET /feature-flags': () => ({ status: 200, data: { flags: {} } }) };
 });
 
 describe('4.18 整卷列表', () => {
@@ -210,6 +224,7 @@ describe('4.20–4.23 作答', () => {
     expect(await screen.findByText(/^112/)).toBeTruthy();
     expect(screen.getByText('这套真题卷会用来更新预估分')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('第 1 题'));
+    await fireEvent.press(screen.getByText('查看逐题批改'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/practice/grading/[id]', params: { id: '501' } });
     await r.unmount();
   });
@@ -219,5 +234,118 @@ describe('clock', () => {
   it('格式化为时:分:秒，负数按 0', () => {
     expect(clock(3725)).toBe('01:02:05');
     expect(clock(-3)).toBe('00:00:00');
+  });
+});
+
+
+describe('模拟考试回归', () => {
+  beforeEach(() => { mockParams = { id: '90' }; });
+  it('拍照上传、核对修改后填回当前题并保留已有答案，交卷前同步识别文字', async () => {
+    storage.set('permission_explained_camera', true);
+    mockResponses['GET /paper-sessions/{sessionId}'] = () => ({ status: 200, data: session({ items: [item(1, { draft_text: '原有要点' })] }) });
+    mockResponses['POST /handwriting/upload-requests'] = () => ({ status: 200, data: { items: [{ object_key: 'u/1/hw/paper.jpg', upload_url: 'https://oss/paper', upload_headers: {} }] } });
+    mockResponses['POST /handwriting/recognize'] = () => ({ status: 200, data: { text: '识别的要点', low_confidence: [], uncertain_count: 0, pages: [] } });
+    mockResponses['POST /paper-sessions/{sessionId}/submit'] = () => ({ status: 200, data: session({ status: 'grading' }) });
+    const r = await wrap(<PaperSessionPage />);
+    await fireEvent.press(await screen.findByText('拍手写稿'));
+    await fireEvent.press(screen.getByText('拍手写稿'));
+    expect(await screen.findByDisplayValue('识别的要点')).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('识别文字'), '核对后的要点');
+    await fireEvent.press(screen.getByText('确认并填入答案'));
+    expect(screen.getByDisplayValue('原有要点\n核对后的要点')).toBeTruthy();
+    expect(mockUpload).toHaveBeenCalledWith('https://oss/paper', { httpMethod: 'PUT', headers: {} });
+    expect(mockCalls.some((c) => c.path.includes('/submit'))).toBe(false);
+    await fireEvent.press(screen.getByText('交卷'));
+    await fireEvent.press(screen.getAllByText('交卷').at(-1)!);
+    expect(await screen.findByText('正在整卷批改')).toBeTruthy();
+    expect(mockCalls.find((c) => c.method === 'PUT')?.init).toMatchObject({ body: { draft_text: '原有要点\n核对后的要点' } });
+    await r.unmount();
+  });
+
+  it('相机权限被拒时能回到打字，原草稿保留', async () => {
+    storage.set('permission_explained_camera', true);
+    mockCameraGranted = false;
+    mockResponses['GET /paper-sessions/{sessionId}'] = () => ({ status: 200, data: session() });
+    const r = await wrap(<PaperSessionPage />);
+    await fireEvent.changeText(await screen.findByLabelText('你的答案'), '不能丢的草稿');
+    await fireEvent.press(screen.getByText('拍手写稿'));
+    await fireEvent.press(screen.getByText('拍手写稿'));
+    expect(await screen.findByText('相机权限未开启')).toBeTruthy();
+    await fireEvent.press(screen.getAllByText('改为打字作答').at(-1)!);
+    expect(screen.getByDisplayValue('不能丢的草稿')).toBeTruthy();
+    await r.unmount();
+  });
+
+  it('批改进度轮询失败保留原答卷；能查看提交的答案', async () => {
+    let fail = false;
+    mockResponses['GET /paper-sessions/{sessionId}'] = () => fail ? { status: 503, error: { code: 'SERVICE_UNAVAILABLE', message: '暂时不可用' } } : { status: 200, data: session({ status: 'grading' }) };
+    const r = await wrap(<PaperSessionPage />);
+    expect(await screen.findByText('正在整卷批改')).toBeTruthy();
+    fail = true;
+    await act(async () => { await queryClient.invalidateQueries({ queryKey: ['paper-session', 90] }); });
+    expect(await screen.findByText('暂时无法刷新批改进度，已提交的答卷已保存。')).toBeTruthy();
+    expect(screen.getByText('正在整卷批改')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('第 1 题'));
+    expect(await screen.findByText('建安风骨是…')).toBeTruthy();
+    await r.unmount();
+  });
+
+  it('任务异常时恢复原答卷批改，不新建考试', async () => {
+    mockResponses['GET /paper-sessions/{sessionId}'] = () => ({ status: 200, data: session({ status: 'grading', grading_error: '任务重试耗尽，答卷已保存' }) });
+    mockResponses['POST /paper-sessions/{sessionId}/submit'] = () => ({ status: 200, data: session({ status: 'grading' }) });
+    const r = await wrap(<PaperSessionPage />);
+    await fireEvent.press(await screen.findByText('恢复批改'));
+    expect(await screen.findByText('正在整卷批改')).toBeTruthy();
+    expect(mockCalls.find((c) => c.method === 'POST')?.init).toMatchObject({ params: { path: { sessionId: 90 } } });
+    expect(mockCalls.some((c) => c.path === '/papers/{paperId}/sessions')).toBe(false);
+    await r.unmount();
+  });
+
+  it('本题用时每秒更新，切题后各题独立累计', async () => {
+    jest.useFakeTimers();
+    try {
+      mockResponses['GET /paper-sessions/{sessionId}'] = () => ({ status: 200, data: session() });
+      const r = await wrap(<PaperSessionPage />);
+      expect(await screen.findByText('本题已用 00:00:00')).toBeTruthy();
+      await act(async () => { await jest.advanceTimersByTimeAsync(3000); });
+      expect(screen.getByText('本题已用 00:00:03')).toBeTruthy();
+      await fireEvent.press(screen.getByText('下一题'));
+      expect(screen.getByText('本题已用 00:00:00')).toBeTruthy();
+      await act(async () => { await jest.advanceTimersByTimeAsync(2000); });
+      expect(screen.getByText('本题已用 00:00:02')).toBeTruthy();
+      await fireEvent.press(screen.getByText('上一题'));
+      expect(screen.getByText('本题已用 00:00:03')).toBeTruthy();
+      await r.unmount();
+    } finally { jest.useRealTimers(); }
+  });
+});
+
+describe('逐次历史答卷', () => {
+  it('同一套卷多次作答分别保留，批改中可进入原 session，支持分页', async () => {
+    mockParams = { subjectId: '7' };
+    let page = 0;
+    const historyItem = { id: 90, title: '2024 年真题', kind: 'real_exam', mode: 'mock', status: 'grading', started_at: serverNow.toISOString(), full_score: 150, answered: 2, total: 3 };
+    mockResponses['GET /subjects/{subjectId}/paper-sessions'] = () => ({ status: 200, data: ++page === 1 ? { items: [historyItem], next_before: 90 } : { items: [{ ...historyItem, id: 80, status: 'graded', score: 98 }] } });
+    const r = await wrap(<PaperHistoryPage />);
+    await fireEvent.press(await screen.findByLabelText('2024 年真题，批改中'));
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/paper/session/[id]', params: { id: '90' } });
+    await fireEvent.press(screen.getByText('加载更多'));
+    expect(await screen.findByText('98 / 150 分 · 查看答卷及报告')).toBeTruthy();
+    expect(screen.getAllByText('2024 年真题')).toHaveLength(2);
+    expect(mockCalls.at(-1)?.init).toMatchObject({ params: { query: { before: 90 } } });
+    await r.unmount();
+  });
+});
+
+describe('计时增量在失败、暂停和切题后保留', () => {
+  it('同步失败不丢时间，成功才确认增量；暂停不计时', () => {
+    let at = 0;
+    const t = new PaperTimer([{ seq: 1, time_spent_seconds: 4 }, { seq: 2, time_spent_seconds: 0 }], 1, true, () => at);
+    at = 3000; expect(t.seconds(1)).toBe(7); expect(t.pending(1)).toBe(3);
+    at = 5000; expect(t.pending(1)).toBe(5);
+    t.acknowledge(1, 3); expect(t.pending(1)).toBe(2);
+    t.select(2); at = 8000; expect(t.seconds(1)).toBe(9); expect(t.seconds(2)).toBe(3);
+    t.setRunning(false); at = 18000; expect(t.seconds(2)).toBe(3);
+    t.setRunning(true); at = 20000; expect(t.seconds(2)).toBe(5);
   });
 });

@@ -118,3 +118,13 @@ describe('刷新令牌', () => {
     }
   });
 });
+
+
+test('只为拍照识别延长超时，其他接口沿用 20 秒', () => {
+  const { apiRequestTimeoutMs, HANDWRITING_REQUEST_TIMEOUT_MS, API_REQUEST_TIMEOUT_MS } = require('../lib/api');
+  expect(apiRequestTimeoutMs(new Request('https://example.test/api/v1/handwriting/recognize', { method: 'POST' })))
+    .toBe(HANDWRITING_REQUEST_TIMEOUT_MS);
+  expect(apiRequestTimeoutMs(new Request('https://example.test/api/v1/handwriting/upload-requests', { method: 'POST' })))
+    .toBe(API_REQUEST_TIMEOUT_MS);
+  expect(apiRequestTimeoutMs(new Request('https://example.test/api/v1/paper-sessions/1'))).toBe(API_REQUEST_TIMEOUT_MS);
+});

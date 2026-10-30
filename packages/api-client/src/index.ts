@@ -55,7 +55,7 @@ export interface ApiClientOptions {
   newIdempotencyKey?: () => string;
   fetch?: typeof fetch;
   /** Optional request timeout. Mutations are not replayed automatically after a timeout. */
-  requestTimeoutMs?: number;
+  requestTimeoutMs?: number | ((request: Request) => number);
 }
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -64,8 +64,11 @@ const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 export function createApiClient(opts: ApiClientOptions) {
   const requestFetch: typeof fetch = (input, init) => {
     const fetcher = opts.fetch ?? globalThis.fetch;
-    return opts.requestTimeoutMs && opts.requestTimeoutMs > 0
-      ? withTimeout(fetcher, opts.requestTimeoutMs)(input, init)
+    const timeoutMs = typeof opts.requestTimeoutMs === 'function'
+      ? opts.requestTimeoutMs(input instanceof Request ? input : new Request(input, init))
+      : opts.requestTimeoutMs;
+    return timeoutMs && timeoutMs > 0
+      ? withTimeout(fetcher, timeoutMs)(input, init)
       : fetcher(input, init);
   };
   const client = createClient<paths>({ baseUrl: opts.baseUrl, fetch: requestFetch });
