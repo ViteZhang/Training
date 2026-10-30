@@ -124,6 +124,9 @@ func lastTime(v any) time.Time {
 
 // Questions 返回题目列表与筛选项统计。
 func (s *Service) Questions(ctx context.Context, userID, subjectID uint64, f QuestionFilter) ([]QuestionSummary, Facets, int, error) {
+	if f.AnswerStatus != "" && f.AnswerStatus != "material" && f.AnswerStatus != "confirmed" && f.AnswerStatus != "ai" && f.AnswerStatus != "missing" {
+		return nil, Facets{}, 0, apperr.New(apperr.BadRequest, "答案状态不正确")
+	}
 	b, err := s.subject(ctx, userID, subjectID)
 	if err != nil {
 		return nil, Facets{}, 0, err
@@ -169,6 +172,18 @@ func (s *Service) Questions(ctx context.Context, userID, subjectID uint64, f Que
 			}
 		}
 	}
+	matchesKP := map[uint64]bool{}
+	if under != nil {
+		links, err := s.q.ListBankFilterKPLinks(ctx, dbq.ListBankFilterKPLinksParams{BankID: b.BankID, OwnerUserID: owner(userID), OwnerUserID_2: owner(userID)})
+		if err != nil {
+			return nil, Facets{}, 0, err
+		}
+		for _, link := range links {
+			if under[link.KpID] {
+				matchesKP[link.QuestionID] = true
+			}
+		}
+	}
 	facets := Facets{ByQType: map[string]int{}, BySource: map[string]int{}, ByAnswer: map[string]int{}}
 	years := map[int]bool{}
 	var out []QuestionSummary
@@ -190,7 +205,7 @@ func (s *Service) Questions(ctx context.Context, userID, subjectID uint64, f Que
 		case f.QType != "" && string(r.Qtype) != f.QType,
 			f.Source != "" && string(r.Source) != f.Source,
 			f.ExamYear != nil && (!r.ExamYear.Valid || int(r.ExamYear.Int16) != *f.ExamYear),
-			under != nil && !under[kp],
+			under != nil && !matchesKP[r.ID],
 			f.Status != "" && tag != f.Status:
 			continue
 		}

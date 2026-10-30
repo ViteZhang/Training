@@ -96,7 +96,7 @@ ON DUPLICATE KEY UPDATE
 -- name: ListBankQuestionsFull :many
 -- 题目列表（3.1b）：一次取出题库全部题目及作答概况，在服务端筛选、排序与分页（单个题库通常几百到几千题）。
 SELECT q.id, q.qtype, LEFT(q.stem, 120) AS stem, q.score, q.source, q.exam_year, q.needs_review, q.generated_from_kp_id, q.created_at,
-  q.group_label, q.group_majors, q.passage_key, q.answer_origin, CAST(IFNULL(q.answer, '') <> '' AS SIGNED) AS has_answer,
+  q.group_label, q.group_majors, q.passage_key, q.answer_origin, CAST(TRIM(REPLACE(REPLACE(REPLACE(IFNULL(q.answer, ''), CHAR(9), ''), CHAR(10), ''), CHAR(13), '')) <> '' AS SIGNED) AS has_answer,
   CAST(COALESCE((SELECT qk.kp_id FROM question_kps qk WHERE qk.question_id = q.id ORDER BY qk.is_primary DESC, qk.kp_id LIMIT 1), 0) AS UNSIGNED) AS primary_kp_id,
   (SELECT COUNT(*) FROM attempts a WHERE a.question_id = q.id AND a.owner_user_id = sqlc.arg(user_id)) AS attempt_count,
   (SELECT a.score FROM attempts a WHERE a.question_id = q.id AND a.owner_user_id = sqlc.arg(user_id) ORDER BY a.answered_at DESC, a.id DESC LIMIT 1) AS last_score,
@@ -165,3 +165,28 @@ ORDER BY id LIMIT 20;
 SELECT p.material_id, p.page_no, p.text, m.file_name FROM material_pages p JOIN materials m ON m.id = p.material_id
 WHERE m.bank_id = sqlc.arg(bank_id) AND p.owner_user_id = sqlc.arg(user_id) AND p.text LIKE sqlc.arg(pattern)
 ORDER BY p.material_id, p.page_no LIMIT 20;
+
+-- name: LockKPForSplit :one
+SELECT id FROM knowledge_points WHERE id = ? AND owner_user_id = ? FOR UPDATE;
+
+-- name: ListKPSplitQuestions :many
+-- 不截断，包含非主关联与历史题，拆分前必须分配完整。
+SELECT q.id, q.qtype, q.stem, q.source, q.exam_year, qk.is_primary
+FROM question_kps qk JOIN questions q ON q.id = qk.question_id
+WHERE qk.kp_id = ? AND qk.owner_user_id = ? AND q.owner_user_id = ?
+ORDER BY q.id FOR UPDATE;
+
+-- name: ReassignSplitQuestion :execrows
+UPDATE question_kps SET kp_id = sqlc.arg(target_id)
+WHERE kp_id = sqlc.arg(source_id) AND question_id = sqlc.arg(question_id) AND owner_user_id = sqlc.arg(owner);
+
+-- name: CopySplitMastery :exec
+INSERT INTO kp_mastery (owner_user_id, kp_id, m, state, viewed, answered, last_self_assess, last_self_assess_at,
+  correct_dates, next_review_on, interval_step, recite_next_review_on, recite_interval_step, decay_applied_on)
+SELECT src.owner_user_id, sqlc.arg(target_id), src.m, src.state, src.viewed, src.answered, src.last_self_assess, src.last_self_assess_at,
+  src.correct_dates, src.next_review_on, src.interval_step, src.recite_next_review_on, src.recite_interval_step, src.decay_applied_on
+FROM kp_mastery src WHERE src.kp_id = sqlc.arg(source_id) AND src.owner_user_id = sqlc.arg(owner);
+
+-- name: ListBankFilterKPLinks :many
+SELECT qk.question_id, qk.kp_id FROM question_kps qk JOIN questions q ON q.id = qk.question_id
+WHERE q.bank_id = ? AND q.owner_user_id = ? AND qk.owner_user_id = ?;

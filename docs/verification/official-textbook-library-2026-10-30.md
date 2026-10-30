@@ -47,7 +47,7 @@ APP 浏览器验证临时替换了不可在 web 运行的相册模块，接口�
 
 ## 未通过或待完成
 
-1. 最后复核补充了候选提交响应丢失保护：失败收尾只能修改 queued/processing，不能隐藏已经扣次的 ready/adopted 候选。新增对应数据库回归已编译，因 Docker 不可用尚未重跑；先前相关 race 集成通过不能替代此新增用例。
+1. 最后复核补充了候选提交响应丢失保护：失败收尾只能修改 queued/processing，不能隐藏已经扣次的 ready/adopted 候选。新增数据库回归已在本次整合中使用隔离 MySQL/Redis、开启 race 验证通过，详见整合验证记录。
 2. Qdrant 镜像拉取被 Docker 配置的代理 `192.168.1.7:7897` 拒绝连接，Docker 服务也曾退出。未修改全局代理。真实 Qdrant 的范围过滤、落盘重启、快照恢复、混合召回及完整导入发布闭环待验。
 3. `bank.TestRepairExamInfoKeepsUnconfirmedSource` 失败（unconfirmed=6 / with_year=5），已在隔离的原 HEAD 同样复现，属于既有基线，不通过修改无关题目年份逻辑掩盖。
 4. `AI_PROVIDER=mock make eval-all` 的 essay 公开示例为 50%，低于 75% 门槛，既有问题仍未通过；其他示例能力通过。公开/mock 示例不能充当真实效果评测，不得合并发布。

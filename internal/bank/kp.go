@@ -436,9 +436,26 @@ func (s *Service) Merge(ctx context.Context, userID, id, targetID uint64) (KPDet
 // SplitPart 是拆分出的一部分。
 type SplitPart struct {
 	Name, OriginalText string
+	QuestionIDs        []uint64
 }
 
-// Split 拆分为多个知识点（3.5）：新知识点放在原位置，都关联原来的题目与出处；原知识点删除。
+// SplitQuestions 不使用卡片的20条预览，返回全部关联供逐题分配。
+func (s *Service) SplitQuestions(ctx context.Context, userID, id uint64) ([]QuestionBrief, error) {
+	if _, err := s.kp(ctx, userID, id); err != nil {
+		return nil, err
+	}
+	rows, err := s.q.ListKPSplitQuestions(ctx, dbq.ListKPSplitQuestionsParams{KpID: id, OwnerUserID: owner(userID), OwnerUserID_2: owner(userID)})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]QuestionBrief, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, QuestionBrief{ID: r.ID, QType: string(r.Qtype), Stem: r.Stem, Source: string(r.Source), ExamYear: year(r.ExamYear)})
+	}
+	return out, nil
+}
+
+// Split 在同一事务内分配题目并保留掌握度与复习安排。
 func (s *Service) Split(ctx context.Context, userID, id uint64, parts []SplitPart) ([]KPDetail, error) {
 	if len(parts) < 2 {
 		return nil, apperr.New(apperr.BadRequest, "至少拆成两个")
@@ -453,6 +470,35 @@ func (s *Service) Split(ctx context.Context, userID, id uint64, parts []SplitPar
 	o := owner(userID)
 	var ids []uint64
 	err = store.WithTx(ctx, s.db, func(q *dbq.Queries) error {
+		if _, err := q.LockKPForSplit(ctx, dbq.LockKPForSplitParams{ID: id, OwnerUserID: o}); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return apperr.NotFoundErr()
+			}
+			return err
+		}
+		linked, err := q.ListKPSplitQuestions(ctx, dbq.ListKPSplitQuestionsParams{KpID: id, OwnerUserID: o, OwnerUserID_2: o})
+		if err != nil {
+			return err
+		}
+		allowed := map[uint64]bool{}
+		for _, r := range linked {
+			allowed[r.ID] = true
+		}
+		assigned := map[uint64]bool{}
+		for _, part := range parts {
+			for _, qid := range part.QuestionIDs {
+				if !allowed[qid] {
+					return apperr.New(apperr.BadRequest, "只能分配原知识点的关联题目，请刷新后重试")
+				}
+				if assigned[qid] {
+					return apperr.New(apperr.BadRequest, "每道题只能分配给一个新知识点")
+				}
+				assigned[qid] = true
+			}
+		}
+		if len(assigned) != len(allowed) {
+			return apperr.New(apperr.BadRequest, "请为每道关联题目选择新知识点；旧版 App 请更新后重试")
+		}
 		for i, p := range parts {
 			name := strings.TrimSpace(p.Name)
 			if name == "" {
@@ -464,7 +510,16 @@ func (s *Service) Split(ctx context.Context, userID, id uint64, parts []SplitPar
 			if err != nil {
 				return err
 			}
-			if err := q.MoveQuestionKPs(ctx, dbq.MoveQuestionKPsParams{TargetID: uint64(nid), SourceID: id, Owner: o}); err != nil {
+			for _, qid := range p.QuestionIDs {
+				n, err := q.ReassignSplitQuestion(ctx, dbq.ReassignSplitQuestionParams{TargetID: uint64(nid), SourceID: id, QuestionID: qid, Owner: o})
+				if err != nil {
+					return err
+				}
+				if n != 1 {
+					return apperr.New(apperr.BadRequest, "题目关联已变化，请刷新后重试")
+				}
+			}
+			if err := q.CopySplitMastery(ctx, dbq.CopySplitMasteryParams{TargetID: uint64(nid), SourceID: id, Owner: userID}); err != nil {
 				return err
 			}
 			if err := q.CopyKPSources(ctx, dbq.CopyKPSourcesParams{TargetID: uint64(nid), SourceID: id, Owner: o}); err != nil {
