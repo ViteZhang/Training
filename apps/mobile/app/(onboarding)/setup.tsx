@@ -10,7 +10,7 @@ import { setStep, stageInfo, stages, type StageKey } from '@/features/onboarding
 import { loadDraft } from '@/features/onboarding/draft';
 import { Chips, Footer, OptionCard, StepHeader } from '@/features/onboarding/ui';
 import { useSubjects } from '@/features/mine/api';
-import { saveTextbooks, TextbookList, textbooksOf, type TextbookMap } from '@/features/profile/textbooks';
+import { saveTextbooks, TextbookList, textbooksOf, type TextbookMap, type TextbookSelectionMap } from '@/features/profile/textbooks';
 import { api, unwrap } from '@/lib/api';
 
 export default function SetupStep() {
@@ -26,6 +26,7 @@ export default function SetupStep() {
   // 没改过时用服务端已存的教材（中途退出再回来不丢）。
   const [edited, setBooks] = useState<TextbookMap | null>(null);
   const books = edited ?? textbooksOf(subjectList);
+  const [selections, setSelections] = useState<TextbookSelectionMap>({});
 
   const next = async () => {
     if (!year || !chosen) return;
@@ -36,7 +37,7 @@ export default function SetupStep() {
           body: { exam_year: year.exam_year, stage: chosen, daily_minutes: minutes, target_school_major: draft.targetSchoolMajor ?? null },
         }),
       );
-      await saveTextbooks(subjectList, books);
+      await saveTextbooks(subjectList, books, selections);
       await setStep('1.4');
       router.push('/(onboarding)/import');
     } catch {
@@ -99,7 +100,7 @@ export default function SetupStep() {
               </Text>
               <Text variant="small">选填</Text>
             </View>
-            <TextbookList subjects={subjectList} value={books} onChange={setBooks} />
+            <TextbookList subjects={subjectList} value={books} onChange={setBooks} selections={selections} onSelectionsChange={setSelections} />
           </>
         ) : null}
       </ScrollView>

@@ -1,4 +1,5 @@
 // 主观题：4.4 作答（打字、语音与拍照入口、草稿、字数、剩余次数、限时）、4.6 批改中、4.7 批改结果、4.8 异议。
+import { RecordAnswerEvidence } from '@/features/answers/Evidence';
 import type { Schemas } from '@training/api-client';
 import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -321,9 +322,10 @@ export function GradingResultView({
         <View>
           <Button title={showRef ? '收起参考答案' : '参考答案'} kind="secondary" onPress={() => setShowRef(!showRef)} />
           {showRef ? (
-            <Text variant="caption" color={colors.ink} style={styles.refText}>
-              {g.reference_answer}
-            </Text>
+            <View>
+              <Text variant="caption" color={colors.ink} style={styles.refText}>{g.reference_answer}</Text>
+              <RecordAnswerEvidence kind="grading" id={g.grading_id} />
+            </View>
           ) : null}
         </View>
       ) : null}

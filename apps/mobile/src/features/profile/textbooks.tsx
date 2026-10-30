@@ -2,28 +2,47 @@
 // 资料里缺答案时，AI 会尽量按这本教材的表述给参考答案。1.3 用 TextbookList，6.9 用 TextbookSheet。
 import type { Schemas } from '@training/api-client';
 import { layout, radius, semantic, spacing } from '@training/ui-tokens';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { BottomSheet, Button, Icon, Text } from '@/components';
 import { Chips } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
 
 export const MAX_TEXTBOOKS = 5;
-export const textbookHint = '资料里缺答案时，AI 会尽量按这本教材的表述给参考答案';
+export const textbookHint = '缺答案时，优先参考指定教材的相关原文。';
 
 export type TextbookMap = Record<number, string[]>;
+export type TextbookSelectionMap = Record<number, Schemas['UserTextbookSelection'][]>;
+
+function MatchHint({ subjectId, title, onSelect }: { subjectId: number; title: string; onSelect?: (selection: Schemas['UserTextbookSelection']) => void }) {
+  const [debounced, setDebounced] = useState('');
+  useEffect(() => { const timer = setTimeout(() => setDebounced(title.trim()), 350); return () => clearTimeout(timer); }, [title]);
+  const query = useQuery({
+    queryKey: ['textbook-match', subjectId, debounced],
+    queryFn: () => unwrap(api.POST('/subjects/{subjectId}/textbook-matches', { params: { path: { subjectId } }, body: { titles: [debounced] } })),
+    enabled: subjectId > 0 && !!debounced,
+    retry: false,
+  });
+  const match = title.trim() === debounced ? query.data?.items?.[0] : undefined;
+  if (!match) return null;
+  return <View style={styles.match}>
+    <Text variant="small">已匹配 · {match.author} · {match.edition}</Text>
+    {onSelect ? <Button title="使用该版本" kind="text" color={semantic.textPrimary} onPress={() => onSelect({ input: title.trim(), edition_id: match.edition_id })} /> : null}
+  </View>;
+}
 
 export function textbooksOf(subjects: Schemas['Subject'][]): TextbookMap {
   return Object.fromEntries(subjects.map((s) => [s.id, s.textbooks ?? []]));
 }
 
 /** 只保存改过的专业课。 */
-export async function saveTextbooks(subjects: Schemas['Subject'][], next: TextbookMap) {
+export async function saveTextbooks(subjects: Schemas['Subject'][], next: TextbookMap, selections?: TextbookSelectionMap) {
   for (const s of subjects) {
     const before = (s.textbooks ?? []).join('\n');
     const after = (next[s.id] ?? []).join('\n');
-    if (before === after) continue;
-    await unwrap(api.PATCH('/subjects/{subjectId}', { params: { path: { subjectId: s.id } }, body: { textbooks: next[s.id] ?? [] } }));
+    if (before === after && !selections?.[s.id]) continue;
+    await unwrap(api.PATCH('/subjects/{subjectId}', { params: { path: { subjectId: s.id } }, body: { textbooks: next[s.id] ?? [], textbook_selections: selections?.[s.id] } }));
   }
 }
 
@@ -36,7 +55,7 @@ export function textbookSummary(s: Schemas['Subject']) {
 }
 
 /** 1.3：教材列表（书名 + 专业课代码，可删）+「添加教材」。 */
-export function TextbookList({ subjects, value, onChange }: { subjects: Schemas['Subject'][]; value: TextbookMap; onChange: (v: TextbookMap) => void }) {
+export function TextbookList({ subjects, value, onChange, selections, onSelectionsChange }: { selections?: TextbookSelectionMap; onSelectionsChange?: (s: TextbookSelectionMap) => void; subjects: Schemas['Subject'][]; value: TextbookMap; onChange: (v: TextbookMap) => void }) {
   const [adding, setAdding] = useState(false);
   const rows = subjects.flatMap((s) => (value[s.id] ?? []).map((b) => ({ subject: s, book: b })));
   const full = subjects.every((s) => (value[s.id] ?? []).length >= MAX_TEXTBOOKS);
@@ -44,9 +63,7 @@ export function TextbookList({ subjects, value, onChange }: { subjects: Schemas[
     <View style={styles.gap}>
       {rows.map(({ subject, book }) => (
         <View key={`${subject.id}-${book}`} style={styles.row}>
-          <Text variant="body" style={styles.flex}>
-            {book}
-          </Text>
+          <View style={styles.flex}><Text variant="body">{book}</Text><MatchHint subjectId={subject.id} title={book} /></View>
           {subjects.length > 1 || subject.code ? (
             <Text variant="small" num>
               {subject.code || subject.name}
@@ -54,6 +71,7 @@ export function TextbookList({ subjects, value, onChange }: { subjects: Schemas[
           ) : null}
           <Pressable
             accessibilityRole="button"
+            style={styles.deleteButton}
             accessibilityLabel={`删除 ${book}`}
             hitSlop={10}
             onPress={() => onChange({ ...value, [subject.id]: (value[subject.id] ?? []).filter((b) => b !== book) })}
@@ -74,7 +92,8 @@ export function TextbookList({ subjects, value, onChange }: { subjects: Schemas[
         <AddTextbookSheet
           subjects={subjects.filter((s) => (value[s.id] ?? []).length < MAX_TEXTBOOKS)}
           onClose={() => setAdding(false)}
-          onAdd={(subjectId, title) => {
+          onAdd={(subjectId, title, selection) => {
+            if (selection) onSelectionsChange?.({ ...selections, [subjectId]: [...(selections?.[subjectId] ?? subjects.find((s) => s.id === subjectId)?.textbook_selections ?? []).filter((v) => v.input !== title), selection] });
             const cur = value[subjectId] ?? [];
             if (!cur.includes(title)) onChange({ ...value, [subjectId]: [...cur, title] });
             setAdding(false);
@@ -85,7 +104,7 @@ export function TextbookList({ subjects, value, onChange }: { subjects: Schemas[
   );
 }
 
-function AddTextbookSheet({ subjects, onClose, onAdd }: { subjects: Schemas['Subject'][]; onClose: () => void; onAdd: (subjectId: number, title: string) => void }) {
+function AddTextbookSheet({ subjects, onClose, onAdd }: { subjects: Schemas['Subject'][]; onClose: () => void; onAdd: (subjectId: number, title: string, selection?: Schemas['UserTextbookSelection']) => void }) {
   const [subjectId, setSubjectId] = useState<number>(subjects[0]?.id ?? 0);
   const [title, setTitle] = useState('');
   return (
@@ -110,6 +129,7 @@ function AddTextbookSheet({ subjects, onClose, onAdd }: { subjects: Schemas['Sub
       <Text variant="small" style={styles.hint}>
         写上作者和书名即可，不需要上传教材
       </Text>
+      <MatchHint subjectId={subjectId} title={title} onSelect={(selection) => onAdd(subjectId, title.trim(), selection)} />
       <Button title="添加" disabled={!title.trim() || !subjectId} onPress={() => subjectId && onAdd(subjectId, title.trim())} style={styles.sheetButton} />
     </BottomSheet>
   );
@@ -118,6 +138,7 @@ function AddTextbookSheet({ subjects, onClose, onAdd }: { subjects: Schemas['Sub
 /** 6.9：编辑一门专业课的参考教材，保存即生效。 */
 export function TextbookSheet({ subject, onClose, onSaved }: { subject: Schemas['Subject']; onClose: () => void; onSaved: () => void }) {
   const [books, setBooks] = useState<string[]>(subject.textbooks ?? []);
+  const [selections, setSelections] = useState(subject.textbook_selections ?? []);
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -130,7 +151,7 @@ export function TextbookSheet({ subject, onClose, onSaved }: { subject: Schemas[
     setBusy(true);
     try {
       const pending = title.trim() && !books.includes(title.trim()) ? [...books, title.trim()].slice(0, MAX_TEXTBOOKS) : books;
-      await unwrap(api.PATCH('/subjects/{subjectId}', { params: { path: { subjectId: subject.id } }, body: { textbooks: pending } }));
+      await unwrap(api.PATCH('/subjects/{subjectId}', { params: { path: { subjectId: subject.id } }, body: { textbooks: pending, textbook_selections: selections.filter((s) => pending.includes(s.input)) } }));
       onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : '保存失败，请重试');
@@ -146,10 +167,8 @@ export function TextbookSheet({ subject, onClose, onSaved }: { subject: Schemas[
       <View style={[styles.gap, styles.sheetList]}>
         {books.map((b) => (
           <View key={b} style={styles.row}>
-            <Text variant="body" style={styles.flex}>
-              {b}
-            </Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={`删除 ${b}`} hitSlop={10} onPress={() => setBooks(books.filter((x) => x !== b))}>
+            <View style={styles.flex}><Text variant="body">{b}</Text><MatchHint subjectId={subject.id} title={b} /></View>
+            <Pressable accessibilityRole="button" style={styles.deleteButton} accessibilityLabel={`删除 ${b}`} hitSlop={10} onPress={() => setBooks(books.filter((x) => x !== b))}>
               <Icon name="close" size={16} color={semantic.textSecondary} />
             </Pressable>
           </View>
@@ -171,6 +190,8 @@ export function TextbookSheet({ subject, onClose, onSaved }: { subject: Schemas[
           </View>
         ) : null}
       </View>
+      {books.length < MAX_TEXTBOOKS ? <MatchHint subjectId={subject.id} title={title} onSelect={(selection) => { setSelections([...selections.filter((s) => s.input !== selection.input), selection]); add(); }} /> : null}
+      <Text variant="small">仅影响之后新生成的答案，已有答案和历史批改保持不变。</Text>
       {error ? (
         <Text variant="caption" color={semantic.danger}>
           {error}
@@ -183,6 +204,8 @@ export function TextbookSheet({ subject, onClose, onSaved }: { subject: Schemas[
 
 const styles = StyleSheet.create({
   gap: { gap: 8 },
+  match: { paddingVertical: spacing.xs, gap: spacing.xs },
+  deleteButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   sheetGap: { gap: 8, marginBottom: 12 },
   sheetList: { marginVertical: 12 },
   flex: { flex: 1 },

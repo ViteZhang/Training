@@ -7102,18 +7102,18 @@ paths:
       - name: bookId
         in: path
         required: true
-        schema: &id001
+        schema: &id001_t40_2
           type: integer
           format: int64
           minimum: 1
       - name: editionId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
       - name: revisionId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
     post:
       tags:
       - admin
@@ -7147,15 +7147,15 @@ paths:
       - name: bookId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
       - name: editionId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
       - name: revisionId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
       requestBody:
         required: true
         content:
@@ -7163,11 +7163,11 @@ paths:
             schema:
               type: object
               properties:
-                idempotency_key: &id002
+                idempotency_key: &id002_t40_2
                   type: string
                   minLength: 8
                   maxLength: 128
-                expected_version: *id001
+                expected_version: *id001_t40_2
               required:
               - idempotency_key
               - expected_version
@@ -7205,15 +7205,15 @@ paths:
       - name: bookId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
       - name: editionId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
       - name: revisionId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
       requestBody:
         required: true
         content:
@@ -7225,7 +7225,7 @@ paths:
                   type: string
                   minLength: 1
                   maxLength: 1800
-                generation_id: *id001
+                generation_id: *id001_t40_2
               required:
               - query
               - generation_id
@@ -7263,15 +7263,15 @@ paths:
       - name: bookId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
       - name: editionId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
       - name: revisionId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
       requestBody:
         required: true
         content:
@@ -7279,10 +7279,10 @@ paths:
             schema:
               type: object
               properties:
-                idempotency_key: *id002
-                expected_version: *id001
-                expected_edition_version: *id001
-                generation_id: *id001
+                idempotency_key: *id002_t40_2
+                expected_version: *id001_t40_2
+                expected_edition_version: *id001_t40_2
+                generation_id: *id001_t40_2
                 summary:
                   type: string
                   minLength: 1
@@ -7327,11 +7327,11 @@ paths:
       - name: bookId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
       - name: editionId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
       requestBody:
         required: true
         content:
@@ -7372,11 +7372,11 @@ paths:
       - name: bookId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
       - name: editionId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
       requestBody:
         required: true
         content:
@@ -7384,9 +7384,9 @@ paths:
             schema:
               type: object
               properties:
-                idempotency_key: *id002
-                expected_book_version: *id001
-                expected_edition_version: *id001
+                idempotency_key: *id002_t40_2
+                expected_book_version: *id001_t40_2
+                expected_edition_version: *id001_t40_2
                 enabled:
                   type: boolean
               required:
@@ -7435,7 +7435,7 @@ paths:
       - name: bookId
         in: path
         required: true
-        schema: *id001
+        schema: *id001_t40_2
   /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/indexes/{generationId}/retry:
     post:
       tags:
@@ -7496,6 +7496,342 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TextbookIndex'
+  /gradings/{gradingId}/answer-evidence:
+    get:
+      tags: [bank]
+      operationId: getGradingAnswerEvidence
+      parameters:
+      - {name: gradingId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      responses:
+        '200':
+          description: 本人记录对应的不可变来源
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [snapshot]
+                properties:
+                  snapshot:
+                    allOf: [{$ref: '#/components/schemas/AnswerEvidenceSnapshot'}]
+                    nullable: true
+        '404': {$ref: '#/components/responses/NotFound'}
+  /import-items/{itemId}/answer-evidence:
+    get:
+      tags: [bank]
+      operationId: getImportAnswerEvidence
+      parameters:
+      - {name: itemId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      responses:
+        '200':
+          description: 本人记录对应的不可变来源
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [snapshot]
+                properties:
+                  snapshot:
+                    allOf: [{$ref: '#/components/schemas/AnswerEvidenceSnapshot'}]
+                    nullable: true
+        '404': {$ref: '#/components/responses/NotFound'}
+  /subjects/{subjectId}/textbook-matches:
+    post:
+      tags: [profile]
+      operationId: matchSubjectTextbooks
+      summary: 解析本人教材书名，仅返回明确匹配的公开元数据，未匹配静默
+      parameters:
+      - {name: subjectId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                titles: {type: array, maxItems: 5, items: {type: string, minLength: 1, maxLength: 64}}
+      responses:
+        '200':
+          description: 明确匹配的教材；可为空，不影响书名保存
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/UserTextbookMatch'}}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /admin/official/projects/{projectId}/textbooks:
+    get:
+      tags: [admin]
+      x-roles: [content_lead, content_editor]
+      security: [{adminAuth: []}]
+      operationId: listProjectTextbooks
+      parameters:
+      - {name: projectId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      responses:
+        '200':
+          description: 关联的明确出版版本
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, version]
+                properties:
+                  version: {type: integer, format: int64, minimum: 1}
+                  items: {type: array, items: {$ref: '#/components/schemas/UserTextbookMatch'}}
+    put:
+      tags: [admin]
+      x-roles: [content_lead]
+      security: [{adminAuth: []}]
+      operationId: setProjectTextbooks
+      parameters:
+      - {name: projectId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [edition_ids, idempotency_key, expected_version]
+              properties:
+                expected_version: {type: integer, format: int64, minimum: 1}
+                edition_ids: {type: array, maxItems: 20, uniqueItems: true, items: {type: integer, format: int64, minimum: 1}}
+                idempotency_key: {type: string, minLength: 8, maxLength: 128}
+      responses:
+        '200':
+          description: 关联成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, version]
+                properties:
+                  version: {type: integer, format: int64, minimum: 1}
+                  items: {type: array, items: {$ref: '#/components/schemas/UserTextbookMatch'}}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /questions/{questionId}/answer-candidates:
+    post:
+      tags:
+      - bank
+      operationId: createAnswerUpdateCandidate
+      summary: 主动更新答案：异步成功候选扣一次，采用不再扣
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerUpdateCandidate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+              required:
+              - idempotency_key
+    get:
+      tags:
+      - bank
+      operationId: listAnswerUpdateCandidates
+      summary: 恢复并查看本人答案更新候选
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AnswerUpdateCandidate'
+                required:
+                - items
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /questions/{questionId}/answer-candidates/{candidateId}:
+    get:
+      tags:
+      - bank
+      operationId: getAnswerUpdateCandidate
+      summary: 本人候选详情和可用出处
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: candidateId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerUpdateCandidate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /questions/{questionId}/answer-candidates/{candidateId}/adopt:
+    post:
+      tags:
+      - bank
+      operationId: adoptAnswerUpdateCandidate
+      summary: 采用候选（不重复扣次）
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: candidateId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerUpdateCandidate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+              required:
+              - idempotency_key
+  /questions/{questionId}/answer-candidates/{candidateId}/discard:
+    post:
+      tags:
+      - bank
+      operationId: discardAnswerUpdateCandidate
+      summary: 放弃已成功候选（不退次）
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: candidateId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerUpdateCandidate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+              required:
+              - idempotency_key
+  /questions/{questionId}/answer-evidence:
+    get:
+      tags:
+      - bank
+      operationId: getQuestionAnswerEvidence
+      summary: 答案的不可变实际引用依据
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  snapshot:
+                    $ref: '#/components/schemas/AnswerEvidenceSnapshot'
+                    nullable: true
+                required:
+                - snapshot
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
 components:
   securitySchemes:
     bearerAuth:
@@ -7617,6 +7953,158 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    UserTextbookSelection:
+      type: object
+      required: [input, edition_id]
+      properties:
+        input: {type: string, minLength: 1, maxLength: 64}
+        edition_id: {type: integer, format: int64, minimum: 1}
+    UserTextbookMatch:
+      type: object
+      required: [input, book_id, edition_id, title, author, edition, method, catalog_version, available]
+      properties:
+        input: {type: string}
+        book_id: {type: integer, format: int64}
+        edition_id: {type: integer, format: int64}
+        title: {type: string}
+        author: {type: string}
+        edition: {type: string}
+        method: {type: string, enum: [auto, explicit]}
+        catalog_version: {type: string}
+        available: {type: boolean}
+    AnswerEvidenceSource:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum:
+          - official_textbook
+          - personal_material
+        title:
+          type: string
+        author:
+          type: string
+        edition:
+          type: string
+        book_id:
+          type: integer
+          format: int64
+          minimum: 1
+        edition_id:
+          type: integer
+          format: int64
+          minimum: 1
+        revision_id:
+          type: integer
+          format: int64
+          minimum: 1
+        generation_id:
+          type: integer
+          format: int64
+          minimum: 1
+        ordinal:
+          type: integer
+        heading:
+          type: string
+        source_page:
+          type: integer
+        printed_page:
+          type: string
+        quote:
+          type: string
+        claim:
+          type: string
+        unavailable:
+          type: boolean
+        material_id:
+          type: integer
+          format: int64
+          minimum: 1
+        page:
+          type: integer
+      required:
+      - id
+      - kind
+      - title
+      - quote
+      - claim
+    AnswerEvidenceSnapshot:
+      type: object
+      properties:
+        version:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
+        model:
+          type: string
+        prompt_version:
+          type: string
+        coverage:
+          type: string
+          enum:
+          - none
+          - partial
+          - sufficient
+        uses_general_knowledge:
+          type: boolean
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnswerEvidenceSource'
+      required:
+      - version
+      - generated_at
+      - model
+      - prompt_version
+      - coverage
+      - uses_general_knowledge
+      - sources
+    AnswerUpdateCandidate:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        question_id:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          type: string
+          enum:
+          - queued
+          - processing
+          - failed
+          - ready
+          - adopted
+          - discarded
+        answer:
+          type: string
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/RubricPointInput'
+        snapshot:
+          $ref: '#/components/schemas/AnswerEvidenceSnapshot'
+        failure_message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - question_id
+      - status
+      - failure_message
+      - created_at
+      - updated_at
     TextbookRetrievalSettings:
       type: object
       properties:
@@ -7684,12 +8172,12 @@ components:
     TextbookIndex:
       type: object
       properties:
-        id: &id001
+        id: &id001_t40_3
           type: integer
           format: int64
           minimum: 1
-        revision_id: *id001
-        source_version: *id001
+        revision_id: *id001_t40_3
+        source_version: *id001_t40_3
         content_hash:
           type: string
           maxLength: 64
@@ -7716,10 +8204,10 @@ components:
         failure_message:
           type: string
           maxLength: 255
-        created_at: &id002
+        created_at: &id002_t40_3
           type: string
           format: date-time
-        updated_at: *id002
+        updated_at: *id002_t40_3
         parameters:
           $ref: '#/components/schemas/TextbookRetrievalParameters'
       required:
@@ -7740,7 +8228,7 @@ components:
     TextbookSearchResult:
       type: object
       properties:
-        generation_id: *id001
+        generation_id: *id001_t40_3
         profile_id:
           type: string
           maxLength: 64
@@ -7810,7 +8298,7 @@ components:
           type: string
           minLength: 8
           maxLength: 128
-        expected_version: *id001
+        expected_version: *id001_t40_3
         withdrawn:
           type: boolean
         authorized:
@@ -7841,18 +8329,18 @@ components:
     TextbookPublication:
       type: object
       properties:
-        id: *id001
-        edition_id: *id001
-        revision_id: *id001
-        generation_id: *id001
+        id: *id001_t40_3
+        edition_id: *id001_t40_3
+        revision_id: *id001_t40_3
+        generation_id: *id001_t40_3
         action:
           type: string
           maxLength: 24
         summary:
           type: string
           maxLength: 500
-        created_by: *id001
-        created_at: *id002
+        created_by: *id001_t40_3
+        created_at: *id002_t40_3
       required:
       - id
       - edition_id
@@ -8065,11 +8553,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TextbookRevisionSummary'
-        version: &id001
+        version: &id001_t40_4
           type: integer
           format: int64
           minimum: 1
-        current_generation_id: *id001
+        current_generation_id: *id001_t40_4
         license_expires_at:
           type: string
           format: date-time
@@ -10976,6 +11464,8 @@ components:
       - points
       - citations
       properties:
+        snapshot_id: {type: integer, format: int64, minimum: 1}
+        snapshot: {$ref: '#/components/schemas/AnswerEvidenceSnapshot'}
         answer:
           type: string
         points:
@@ -11774,6 +12264,7 @@ components:
     SubjectPatch:
       type: object
       properties:
+        textbook_selections: {type: array, maxItems: 5, items: {$ref: '#/components/schemas/UserTextbookSelection'}}
         my_majors: { type: string, maxLength: 255, nullable: true, description: 报考方向，多个用顿号分隔；空表示不区分 }
         name: { type: string, minLength: 1, maxLength: 64 }
         code: { type: string, maxLength: 16, nullable: true }
@@ -11789,6 +12280,7 @@ components:
       type: object
       required: [id, name, full_score, is_essay, bank_id, question_count, kp_count, material_count]
       properties:
+        textbook_selections: {type: array, items: {$ref: '#/components/schemas/UserTextbookSelection'}}
         my_majors: { type: string, description: 报考方向（导入按专业分组的真题时默认只保留匹配的组） }
         id: { type: integer, format: int64 }
         name: { type: string }

@@ -299,7 +299,8 @@ function DraftEditor({ project, editing, onClose }: { project: number; editing: 
     onSuccess: (r) => form.setFieldValue('rubric', r.items),
     onError: (e) => message.error(errMsg(e)),
   });
-  // 引用官方参考素材生成参考答案与采分点（PRD v3 7.11），出处只给编辑核对，不写进题目。
+  // 引用官方参考素材生成参考答案与采分点（PRD v3 7.11），出处以服务端快照进入草稿，编辑修改内容后重新核对。
+  const [snapshotId, setSnapshotId] = useState<number | undefined>(typeof p.answer_snapshot_id === 'number' ? p.answer_snapshot_id : undefined);
   const [citations, setCitations] = useState<components['schemas']['OfficialAnswerCandidate']['citations']>();
   const generate = useMutation({
     mutationFn: (v: { qtype: string; stem: string; score?: number }) =>
@@ -312,6 +313,7 @@ function DraftEditor({ project, editing, onClose }: { project: number; editing: 
     onSuccess: (r) => {
       form.setFieldsValue({ answer: r.answer, rubric: r.points });
       setCitations(r.citations);
+      setSnapshotId(r.snapshot_id);
     },
     onError: (e) => message.error(errMsg(e)),
   });
@@ -320,7 +322,7 @@ function DraftEditor({ project, editing, onClose }: { project: number; editing: 
     const rubric = ((v.rubric as Point[] | undefined) ?? []).filter((r) => r?.content);
     if (isKP) return save.mutate({ ...v, rubric });
     const { options_text, ...rest } = v as { options_text?: string };
-    return save.mutate({ ...rest, rubric, options: options_text ? parseOptions(options_text) : undefined, kp_names: v.kp_names ?? [] });
+    return save.mutate({ ...rest, answer_snapshot_id: snapshotId, rubric, options: options_text ? parseOptions(options_text) : undefined, kp_names: v.kp_names ?? [] });
   };
   const options = Array.isArray(p.options) ? (p.options as { key: string; text: string }[]).map((o) => `${o.key}. ${o.text}`).join('\n') : '';
   const title = `${changeNames[editing.change_type]}${isKP ? '知识点' : '题目'}${editing.id ? '（修改草稿）' : ''}`;
@@ -386,7 +388,7 @@ function DraftEditor({ project, editing, onClose }: { project: number; editing: 
                       generate.mutate(v);
                     }}
                   >
-                    AI 生成（引用官方参考素材）
+                    AI 生成（优先参考关联教材）
                   </Button>
                 </Space>
               }
