@@ -1,3 +1,4 @@
+import { onlineManager } from '@tanstack/react-query';
 import { ApiError } from '@training/api-client';
 import { networkStateIsOnline, QUERY_RETRY_DELAYS, queryClient } from '../lib/queryClient';
 
@@ -26,4 +27,19 @@ it('网络与 5xx 按退避多试几次，4xx 直接失败', () => {
   expect(retry(0, new ApiError(404, { code: 'NOT_FOUND' }))).toBe(false);
   expect(retryDelay(0)).toBe(QUERY_RETRY_DELAYS[0]);
   expect(retryDelay(1)).toBe(QUERY_RETRY_DELAYS[1]);
+});
+
+it('离线时查询不挂起，直接失败且不空跑重试', () => {
+  const queries = queryClient.getDefaultOptions().queries!;
+  const retry = queries.retry as (count: number, err: Error) => boolean;
+  // 挂起（paused）会让页面拿到 undefined 数据渲染崩掉，所以离线也要真去请求、尽快进错误态。
+  expect(queries.networkMode).toBe('always');
+  onlineManager.setOnline(false);
+  try {
+    expect(retry(0, new ApiError(0, undefined))).toBe(false);
+    expect(retry(0, new ApiError(500, { code: 'INTERNAL' }))).toBe(false);
+  } finally {
+    onlineManager.setOnline(true);
+  }
+  expect(retry(0, new ApiError(0, undefined))).toBe(true);
 });

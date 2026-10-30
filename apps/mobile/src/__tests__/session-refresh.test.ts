@@ -99,4 +99,22 @@ describe('刷新令牌', () => {
     await Promise.all([refreshSession(), refreshSession()]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('运行环境没有 globalThis.crypto（Hermes）时也能发出刷新请求', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    Object.defineProperty(globalThis, 'crypto', { value: undefined, configurable: true });
+    const fetchMock = jest.fn(async () =>
+      respond(200, { access_token: 'a5', access_expires_at: '2099-01-01T00:00:00Z', refresh_token: 'r5', refresh_expires_at: '2099-01-01T00:00:00Z' }),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    try {
+      await expect(refreshSession()).resolves.toBe('a5');
+      expect(useSession.getState().session?.refreshToken).toBe('r5');
+      const [input, init] = fetchMock.mock.calls[0] as unknown as [Request | string, RequestInit | undefined];
+      const headers = input instanceof Request ? input.headers : new Headers(init?.headers);
+      expect(headers.get('Idempotency-Key')).toBe('uuid-1234-5678');
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis, 'crypto', descriptor);
+    }
+  });
 });

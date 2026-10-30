@@ -95,7 +95,12 @@ export function ErrorState({
 
   useEffect(() => {
     if (!network || !retryRef.current) return;
-    const timers = NETWORK_AUTO_RETRY_MS.map((ms) => setTimeout(() => retryRef.current?.(), ms));
+    // 离线时不空跑：网络恢复由下面的订阅负责立即重试。
+    const timers = NETWORK_AUTO_RETRY_MS.map((ms) =>
+      setTimeout(() => {
+        if (onlineManager.isOnline()) retryRef.current?.();
+      }, ms),
+    );
     const unsubscribe = onlineManager.subscribe((online) => {
       if (online) retryRef.current?.();
     });

@@ -82,6 +82,12 @@ export default function Splash() {
         const saved = storage.getString(ONBOARDING_KEY);
         if (saved) result = { ...result, onboarding_step: saved };
       }
+      // 离线冷启动且本机没记过引导进度：判断不了该去引导还是首页，停在可恢复页，
+      // 别把老用户丢进空白的引导第一步（看起来像数据没了）。
+      if (!b && result.logged_in && !result.onboarding_step) {
+        setSessionRecovery(true);
+        return;
+      }
       timer = setTimeout(() => {
         if (!active) return;
         setBoot(result);
