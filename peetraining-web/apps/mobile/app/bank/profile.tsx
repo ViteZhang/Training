@@ -162,7 +162,6 @@ export default function ExamProfileScreen() {
           </View>
         ) : null}
 
-        <Button title="刷一组高频考点" disabled={p.high_freq.length === 0} onPress={() => toast('专项练习在训练模块上线后开放')} />
         <Text variant="small" style={styles.center}>
           只统计你导入的真题{p.excluded_count > 0 ? `，另有 ${p.excluded_count} 道回忆版或缺分值的题目不完整，未计入` : ''}。导入更多年份后会自动更新
         </Text>

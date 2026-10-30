@@ -57,6 +57,8 @@ type Cap[In, Out any] struct {
 	Mock func(in In) (Out, error)
 	// Normalize 在 Schema 校验前整理模型输出里格式偏差但意思明确的写法（如路径多包了一层数组），可为空。
 	Normalize func(v any) any
+	// Images 附到用户消息，原始字节不进入提示词模板或日志。
+	Images func(in In) []cloudai.Image
 
 	once   sync.Once
 	schema *openapi3.Schema
@@ -346,6 +348,9 @@ func (c *Cap[In, Out]) Run(ctx context.Context, e *Engine, userID uint64, in In)
 			req := cloudai.Request{
 				Capability: c.Name, Model: meta.Model, JSONMode: true, Temperature: c.Temperature,
 				Messages: []cloudai.Message{{Role: "system", Content: system}, {Role: "user", Content: user}},
+			}
+			if c.Images != nil {
+				req.Messages[1].Images = c.Images(in)
 			}
 			resp, err = e.client.Complete(ctx, req)
 			if err != nil && e.fallback != nil && ctx.Err() == nil {

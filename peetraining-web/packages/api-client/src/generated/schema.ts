@@ -1797,6 +1797,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/subjects/{subjectId}/paper-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        /** 当前专业课逐次整卷作答历史（包含批改中、已完成、进行中和已放弃） */
+        get: operations["listPaperHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/subjects/{subjectId}/papers": {
         parameters: {
             query?: never;
@@ -1953,7 +1972,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 交卷（4.23）：客观题即时出分，主观题后台按采分点逐题批改（约 2 分钟），完成后发消息；重复交卷返回同一结果 */
+        /**
+         * 交卷（4.23）：客观题即时出分，主观题后台逐题批改；重复提交恢复原任务
+         * @description 首次交卷保存答卷并结算一次整卷额度；重复调用对批改中的原答卷重新排队或恢复失败任务，不重复扣次。批改任务的状态提示通过 grading_error 返回。
+         */
         post: operations["submitPaper"];
         delete?: never;
         options?: never;
@@ -4260,6 +4282,27 @@ export interface components {
             suggested_minutes: number;
             text: string;
         };
+        PaperHistory: {
+            items: components["schemas"]["PaperHistoryItem"][];
+            /** Format: int64 */
+            next_before?: number;
+        };
+        PaperHistoryItem: {
+            /** Format: int64 */
+            id: number;
+            title: string;
+            kind: components["schemas"]["PaperKind"];
+            mode: components["schemas"]["PaperMode"];
+            status: components["schemas"]["PaperSessionStatus"];
+            /** Format: date-time */
+            started_at: string;
+            /** Format: date-time */
+            submitted_at?: string;
+            score?: number;
+            full_score: number;
+            answered: number;
+            total: number;
+        };
         PaperSession: {
             /** Format: int64 */
             id: number;
@@ -4271,6 +4314,10 @@ export interface components {
             kind: components["schemas"]["PaperKind"];
             mode: components["schemas"]["PaperMode"];
             status: components["schemas"]["PaperSessionStatus"];
+            /** Format: date-time */
+            submitted_at?: string;
+            /** @description 批改任务异常的用户可读提示；可重复调用 submit 恢复原答卷，不再次扣次数 */
+            grading_error?: string;
             /** Format: date-time */
             started_at: string;
             /**
@@ -10237,6 +10284,33 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    listPaperHistory: {
+        parameters: {
+            query?: {
+                /** @description 上页 next_before，按 session ID 倒序分页 */
+                before?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperHistory"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
     listPapers: {
         parameters: {
             query?: never;
@@ -10385,6 +10459,8 @@ export interface operations {
                 "application/json": {
                     draft_text?: string;
                     marked?: boolean;
+                    /** @description 本题累计作答秒数，重试取最大值避免重复计时；新版客户端优先使用，与 delta 不同时发送 */
+                    time_spent_seconds?: number;
                     /** @description 距上次同步在这道题上停留的秒数 */
                     time_spent_delta?: number;
                 };

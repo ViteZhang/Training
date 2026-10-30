@@ -23,6 +23,15 @@ export function refreshSession(): Promise<string | undefined> {
 /** 刷新因网络或 5xx 失败时的重试间隔：解锁后网络通常一两秒内恢复。 */
 export const REFRESH_RETRY_MS = [1000, 2500];
 export const API_REQUEST_TIMEOUT_MS = 20_000;
+export const HANDWRITING_REQUEST_TIMEOUT_MS = 180_000;
+
+/** 多图视觉识别有独立等待时间；其余接口沿用常规超时。 */
+export function apiRequestTimeoutMs(request: Request): number {
+  return request.method === 'POST' && new URL(request.url).pathname.endsWith('/handwriting/recognize')
+    ? HANDWRITING_REQUEST_TIMEOUT_MS
+    : API_REQUEST_TIMEOUT_MS;
+}
+
 export const REFRESH_REQUEST_TIMEOUT_MS = 8_000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -76,7 +85,7 @@ export const api = createApiClient({
   getAccessToken: () => useSession.getState().session?.accessToken,
   newIdempotencyKey: () => Crypto.randomUUID(),
   refresh: refreshSession,
-  requestTimeoutMs: API_REQUEST_TIMEOUT_MS,
+  requestTimeoutMs: apiRequestTimeoutMs,
 });
 
 /** 回到前台时访问令牌已过期（或快过期）就先刷新，免得页面的第一批请求都先吃一个 401。 */

@@ -52,21 +52,23 @@ func sampleBlocks() StructureIn {
 
 func TestAllCapabilitiesCompileAndRender(t *testing.T) {
 	inputs := map[string]any{
-		Structure.Name:      sampleBlocks(),
-		ExtractRubric.Name:  RubricIn{QType: "term", Stem: "意境", Answer: "情景交融。", Score: 5},
-		GenerateAnswer.Name: GenerateAnswerIn{Subject: "x", QType: "term", Stem: "意境", Score: 5},
-		ExtractKPs.Name:     KPIn{Subject: "x", Pages: []KPPage{{No: 1, Text: "意境：情景交融"}}},
-		TagQuestions.Name:   TagIn{Subject: "x", Existing: [][]string{{"a", "b", "c"}}, Questions: []TagQ{{ID: 1, QType: "term", Stem: "意境"}}},
+		Structure.Name:            sampleBlocks(),
+		ExtractRubric.Name:        RubricIn{QType: "term", Stem: "意境", Answer: "情景交融。", Score: 5},
+		GenerateAnswer.Name:       GenerateAnswerIn{Subject: "x", QType: "term", Stem: "意境", Score: 5},
+		ExtractKPs.Name:           KPIn{Subject: "x", Pages: []KPPage{{No: 1, Text: "意境：情景交融"}}},
+		TagQuestions.Name:         TagIn{Subject: "x", Existing: [][]string{{"a", "b", "c"}}, Questions: []TagQ{{ID: 1, QType: "term", Stem: "意境"}}},
+		RecognizeHandwriting.Name: HandwritingIn{Images: []cloudai.Image{{Data: []byte("test")}}},
 	}
 	schemas := map[string]func() error{
-		Structure.Name:      func() error { _, err := Structure.compiled(); return err },
-		ExtractRubric.Name:  func() error { _, err := ExtractRubric.compiled(); return err },
-		GenerateAnswer.Name: func() error { _, err := GenerateAnswer.compiled(); return err },
-		ExtractKPs.Name:     func() error { _, err := ExtractKPs.compiled(); return err },
-		TagQuestions.Name:   func() error { _, err := TagQuestions.compiled(); return err },
+		Structure.Name:            func() error { _, err := Structure.compiled(); return err },
+		ExtractRubric.Name:        func() error { _, err := ExtractRubric.compiled(); return err },
+		GenerateAnswer.Name:       func() error { _, err := GenerateAnswer.compiled(); return err },
+		ExtractKPs.Name:           func() error { _, err := ExtractKPs.compiled(); return err },
+		TagQuestions.Name:         func() error { _, err := TagQuestions.compiled(); return err },
+		RecognizeHandwriting.Name: func() error { _, err := RecognizeHandwriting.compiled(); return err },
 	}
 	versions := map[string]string{Structure.Name: Structure.Version, ExtractRubric.Name: ExtractRubric.Version,
-		GenerateAnswer.Name: GenerateAnswer.Version, ExtractKPs.Name: ExtractKPs.Version, TagQuestions.Name: TagQuestions.Version}
+		GenerateAnswer.Name: GenerateAnswer.Version, ExtractKPs.Name: ExtractKPs.Version, TagQuestions.Name: TagQuestions.Version, RecognizeHandwriting.Name: RecognizeHandwriting.Version}
 	for name, in := range inputs {
 		if err := schemas[name](); err != nil {
 			t.Errorf("%s 的 Schema 无效：%v", name, err)

@@ -123,7 +123,12 @@ func TestIntegrationIDOR(t *testing.T) {
 	recite := ins("INSERT INTO practice_sessions (owner_user_id, subject_id, kind, question_ids) VALUES (?, ?, 'recite', JSON_ARRAY())", a, sub.ID)
 	att := ins("INSERT INTO attempts (owner_user_id, question_id, practice_session_id, answer_mode, answer_text) VALUES (?, ?, ?, 'typed', '情景交融')", a, q, sess)
 	grading := ins("INSERT INTO gradings (owner_user_id, attempt_id, kind, status, score, full_score) VALUES (?, ?, 'subjective', 'done', 6, 10)", a, att)
-	paper := ins("INSERT INTO papers (owner_user_id, bank_id, kind, title, full_score, actual_score, structure) VALUES (?, ?, 'real_exam', '2024 真题', 150, 150, JSON_ARRAY())", a, bank)
+	// 真题卷必须关联来源与年份一致的真题，空试卷已不再是合法可访问的 fixture。
+	if _, err := b.DB.Exec("UPDATE questions SET source='exam', exam_year=2024 WHERE id=? AND owner_user_id=?", q, a); err != nil {
+		t.Fatal(err)
+	}
+	paper := ins("INSERT INTO papers (owner_user_id, bank_id, kind, title, exam_year, full_score, actual_score, structure) VALUES (?, ?, 'real_exam', '2024 真题', 2024, 150, 150, JSON_ARRAY())", a, bank)
+	ins("INSERT INTO paper_questions (paper_id, seq, question_id, section, score) VALUES (?, 1, ?, '名词解释', 10)", paper, q)
 	paperSess := ins("INSERT INTO paper_sessions (owner_user_id, subject_id, paper_id, paper_kind, paper_title, mode, full_score) VALUES (?, ?, ?, 'real_exam', '2024 真题', 'practice', 150)", a, sub.ID, paper)
 	essay := ins("INSERT INTO essays (owner_user_id, subject_id, topic_source, topic_text) VALUES (?, ?, 'custom', '守正与创新')", a, essaySub.ID)
 	essayMat := ins("INSERT INTO essay_materials (owner_user_id, bank_id, theme, content, origin) VALUES (?, ?, '创新', '素材', 'user_confirmed')", a, essayBank)
