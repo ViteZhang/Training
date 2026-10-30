@@ -6705,6 +6705,22 @@ type Paper struct {
 	CreatedAt        time.Time
 }
 
+// 整卷手写稿后台识别；交卷后保留原始照片与结果
+type PaperHandwriting struct {
+	ID             uint64
+	OwnerUserID    uint64
+	PaperSessionID uint64
+	Seq            uint16
+	IdempotencyKey string
+	CaptureOrder   uint64
+	ObjectKeys     json.RawMessage
+	Status         string
+	RecognizedText string
+	LowConfidence  json.RawMessage
+	ErrorMessage   string
+	InputKind      string
+}
+
 type PaperQuestion struct {
 	PaperID    uint64
 	Seq        uint16
@@ -7141,6 +7157,20 @@ type User struct {
 	LastActiveAt  sql.NullTime
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+// 练习按题持久保存语音转写任务
+type VoiceTranscription struct {
+	ID                uint64
+	OwnerUserID       uint64
+	PracticeSessionID uint64
+	QuestionID        uint64
+	IdempotencyKey    string
+	ObjectKey         string
+	CaptureOrder      int64
+	Status            string
+	RecognizedText    string
+	ErrorMessage      string
 }
 
 // 写作方法（3.10）

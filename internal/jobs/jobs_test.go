@@ -107,3 +107,52 @@ func TestExtractTask(t *testing.T) {
 		t.Fatalf("坏载荷：%v", err)
 	}
 }
+
+type fakePaperHandwriting struct{ user, handwriting uint64 }
+
+func (f *fakePaperHandwriting) GradePaper(context.Context, uint64, uint64) error      { return nil }
+func (f *fakePaperHandwriting) AutoSubmitPaper(context.Context, uint64, uint64) error { return nil }
+func (f *fakePaperHandwriting) RecognizePaperHandwriting(_ context.Context, user, handwriting uint64) error {
+	f.user, f.handwriting = user, handwriting
+	return nil
+}
+func TestPaperHandwritingWorkerRoute(t *testing.T) {
+	task, err := NewPaperHandwritingTask(7, 91)
+	if err != nil {
+		t.Fatal(err)
+	}
+	paper := &fakePaperHandwriting{}
+	handler := &Handlers{Logger: logx.New(&bytes.Buffer{}, slog.LevelDebug), Paper: paper}
+	if err := handler.Mux().ProcessTask(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+	if paper.user != 7 || paper.handwriting != 91 {
+		t.Fatalf("task must retain photo owner and job id: %+v", paper)
+	}
+	if err := handler.Mux().ProcessTask(context.Background(), asynq.NewTask(TypePaperHandwriting, []byte("invalid"))); !errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("bad payload: %v", err)
+	}
+}
+
+type fakeVoice struct{ user, id uint64 }
+
+func (f *fakeVoice) RecognizePracticeVoice(_ context.Context, user, id uint64) error {
+	f.user, f.id = user, id
+	return nil
+}
+func TestVoiceWorkerRoute(t *testing.T) {
+	task, err := NewVoiceTask(7, 92)
+	if err != nil {
+		t.Fatal(err)
+	}
+	voice := &fakeVoice{}
+	h := &Handlers{Logger: logx.New(&bytes.Buffer{}, slog.LevelDebug), Voice: voice}
+	if err := h.Mux().ProcessTask(context.Background(), task); err != nil || voice.user != 7 || voice.id != 92 {
+		t.Fatalf("%+v %v", voice, err)
+	}
+	for _, body := range []string{"invalid", `{"user_id":0,"handwriting_id":0}`} {
+		if err := h.Mux().ProcessTask(context.Background(), asynq.NewTask(TypeVoiceTranscribe, []byte(body))); !errors.Is(err, asynq.SkipRetry) {
+			t.Fatalf("bad payload: %v", err)
+		}
+	}
+}

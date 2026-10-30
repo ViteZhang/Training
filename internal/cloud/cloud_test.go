@@ -243,3 +243,18 @@ func TestOSSErrorCode(t *testing.T) {
 		t.Errorf("%q", got)
 	}
 }
+
+func TestNewQwenSpeechUsesOSSAndRequiresConfiguration(t *testing.T) {
+	cfg := mockConfig()
+	cfg.ASR.Provider = "bailian"
+	if _, err := New(cfg); err == nil {
+		t.Fatal("speech provider without credentials must fail startup")
+	}
+	cfg.ASRBaseURL = "https://speech.invalid/v1"
+	cfg.ASRAPIKey = "test-key"
+	cfg.ASRModel = "qwen3-asr-flash"
+	c, err := New(cfg)
+	if err != nil || c.ASR == nil {
+		t.Fatalf("configured speech model must initialize after OSS: %v", err)
+	}
+}
