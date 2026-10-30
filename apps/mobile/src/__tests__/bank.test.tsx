@@ -109,21 +109,37 @@ describe('3.4 知识点卡片', () => {
   it('更多操作：拆分', async () => {
     mockParams = { id: '5', subjectId: '7' };
     mockResponses['GET /knowledge-points/{kpId}'] = () => ({ status: 200, data: kp });
+    mockResponses['GET /knowledge-points/{kpId}/split-questions'] = () => ({ status: 200, data: { items: kp.related_questions } });
     mockResponses['POST /knowledge-points/{kpId}/split'] = () => ({ status: 200, data: { items: [] } });
     await wrap(<KPCard />);
     await fireEvent.press(await screen.findByLabelText('更多操作'));
     await fireEvent.press(screen.getByText('拆分为多个知识点'));
     await fireEvent.changeText(screen.getByLabelText('第 1 个知识点'), '意');
     await fireEvent.changeText(screen.getByLabelText('第 2 个知识点'), '境');
+    expect(screen.getByRole('button', { name: '拆分' })).toBeDisabled();
+    await fireEvent.press(await screen.findByLabelText('题目 11 归入第 2 个知识点'));
     await fireEvent.press(screen.getByText('拆分'));
     await waitFor(() => {
       const call = mockCalls.find((c) => c.path === '/knowledge-points/{kpId}/split');
-      expect(call?.init?.body).toEqual({ parts: [{ name: '意' }, { name: '境' }] });
+      expect(call?.init?.body).toEqual({ parts: [{ name: '意', question_ids: [] }, { name: '境', question_ids: [11] }] });
     });
   });
 });
 
 describe('3.1b 题目与 3.3 详情', () => {
+  it('答案筛选使用正式参数，切换后重新查询', async () => {
+    mockResponses['GET /subjects/{subjectId}/questions'] = () => ({ status: 200, data: { items: [], facets: { by_qtype: {}, by_source: {}, exam_years: [] } } });
+    await wrap(<QuestionList subjectId={7} answer="missing" />);
+    await screen.findByText('答案：缺答案');
+    expect(mockCalls.some((c) => c.init?.params?.query?.answer_status === 'missing')).toBe(true);
+    await fireEvent.press(screen.getByText('答案：缺答案'));
+    await screen.findByText('答案：全部');
+    await fireEvent.press(screen.getByText('答案：全部'));
+    await fireEvent.press(await screen.findByText('答案：来自你的资料'));
+    await fireEvent.press(await screen.findByText('答案：你已确认'));
+    await waitFor(() => expect(mockCalls.some((c) => c.init?.params?.query?.answer_status === 'ai')).toBe(true));
+  });
+
   it('题型筛选带数量，点题型重新查询', async () => {
     mockResponses['GET /subjects/{subjectId}/questions'] = () => ({
       status: 200,
