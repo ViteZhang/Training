@@ -117,6 +117,7 @@ func NewImportFinishTask(userID, jobID uint64) (*asynq.Task, error) {
 
 // Handlers 是全部任务处理器的依赖。后续卡片在这里加业务服务。
 type Handlers struct {
+	Textbooks TextbookImporter
 	Logger    *slog.Logger
 	Auth      AccountPurger
 	Material  MaterialExtractor
@@ -277,6 +278,8 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 	mux := asynq.NewServeMux()
 	mux.Use(h.withLogger)
 	mux.HandleFunc(TypePing, h.handlePing)
+	mux.HandleFunc(TypeTextbookImport, h.handleTextbookImport)
+	mux.HandleFunc(TypeTextbookRecover, func(ctx context.Context, _ *asynq.Task) error { return h.Textbooks.RecoverImports(ctx) })
 	mux.HandleFunc(TypePurgeAccounts, h.handlePurgeAccounts)
 	mux.HandleFunc(TypeExtract, h.handleExtract)
 	mux.HandleFunc(TypeImportFile, h.handleImportFile)
@@ -485,6 +488,7 @@ var Schedules = []Schedule{
 	{Cron: "7 * * * *", Type: TypeStatsAggregate},
 	// 监控告警（T32）。
 	{Cron: "*/5 * * * *", Type: TypeMonitor},
+	{Cron: "*/2 * * * *", Type: TypeTextbookRecover},
 }
 
 // RegisterSchedules 注册定时任务。调度器全局只启一个，跑在 Worker 里。

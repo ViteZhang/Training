@@ -28,6 +28,7 @@ type Querier interface {
 	AddImportJobPages(ctx context.Context, arg AddImportJobPagesParams) error
 	// 后台赠送额度（7.2 加解析额度、7.5 补偿）：只加本周期的上限，不动已用。
 	AddQuotaBonus(ctx context.Context, arg AddQuotaBonusParams) error
+	AddTextbookDailyBudget(ctx context.Context, arg AddTextbookDailyBudgetParams) error
 	// 7.5 缺答案（PRD v3 11.16）：只统计数量，不读题目与答案内容。
 	AdminAnswerStats(ctx context.Context, arg AdminAnswerStatsParams) (AdminAnswerStatsRow, error)
 	// 批次明细：码只存哈希，明细显示末 3 位、状态、使用人与时间。
@@ -94,6 +95,7 @@ type Querier interface {
 	// 「按结构写一道」用的题：同题型里最近没做过的。
 	AnyQuestionOfQType(ctx context.Context, arg AnyQuestionOfQTypeParams) (uint64, error)
 	AppendPaperHandwriting(ctx context.Context, arg AppendPaperHandwritingParams) error
+	ApplyTextbookImport(ctx context.Context, arg ApplyTextbookImportParams) error
 	// 手动收款的兑换码被兑换后，订单补上兑换人与会员时段，退款时据此收回会员。
 	AttachManualOrder(ctx context.Context, arg AttachManualOrderParams) error
 	BankCounts(ctx context.Context, arg BankCountsParams) (BankCountsRow, error)
@@ -131,6 +133,7 @@ type Querier interface {
 	// 作文课判断（PRD 11.12）：这门课已解析的资料里作文类占多少。
 	CountSubjectMaterialCategories(ctx context.Context, arg CountSubjectMaterialCategoriesParams) (CountSubjectMaterialCategoriesRow, error)
 	CountSubjects(ctx context.Context, ownerUserID uint64) (int64, error)
+	CountTextbookImports(ctx context.Context, revisionID uint64) (int64, error)
 	CountTextbooks(ctx context.Context, arg CountTextbooksParams) (int64, error)
 	CountUnreadMessages(ctx context.Context, arg CountUnreadMessagesParams) (int64, error)
 	// 导入流水线（T10）。每条查询都带 owner_user_id 归属条件。
@@ -141,6 +144,7 @@ type Querier interface {
 	// T38 官方教材库：仅共享教材，不读取用户私有题目或原文。
 	CreateTextbook(ctx context.Context, arg CreateTextbookParams) (int64, error)
 	CreateTextbookEdition(ctx context.Context, arg CreateTextbookEditionParams) (int64, error)
+	CreateTextbookImport(ctx context.Context, arg CreateTextbookImportParams) (int64, error)
 	CreateTextbookRevision(ctx context.Context, arg CreateTextbookRevisionParams) (int64, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (int64, error)
 	CreateUserBank(ctx context.Context, arg CreateUserBankParams) (int64, error)
@@ -207,6 +211,7 @@ type Querier interface {
 	EditPaperHandwriting(ctx context.Context, arg EditPaperHandwritingParams) error
 	// 额度计数与流水（T08，PRD 13.1）。扣减时先锁计数行，防止并发超额；流水的幂等键防止重复扣。
 	EnsureQuotaCounter(ctx context.Context, arg EnsureQuotaCounterParams) error
+	EnsureTextbookDailyBudget(ctx context.Context, budgetDay time.Time) error
 	EssayMaterialExists(ctx context.Context, arg EssayMaterialExistsParams) (bool, error)
 	ExportKnowledgePoints(ctx context.Context, arg ExportKnowledgePointsParams) ([]ExportKnowledgePointsRow, error)
 	// 导出的题目与参考答案：按题型、年份排；AI 变式题单独标。
@@ -321,8 +326,13 @@ type Querier interface {
 	GetTextbook(ctx context.Context, id uint64) (Textbook, error)
 	GetTextbookEdition(ctx context.Context, arg GetTextbookEditionParams) (TextbookEdition, error)
 	GetTextbookEditionRequest(ctx context.Context, arg GetTextbookEditionRequestParams) (TextbookEdition, error)
+	GetTextbookImport(ctx context.Context, arg GetTextbookImportParams) (TextbookImport, error)
+	GetTextbookImportByID(ctx context.Context, id uint64) (TextbookImport, error)
+	GetTextbookImportPage(ctx context.Context, arg GetTextbookImportPageParams) (TextbookImportPage, error)
+	GetTextbookImportRequest(ctx context.Context, arg GetTextbookImportRequestParams) (TextbookImport, error)
 	GetTextbookRequest(ctx context.Context, arg GetTextbookRequestParams) (Textbook, error)
 	GetTextbookRevision(ctx context.Context, arg GetTextbookRevisionParams) (TextbookRevision, error)
+	GetTextbookRevisionIdentity(ctx context.Context, arg GetTextbookRevisionIdentityParams) (GetTextbookRevisionIdentityRow, error)
 	GetTextbookRevisionRequest(ctx context.Context, arg GetTextbookRevisionRequestParams) (TextbookRevision, error)
 	// 用户、刷新令牌、协议、App 版本、会员状态（T06）。
 	// 规矩：查询用户内容一律带归属条件（CLAUDE.md 必须遵守第 4 条）；这里的表以 user_id / id 为归属。
@@ -575,6 +585,8 @@ type Querier interface {
 	ListSubjectsWithoutContent(ctx context.Context, ownerUserID uint64) ([]uint64, error)
 	ListSubscribers(ctx context.Context, bankID uint64) ([]ListSubscribersRow, error)
 	ListTextbookEditions(ctx context.Context, bookID uint64) ([]TextbookEdition, error)
+	ListTextbookImportPages(ctx context.Context, importID uint64) ([]TextbookImportPage, error)
+	ListTextbookImports(ctx context.Context, revisionID uint64) ([]ListTextbookImportsRow, error)
 	ListTextbookRevisions(ctx context.Context, editionID uint64) ([]ListTextbookRevisionsRow, error)
 	ListTextbooks(ctx context.Context, arg ListTextbooksParams) ([]Textbook, error)
 	// 范文对比（5.6）：用户导入的同题范文。
@@ -596,7 +608,9 @@ type Querier interface {
 	ListWrongBookDue(ctx context.Context, arg ListWrongBookDueParams) ([]uint64, error)
 	LockQuotaCounter(ctx context.Context, arg LockQuotaCounterParams) (QuotaCounter, error)
 	LockTextbook(ctx context.Context, id uint64) (Textbook, error)
+	LockTextbookDailyBudget(ctx context.Context, budgetDay time.Time) (uint32, error)
 	LockTextbookEdition(ctx context.Context, arg LockTextbookEditionParams) (TextbookEdition, error)
+	LockTextbookImport(ctx context.Context, arg LockTextbookImportParams) (TextbookImport, error)
 	LockTextbookRevision(ctx context.Context, arg LockTextbookRevisionParams) (TextbookRevision, error)
 	// 锁住邀请人，两个好友同时激活时累计天数不会超过上限。
 	LockUserRow(ctx context.Context, id uint64) (uint64, error)
@@ -631,6 +645,7 @@ type Querier interface {
 	QTypeCounts(ctx context.Context, arg QTypeCountsParams) ([]QTypeCountsRow, error)
 	// 用户各题型的平均得分率（估计时间失分，PRD 11.9）。
 	QTypeScoreRates(ctx context.Context, ownerUserID uint64) ([]QTypeScoreRatesRow, error)
+	QueueTextbookImport(ctx context.Context, arg QueueTextbookImportParams) error
 	ReadyPaperHandwriting(ctx context.Context, arg ReadyPaperHandwritingParams) error
 	ReadyVoiceTranscription(ctx context.Context, arg ReadyVoiceTranscriptionParams) error
 	// 官方采分点有实质变化时，对应背诵重新进入复习（PRD 11.15）。
@@ -641,6 +656,7 @@ type Querier interface {
 	RecountMaterial(ctx context.Context, arg RecountMaterialParams) error
 	// 模拟考试中断恢复：补回中断时长，只能用一次（PRD 11.9）。
 	RecoverPaperSession(ctx context.Context, arg RecoverPaperSessionParams) error
+	RecoverTextbookImports(ctx context.Context, updatedAt time.Time) ([]RecoverTextbookImportsRow, error)
 	RemoveWrongBook(ctx context.Context, arg RemoveWrongBookParams) (int64, error)
 	RenameMaterial(ctx context.Context, arg RenameMaterialParams) (int64, error)
 	// 客服回复（7.7）：回复写回反馈并发到消息中心。
@@ -659,7 +675,9 @@ type Querier interface {
 	RevokeRefreshToken(ctx context.Context, arg RevokeRefreshTokenParams) error
 	// 草稿（客户端每 5 秒存一次）；提交后不能再改。
 	SaveEssayDraft(ctx context.Context, arg SaveEssayDraftParams) (int64, error)
+	SaveTextbookImportPage(ctx context.Context, arg SaveTextbookImportPageParams) error
 	SaveTextbookRevision(ctx context.Context, arg SaveTextbookRevisionParams) (int64, error)
+	SealTextbookImport(ctx context.Context, arg SealTextbookImportParams) error
 	SearchKPs(ctx context.Context, arg SearchKPsParams) ([]SearchKPsRow, error)
 	SearchMaterialPages(ctx context.Context, arg SearchMaterialPagesParams) ([]SearchMaterialPagesRow, error)
 	SearchQuestions(ctx context.Context, arg SearchQuestionsParams) ([]SearchQuestionsRow, error)
@@ -705,6 +723,7 @@ type Querier interface {
 	SetSubjectMajors(ctx context.Context, arg SetSubjectMajorsParams) error
 	// PRD v3 1.3、6.9：参考教材（选填）。
 	SetSubjectTextbooks(ctx context.Context, arg SetSubjectTextbooksParams) error
+	SetTextbookImportPageCount(ctx context.Context, arg SetTextbookImportPageCountParams) error
 	SetUserQuestionStatus(ctx context.Context, arg SetUserQuestionStatusParams) error
 	// 某天（北京时间，[from, to)）的新增、活跃、作答、解析、付费与收入。
 	StatDay(ctx context.Context, arg StatDayParams) (StatDayRow, error)
@@ -758,6 +777,7 @@ type Querier interface {
 	UpdateSubject(ctx context.Context, arg UpdateSubjectParams) error
 	// 录取结果可以稍后补（6.14）；不重复送会员。
 	UpdateSurveyResponse(ctx context.Context, arg UpdateSurveyResponseParams) error
+	UpdateTextbookImportState(ctx context.Context, arg UpdateTextbookImportStateParams) error
 	UpdateTextbookMetadata(ctx context.Context, arg UpdateTextbookMetadataParams) (int64, error)
 	UpdateUserKPCopy(ctx context.Context, arg UpdateUserKPCopyParams) error
 	UpdateUserNickname(ctx context.Context, arg UpdateUserNicknameParams) error

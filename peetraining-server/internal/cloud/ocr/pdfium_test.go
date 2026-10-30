@@ -83,3 +83,26 @@ func TestNormalizeText(t *testing.T) {
 		t.Errorf("%q", got)
 	}
 }
+
+// 官方教材的文字 PDF 与扫描 PDF 都只渲染页面，完全不调用传统 OCR。
+func TestOfficialTextbookRendersEveryPage(t *testing.T) {
+	for _, name := range []string{"text.pdf", "scanned.pdf"} {
+		t.Run(name, func(t *testing.T) {
+			data, err := os.ReadFile("testdata/" + name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pages := 0
+			err = NewPDFium(nil).RenderAllPages(context.Background(), data, 100, func(total, page int, jpeg []byte) error {
+				pages++
+				if total < page || page != pages || len(jpeg) < 3 || jpeg[0] != 0xff || jpeg[1] != 0xd8 {
+					t.Fatal("页图或顺序不正确")
+				}
+				return nil
+			})
+			if err != nil || pages < 1 {
+				t.Fatal(err)
+			}
+		})
+	}
+}

@@ -4360,6 +4360,143 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/textbook-import-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 教材导入限制 */
+        get: operations["getTextbookImportSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 导入任务列表 */
+        get: operations["listTextbookImports"];
+        put?: never;
+        /** 申请私有文件直传 */
+        post: operations["createTextbookImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 导入进度 */
+        get: operations["getTextbookImport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 确认上传并排队 */
+        post: operations["commitTextbookImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 重试失败任务 */
+        post: operations["retryTextbookImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 明确采用识别结果写入草稿 */
+        post: operations["applyTextbookImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/pages/{pageNo}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 读取指定页识别原文和私有页图 */
+        get: operations["getTextbookImportPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 恢复未完成的原件上传 */
+        post: operations["renewTextbookImportUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4382,6 +4519,9 @@ export interface components {
             scope_note?: string;
         };
         TextbookRevisionSection: {
+            /** Format: int64 */
+            source_import_id?: number;
+            needs_review?: boolean;
             heading: string;
             text: string;
             source_page?: number;
@@ -4499,6 +4639,68 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+        };
+        TextbookImportSettings: {
+            max_concurrent_imports: number;
+            max_file_mb: number;
+            max_pages: number;
+            max_imports_per_revision: number;
+            max_daily_pdf_pages: number;
+        };
+        TextbookImportCreate: {
+            file_name: string;
+            /** @enum {string} */
+            format: "pdf" | "docx" | "md" | "txt";
+            /** Format: int64 */
+            size: number;
+            sha256: string;
+            idempotency_key: string;
+        };
+        TextbookImport: {
+            can_reupload: boolean;
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            revision_id: number;
+            file_name: string;
+            format: string;
+            /** @enum {string} */
+            status: "uploading" | "queued" | "processing" | "ready" | "failed" | "applied";
+            page_count: number;
+            completed_pages: number;
+            uncertain_pages: number;
+            attempt: number;
+            failure_message?: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        TextbookImportUpload: {
+            job: components["schemas"]["TextbookImport"];
+            upload_url: string;
+            upload_headers: {
+                [key: string]: string;
+            };
+            /** Format: date-time */
+            expires_at: string;
+        };
+        TextbookImportPage: {
+            page_no: number;
+            blank: boolean;
+            printed_page?: string;
+            image_url?: string;
+            blocks: {
+                heading: string;
+                text: string;
+                uncertain: boolean;
+            }[];
+        };
+        TextbookImportApply: {
+            /** Format: int64 */
+            expected_version: number;
+            /** @enum {string} */
+            mode: "append" | "replace";
         };
         /**
          * @description 真题卷 / AI 标准卷 / AI 针对卷
@@ -14858,6 +15060,346 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
             /** @description 版本变化或重复创建冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getTextbookImportSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextbookImportSettings"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listTextbookImports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+                editionId: number;
+                revisionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["TextbookImport"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createTextbookImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+                editionId: number;
+                revisionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TextbookImportCreate"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextbookImportUpload"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getTextbookImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+                editionId: number;
+                revisionId: number;
+                importId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextbookImport"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    commitTextbookImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+                editionId: number;
+                revisionId: number;
+                importId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    idempotency_key: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextbookImport"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    retryTextbookImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+                editionId: number;
+                revisionId: number;
+                importId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    idempotency_key: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextbookImport"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    applyTextbookImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+                editionId: number;
+                revisionId: number;
+                importId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TextbookImportApply"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextbookRevision"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getTextbookImportPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+                editionId: number;
+                revisionId: number;
+                importId: number;
+                pageNo: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextbookImportPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    renewTextbookImportUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+                editionId: number;
+                revisionId: number;
+                importId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextbookImportUpload"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 冲突 */
             409: {
                 headers: {
                     [name: string]: unknown;

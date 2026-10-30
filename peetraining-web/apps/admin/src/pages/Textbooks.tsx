@@ -5,6 +5,7 @@ import { Alert, App as AntApp, Button, Card, Checkbox, Descriptions, Drawer, Emp
 import { useRef, useState } from 'react';
 import { Loadable, PageTitle } from '../components/Page';
 import { api, dt, unwrap } from '../lib/api';
+import { TextbookImports } from './TextbookImports';
 
 type Book = components['schemas']['Textbook'];
 type Metadata = components['schemas']['TextbookMetadata'];
@@ -97,6 +98,7 @@ function BookDetail({ bookId, onClose }: { bookId: number; onClose: () => void }
   const [editing, setEditing] = useState(false);
   const [addingEdition, setAddingEdition] = useState(false);
   const [revision, setRevision] = useState<{ editionId: number; revisionId: number }>();
+  const [imports, setImports] = useState<{ editionId: number; revisionId: number }>();
   // 保留失败请求的 key；成功之后才为下一次“新建草稿”分配 key。
   const revisionKeys = useRef(new Map<number, string>());
   const createRevision = useMutation({ mutationFn: (editionId: number) => {
@@ -110,11 +112,12 @@ function BookDetail({ bookId, onClose }: { bookId: number; onClose: () => void }
       <Space style={{ margin: '16px 0 24px' }}><Button onClick={() => setEditing(true)}>编辑教材信息</Button><Button onClick={() => setAddingEdition(true)}>新增出版版本</Button></Space>
       {b.editions.map((e) => <Card key={e.id} title={e.edition} size="small" style={{ marginBottom: 20 }} extra={<Button onClick={() => createRevision.mutate(e.id)} loading={createRevision.isPending && createRevision.variables === e.id} disabled={createRevision.isPending}>新建原文草稿</Button>}>
         <Descriptions column={2} size="small" items={[{ key: 'state', label: '线上状态', children: e.status === 'published' ? '已发布' : e.status === 'withdrawn' ? '已下架' : '未发布' }, { key: 'pub', label: '出版社 / 年份', children: [e.publisher, e.publication_year].filter(Boolean).join(' · ') || '—' }, { key: 'isbn', label: 'ISBN', children: e.isbn || '—' }, { key: 'license', label: '授权说明', children: e.license_note }, { key: 'scope', label: '适用范围', children: e.scope_note || '—' }]} />
-        <List size="small" locale={{ emptyText: '尚无原文，创建草稿后粘贴教材章节。' }} dataSource={e.revisions} renderItem={(r) => <List.Item actions={[<Button key="edit" type="link" onClick={() => setRevision({ editionId: e.id, revisionId: r.id })}>{r.status === 'published' ? '查看原文' : '校对原文'}</Button>]}><Space wrap><Typography.Text strong>r{r.revision_no}</Typography.Text><Tag>{statusNames[r.status]}</Tag><Typography.Text type="secondary">索引{indexNames[r.index_status]} · {dt(r.updated_at)}</Typography.Text></Space></List.Item>} />
+        <List size="small" locale={{ emptyText: '尚无原文，创建草稿后粘贴教材章节。' }} dataSource={e.revisions} renderItem={(r) => <List.Item actions={[...(r.status !== 'published' ? [<Button key="import" onClick={() => setImports({ editionId: e.id, revisionId: r.id })}>导入文件</Button>] : []), <Button key="edit" type="link" onClick={() => setRevision({ editionId: e.id, revisionId: r.id })}>{r.status === 'published' ? '查看原文' : '校对原文'}</Button>]}><Space wrap><Typography.Text strong>r{r.revision_no}</Typography.Text><Tag>{statusNames[r.status]}</Tag><Typography.Text type="secondary">索引{indexNames[r.index_status]} · {dt(r.updated_at)}</Typography.Text></Space></List.Item>} />
       </Card>)}
     </>}</Loadable>
     {b && editing && <BookForm book={b} onClose={() => setEditing(false)} onDone={() => setEditing(false)} />}
     {addingEdition && <AddEdition bookId={bookId} onClose={() => setAddingEdition(false)} />}
+    {imports && <TextbookImports path={{ bookId, ...imports }} onClose={() => setImports(undefined)} />}
     {revision && <RevisionEditor bookId={bookId} {...revision} onClose={() => setRevision(undefined)} />}
   </Drawer>;
 }
@@ -143,13 +146,15 @@ function RevisionForm({ revision, path, onClose }: { revision: Revision; path: {
   const submit = async (reviewed: boolean) => { const v = await form.validateFields().catch(() => undefined); if (!v) return; if (reviewed) modal.confirm({ title: '确认已逐项核对原文？', content: '请核对正文与章节、页码。后续修改正文需重新校对。', okText: '确认校对', onOk: () => save.mutateAsync({ sections: v.sections, reviewed }).then(() => undefined) }); else save.mutate({ sections: v.sections, reviewed }); };
   const close = () => { if (save.isPending) return; if (dirty) modal.confirm({ title: '放弃未保存的原文？', onOk: onClose }); else onClose(); };
   return <Drawer open width={760} title={`原文修订 r${current.revision_no} · ${statusNames[current.status]}`} onClose={close} maskClosable={false} extra={!readonly && <Space><Button disabled={save.isPending} onClick={() => void submit(false)}>保存草稿</Button><Button type="primary" loading={save.isPending} onClick={() => void submit(true)}>确认校对</Button></Space>}>
-    <Typography.Paragraph type="secondary">按章节录入忠实原文，保留原始页码。保存后需构建检索索引，正式发布后才供 APP 生成答案使用。</Typography.Paragraph>
+    <Typography.Paragraph type="secondary">按章节录入忠实原文，保留原始页码。导入时标记不确定的单元，请核对后取消“仍需核对”。保存后需构建检索索引，正式发布后才供 APP 生成答案使用。</Typography.Paragraph>
     {save.isError && <Alert type="error" title={errorText(save.error)} description="当前编辑内容已保留。若发生版本冲突，请复制未保存原文后关闭并重新打开。" style={{ marginBottom: 16 }} />}
     <Form form={form} layout="vertical" disabled={readonly || save.isPending} initialValues={{ sections: current.sections.length ? current.sections : [{ heading: '', text: '' }] }} onValuesChange={() => setDirty(true)}>
       <Form.List name="sections" rules={[{ validator: (_, v: Section[]) => v?.length ? Promise.resolve() : Promise.reject(new Error('至少录入一个原文单元')) }]}>{(fields, { add, remove }, { errors }) => <>
         {fields.map((f, index) => <Card key={f.key} size="small" title={`原文单元 ${index + 1}`} style={{ marginBottom: 16 }} extra={!readonly && <Button danger type="link" onClick={() => { remove(f.name); setDirty(true); }}>移除</Button>}>
+          <Form.Item name={[f.name, 'source_import_id']} hidden><InputNumber /></Form.Item>
           <Form.Item name={[f.name, 'heading']} label="章节标题"><Input maxLength={512} /></Form.Item>
           <Space align="start"><Form.Item name={[f.name, 'source_page']} label="文件页序"><InputNumber min={1} precision={0} /></Form.Item><Form.Item name={[f.name, 'printed_page']} label="书内页码"><Input maxLength={32} /></Form.Item></Space>
+          <Form.Item name={[f.name, 'needs_review']} valuePropName="checked"><Checkbox>此单元仍需核对</Checkbox></Form.Item>
           <Form.Item name={[f.name, 'text']} label="原文" rules={[{ required: true, whitespace: true, max: 100000, message: '填写原文，每单元最多 10 万字' }]}><Input.TextArea rows={9} /></Form.Item>
         </Card>)}
         <Form.ErrorList errors={errors} />{!readonly && <Button block onClick={() => { add({ heading: '', text: '' }); setDirty(true); }}>添加原文单元</Button>}
