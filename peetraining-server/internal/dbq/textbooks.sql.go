@@ -152,7 +152,7 @@ func (q *Queries) CreateTextbookRevision(ctx context.Context, arg CreateTextbook
 }
 
 const getTextbook = `-- name: GetTextbook :one
-SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at FROM textbooks WHERE id = ?
+SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at, default_edition_id FROM textbooks WHERE id = ?
 `
 
 func (q *Queries) GetTextbook(ctx context.Context, id uint64) (Textbook, error) {
@@ -171,12 +171,13 @@ func (q *Queries) GetTextbook(ctx context.Context, id uint64) (Textbook, error) 
 		&i.RequestHash,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DefaultEditionID,
 	)
 	return i, err
 }
 
 const getTextbookEdition = `-- name: GetTextbookEdition :one
-SELECT id, book_id, edition, publisher, publication_year, isbn, license_note, authorized, scope_note, status, current_revision_id, created_by, request_key, request_hash, created_at FROM textbook_editions WHERE id = ? AND book_id = ?
+SELECT id, book_id, edition, publisher, publication_year, isbn, license_note, authorized, scope_note, status, current_revision_id, created_by, request_key, request_hash, created_at, version, current_generation_id, license_expires_at, excerpts_enabled FROM textbook_editions WHERE id = ? AND book_id = ?
 `
 
 type GetTextbookEditionParams struct {
@@ -203,12 +204,16 @@ func (q *Queries) GetTextbookEdition(ctx context.Context, arg GetTextbookEdition
 		&i.RequestKey,
 		&i.RequestHash,
 		&i.CreatedAt,
+		&i.Version,
+		&i.CurrentGenerationID,
+		&i.LicenseExpiresAt,
+		&i.ExcerptsEnabled,
 	)
 	return i, err
 }
 
 const getTextbookEditionRequest = `-- name: GetTextbookEditionRequest :one
-SELECT id, book_id, edition, publisher, publication_year, isbn, license_note, authorized, scope_note, status, current_revision_id, created_by, request_key, request_hash, created_at FROM textbook_editions WHERE book_id = ? AND created_by = ? AND request_key = ?
+SELECT id, book_id, edition, publisher, publication_year, isbn, license_note, authorized, scope_note, status, current_revision_id, created_by, request_key, request_hash, created_at, version, current_generation_id, license_expires_at, excerpts_enabled FROM textbook_editions WHERE book_id = ? AND created_by = ? AND request_key = ?
 `
 
 type GetTextbookEditionRequestParams struct {
@@ -236,12 +241,16 @@ func (q *Queries) GetTextbookEditionRequest(ctx context.Context, arg GetTextbook
 		&i.RequestKey,
 		&i.RequestHash,
 		&i.CreatedAt,
+		&i.Version,
+		&i.CurrentGenerationID,
+		&i.LicenseExpiresAt,
+		&i.ExcerptsEnabled,
 	)
 	return i, err
 }
 
 const getTextbookRequest = `-- name: GetTextbookRequest :one
-SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at FROM textbooks WHERE created_by = ? AND request_key = ?
+SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at, default_edition_id FROM textbooks WHERE created_by = ? AND request_key = ?
 `
 
 type GetTextbookRequestParams struct {
@@ -265,12 +274,13 @@ func (q *Queries) GetTextbookRequest(ctx context.Context, arg GetTextbookRequest
 		&i.RequestHash,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DefaultEditionID,
 	)
 	return i, err
 }
 
 const getTextbookRevision = `-- name: GetTextbookRevision :one
-SELECT id, edition_id, revision_no, version, status, sections, content_hash, index_status, reviewed_by, reviewed_at, created_by, request_key, created_at, updated_at FROM textbook_revisions WHERE id = ? AND edition_id = ?
+SELECT id, edition_id, revision_no, version, status, sections, content_hash, index_status, reviewed_by, reviewed_at, created_by, request_key, created_at, updated_at, ready_generation_id FROM textbook_revisions WHERE id = ? AND edition_id = ?
 `
 
 type GetTextbookRevisionParams struct {
@@ -296,12 +306,13 @@ func (q *Queries) GetTextbookRevision(ctx context.Context, arg GetTextbookRevisi
 		&i.RequestKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ReadyGenerationID,
 	)
 	return i, err
 }
 
 const getTextbookRevisionRequest = `-- name: GetTextbookRevisionRequest :one
-SELECT id, edition_id, revision_no, version, status, sections, content_hash, index_status, reviewed_by, reviewed_at, created_by, request_key, created_at, updated_at FROM textbook_revisions WHERE edition_id = ? AND created_by = ? AND request_key = ?
+SELECT id, edition_id, revision_no, version, status, sections, content_hash, index_status, reviewed_by, reviewed_at, created_by, request_key, created_at, updated_at, ready_generation_id FROM textbook_revisions WHERE edition_id = ? AND created_by = ? AND request_key = ?
 `
 
 type GetTextbookRevisionRequestParams struct {
@@ -328,12 +339,13 @@ func (q *Queries) GetTextbookRevisionRequest(ctx context.Context, arg GetTextboo
 		&i.RequestKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ReadyGenerationID,
 	)
 	return i, err
 }
 
 const listTextbookEditions = `-- name: ListTextbookEditions :many
-SELECT id, book_id, edition, publisher, publication_year, isbn, license_note, authorized, scope_note, status, current_revision_id, created_by, request_key, request_hash, created_at FROM textbook_editions WHERE book_id = ? ORDER BY id
+SELECT id, book_id, edition, publisher, publication_year, isbn, license_note, authorized, scope_note, status, current_revision_id, created_by, request_key, request_hash, created_at, version, current_generation_id, license_expires_at, excerpts_enabled FROM textbook_editions WHERE book_id = ? ORDER BY id
 `
 
 func (q *Queries) ListTextbookEditions(ctx context.Context, bookID uint64) ([]TextbookEdition, error) {
@@ -361,6 +373,10 @@ func (q *Queries) ListTextbookEditions(ctx context.Context, bookID uint64) ([]Te
 			&i.RequestKey,
 			&i.RequestHash,
 			&i.CreatedAt,
+			&i.Version,
+			&i.CurrentGenerationID,
+			&i.LicenseExpiresAt,
+			&i.ExcerptsEnabled,
 		); err != nil {
 			return nil, err
 		}
@@ -376,20 +392,21 @@ func (q *Queries) ListTextbookEditions(ctx context.Context, bookID uint64) ([]Te
 }
 
 const listTextbookRevisions = `-- name: ListTextbookRevisions :many
-SELECT id, edition_id, revision_no, version, status, content_hash, index_status, created_at, updated_at
+SELECT id, edition_id, revision_no, version, status, content_hash, index_status, ready_generation_id, created_at, updated_at
 FROM textbook_revisions WHERE edition_id = ? ORDER BY revision_no DESC
 `
 
 type ListTextbookRevisionsRow struct {
-	ID          uint64
-	EditionID   uint64
-	RevisionNo  uint64
-	Version     uint64
-	Status      string
-	ContentHash string
-	IndexStatus string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID                uint64
+	EditionID         uint64
+	RevisionNo        uint64
+	Version           uint64
+	Status            string
+	ContentHash       string
+	IndexStatus       string
+	ReadyGenerationID sql.NullInt64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 func (q *Queries) ListTextbookRevisions(ctx context.Context, editionID uint64) ([]ListTextbookRevisionsRow, error) {
@@ -409,6 +426,7 @@ func (q *Queries) ListTextbookRevisions(ctx context.Context, editionID uint64) (
 			&i.Status,
 			&i.ContentHash,
 			&i.IndexStatus,
+			&i.ReadyGenerationID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -426,7 +444,7 @@ func (q *Queries) ListTextbookRevisions(ctx context.Context, editionID uint64) (
 }
 
 const listTextbooks = `-- name: ListTextbooks :many
-SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at FROM textbooks
+SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at, default_edition_id FROM textbooks
 WHERE (CAST(? AS CHAR) = '' OR LOCATE(CAST(? AS CHAR), CONCAT(title, ' ', author, ' ', CAST(aliases AS CHAR))) > 0)
 AND (CAST(? AS CHAR) = '' OR kind = CAST(? AS CHAR))
 AND (CAST(? AS CHAR) = '' OR discipline = CAST(? AS CHAR))
@@ -472,6 +490,7 @@ func (q *Queries) ListTextbooks(ctx context.Context, arg ListTextbooksParams) ([
 			&i.RequestHash,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DefaultEditionID,
 		); err != nil {
 			return nil, err
 		}
@@ -487,7 +506,7 @@ func (q *Queries) ListTextbooks(ctx context.Context, arg ListTextbooksParams) ([
 }
 
 const lockTextbook = `-- name: LockTextbook :one
-SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at FROM textbooks WHERE id = ? FOR UPDATE
+SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at, default_edition_id FROM textbooks WHERE id = ? FOR UPDATE
 `
 
 func (q *Queries) LockTextbook(ctx context.Context, id uint64) (Textbook, error) {
@@ -506,12 +525,13 @@ func (q *Queries) LockTextbook(ctx context.Context, id uint64) (Textbook, error)
 		&i.RequestHash,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DefaultEditionID,
 	)
 	return i, err
 }
 
 const lockTextbookEdition = `-- name: LockTextbookEdition :one
-SELECT id, book_id, edition, publisher, publication_year, isbn, license_note, authorized, scope_note, status, current_revision_id, created_by, request_key, request_hash, created_at FROM textbook_editions WHERE id = ? AND book_id = ? FOR UPDATE
+SELECT id, book_id, edition, publisher, publication_year, isbn, license_note, authorized, scope_note, status, current_revision_id, created_by, request_key, request_hash, created_at, version, current_generation_id, license_expires_at, excerpts_enabled FROM textbook_editions WHERE id = ? AND book_id = ? FOR UPDATE
 `
 
 type LockTextbookEditionParams struct {
@@ -538,12 +558,16 @@ func (q *Queries) LockTextbookEdition(ctx context.Context, arg LockTextbookEditi
 		&i.RequestKey,
 		&i.RequestHash,
 		&i.CreatedAt,
+		&i.Version,
+		&i.CurrentGenerationID,
+		&i.LicenseExpiresAt,
+		&i.ExcerptsEnabled,
 	)
 	return i, err
 }
 
 const lockTextbookRevision = `-- name: LockTextbookRevision :one
-SELECT id, edition_id, revision_no, version, status, sections, content_hash, index_status, reviewed_by, reviewed_at, created_by, request_key, created_at, updated_at FROM textbook_revisions WHERE id = ? AND edition_id = ? FOR UPDATE
+SELECT id, edition_id, revision_no, version, status, sections, content_hash, index_status, reviewed_by, reviewed_at, created_by, request_key, created_at, updated_at, ready_generation_id FROM textbook_revisions WHERE id = ? AND edition_id = ? FOR UPDATE
 `
 
 type LockTextbookRevisionParams struct {
@@ -569,6 +593,7 @@ func (q *Queries) LockTextbookRevision(ctx context.Context, arg LockTextbookRevi
 		&i.RequestKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ReadyGenerationID,
 	)
 	return i, err
 }
@@ -586,7 +611,7 @@ func (q *Queries) NextTextbookRevisionNo(ctx context.Context, editionID uint64) 
 
 const saveTextbookRevision = `-- name: SaveTextbookRevision :execrows
 UPDATE textbook_revisions SET sections = ?, content_hash = ?, status = ?, version = version + 1,
- index_status = 'stale', reviewed_by = ?, reviewed_at = ?, updated_at = ?
+ index_status = 'stale', ready_generation_id = NULL, reviewed_by = ?, reviewed_at = ?, updated_at = ?
 WHERE id = ? AND edition_id = ? AND version = ? AND status <> 'published'
 `
 

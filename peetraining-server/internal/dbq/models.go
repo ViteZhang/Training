@@ -7139,18 +7139,31 @@ type SurveyResponse struct {
 }
 
 type Textbook struct {
-	ID          uint64
-	Title       string
-	Author      string
-	Kind        string
-	Discipline  string
-	Aliases     json.RawMessage
-	Version     uint64
-	CreatedBy   uint64
-	RequestKey  string
-	RequestHash string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID               uint64
+	Title            string
+	Author           string
+	Kind             string
+	Discipline       string
+	Aliases          json.RawMessage
+	Version          uint64
+	CreatedBy        uint64
+	RequestKey       string
+	RequestHash      string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	DefaultEditionID sql.NullInt64
+}
+
+type TextbookChunk struct {
+	GenerationID uint64
+	Ordinal      uint32
+	SectionNo    uint32
+	StartRune    uint32
+	EndRune      uint32
+	Heading      string
+	Body         string
+	TextHash     string
+	VectorReady  bool
 }
 
 type TextbookDailyBudget struct {
@@ -7159,21 +7172,25 @@ type TextbookDailyBudget struct {
 }
 
 type TextbookEdition struct {
-	ID                uint64
-	BookID            uint64
-	Edition           string
-	Publisher         string
-	PublicationYear   sql.NullInt16
-	Isbn              string
-	LicenseNote       string
-	Authorized        bool
-	ScopeNote         string
-	Status            string
-	CurrentRevisionID sql.NullInt64
-	CreatedBy         uint64
-	RequestKey        string
-	RequestHash       string
-	CreatedAt         time.Time
+	ID                  uint64
+	BookID              uint64
+	Edition             string
+	Publisher           string
+	PublicationYear     sql.NullInt16
+	Isbn                string
+	LicenseNote         string
+	Authorized          bool
+	ScopeNote           string
+	Status              string
+	CurrentRevisionID   sql.NullInt64
+	CreatedBy           uint64
+	RequestKey          string
+	RequestHash         string
+	CreatedAt           time.Time
+	Version             uint64
+	CurrentGenerationID sql.NullInt64
+	LicenseExpiresAt    sql.NullTime
+	ExcerptsEnabled     bool
 }
 
 type TextbookImport struct {
@@ -7206,21 +7223,59 @@ type TextbookImportPage struct {
 	PromptVersion string
 }
 
+type TextbookIndexGeneration struct {
+	ID             uint64
+	BookID         uint64
+	EditionID      uint64
+	RevisionID     uint64
+	SourceVersion  uint64
+	ContentHash    string
+	Profile        json.RawMessage
+	ProfileHash    string
+	SplitConfig    json.RawMessage
+	CollectionName string
+	Status         string
+	ChunkCount     uint32
+	Attempt        uint32
+	RetryKey       string
+	FailureMessage string
+	CreatedBy      uint64
+	RequestKey     string
+	RequestHash    string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type TextbookPublicationEvent struct {
+	ID           uint64
+	BookID       uint64
+	EditionID    uint64
+	RevisionID   sql.NullInt64
+	GenerationID sql.NullInt64
+	Action       string
+	Summary      string
+	CreatedBy    uint64
+	RequestKey   string
+	RequestHash  string
+	CreatedAt    time.Time
+}
+
 type TextbookRevision struct {
-	ID          uint64
-	EditionID   uint64
-	RevisionNo  uint64
-	Version     uint64
-	Status      string
-	Sections    json.RawMessage
-	ContentHash string
-	IndexStatus string
-	ReviewedBy  sql.NullInt64
-	ReviewedAt  sql.NullTime
-	CreatedBy   uint64
-	RequestKey  string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID                uint64
+	EditionID         uint64
+	RevisionNo        uint64
+	Version           uint64
+	Status            string
+	Sections          json.RawMessage
+	ContentHash       string
+	IndexStatus       string
+	ReviewedBy        sql.NullInt64
+	ReviewedAt        sql.NullTime
+	CreatedBy         uint64
+	RequestKey        string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	ReadyGenerationID sql.NullInt64
 }
 
 // App 用户

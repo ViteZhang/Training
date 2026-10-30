@@ -17,6 +17,7 @@ import (
 
 type Service struct {
 	imports ImportDeps
+	indexes IndexDeps
 	db      *sql.DB
 	now     func() time.Time
 }

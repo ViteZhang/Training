@@ -18,15 +18,32 @@ func textbookSections(sections []rules.TextbookSection) []gen.TextbookRevisionSe
 	return out
 }
 func textbookRevision(r textbook.Revision) gen.TextbookRevision {
-	return gen.TextbookRevision{Id: int64(r.ID), EditionId: int64(r.EditionID), RevisionNo: int64(r.RevisionNo), Version: int64(r.Version), Status: gen.TextbookRevisionStatus(r.Status), ContentHash: r.ContentHash, IndexStatus: gen.TextbookRevisionIndexStatus(r.IndexStatus), CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, Sections: textbookSections(r.Sections)}
+	out := gen.TextbookRevision{Id: int64(r.ID), EditionId: int64(r.EditionID), RevisionNo: int64(r.RevisionNo), Version: int64(r.Version), Status: gen.TextbookRevisionStatus(r.Status), ContentHash: r.ContentHash, IndexStatus: gen.TextbookRevisionIndexStatus(r.IndexStatus), CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, Sections: textbookSections(r.Sections)}
+	if r.ReadyGenerationID.Valid {
+		out.ReadyGenerationId = &r.ReadyGenerationID.Int64
+	}
+	return out
 }
 func textbookSummary(r dbq.ListTextbookRevisionsRow) gen.TextbookRevisionSummary {
-	return gen.TextbookRevisionSummary{Id: int64(r.ID), EditionId: int64(r.EditionID), RevisionNo: int64(r.RevisionNo), Version: int64(r.Version), Status: gen.TextbookRevisionSummaryStatus(r.Status), ContentHash: r.ContentHash, IndexStatus: gen.TextbookRevisionSummaryIndexStatus(r.IndexStatus), CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+	out := gen.TextbookRevisionSummary{Id: int64(r.ID), EditionId: int64(r.EditionID), RevisionNo: int64(r.RevisionNo), Version: int64(r.Version), Status: gen.TextbookRevisionSummaryStatus(r.Status), ContentHash: r.ContentHash, IndexStatus: gen.TextbookRevisionSummaryIndexStatus(r.IndexStatus), CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+	if r.ReadyGenerationID.Valid {
+		out.ReadyGenerationId = &r.ReadyGenerationID.Int64
+	}
+	return out
 }
 func textbookBook(b textbook.Book) gen.Textbook {
 	out := gen.Textbook{Id: int64(b.ID), Title: b.Title, Author: b.Author, Kind: gen.TextbookKind(b.Kind), Discipline: b.Discipline, Aliases: b.Aliases, Version: int64(b.Version), CreatedAt: b.CreatedAt, UpdatedAt: b.UpdatedAt, Editions: []gen.TextbookEdition{}}
+	if b.DefaultEditionID.Valid {
+		out.DefaultEditionId = &b.DefaultEditionID.Int64
+	}
 	for _, e := range b.Editions {
-		edition := gen.TextbookEdition{Id: int64(e.ID), BookId: int64(e.BookID), Edition: e.Edition, Publisher: e.Publisher, Isbn: e.Isbn, LicenseNote: e.LicenseNote, Authorized: e.Authorized, ScopeNote: e.ScopeNote, Status: gen.TextbookEditionStatus(e.Status), Revisions: []gen.TextbookRevisionSummary{}}
+		edition := gen.TextbookEdition{Version: ptrInt64(int64(e.Version)), ExcerptsEnabled: &e.ExcerptsEnabled, Id: int64(e.ID), BookId: int64(e.BookID), Edition: e.Edition, Publisher: e.Publisher, Isbn: e.Isbn, LicenseNote: e.LicenseNote, Authorized: e.Authorized, ScopeNote: e.ScopeNote, Status: gen.TextbookEditionStatus(e.Status), Revisions: []gen.TextbookRevisionSummary{}}
+		if e.CurrentGenerationID.Valid {
+			edition.CurrentGenerationId = &e.CurrentGenerationID.Int64
+		}
+		if e.LicenseExpiresAt.Valid {
+			edition.LicenseExpiresAt = &e.LicenseExpiresAt.Time
+		}
 		if e.PublicationYear.Valid {
 			year := int(e.PublicationYear.Int16)
 			edition.PublicationYear = &year
@@ -143,3 +160,5 @@ func (h *Handlers) SaveTextbookRevision(c *gin.Context, bookID, editionID, revis
 	}
 	c.JSON(http.StatusOK, textbookRevision(r))
 }
+
+func ptrInt64(v int64) *int64 { return &v }

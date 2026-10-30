@@ -279,7 +279,13 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 	mux.Use(h.withLogger)
 	mux.HandleFunc(TypePing, h.handlePing)
 	mux.HandleFunc(TypeTextbookImport, h.handleTextbookImport)
-	mux.HandleFunc(TypeTextbookRecover, func(ctx context.Context, _ *asynq.Task) error { return h.Textbooks.RecoverImports(ctx) })
+	mux.HandleFunc(TypeTextbookIndex, h.handleTextbookIndex)
+	mux.HandleFunc(TypeTextbookRecover, func(ctx context.Context, _ *asynq.Task) error {
+		if err := h.Textbooks.RecoverImports(ctx); err != nil {
+			return err
+		}
+		return h.Textbooks.RecoverIndexes(ctx)
+	})
 	mux.HandleFunc(TypePurgeAccounts, h.handlePurgeAccounts)
 	mux.HandleFunc(TypeExtract, h.handleExtract)
 	mux.HandleFunc(TypeImportFile, h.handleImportFile)

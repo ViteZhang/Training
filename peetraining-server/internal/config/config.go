@@ -45,7 +45,8 @@ type Config struct {
 
 	JWTSecret string
 
-	OSS OSSConfig
+	OSS      OSSConfig
+	Textbook TextbookConfig
 
 	SMS        SMSConfig
 	AI         AIConfig
@@ -226,6 +227,7 @@ func load(getenv func(string) string) (*Config, error) {
 		ExportFontPath:      get("EXPORT_FONT_PATH", "/app/fonts/DroidSansFallbackFull.ttf"),
 		ExportLatinFontPath: get("EXPORT_LATIN_FONT_PATH", "/app/fonts/DejaVuSans.ttf"),
 
+		Textbook: loadTextbook(get),
 		OSS: OSSConfig{
 			Provider:         get("OSS_PROVIDER", ProviderMock),
 			Endpoint:         get("OSS_ENDPOINT", ""),
@@ -305,6 +307,9 @@ func load(getenv func(string) string) (*Config, error) {
 	}
 
 	var errs []error
+	if err := cfg.Textbook.Validate(cfg.AppEnv); err != nil {
+		errs = append(errs, err)
+	}
 	prices, err := parsePrices(get("AI_PRICES", ""))
 	if err != nil {
 		errs = append(errs, err)

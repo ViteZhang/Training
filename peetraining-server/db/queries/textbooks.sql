@@ -46,7 +46,7 @@ SELECT * FROM textbook_editions WHERE id = ? AND book_id = ? FOR UPDATE;
 SELECT * FROM textbook_editions WHERE book_id = ? AND created_by = ? AND request_key = ?;
 
 -- name: ListTextbookRevisions :many
-SELECT id, edition_id, revision_no, version, status, content_hash, index_status, created_at, updated_at
+SELECT id, edition_id, revision_no, version, status, content_hash, index_status, ready_generation_id, created_at, updated_at
 FROM textbook_revisions WHERE edition_id = ? ORDER BY revision_no DESC;
 
 -- name: GetTextbookRevision :one
@@ -67,5 +67,5 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: SaveTextbookRevision :execrows
 UPDATE textbook_revisions SET sections = ?, content_hash = ?, status = ?, version = version + 1,
- index_status = 'stale', reviewed_by = ?, reviewed_at = ?, updated_at = ?
+ index_status = 'stale', ready_generation_id = NULL, reviewed_by = ?, reviewed_at = ?, updated_at = ?
 WHERE id = ? AND edition_id = ? AND version = ? AND status <> 'published';
