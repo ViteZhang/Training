@@ -458,6 +458,8 @@ type PaperSessionView struct {
 	Title, Kind, Mode      string
 	Status                 string
 	StartedAt              time.Time
+	SubmittedAt            *time.Time
+	GradingError           string
 	Deadline               *time.Time
 	ServerNow              time.Time
 	ElapsedSeconds         int
@@ -598,6 +600,12 @@ func (s *Service) PaperSession(ctx context.Context, userID, id uint64) (PaperSes
 	v := PaperSessionView{ID: row.ID, SubjectID: row.SubjectID, Title: row.PaperTitle, Kind: string(row.PaperKind), Mode: string(row.Mode), Status: string(row.Status),
 		StartedAt: row.StartedAt, ServerNow: now.UTC(), CheckMinutes: p.PaperTime.CheckMinutes, RemindLeftMinutes: p.PaperTime.RemindLeftMinutes,
 		FullScore: dec(row.FullScore), CountsForEstimate: row.CountsForEstimate, Reminders: []PaperReminder{}}
+	if row.SubmittedAt.Valid {
+		v.SubmittedAt = &row.SubmittedAt.Time
+	}
+	if row.Status == dbq.PaperSessionsStatusGrading {
+		v.GradingError = s.paperGradingProblem(sessionGradeTaskID(id))
+	}
 	if row.PaperID.Valid {
 		v.PaperID = uint64(row.PaperID.Int64)
 	}
@@ -674,6 +682,7 @@ func (s *Service) PaperSession(ctx context.Context, userID, id uint64) (PaperSes
 
 // ItemUpdate 是一道题的草稿、标记与停留用时。
 type ItemUpdate struct {
+	TimeTotal *int
 	Draft     *string
 	Marked    *bool
 	TimeDelta int
@@ -715,15 +724,20 @@ func (s *Service) UpdatePaperItem(ctx context.Context, userID, sessionID uint64,
 		marked = *in.Marked
 	}
 	delta := uint32(max(0, min(in.TimeDelta, 600)))
+	total := cur.TimeSpentSeconds
+	if in.TimeTotal != nil && row.Status != dbq.PaperSessionsStatusPaused {
+		total = max(total, uint32(max(0, min(*in.TimeTotal, 604800))))
+		delta = 0 // 累计时间可安全重试；旧版 delta 写法继续兼容。
+	}
 	if row.Status == dbq.PaperSessionsStatusPaused {
 		delta = 0 // 暂停时不计用时
 	}
-	if _, err := s.q.UpdatePaperItem(ctx, dbq.UpdatePaperItemParams{DraftText: draft, Marked: marked, TimeSpentSeconds: delta, PaperSessionID: sessionID,
+	if _, err := s.q.UpdatePaperItem(ctx, dbq.UpdatePaperItemParams{UpdateMarked: in.Marked != nil, DraftText: sql.NullString{String: draft.String, Valid: in.Draft != nil}, Marked: marked, TimeSpentTotal: total, TimeSpentSeconds: delta, PaperSessionID: sessionID,
 		Seq: uint16(seq), OwnerUserID: userID}); err != nil {
 		return PaperItem{}, err
 	}
 	return PaperItem{Seq: seq, Section: cur.Section, QType: cur.Qtype, Score: dec(cur.ScoreMax), QuestionID: uint64(cur.QuestionID.Int64), Stem: cur.Stem.String,
-		Draft: draft.String, Marked: marked, Answered: strings.TrimSpace(draft.String) != "", TimeSpent: int(cur.TimeSpentSeconds + delta),
+		Draft: draft.String, Marked: marked, Answered: strings.TrimSpace(draft.String) != "", TimeSpent: int(total + delta),
 		GroupLabel: cur.GroupLabel.String, GroupMajors: cur.GroupMajors.String, Passage: cur.Passage.String, PassageKey: cur.PassageKey.String}, nil
 }
 
@@ -810,13 +824,14 @@ func (s *Service) SubmitPaper(ctx context.Context, userID, sessionID uint64) (Pa
 	if err != nil {
 		return PaperSessionView{}, err
 	}
-	submitted := false
+	shouldGrade := false
 	err = s.withTx(ctx, func(q *dbq.Queries) error {
 		row, err := s.paperSessionRow(ctx, q, userID, sessionID, true)
 		if err != nil {
 			return err
 		}
 		if !open(row.Status) {
+			shouldGrade = row.Status == dbq.PaperSessionsStatusGrading
 			return nil
 		}
 		now := s.now().UTC()
@@ -844,15 +859,19 @@ func (s *Service) SubmitPaper(ctx context.Context, userID, sessionID uint64) (Pa
 				return err
 			}
 		}
-		submitted = true
+		shouldGrade = true
 		return s.quota.Settle(ctx, q, s.paperTicket(row), 1, quota.Ref{Type: "paper_session", ID: sessionID})
 	})
 	if err != nil {
 		return PaperSessionView{}, err
 	}
-	if submitted {
+	if shouldGrade {
 		if err := s.enqueueGrade(ctx, userID, sessionID); err != nil {
-			return PaperSessionView{}, err
+			// 交卷事务已经提交，不能把排队失败说成答卷未保存；返回原会话与可恢复提示。
+			logx.From(ctx).Error("paper grading enqueue failed", "session_id", sessionID, "error", err)
+			v, readErr := s.PaperSession(ctx, userID, sessionID)
+			v.GradingError = "答卷已保存，批改服务暂不可用，请稍后点恢复批改，不会重复扣次数。"
+			return v, readErr
 		}
 	}
 	return s.PaperSession(ctx, userID, sessionID)
@@ -861,6 +880,24 @@ func (s *Service) SubmitPaper(ctx context.Context, userID, sessionID uint64) (Pa
 func (s *Service) enqueueGrade(ctx context.Context, userID, sessionID uint64) error {
 	if s.queue == nil {
 		return s.GradePaper(ctx, userID, sessionID)
+	}
+	if s.gradeTasks != nil {
+		info, err := s.gradeTasks.GetTaskInfo(jobs.QueueCritical, sessionGradeTaskID(sessionID))
+		if err == nil {
+			switch info.State {
+			case asynq.TaskStateArchived, asynq.TaskStateRetry, asynq.TaskStateScheduled:
+				return s.gradeTasks.RunTask(jobs.QueueCritical, info.ID)
+			case asynq.TaskStateCompleted:
+				// Redis 标记完成而数据库仍在批改中：只清已结束的队列记录，保留答卷与已批改题。
+				if err := s.gradeTasks.DeleteTask(jobs.QueueCritical, info.ID); err != nil {
+					return err
+				}
+			default:
+				return nil // pending / active：不重复启动
+			}
+		} else if !errors.Is(err, asynq.ErrTaskNotFound) && !errors.Is(err, asynq.ErrQueueNotFound) {
+			return err
+		}
 	}
 	t, err := jobs.NewPaperGradeTask(userID, sessionID)
 	if err != nil {
@@ -1018,7 +1055,6 @@ func (s *Service) GradePaper(ctx context.Context, userID, sessionID uint64) erro
 	if b, err := s.subject(ctx, userID, row.SubjectID); err == nil {
 		subject = b.Name
 	}
-	lossAll := map[string]float64{"knowledge": 0, "norm": 0, "time": 0}
 	for i, it := range items {
 		if !it.QuestionID.Valid || it.AttemptID.Valid {
 			continue
@@ -1033,10 +1069,7 @@ func (s *Service) GradePaper(ctx context.Context, userID, sessionID uint64) erro
 		}
 		// 真题卷里还没有答案的题：一次生成 AI 参考答案，计入整卷额度、不另扣 AI 出题额度（PRD v3 11.16 第 4 条）。
 		if qr, err = s.ensureAnswer(ctx, userID, qr, false); err != nil {
-			if apperr.IsKind(err, apperr.AIFailed) {
-				continue // 生成失败的题不批改，计 0 分
-			}
-			return err
+			return err // 生成失败交给后台重试，不能把已经作答的题静默记为 0 分。
 		}
 		if rules.IsObjective(rules.QType(it.Qtype)) {
 			// 交卷时没有答案没判分的客观题，现在按 AI 给的答案判分。
@@ -1047,7 +1080,7 @@ func (s *Service) GradePaper(ctx context.Context, userID, sessionID uint64) erro
 		}
 		snap, err := s.snapshot(ctx, s.q, userID, qr)
 		if err != nil {
-			continue // 没有采分点也没有参考答案的题不批改
+			return err // 保留答卷，补齐参考答案后可以恢复批改。
 		}
 		// 整卷里每题按卷面分值批改。
 		if full := dec(it.ScoreMax); full > 0 && snap.FullScore > 0 && full != snap.FullScore {
@@ -1091,14 +1124,11 @@ func (s *Service) GradePaper(ctx context.Context, userID, sessionID uint64) erro
 		if err != nil {
 			return err
 		}
-		for _, l := range loss {
-			lossAll[l.Type] += l.Points
-		}
 	}
-	return s.finishPaper(ctx, userID, row, total, suggested, lossAll, p)
+	return s.finishPaper(ctx, userID, row, total, suggested, p)
 }
 
-func (s *Service) finishPaper(ctx context.Context, userID uint64, row dbq.PaperSession, total int, suggested map[string]int, lossAll map[string]float64, p rules.Params) error {
+func (s *Service) finishPaper(ctx context.Context, userID uint64, row dbq.PaperSession, total int, suggested map[string]int, p rules.Params) error {
 	items, err := s.q.ListPaperSessionItems(ctx, dbq.ListPaperSessionItemsParams{PaperSessionID: row.ID, OwnerUserID: userID})
 	if err != nil {
 		return err
@@ -1111,6 +1141,29 @@ func (s *Service) finishPaper(ctx context.Context, userID uint64, row dbq.PaperS
 	for _, r := range rates {
 		if f := dec(r.Full); f > 0 {
 			avg[rules.QType(r.Qtype)] = dec(r.Got) / f
+		}
+	}
+	// 任务中途失败后会跳过已批改的题，失分归因必须从持久结果重建，不能只累加本轮处理的题。
+	lossAll := map[string]float64{"knowledge": 0, "norm": 0, "time": 0}
+	for _, it := range items {
+		if !it.AttemptID.Valid {
+			continue
+		}
+		g, err := s.q.LatestDoneGrading(ctx, dbq.LatestDoneGradingParams{AttemptID: uint64(it.AttemptID.Int64), OwnerUserID: userID})
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		var loss map[string]LossItem
+		if len(g.Loss) > 0 {
+			if err := json.Unmarshal(g.Loss, &loss); err != nil {
+				return err
+			}
+		}
+		for _, l := range loss {
+			lossAll[l.Type] += l.Points
 		}
 	}
 	rep := PaperReport{Loss: lossAll, PaperFull: dec(row.FullScore), TotalMinutes: total}

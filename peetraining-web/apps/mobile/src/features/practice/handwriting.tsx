@@ -64,7 +64,7 @@ export function Highlighted({ text, ranges }: { text: string; ranges: Schemas['T
 }
 
 /** 拍照与 4.5 核对。onConfirm 交给批改；onCancel 回到打字作答。 */
-export function HandwritingFlow({ onConfirm, onCancel, onStart }: { onConfirm: (text: string, keys: string[]) => void; onCancel: () => void; onStart?: () => void }) {
+export function HandwritingFlow({ onConfirm, onCancel, onStart, confirmLabel = '确认并提交批改' }: { confirmLabel?: string; onConfirm: (text: string, keys: string[]) => void; onCancel: () => void; onStart?: () => void }) {
   const [shots, setShots] = useState<Shot[]>([]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ keys: string[]; recognized: Recognized }>();
@@ -105,7 +105,7 @@ export function HandwritingFlow({ onConfirm, onCancel, onStart }: { onConfirm: (
     }
   };
 
-  if (busy) return <AIGenerating steps={['上传照片', '识别手写文字', '标出不确定的字词']} current={1} eta="每张大约 10 秒" />;
+  if (busy) return <AIGenerating steps={['上传照片', '大模型识别手写文字', '标出不确定的字词']} current={1} eta="照片较多时识别需要更长时间，请稍候" />;
   if (!result) {
     return (
       <View style={styles.gap}>
@@ -140,7 +140,8 @@ export function HandwritingFlow({ onConfirm, onCancel, onStart }: { onConfirm: (
         <Button title="再拍一张（续写）" kind="secondary" style={styles.flex} onPress={() => void capture(true)} />
         <Button title="重拍" kind="secondary" style={styles.flex} onPress={() => void capture(false)} />
       </View>
-      <Button title="确认并提交批改" disabled={!text.trim()} onPress={() => onConfirm(text, result.keys)} />
+      <Button title="返回作答" kind="text" onPress={onCancel} />
+      <Button title={confirmLabel} disabled={!text.trim()} onPress={() => onConfirm(text, result.keys)} />
       {camera.element}
     </View>
   );

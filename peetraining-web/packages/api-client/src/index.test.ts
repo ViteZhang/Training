@@ -151,4 +151,30 @@ describe('unwrap', () => {
     expect(error).toMatchObject({ status: 0, code: 'NETWORK', isNetwork: true, isTimeout: true });
     expect((error as ApiError).originalCause).toBeInstanceOf(Error);
   });
+  it('按请求选择等待时间，识别请求仍带鉴权和幂等键', async () => {
+    const seen: Request[] = [];
+    const selectTimeout = vi.fn((request: Request) => request.url.endsWith('/handwriting/recognize') ? 2000 : 5);
+    const client = createApiClient({
+      baseUrl: 'https://x.test/api/v1',
+      getAccessToken: () => 'token',
+      newIdempotencyKey: () => 'photo-key',
+      requestTimeoutMs: selectTimeout,
+      fetch: async (input) => {
+        const request = input as Request;
+        seen.push(request);
+        if (request.url.endsWith('/handwriting/recognize')) {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+          return jsonResponse(200, { text: '手写答案', pages: [], low_confidence: [], uncertain_count: 0 });
+        }
+        return new Promise<Response>(() => undefined);
+      },
+    });
+    await expect(unwrap(client.POST('/handwriting/recognize', { body: { object_keys: ['u/1/hw/a.jpg'] } })))
+      .resolves.toMatchObject({ text: '手写答案' });
+    await expect(unwrap(client.GET('/subjects'))).rejects.toMatchObject({ isTimeout: true });
+    expect(selectTimeout).toHaveBeenCalledTimes(2);
+    expect(seen[0]?.headers.get('Authorization')).toBe('Bearer token');
+    expect(seen[0]?.headers.get('Idempotency-Key')).toBe('photo-key');
+  });
+
 });

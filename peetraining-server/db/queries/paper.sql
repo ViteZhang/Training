@@ -79,8 +79,10 @@ ORDER BY i.seq;
 
 -- name: UpdatePaperItem :execrows
 UPDATE paper_session_items i JOIN paper_sessions s ON s.id = i.paper_session_id
-SET i.draft_text = ?, i.marked = ?, i.time_spent_seconds = i.time_spent_seconds + ?
-WHERE i.paper_session_id = ? AND i.seq = ? AND s.owner_user_id = ?;
+SET i.draft_text = COALESCE(sqlc.narg(draft_text), i.draft_text),
+  i.marked = CASE WHEN sqlc.arg(update_marked) THEN sqlc.arg(marked) ELSE i.marked END,
+  i.time_spent_seconds = GREATEST(i.time_spent_seconds, sqlc.arg(time_spent_total)) + sqlc.arg(time_spent_seconds)
+WHERE i.paper_session_id = ? AND i.seq = ? AND s.owner_user_id = ? AND s.status IN ('in_progress', 'paused');
 
 -- name: SetPaperItemAttempt :exec
 UPDATE paper_session_items i JOIN paper_sessions s ON s.id = i.paper_session_id
@@ -130,3 +132,12 @@ GROUP BY q.qtype;
 INSERT INTO attempts (owner_user_id, question_id, paper_session_id, answer_mode, selected, answer_text, is_correct, score, full_score,
   duration_seconds, timed, answered_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: ListPaperHistory :many
+SELECT s.id, s.paper_title, s.paper_kind, s.mode, s.status, s.started_at, s.submitted_at, s.score, s.full_score,
+  (SELECT COUNT(*) FROM paper_session_items i WHERE i.paper_session_id = s.id) AS total,
+  (SELECT COUNT(*) FROM paper_session_items i WHERE i.paper_session_id = s.id AND TRIM(COALESCE(i.draft_text, '')) <> '') AS answered
+FROM paper_sessions s
+WHERE s.owner_user_id = sqlc.arg(owner_user_id) AND s.subject_id = sqlc.arg(subject_id)
+  AND s.id < sqlc.arg(before_id)
+ORDER BY s.id DESC LIMIT ?;

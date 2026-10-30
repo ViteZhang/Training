@@ -58,7 +58,7 @@ export function useGradingRemaining() {
   return Math.max(item.limit - item.used, 0);
 }
 
-function Tool({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+export function Tool({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={styles.tool}>
       <Icon name={icon} size={16} />

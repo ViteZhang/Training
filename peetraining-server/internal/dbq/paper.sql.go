@@ -600,6 +600,77 @@ func (q *Queries) ListBankPapers(ctx context.Context, arg ListBankPapersParams) 
 	return items, nil
 }
 
+const listPaperHistory = `-- name: ListPaperHistory :many
+SELECT s.id, s.paper_title, s.paper_kind, s.mode, s.status, s.started_at, s.submitted_at, s.score, s.full_score,
+  (SELECT COUNT(*) FROM paper_session_items i WHERE i.paper_session_id = s.id) AS total,
+  (SELECT COUNT(*) FROM paper_session_items i WHERE i.paper_session_id = s.id AND TRIM(COALESCE(i.draft_text, '')) <> '') AS answered
+FROM paper_sessions s
+WHERE s.owner_user_id = ? AND s.subject_id = ?
+  AND s.id < ?
+ORDER BY s.id DESC LIMIT ?
+`
+
+type ListPaperHistoryParams struct {
+	OwnerUserID uint64
+	SubjectID   uint64
+	BeforeID    uint64
+	Limit       int32
+}
+
+type ListPaperHistoryRow struct {
+	ID          uint64
+	PaperTitle  string
+	PaperKind   PaperSessionsPaperKind
+	Mode        PaperSessionsMode
+	Status      PaperSessionsStatus
+	StartedAt   time.Time
+	SubmittedAt sql.NullTime
+	Score       sql.NullString
+	FullScore   string
+	Total       int64
+	Answered    int64
+}
+
+func (q *Queries) ListPaperHistory(ctx context.Context, arg ListPaperHistoryParams) ([]ListPaperHistoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPaperHistory,
+		arg.OwnerUserID,
+		arg.SubjectID,
+		arg.BeforeID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPaperHistoryRow{}
+	for rows.Next() {
+		var i ListPaperHistoryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PaperTitle,
+			&i.PaperKind,
+			&i.Mode,
+			&i.Status,
+			&i.StartedAt,
+			&i.SubmittedAt,
+			&i.Score,
+			&i.FullScore,
+			&i.Total,
+			&i.Answered,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPaperQuestions = `-- name: ListPaperQuestions :many
 SELECT pq.seq, pq.question_id, pq.section, pq.score, q.qtype, q.source FROM paper_questions pq
 JOIN questions q ON q.id = pq.question_id JOIN papers p ON p.id = pq.paper_id
@@ -932,13 +1003,17 @@ func (q *Queries) SubmitPaperSession(ctx context.Context, arg SubmitPaperSession
 
 const updatePaperItem = `-- name: UpdatePaperItem :execrows
 UPDATE paper_session_items i JOIN paper_sessions s ON s.id = i.paper_session_id
-SET i.draft_text = ?, i.marked = ?, i.time_spent_seconds = i.time_spent_seconds + ?
-WHERE i.paper_session_id = ? AND i.seq = ? AND s.owner_user_id = ?
+SET i.draft_text = COALESCE(?, i.draft_text),
+  i.marked = CASE WHEN ? THEN ? ELSE i.marked END,
+  i.time_spent_seconds = GREATEST(i.time_spent_seconds, ?) + ?
+WHERE i.paper_session_id = ? AND i.seq = ? AND s.owner_user_id = ? AND s.status IN ('in_progress', 'paused')
 `
 
 type UpdatePaperItemParams struct {
 	DraftText        sql.NullString
+	UpdateMarked     bool
 	Marked           bool
+	TimeSpentTotal   interface{}
 	TimeSpentSeconds uint32
 	PaperSessionID   uint64
 	Seq              uint16
@@ -948,7 +1023,9 @@ type UpdatePaperItemParams struct {
 func (q *Queries) UpdatePaperItem(ctx context.Context, arg UpdatePaperItemParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updatePaperItem,
 		arg.DraftText,
+		arg.UpdateMarked,
 		arg.Marked,
+		arg.TimeSpentTotal,
 		arg.TimeSpentSeconds,
 		arg.PaperSessionID,
 		arg.Seq,
