@@ -56,7 +56,7 @@ eval:
 
 ## eval-all：依次跑全部评测（有一项不达标时退出码非 0，但会跑完）
 eval-all:
-	@fail=0; for c in import kp rubric grading essay ocr; do echo "== $$c"; go run ./cmd/eval -cap=$$c $(args) || fail=1; done; exit $$fail
+	@fail=0; for c in import kp rubric grading essay ocr textbook-ocr; do echo "== $$c"; go run ./cmd/eval -cap=$$c $(args) || fail=1; done; exit $$fail
 
 build:
 	mkdir -p bin

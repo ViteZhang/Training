@@ -13,7 +13,7 @@ import (
 func textbookSections(sections []rules.TextbookSection) []gen.TextbookRevisionSection {
 	out := make([]gen.TextbookRevisionSection, len(sections))
 	for i, s := range sections {
-		out[i] = gen.TextbookRevisionSection{Heading: s.Heading, Text: s.Text, SourcePage: s.SourcePage, PrintedPage: s.PrintedPage}
+		out[i] = gen.TextbookRevisionSection{Heading: s.Heading, Text: s.Text, SourcePage: s.SourcePage, PrintedPage: s.PrintedPage, SourceImportId: s.SourceImportID, NeedsReview: &s.NeedsReview}
 	}
 	return out
 }
@@ -134,7 +134,7 @@ func (h *Handlers) SaveTextbookRevision(c *gin.Context, bookID, editionID, revis
 	}
 	sections := make([]rules.TextbookSection, len(body.Sections))
 	for i, s := range body.Sections {
-		sections[i] = rules.TextbookSection{Heading: s.Heading, Text: s.Text, SourcePage: s.SourcePage, PrintedPage: s.PrintedPage}
+		sections[i] = rules.TextbookSection{Heading: s.Heading, Text: s.Text, SourcePage: s.SourcePage, PrintedPage: s.PrintedPage, SourceImportID: s.SourceImportId, NeedsReview: s.NeedsReview != nil && *s.NeedsReview}
 	}
 	r, err := h.deps.Textbooks.SaveRevision(c.Request.Context(), uint64(bookID), uint64(editionID), uint64(revisionID), currentAdmin(c).ID, uint64(body.ExpectedVersion), sections, body.MarkReviewed)
 	if err != nil {

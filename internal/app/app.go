@@ -23,6 +23,7 @@ import (
 	"peetraining-server/internal/auth"
 	"peetraining-server/internal/bank"
 	"peetraining-server/internal/cloud"
+	"peetraining-server/internal/cloud/ocr"
 	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/cloud/pay"
 	"peetraining-server/internal/config"
@@ -186,6 +187,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	base.Admin = admin.New(admin.Deps{DB: db, Redis: rdb, SMS: clients.SMS, OSS: clients.OSS, Params: ps, Quota: qs, Notify: base.Notify, Payment: base.Payment,
 		Import: imp, Log: log, Invalidate: []admin.Invalidator{ps, fl}, LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock})
 	base.Textbooks = textbook.New(db)
+	base.Textbooks.ConfigureImports(textbook.ImportDeps{OSS: clients.OSS, AI: engine, Renderer: ocr.NewPDFium(nil), Queue: queue, Params: ps})
 	base.Official = official.New(official.Deps{DB: db, AI: engine, Log: log})
 	return base, nil
 }
@@ -323,7 +325,7 @@ func NewWorker(b *Base) (*Worker, error) {
 	if err := jobs.RegisterSchedules(scheduler); err != nil {
 		return nil, fmt.Errorf("注册定时任务：%w", err)
 	}
-	h := &jobs.Handlers{Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice, Voice: b.Practice, Essay: b.Essay, Export: b.Export, Notify: b.Notify, Stats: b.Admin,
+	h := &jobs.Handlers{Textbooks: b.Textbooks, Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice, Voice: b.Practice, Essay: b.Essay, Export: b.Export, Notify: b.Notify, Stats: b.Admin,
 		Monitor: monitor.New(monitor.Deps{DB: b.DB, Redis: b.Redis, Queues: asynq.NewInspector(opt), Names: []string{jobs.QueueCritical, jobs.QueueDefault, jobs.QueueLow},
 			Cost: b.Admin, Log: b.Logger, Webhook: b.Config.AlertWebhookURL})}
 	return &Worker{server: server, scheduler: scheduler, mux: h.Mux()}, nil

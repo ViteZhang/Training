@@ -28,10 +28,12 @@ type TextbookEditionInput struct {
 	ScopeNote       string `json:"scope_note"`
 }
 type TextbookSection struct {
-	Heading     string  `json:"heading"`
-	Text        string  `json:"text"`
-	SourcePage  *int    `json:"source_page,omitempty"`
-	PrintedPage *string `json:"printed_page,omitempty"`
+	SourceImportID *int64  `json:"source_import_id,omitempty"`
+	NeedsReview    bool    `json:"needs_review,omitempty"`
+	Heading        string  `json:"heading"`
+	Text           string  `json:"text"`
+	SourcePage     *int    `json:"source_page,omitempty"`
+	PrintedPage    *string `json:"printed_page,omitempty"`
 }
 
 func boundedText(v string, min, max int) bool {

@@ -46,7 +46,7 @@ import (
 	"peetraining-server/internal/importer"
 )
 
-var capabilities = []string{"import", "kp", "rubric", "grading", "essay", "ocr"}
+var capabilities = []string{"import", "kp", "rubric", "grading", "essay", "ocr", "textbook-ocr"}
 
 type sample struct {
 	Name      string          `json:"name"`
@@ -87,6 +87,8 @@ func capOf(capability string) string {
 		return ai.Grade.Name
 	case "essay":
 		return ai.EssayGrade.Name
+	case "textbook-ocr":
+		return ai.RecognizeTextbook.Name
 	case "ocr":
 		return ai.RecognizeHandwriting.Name
 	}
@@ -228,6 +230,8 @@ func run(ctx context.Context, o opts) (bool, error) {
 		r, err = evalGrading(ctx, engine, samples)
 	case "essay":
 		r, err = evalEssay(ctx, engine, samples)
+	case "textbook-ocr":
+		r, err = evalTextbookOCR(ctx, engine, base, samples)
 	case "ocr":
 		r, err = evalOCR(ctx, engine, clients.OCR, base, samples, st)
 	default:
@@ -675,4 +679,35 @@ func evalEssay(ctx context.Context, e *ai.Engine, samples []sample) (result, err
 		dev*100, close10, total, verdict(dev, 0.75), con*100, consistent, total, verdict(con, 1), failed)
 	fmt.Println(m)
 	return result{pass: dev >= 0.75 && con >= 1, metrics: m}, nil
+}
+
+// evalTextbookOCR 与正式识别共用视觉能力；mock 的 UTF-8 页仅验证流程，不代表真实图片效果。
+func evalTextbookOCR(ctx context.Context, engine *ai.Engine, base string, samples []sample) (result, error) {
+	chars, edits, failed := 0, 0, 0
+	for _, s := range samples {
+		data, err := os.ReadFile(filepath.Join(base, filepath.Clean("/"+s.File))) //nolint:gosec // 路径限定在评测目录
+		if err != nil {
+			return result{}, err
+		}
+		out, _, err := ai.RecognizeTextbook.Run(ctx, engine, 0, ai.TextbookPageIn{PageNo: 1, Image: cloudai.Image{Data: data}})
+		want := []rune(ocrNormalize(s.Text))
+		chars += len(want)
+		if err != nil {
+			failed++
+			edits += len(want)
+			continue
+		}
+		var text strings.Builder
+		for _, b := range out.Blocks {
+			text.WriteString(b.Text)
+		}
+		edits += editDistance(want, []rune(ocrNormalize(text.String())))
+	}
+	accuracy := 1 - pct(edits, chars)
+	if chars == 0 {
+		accuracy = 0
+	}
+	metrics := fmt.Sprintf("教材字准确率 %.1f%%（%d 字）；失败 %d 页", accuracy*100, chars, failed)
+	fmt.Println(metrics)
+	return result{pass: accuracy >= 0.95 && failed == 0, metrics: metrics}, nil
 }

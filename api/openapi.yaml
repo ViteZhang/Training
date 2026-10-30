@@ -6509,6 +6509,528 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /admin/textbook-import-settings:
+    get:
+      tags:
+      - admin
+      operationId: getTextbookImportSettings
+      summary: 教材导入限制
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImportSettings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports:
+    get:
+      tags:
+      - admin
+      operationId: listTextbookImports
+      summary: 导入任务列表
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TextbookImport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+      - admin
+      operationId: createTextbookImport
+      summary: 申请私有文件直传
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImportUpload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookImportCreate'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}:
+    get:
+      tags:
+      - admin
+      operationId: getTextbookImport
+      summary: 导入进度
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/commit:
+    post:
+      tags:
+      - admin
+      operationId: commitTextbookImport
+      summary: 确认上传并排队
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - idempotency_key
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/retry:
+    post:
+      tags:
+      - admin
+      operationId: retryTextbookImport
+      summary: 重试失败任务
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - idempotency_key
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/apply:
+    post:
+      tags:
+      - admin
+      operationId: applyTextbookImport
+      summary: 明确采用识别结果写入草稿
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookRevision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookImportApply'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/pages/{pageNo}:
+    get:
+      tags:
+      - admin
+      operationId: getTextbookImportPage
+      summary: 读取指定页识别原文和私有页图
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: pageNo
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImportPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/upload:
+    post:
+      tags:
+      - admin
+      operationId: renewTextbookImportUpload
+      summary: 恢复未完成的原件上传
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImportUpload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 components:
   securitySchemes:
     bearerAuth:
@@ -6699,6 +7221,12 @@ components:
       - heading
       - text
       properties:
+        source_import_id:
+          type: integer
+          format: int64
+          minimum: 1
+        needs_review:
+          type: boolean
         heading:
           type: string
           maxLength: 512
@@ -7072,6 +7600,184 @@ components:
         updated_at:
           type: string
           format: date-time
+    TextbookImportSettings:
+      type: object
+      required:
+      - max_concurrent_imports
+      - max_file_mb
+      - max_pages
+      - max_imports_per_revision
+      - max_daily_pdf_pages
+      properties:
+        max_concurrent_imports:
+          type: integer
+          minimum: 1
+          maximum: 4
+        max_file_mb:
+          type: integer
+          minimum: 1
+        max_pages:
+          type: integer
+          minimum: 1
+        max_imports_per_revision:
+          type: integer
+          minimum: 1
+        max_daily_pdf_pages:
+          type: integer
+          minimum: 1
+    TextbookImportCreate:
+      type: object
+      required:
+      - file_name
+      - format
+      - size
+      - sha256
+      - idempotency_key
+      properties:
+        file_name:
+          type: string
+          maxLength: 255
+        format:
+          type: string
+          enum:
+          - pdf
+          - docx
+          - md
+          - txt
+        size:
+          type: integer
+          format: int64
+          minimum: 1
+        sha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 128
+    TextbookImport:
+      type: object
+      required:
+      - can_reupload
+      - id
+      - revision_id
+      - file_name
+      - format
+      - status
+      - page_count
+      - completed_pages
+      - uncertain_pages
+      - attempt
+      - created_at
+      - updated_at
+      properties:
+        can_reupload:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        revision_id:
+          type: integer
+          format: int64
+          minimum: 1
+        file_name:
+          type: string
+        format:
+          type: string
+        status:
+          type: string
+          enum:
+          - uploading
+          - queued
+          - processing
+          - ready
+          - failed
+          - applied
+        page_count:
+          type: integer
+        completed_pages:
+          type: integer
+        uncertain_pages:
+          type: integer
+        attempt:
+          type: integer
+        failure_message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TextbookImportUpload:
+      type: object
+      required:
+      - job
+      - upload_url
+      - upload_headers
+      - expires_at
+      properties:
+        job:
+          $ref: '#/components/schemas/TextbookImport'
+        upload_url:
+          type: string
+        upload_headers:
+          type: object
+          additionalProperties:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+    TextbookImportPage:
+      type: object
+      required:
+      - page_no
+      - blank
+      - blocks
+      properties:
+        page_no:
+          type: integer
+          minimum: 1
+        blank:
+          type: boolean
+        printed_page:
+          type: string
+          maxLength: 32
+        image_url:
+          type: string
+        blocks:
+          type: array
+          items:
+            type: object
+            required:
+            - heading
+            - text
+            - uncertain
+            properties:
+              heading:
+                type: string
+                maxLength: 512
+              text:
+                type: string
+                maxLength: 100000
+              uncertain:
+                type: boolean
+    TextbookImportApply:
+      type: object
+      required:
+      - expected_version
+      - mode
+      properties:
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+        mode:
+          type: string
+          enum:
+          - append
+          - replace
     PaperKind:
       type: string
       description: 真题卷 / AI 标准卷 / AI 针对卷

@@ -16,8 +16,9 @@ import (
 )
 
 type Service struct {
-	db  *sql.DB
-	now func() time.Time
+	imports ImportDeps
+	db      *sql.DB
+	now     func() time.Time
 }
 
 func New(db *sql.DB) *Service { return &Service{db: db, now: time.Now} }
@@ -303,6 +304,13 @@ func (s *Service) NewRevision(ctx context.Context, book, edition, actor uint64, 
 	return decodeRevision(out)
 }
 func (s *Service) SaveRevision(ctx context.Context, book, edition, id, actor, version uint64, sections []rules.TextbookSection, reviewed bool) (Revision, error) {
+	if reviewed {
+		for _, section := range sections {
+			if section.NeedsReview {
+				return Revision{}, apperr.New(apperr.BadRequest, "请先核对并确认所有不确定的原文单元")
+			}
+		}
+	}
 	sections, err := rules.NormalizeTextbookSections(sections)
 	if err != nil {
 		return Revision{}, err
@@ -322,6 +330,23 @@ func (s *Service) SaveRevision(ctx context.Context, book, edition, id, actor, ve
 		}
 		if r.Status == "published" {
 			return apperr.New(apperr.Conflict, "已发布原文不能覆盖，请创建新修订")
+		}
+		for _, sec := range sections {
+			if sec.SourceImportID != nil {
+				if *sec.SourceImportID < 1 || sec.SourcePage == nil || *sec.SourcePage < 1 {
+					return apperr.New(apperr.BadRequest, "导入来源与页序不完整")
+				}
+				j, err := q.GetTextbookImport(ctx, dbq.GetTextbookImportParams{ID: uint64(*sec.SourceImportID), RevisionID: id})
+				if err != nil {
+					return err
+				}
+				if j.Status != "applied" {
+					return apperr.New(apperr.BadRequest, "来源文件尚未采用")
+				}
+				if _, err = q.GetTextbookImportPage(ctx, dbq.GetTextbookImportPageParams{ImportID: j.ID, PageNo: uint32(*sec.SourcePage)}); err != nil {
+					return err
+				}
+			}
 		}
 		status := "draft"
 		if reviewed {

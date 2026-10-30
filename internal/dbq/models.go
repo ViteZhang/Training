@@ -7153,6 +7153,11 @@ type Textbook struct {
 	UpdatedAt   time.Time
 }
 
+type TextbookDailyBudget struct {
+	BudgetDay time.Time
+	PdfPages  uint32
+}
+
 type TextbookEdition struct {
 	ID                uint64
 	BookID            uint64
@@ -7169,6 +7174,36 @@ type TextbookEdition struct {
 	RequestKey        string
 	RequestHash       string
 	CreatedAt         time.Time
+}
+
+type TextbookImport struct {
+	ID             uint64
+	RevisionID     uint64
+	FileName       string
+	Format         string
+	SizeBytes      int64
+	Sha256         string
+	Status         string
+	PageCount      uint32
+	Attempt        uint32
+	FailureMessage string
+	Sealed         bool
+	RetryKey       string
+	AppliedMode    string
+	CreatedBy      uint64
+	RequestKey     string
+	RequestHash    string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type TextbookImportPage struct {
+	ImportID      uint64
+	PageNo        uint32
+	Payload       json.RawMessage
+	Uncertain     bool
+	Model         string
+	PromptVersion string
 }
 
 type TextbookRevision struct {
