@@ -13,6 +13,12 @@ import (
 type Message struct {
 	Role    string // system / user / assistant
 	Content string
+	Images  []Image
+}
+
+// Image 是私有图片内容；仅用于请求，不记录到调用日志。
+type Image struct {
+	Data []byte
 }
 
 // Request 是一次模型调用。

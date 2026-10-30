@@ -16,7 +16,6 @@ import (
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/cloud/asr"
 	"peetraining-server/internal/cloud/moderation"
-	"peetraining-server/internal/cloud/ocr"
 	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/params"
@@ -55,11 +54,11 @@ type Service struct {
 	ai         *ai.Engine
 	quota      *quota.Service
 	oss        oss.Store
-	ocr        ocr.Recognizer
 	moderation moderation.Checker
 	asr        asr.Transcriber
 	flags      FlagChecker
 	queue      Enqueuer
+	gradeTasks PaperGradeTasks
 	score      Estimator
 	now        func() time.Time
 }
@@ -83,13 +82,14 @@ type Deps struct {
 	Quota  *quota.Service
 	// 拍手写稿（T19）：照片直传、内容安全检查、手写识别。
 	OSS        oss.Store
-	OCR        ocr.Recognizer
 	Moderation moderation.Checker
 	// 口述背诵（T20，功能开关 oral_recite）：语音识别。
 	ASR   asr.Transcriber
 	Flags FlagChecker
 	// Queue 排整卷批改与模拟考试自动交卷任务（T21）；为空时交卷后同步批改。
 	Queue Enqueuer
+	// GradeTasks 读取持久队列状态并恢复重试耗尽的整卷任务。
+	GradeTasks PaperGradeTasks
 	// Score 重算预估分（T22）；为空时不重算。
 	Score Estimator
 	Now   func() time.Time
@@ -100,7 +100,7 @@ func New(d Deps) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{db: d.DB, q: dbq.New(d.DB), params: d.Params, plan: d.Plan, ai: d.AI, quota: d.Quota, oss: d.OSS, ocr: d.OCR, moderation: d.Moderation, asr: d.ASR, flags: d.Flags, queue: d.Queue, score: d.Score, now: now}
+	return &Service{db: d.DB, q: dbq.New(d.DB), params: d.Params, plan: d.Plan, ai: d.AI, quota: d.Quota, oss: d.OSS, moderation: d.Moderation, asr: d.ASR, flags: d.Flags, queue: d.Queue, gradeTasks: d.GradeTasks, score: d.Score, now: now}
 }
 
 func (s *Service) today() rules.Day { return rules.DayOf(s.now()) }

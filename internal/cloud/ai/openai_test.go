@@ -131,3 +131,64 @@ func TestOpenAIStream(t *testing.T) {
 		t.Fatalf("超过总时长应报错：%v", err)
 	}
 }
+
+func TestOpenAIMultimodalContent(t *testing.T) {
+	var got chatRequest
+	hits := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Error(err)
+		}
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"{}"}}]}`))
+	}))
+	defer srv.Close()
+	image := []byte{0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10}
+	c := NewOpenAI(srv.URL, "test")
+	_, err := c.Complete(context.Background(), Request{Messages: []Message{
+		{Role: "system", Content: "literal transcription"},
+		{Role: "user", Content: "two pages", Images: []Image{{Data: image}, {Data: image}}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Messages[0].Content != "literal transcription" {
+		t.Fatalf("原有文字请求格式改变：%+v", got.Messages[0])
+	}
+	parts, ok := got.Messages[1].Content.([]any)
+	if !ok || len(parts) != 3 {
+		t.Fatalf("多图消息：%+v", got.Messages[1])
+	}
+	if parts[0].(map[string]any)["text"] != "two pages" {
+		t.Fatal("缺少文字指令")
+	}
+	for _, p := range parts[1:] {
+		part := p.(map[string]any)
+		img := part["image_url"].(map[string]any)
+		if part["type"] != "image_url" || img["detail"] != "high" || img["url"] != "data:image/jpeg;base64,/9j/4AAQ" {
+			t.Fatalf("图片没有按私有字节传输：%+v", part)
+		}
+	}
+	_, err = c.Complete(context.Background(), Request{Messages: []Message{{Role: "user", Images: []Image{{Data: []byte("not an image")}}}}})
+	if !errors.Is(err, ErrBadImage) || hits != 1 {
+		t.Fatalf("无效图片必须在调用平台前拒绝：hits=%d err=%v", hits, err)
+	}
+}
+
+func TestImageMIME(t *testing.T) {
+	for _, tc := range []struct {
+		data []byte
+		want string
+	}{
+		{[]byte("\x89PNG\r\n\x1a\n"), "image/png"},
+		{[]byte("RIFF\x00\x00\x00\x00WEBPVP8 "), "image/webp"},
+		{[]byte("\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic"), "image/heic"},
+		{[]byte("\x00\x00\x00\x18ftypmif1\x00\x00\x00\x00heicmif1"), "image/heic"},
+		{[]byte("\x00\x00\x00\x18ftypavif\x00\x00\x00\x00mif1avif"), ""},
+		{[]byte("not-an-image"), ""},
+	} {
+		if got := imageMIME(tc.data); got != tc.want {
+			t.Fatalf("MIME=%q want=%q", got, tc.want)
+		}
+	}
+}

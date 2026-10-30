@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -53,10 +55,10 @@ var ErrRateLimited = errors.New("ai: 平台限流或暂时不可用")
 var ErrIdleTimeout = errors.New("ai: 模型长时间没有输出")
 
 type chatRequest struct {
-	Model         string        `json:"model"`
-	Messages      []chatMessage `json:"messages"`
-	Temperature   float64       `json:"temperature"`
-	Stream        bool          `json:"stream,omitempty"`
+	Model         string             `json:"model"`
+	Messages      []chatInputMessage `json:"messages"`
+	Temperature   float64            `json:"temperature"`
+	Stream        bool               `json:"stream,omitempty"`
 	StreamOptions *struct {
 		IncludeUsage bool `json:"include_usage"`
 	} `json:"stream_options,omitempty"`
@@ -64,6 +66,48 @@ type chatRequest struct {
 		Type string `json:"type"`
 	} `json:"response_format,omitempty"`
 	EnableThinking *bool `json:"enable_thinking,omitempty"`
+}
+
+type chatInputMessage struct {
+	Role    string `json:"role"`
+	Content any    `json:"content"`
+}
+
+type imageURL struct {
+	URL    string `json:"url"`
+	Detail string `json:"detail"`
+}
+
+type contentPart struct {
+	Type     string    `json:"type"`
+	Text     string    `json:"text,omitempty"`
+	ImageURL *imageURL `json:"image_url,omitempty"`
+}
+
+// ErrBadImage 表示图片内容不是可发送给视觉模型的格式。
+var ErrBadImage = errors.New("ai: 图片须为 JPG、PNG、HEIC 或 WebP 格式")
+
+// imageMIME 验证文件头；HEIC 使用 ISO-BMFF 文件类型标识，Go 的标准嗅探器尚不能识别。
+func imageMIME(data []byte) string {
+	mime := http.DetectContentType(data)
+	if mime == "image/jpeg" || mime == "image/png" || mime == "image/webp" {
+		return mime
+	}
+	if len(data) >= 16 && string(data[4:8]) == "ftyp" {
+		size := int(binary.BigEndian.Uint32(data[:4]))
+		if size >= 16 && size <= len(data) {
+			for i := 8; i+4 <= size; i += 4 {
+				if i == 12 {
+					continue
+				} // minor_version 不是文件类型。
+				switch string(data[i : i+4]) {
+				case "heic", "heix", "hevc", "hevx":
+					return "image/heic"
+				}
+			}
+		}
+	}
+	return ""
 }
 
 type chatMessage struct {
@@ -108,7 +152,21 @@ func (c *OpenAI) Complete(ctx context.Context, req Request) (Response, error) {
 		IncludeUsage bool `json:"include_usage"`
 	}{IncludeUsage: true}
 	for _, m := range req.Messages {
-		body.Messages = append(body.Messages, chatMessage(m))
+		msg := chatInputMessage{Role: m.Role, Content: m.Content}
+		if len(m.Images) > 0 {
+			parts := []contentPart{{Type: "text", Text: m.Content}}
+			for _, img := range m.Images {
+				mime := imageMIME(img.Data)
+				if mime == "" {
+					return Response{}, ErrBadImage
+				}
+				parts = append(parts, contentPart{Type: "image_url", ImageURL: &imageURL{
+					URL: "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(img.Data), Detail: "high",
+				}})
+			}
+			msg.Content = parts
+		}
+		body.Messages = append(body.Messages, msg)
 	}
 	if req.JSONMode {
 		body.ResponseFormat = &struct {

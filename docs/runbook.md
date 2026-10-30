@@ -102,7 +102,7 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
 | `JWT_SECRET` | 在安全终端运行 `openssl rand -hex 32` 生成 | 必填；不要重复使用本地开发值 |
 | `BAILIAN_API_KEY` | 百炼 API Key | 使用 AI 时必填；模板默认选择已接入的百炼客户端 |
 | `SMS_*` | `SMS_PROVIDER=aliyun`，审核通过的 `SMS_SIGN_NAME`、`SMS_TEMPLATE_CODE`；模板变量不是 `code` 时设 `SMS_TEMPLATE_PARAM` | 必填（短信登录）；凭证用 `ALIYUN_ACCESS_KEY_ID` / `SECRET`，见下方「阿里云短信」 |
-| `OSS_*`、`OCR_*`、`MODERATION_*` | 已接入阿里云，设为 `aliyun` 并按下方「OSS、文字识别、内容安全」开通；PDF 文字层由内嵌 PDFium 解析 | 资料上传与解析必填 OSS 与内容安全；照片与扫描版 PDF 另需文字识别 |
+| `OSS_*`、`OCR_*`、`MODERATION_*` | 已接入阿里云，设为 `aliyun` 并按下方「OSS、文字识别、内容安全」开通；PDF 文字层由内嵌 PDFium 解析 | 资料上传与解析必填 OSS 与内容安全；照片资料与扫描版 PDF 另需文字识别；手写作答照片改由 AI 视觉模型识别 |
 | `ASR_*` | 语音识别还没有接入，保持 `disabled` | 口述背诵不可用 |
 | `WECHAT_PAY_*`、`ALIPAY_*`、`APPLE_IAP_*` | 已开通支付渠道的完整凭据 | 只在开放对应支付渠道时填写，并将 `PAY_PROVIDER=real` |
 
@@ -136,7 +136,7 @@ PAY_PROVIDER=disabled
 | --- | --- | --- |
 | 短信 | 用户登录验证码、后台登录二次验证 | 已接入阿里云；设为 `disabled` 时无法完成短信登录 |
 | OSS | 上传原件、头像、手写照片、录音、导出文件及下载 | 已接入阿里云；关闭时文件相关能力不可用 |
-| OCR | 照片资料识别、手写答案识别、扫描版 PDF 的扫描页 | 已接入阿里云；关闭时照片导入与手写识别不可用 |
+| OCR | 照片资料识别、扫描版 PDF 的扫描页 | 已接入阿里云；关闭时照片资料导入不可用。手写答案识别走 AI_PROVIDER 的视觉能力，与 OCR_PROVIDER 无关 |
 | PDF | 文字版 PDF 取文字（内嵌 PDFium，本机解析，不调用外部服务） | `PDF_PROVIDER` 不填时跟随 `OCR_PROVIDER`；只想开 PDF 不开 OCR 时设 `PDF_PROVIDER=pdfium` |
 | ASR | 当前用于口述背诵录音转文字 | 口述背诵不可用；文本背诵无需语音识别 |
 | 内容审核 | 导入资料文本、图片，以及生成答案、知识点讲解、变式题、批改评语等 AI 输出 | 资料导入和这些 AI 输出不会放行；不是仅影响一个独立审核页面 |
@@ -181,7 +181,7 @@ PAY_PROVIDER=disabled
 
 1. **OSS**：按「2. 网络、OSS、镜像仓库」建好私有桶（如 `training-prod`，华北 2）。RAM 子账号 `training-app` 授权这个桶的读写（`oss:PutObject`、`oss:GetObject`、`oss:HeadObject`、`oss:DeleteObject`、`oss:ListObjects`）。
    App 原生上传不受跨域限制；管理后台网页要上传时，再给桶加跨域规则（PUT、GET，来源填后台域名，允许头 `*`，暴露头 `ETag`）。
-2. **文字识别**：开通「文字识别 OCR」（统一识别接口，按量付费），`training-app` 授权 `AliyunOCRFullAccess`。用到「通用文字识别 · 高精版」（拍照资料、扫描页）与「手写体识别」（手写答案）。
+2. **文字识别**：开通「文字识别 OCR」（统一识别接口，按量付费），`training-app` 授权 `AliyunOCRFullAccess`。用到「通用文字识别 · 高精版」（拍照资料、扫描页）；手写答案已改为 `handwriting_recognize@v1`，由 AI_PROVIDER 的视觉模型直接读取照片，无需开通手写 OCR。
 3. **内容安全**：开通「内容安全」增强版，`training-app` 授权 `AliyunYundunGreenWebFullAccess`。控制台「规则配置」里可以按服务（文本 `comment_detection_pro`、图片 `baselineCheck`）调整检测项。
    文科专业课资料常有政治、历史、法律内容，程序默认只拦「高风险」（`MODERATION_REJECT_LEVEL=high`）；上线前用几份真实资料试导入，被误拦就在控制台放宽对应检测项。
 4. 服务器 `.env`：

@@ -30,7 +30,7 @@ make eval cap=grading args="-model qwen-plus -prompt v2 -record -note 采分点�
 - import：`"expected": [{"stem": "题干", "answer": "答案，没有留空"}]`，指标：题干识别正确率、答案识别正确率，门槛 95%
 - kp：`"expected": [{"name": "知识点", "original_text": "原文表述", "rubric": ["采分点", "…"]}]`，指标：知识点召回率（门槛 85%）、原文一致率（门槛 90%）、采分点召回率（标了 rubric 时，门槛 85%）
 - rubric：每行一道题 `{"name","qtype","stem","reference","score","points":[{"content":"采分点"}]}`，指标：从参考答案提采分点的召回率（门槛 85%）；同义改写按字面重合度 ≥ 0.6 算召回
-- ocr：每行一张图 `{"name","file":"ocr/xxx.jpg","handwriting":true,"text":"人工逐字转写"}`（图片放 evals/private/ocr/），指标：字准确率 = 1 − 编辑距离 / 字数（门槛 95%），比较前去掉空白、统一中英文标点；需 OCR_PROVIDER 接真实服务
+- ocr：每行一张图 `{"name","file":"ocr/xxx.jpg","handwriting":true,"text":"人工逐字转写"}`（图片放 evals/private/ocr/），指标：字准确率 = 1 − 编辑距离 / 字数（门槛 95%），比较前去掉空白、统一中英文标点；手写样本通过 `AI_PROVIDER` 调用 `handwriting_recognize@v1` 视觉大模型，印刷体仍由 `OCR_PROVIDER` 识别；真实评测须提供照片文件，公开 `.txt` 夹具仅供 mock 使用
 - grading：每行一道题 `{"name","subject","qtype","stem","reference","points":[{"seq":1,"content":"采分点","score":4}],"answers":[{"text":"考生答案","human":人工评分}]}`；指标：与人工偏差 ≤ 1 分的比例（门槛 80%）、重批一致性（同一答案批 3 次分差 ≤ 1 分，要求 100%）。样本规模：20 道题 × 三档答案（扩到 50 道）
 
 - essay：每行一个题目 `{"name","subject","topic","required_words","dimensions":[{"name":"立意","score":30,"description":"…"}],"essays":[{"text":"全文，空行分段","human":人工总分}]}`；指标：与人工总分偏差 ≤ 10 分的比例（门槛 75%）、重批一致性（同一篇批 3 次总分差 ≤ 6 分，要求 100%）。样本规模：20 篇不同分数档作文

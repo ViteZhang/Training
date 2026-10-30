@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -80,7 +81,7 @@ func toGenPaperItem(it practice.PaperItem) gen.PaperItem {
 }
 
 func toGenPaperSession(v practice.PaperSessionView) gen.PaperSession {
-	out := gen.PaperSession{Id: int64(v.ID), PaperId: int64(v.PaperID), SubjectId: int64(v.SubjectID), Title: v.Title, Kind: gen.PaperKind(v.Kind), Mode: gen.PaperMode(v.Mode),
+	out := gen.PaperSession{SubmittedAt: v.SubmittedAt, GradingError: optStr(v.GradingError), Id: int64(v.ID), PaperId: int64(v.PaperID), SubjectId: int64(v.SubjectID), Title: v.Title, Kind: gen.PaperKind(v.Kind), Mode: gen.PaperMode(v.Mode),
 		Status: gen.PaperSessionStatus(v.Status), StartedAt: v.StartedAt, DeadlineAt: v.Deadline, ServerNow: v.ServerNow, ElapsedSeconds: v.ElapsedSeconds,
 		TotalMinutes: v.TotalMinutes, CheckMinutes: v.CheckMinutes, RemindLeftMinutes: v.RemindLeftMinutes, ResumeAvailable: v.ResumeAvailable,
 		Score: f32p(v.Score), FullScore: float32(v.FullScore), CountsForEstimate: ptr(v.CountsForEstimate),
@@ -172,7 +173,7 @@ func (h *Handlers) UpdatePaperItem(c *gin.Context, sessionID gen.SessionId, seq 
 	if !bind(c, &body) {
 		return
 	}
-	in := practice.ItemUpdate{Draft: body.DraftText, Marked: body.Marked}
+	in := practice.ItemUpdate{Draft: body.DraftText, Marked: body.Marked, TimeTotal: body.TimeSpentSeconds}
 	if body.TimeSpentDelta != nil {
 		in.TimeDelta = *body.TimeSpentDelta
 	}
@@ -222,3 +223,44 @@ func (h *Handlers) AbandonPaper(c *gin.Context, sessionID gen.SessionId) {
 	}
 	c.Status(http.StatusNoContent)
 }
+
+// ListPaperHistory 返回当前用户当前课程的逐次整卷记录。
+func (h *Handlers) ListPaperHistory(c *gin.Context, subjectID gen.SubjectId, params gen.ListPaperHistoryParams) {
+	var before uint64
+	limit := 20
+	if params.Before != nil {
+		if *params.Before < 1 {
+			_ = c.Error(ErrBadRequest("历史记录游标无效"))
+			return
+		}
+		before = uint64(*params.Before)
+	}
+	if params.Limit != nil {
+		limit = *params.Limit
+		if limit < 1 || limit > 50 {
+			_ = c.Error(ErrBadRequest("每页应为 1 至 50 条"))
+			return
+		}
+	}
+	rows, more, err := h.deps.Practice.PaperHistory(c.Request.Context(), currentUser(c), uint64(subjectID), before, limit)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	out := gen.PaperHistory{Items: make([]gen.PaperHistoryItem, 0, len(rows))}
+	for _, r := range rows {
+		item := gen.PaperHistoryItem{Id: int64(r.ID), Title: r.PaperTitle, Kind: gen.PaperKind(r.PaperKind), Mode: gen.PaperMode(r.Mode), Status: gen.PaperSessionStatus(r.Status), StartedAt: r.StartedAt, FullScore: float32(parseHistoryScore(r.FullScore)), Answered: int(r.Answered), Total: int(r.Total)}
+		if r.SubmittedAt.Valid {
+			item.SubmittedAt = &r.SubmittedAt.Time
+		}
+		if r.Score.Valid {
+			item.Score = ptr(float32(parseHistoryScore(r.Score.String)))
+		}
+		out.Items = append(out.Items, item)
+	}
+	if more {
+		out.NextBefore = ptr(int64(rows[len(rows)-1].ID))
+	}
+	c.JSON(http.StatusOK, out)
+}
+func parseHistoryScore(v string) float64 { n, _ := strconv.ParseFloat(v, 64); return n }

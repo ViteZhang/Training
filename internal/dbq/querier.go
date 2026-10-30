@@ -503,6 +503,7 @@ type Querier interface {
 	// 官方题库的全部采分点（题目的与知识点的）。
 	ListOfficialRubric(ctx context.Context, arg ListOfficialRubricParams) ([]ListOfficialRubricRow, error)
 	ListOfficialVersions(ctx context.Context, projectID uint64) ([]ListOfficialVersionsRow, error)
+	ListPaperHistory(ctx context.Context, arg ListPaperHistoryParams) ([]ListPaperHistoryRow, error)
 	ListPaperQuestions(ctx context.Context, arg ListPaperQuestionsParams) ([]ListPaperQuestionsRow, error)
 	ListPaperSessionItems(ctx context.Context, arg ListPaperSessionItemsParams) ([]ListPaperSessionItemsRow, error)
 	// 整卷列表的状态：每套卷最近的作答。

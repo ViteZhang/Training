@@ -39,6 +39,7 @@ import (
 
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/cloud"
+	cloudai "peetraining-server/internal/cloud/ai"
 	"peetraining-server/internal/cloud/ocr"
 	"peetraining-server/internal/config"
 	"peetraining-server/internal/extract"
@@ -86,6 +87,8 @@ func capOf(capability string) string {
 		return ai.Grade.Name
 	case "essay":
 		return ai.EssayGrade.Name
+	case "ocr":
+		return ai.RecognizeHandwriting.Name
 	}
 	return ""
 }
@@ -226,7 +229,7 @@ func run(ctx context.Context, o opts) (bool, error) {
 	case "essay":
 		r, err = evalEssay(ctx, engine, samples)
 	case "ocr":
-		r, err = evalOCR(ctx, clients.OCR, base, samples, st)
+		r, err = evalOCR(ctx, engine, clients.OCR, base, samples, st)
 	default:
 		r, err = evalKP(ctx, engine, base, samples)
 	}
@@ -237,7 +240,7 @@ func run(ctx context.Context, o opts) (bool, error) {
 	if o.record {
 		model := st.versionList()
 		if capability == "ocr" {
-			model = "OCR_PROVIDER=" + cfg.OCR.Provider
+			model = st.versionList() + "；印刷体 OCR_PROVIDER=" + cfg.OCR.Provider
 		}
 		if err := appendRecord(filepath.Join(dir, "README.md"), capability, len(samples), r, model, st.summary(), o.note, base); err != nil {
 			return r.pass, err
@@ -503,7 +506,7 @@ func evalRubric(ctx context.Context, e *ai.Engine, samples []sample) (result, er
 
 // evalOCR 评测手写与印刷识别的字准确率（PRD 12.3：手写识别字准确率 ≥ 95%）：1 − 总编辑距离 / 人工转写总字数。
 // 比较前去掉空白，标点统一成全角，避免换行和中英文标点差异算成错字。
-func evalOCR(ctx context.Context, rec ocr.Recognizer, base string, samples []sample, st *stats) (result, error) {
+func evalOCR(ctx context.Context, engine *ai.Engine, rec ocr.Recognizer, base string, samples []sample, st *stats) (result, error) {
 	totalChars, totalEdits, failed := 0, 0, 0
 	for _, s := range samples {
 		data, err := os.ReadFile(filepath.Join(base, filepath.Clean("/"+s.File))) //nolint:gosec // 样本路径限定在评测目录内
@@ -511,8 +514,17 @@ func evalOCR(ctx context.Context, rec ocr.Recognizer, base string, samples []sam
 			return result{}, fmt.Errorf("%s：%w", s.Name, err)
 		}
 		start := time.Now()
-		got, err := rec.Recognize(ctx, ocr.Image{Data: data, Handwriting: s.Handwriting})
-		st.add(ai.Call{Capability: "ocr", Model: "ocr", Latency: time.Since(start), ErrorKind: errKind(err)})
+		var got ocr.Result
+		if s.Handwriting {
+			out, _, runErr := ai.RecognizeHandwriting.Run(ctx, engine, 0, ai.HandwritingIn{Images: []cloudai.Image{{Data: data}}})
+			err = runErr
+			if err == nil {
+				got.Text, _ = out.Pages[0].TextAndSpans()
+			}
+		} else {
+			got, err = rec.Recognize(ctx, ocr.Image{Data: data})
+			st.add(ai.Call{Capability: "ocr", Model: "ocr", Latency: time.Since(start), ErrorKind: errKind(err)})
+		}
 		want := []rune(ocrNormalize(s.Text))
 		totalChars += len(want)
 		if err != nil {

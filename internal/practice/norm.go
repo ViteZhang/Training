@@ -12,7 +12,7 @@ import (
 
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
-	"peetraining-server/internal/cloud/ocr"
+	cloudai "peetraining-server/internal/cloud/ai"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/importer"
 	"peetraining-server/internal/quota"
@@ -258,6 +258,8 @@ const (
 	handwritingMax     = 6
 	handwritingMaxSize = 10 << 20
 	handwritingTTL     = 15 * time.Minute
+	// Base64 膨胀约 1/3，批次原图限制 11MiB，给兼容接口的 16MiB 请求体留余量。
+	handwritingBatchBytes = 11 << 20
 )
 
 var handwritingExt = map[string]string{"image/jpeg": "jpg", "image/png": "png", "image/heic": "heic", "image/webp": "webp"}
@@ -331,13 +333,14 @@ func ownPhotos(userID uint64, keys []string) error {
 	return nil
 }
 
-// Recognize 识别手写稿（4.5）：逐张内容安全检查与手写 OCR，按顺序用换行拼接；不确定的字词换算到全文位置。
+// Recognize 识别手写稿（4.5）：逐张内容安全检查后由视觉大模型转写，按顺序用换行拼接；不确定的字词换算到全文位置。
 func (s *Service) Recognize(ctx context.Context, userID uint64, keys []string) (Handwriting, error) {
 	if err := ownPhotos(userID, keys); err != nil {
 		return Handwriting{}, err
 	}
-	var out Handwriting
-	offset := 0
+	ctx, cancel := context.WithTimeout(ctx, 160*time.Second)
+	defer cancel()
+	images := make([]cloudai.Image, 0, len(keys))
 	for i, k := range keys {
 		info, err := s.oss.Head(ctx, k)
 		if err != nil || !info.Exists {
@@ -354,24 +357,49 @@ func (s *Service) Recognize(ctx context.Context, userID uint64, keys []string) (
 		if err != nil {
 			return Handwriting{}, err
 		}
-		r, err := s.ocr.Recognize(ctx, ocrImage(k, data))
-		if errors.Is(err, ocr.ErrBadImage) {
-			return Handwriting{}, apperr.New(apperr.BadRequest, "第 "+strconv.Itoa(i+1)+" 张照片无法识别，请用 JPG 或 PNG 格式重拍，保持光线充足、字迹清晰").With("reason", "bad_image")
+		if len(data) == 0 || len(data) > handwritingMaxSize {
+			return Handwriting{}, apperr.New(apperr.BadRequest, "照片内容为空或超过 10MB，请重拍")
+		}
+		images = append(images, cloudai.Image{Data: data})
+	}
+	var pages []ai.HandwritingPage
+	for start := 0; start < len(images); {
+		end, size := start, 0
+		for end < len(images) && size+len(images[end].Data) <= handwritingBatchBytes {
+			size += len(images[end].Data)
+			end++
+		}
+		recognized, _, err := ai.RecognizeHandwriting.Run(ctx, s.ai, userID, ai.HandwritingIn{Images: images[start:end]})
+		if errors.Is(err, cloudai.ErrBadImage) {
+			return Handwriting{}, apperr.New(apperr.BadRequest, "照片格式无法识别，请用 JPG、PNG、HEIC 或 WebP 格式重拍").With("reason", "bad_image")
+		}
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return Handwriting{}, apperr.New(apperr.AIFailed, "照片识别超时，请减少照片数量后重试")
 		}
 		if err != nil {
 			return Handwriting{}, err
 		}
-		page := HandwritingPage{ObjectKey: k, Text: r.Text}
+		pages = append(pages, recognized.Pages...)
+		start = end
+	}
+	var out Handwriting
+	offset := 0
+	for i, k := range keys {
+		text, spans := pages[i].TextAndSpans()
+		page := HandwritingPage{ObjectKey: k, Text: text}
 		if i > 0 {
 			out.Text += "\n"
 			offset++
 		}
-		for _, sp := range r.LowConfidence {
-			page.LowConfidence = append(page.LowConfidence, [2]int{sp.Start, sp.End})
-			out.LowConfidence = append(out.LowConfidence, [2]int{sp.Start + offset, sp.End + offset})
+		for _, sp := range spans {
+			page.LowConfidence = append(page.LowConfidence, sp)
+			out.LowConfidence = append(out.LowConfidence, [2]int{sp[0] + offset, sp[1] + offset})
 		}
-		out.Text += r.Text
-		offset += len([]rune(r.Text))
+		out.Text += text
+		offset += len([]rune(text))
+		if offset > 20000 {
+			return Handwriting{}, apperr.New(apperr.BadRequest, "识别文字超过 20000 字，请减少照片数量后重试")
+		}
 		out.Pages = append(out.Pages, page)
 	}
 	if strings.TrimSpace(out.Text) == "" {
@@ -387,8 +415,4 @@ func (s *Service) readObject(ctx context.Context, key string) ([]byte, error) {
 	}
 	defer rc.Close()
 	return io.ReadAll(io.LimitReader(rc, handwritingMaxSize+1))
-}
-
-func ocrImage(key string, data []byte) ocr.Image {
-	return ocr.Image{ObjectKey: key, Data: data, Handwriting: true}
 }

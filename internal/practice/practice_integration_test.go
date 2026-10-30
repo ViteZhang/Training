@@ -88,7 +88,7 @@ func setup(t *testing.T) *fx {
 	f.mat.OnDeleted = func(ctx context.Context, userID, subjectID uint64) {
 		_ = f.sc.Recompute(ctx, userID, subjectID, "material_deleted")
 	}
-	f.pr = practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: o, OCR: ocr.NewMock(), Moderation: moderation.NewMock(),
+	f.pr = practice.New(practice.Deps{DB: db, Params: ps, Plan: pl, AI: engine, Quota: qs, OSS: o, Moderation: moderation.NewMock(),
 		ASR: f.asr, Flags: f.flags, Queue: queue, Score: f.sc, Now: now})
 	queue.h.Paper = f.pr
 	return f
@@ -146,7 +146,11 @@ func (f *fx) imported(t *testing.T, uid, sid uint64) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		job, err := f.imp.CreateJob(ctx, uid, sid, c.mode, []uint64{m.ID})
+		var choices []importer.FileQuestionSource
+		if c.mode == "question" {
+			choices = []importer.FileQuestionSource{{MaterialID: m.ID, Source: "exam"}}
+		}
+		job, err := f.imp.CreateJobWithSources(ctx, uid, sid, c.mode, []uint64{m.ID}, choices)
 		if err != nil {
 			t.Fatal(err)
 		}

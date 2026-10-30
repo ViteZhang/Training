@@ -23,7 +23,7 @@ func TestHandwritingRecognizeAndSubmit(t *testing.T) {
 	if err != nil || len(ts) != 2 || ts[0].URL == "" || ts[0].ObjectKey == ts[1].ObjectKey {
 		t.Fatalf("直传地址：%+v %v", ts, err)
 	}
-	// mock OCR 把照片内容当识别结果，【】内为不确定的字词；两张续拍按顺序拼接。
+	// mock AI 把照片内容当识别结果，【】内为不确定的字词；两张续拍按顺序拼接。
 	f.oss.Seed(ts[0].ObjectKey, []byte("意境是情景【交融】、虚实相生的艺术境界。"))
 	f.oss.Seed(ts[1].ObjectKey, []byte("它韵味【无穷】。"))
 	keys := []string{ts[0].ObjectKey, ts[1].ObjectKey}
