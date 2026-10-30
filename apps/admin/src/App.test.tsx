@@ -70,8 +70,8 @@ describe('后台登录', () => {
 });
 
 describe('后台壳', () => {
-  it('菜单按角色显示五组', () => {
-    expect(visibleMenu(['admin']).map((gr) => gr.title)).toEqual(['运营', '质量', '配置', '官方题库', '系统']);
+  it('菜单按角色显示六组', () => {
+    expect(visibleMenu(['admin']).map((gr) => gr.title)).toEqual(['运营', '质量', '配置', '官方题库', '官方教材库', '系统']);
     expect(visibleMenu(['content_editor']).flatMap((gr) => gr.pages.map((p) => p.code))).toEqual(['7.12']);
     expect(visibleMenu(['analyst']).flatMap((gr) => gr.pages.map((p) => p.code))).toEqual(['7.1', '7.10']);
   });

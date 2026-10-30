@@ -23,6 +23,7 @@ import { Produce } from './pages/Produce';
 import { Release } from './pages/Release';
 import { ReviewQueue } from './pages/Review';
 import { Roles } from './pages/Roles';
+import { Textbooks } from './pages/Textbooks';
 import { Users } from './pages/Users';
 
 /** 登录（两步验证）→ 首次登录改密码 → 按角色显示菜单与页面。权限只影响界面，安全由后端按契约的 x-roles 保证。 */
@@ -51,6 +52,7 @@ export function App() {
     '/roles': <Roles />,
     '/demand': <Demand roles={roles} />,
     '/official': <Official />,
+    '/textbooks': <Textbooks />,
     '/produce': <Produce />,
     '/review': <ReviewQueue />,
     '/release': <Release />,

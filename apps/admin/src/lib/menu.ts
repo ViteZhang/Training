@@ -1,4 +1,4 @@
-/** 后台页面清单，按设计稿 7 模块分五组（PRD 10.2）。roles 只影响界面显示，安全由后端保证。 */
+/** 后台页面清单，按设计稿 7 模块分六组（PRD 10.2）。roles 只影响界面显示，安全由后端保证。 */
 export type Role = 'admin' | 'support' | 'content_lead' | 'content_editor' | 'analyst';
 
 export interface PageDef {
@@ -54,6 +54,11 @@ export const menu: MenuGroup[] = [
       { code: '7.13', title: '审核队列', path: '/review', roles: ['admin', 'content_lead'] },
       { code: '7.14', title: '版本发布', path: '/release', roles: ['admin', 'content_lead'] },
     ],
+  },
+  {
+    key: 'textbook',
+    title: '官方教材库',
+    pages: [{ code: '7.16', title: '官方教材库', path: '/textbooks', roles: ['admin', 'content_lead'] }],
   },
   {
     key: 'system',
