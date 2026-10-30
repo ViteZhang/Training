@@ -2,7 +2,7 @@
 // 相关题目、三档自评（只作参考）、「来一题检验」。3.5 更多操作：编辑、调整归属、合并、拆分、重新生成解读、删除。
 import { ApiError, type Schemas } from '@training/api-client';
 import { layout, radius, semantic, spacing } from '@training/ui-tokens';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -59,9 +59,22 @@ function MoreActions({ kp, sheet, setSheet }: { kp: KPDetail; sheet: Sheet; setS
   const subjectId = useLocalSearchParams<{ subjectId?: string }>().subjectId;
   const [target, setTarget] = useState('');
   const [parts, setParts] = useState(['', '']);
+  const [assignments, setAssignments] = useState<Record<number, number>>({});
+  const splitQuestions = useQuery({
+    queryKey: ['kp', kp.id, 'split-questions'],
+    queryFn: () => unwrap(api.GET('/knowledge-points/{kpId}/split-questions', { params: { path: { kpId: kp.id } } })),
+    enabled: sheet === 'split',
+  });
+  const assignedQuestions = splitQuestions.data?.items ?? [];
+  const splitReady = splitQuestions.isSuccess && parts.filter((p) => p.trim()).length >= 2
+    && assignedQuestions.every((q) => assignments[q.id] !== undefined && !!parts[assignments[q.id]!]?.trim());
   const [relType, setRelType] = useState<Schemas['RelationType']>('contrast');
   const [busy, setBusy] = useState(false);
-  const refresh = () => qc.invalidateQueries({ queryKey: ['bank'] });
+  const refresh = () => Promise.all([
+    qc.invalidateQueries({ queryKey: ['bank'] }),
+    qc.invalidateQueries({ queryKey: ['kp'] }),
+    qc.invalidateQueries({ queryKey: ['question'] }),
+  ]);
   const run = async (fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
     try {
@@ -86,7 +99,7 @@ function MoreActions({ kp, sheet, setSheet }: { kp: KPDetail; sheet: Sheet; setS
             { label: '调整归属', icon: 'folder', onPress: () => { setSheet(null); router.push({ pathname: '/bank/kp/edit', params: { id: String(kp.id), subjectId: subjectId ?? '' } }); } },
             { label: '添加关联', icon: 'link', onPress: () => setSheet('relate') },
             { label: '合并到其他知识点', icon: 'merge', onPress: () => setSheet('merge') },
-            { label: '拆分为多个知识点', icon: 'split', onPress: () => setSheet('split') },
+            { label: '拆分为多个知识点', icon: 'split', onPress: () => { setAssignments({}); setSheet('split'); } },
             {
               label: 'AI 解读不准，重新生成',
               icon: 'refresh',
@@ -124,16 +137,34 @@ function MoreActions({ kp, sheet, setSheet }: { kp: KPDetail; sheet: Sheet; setS
         } />
       </BottomSheet>
       <BottomSheet visible={sheet === 'split'} onClose={() => setSheet(null)} title="拆分为多个知识点">
+        <Text variant="caption">为每道题选择一个新知识点；掌握度和复习安排会保留。</Text>
+        <ScrollView style={{ maxHeight: 380 }} keyboardShouldPersistTaps="handled">
         {parts.map((p, i) => (
           <TextInput key={i} accessibilityLabel={`第 ${i + 1} 个知识点`} placeholder={`第 ${i + 1} 个知识点的名称`} value={p} onChangeText={(v) => setParts(parts.map((x, j) => (j === i ? v : x)))} style={styles.input} maxFontSizeMultiplier={layout.maxFontScale} />
         ))}
         <Button title="再加一个" kind="text" onPress={() => setParts([...parts, ''])} />
+        {splitQuestions.isLoading ? <Loading rows={2} /> : null}
+        {splitQuestions.isError ? <ErrorState error={splitQuestions.error} onRetry={() => void splitQuestions.refetch()} /> : null}
+        {assignedQuestions.map((q) => (
+          <View key={q.id} style={styles.gap}>
+            <Text variant="body">{q.stem}</Text>
+            {parts.map((name, i) => name.trim() ? (
+              <Pressable key={i} accessibilityRole="radio" accessibilityLabel={`题目 ${q.id} 归入第 ${i + 1} 个知识点`}
+                accessibilityState={{ checked: assignments[q.id] === i }}
+                onPress={() => setAssignments((old) => ({ ...old, [q.id]: i }))}
+                style={{ minHeight: 44, justifyContent: 'center' }}>
+                <Text variant="body">{assignments[q.id] === i ? '●' : '○'} {name.trim()}</Text>
+              </Pressable>
+            ) : null)}
+          </View>
+        ))}
+        </ScrollView>
         <Button
           title="拆分"
-          disabled={parts.filter((p) => p.trim()).length < 2}
+          disabled={!splitReady}
           loading={busy}
           onPress={() =>
-            void run(() => unwrap(api.POST('/knowledge-points/{kpId}/split', { ...path, body: { parts: parts.filter((p) => p.trim()).map((name) => ({ name: name.trim() })) } })), '已拆分').then((ok) => {
+            void run(() => unwrap(api.POST('/knowledge-points/{kpId}/split', { ...path, body: { parts: parts.map((name, index) => ({ name: name.trim(), question_ids: assignedQuestions.filter((q) => assignments[q.id] === index).map((q) => q.id) })).filter((p) => p.name) } })), '已拆分').then((ok) => {
               if (ok) {
                 setSheet(null);
                 router.back();

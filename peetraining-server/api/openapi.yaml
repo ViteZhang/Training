@@ -998,6 +998,25 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /knowledge-points/{kpId}/split-questions:
+    parameters:
+      - $ref: "#/components/parameters/KpId"
+    get:
+      tags: [bank]
+      operationId: listSplitQuestions
+      summary: 拆分前获取全部关联题目（含非主关联与历史题，不截断）
+      responses:
+        "200":
+          description: 需要逐题分配的全部题目
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/QuestionBrief" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /knowledge-points/{kpId}/split:
     parameters:
       - $ref: "#/components/parameters/KpId"
@@ -1005,6 +1024,7 @@ paths:
       tags: [bank]
       operationId: splitKnowledgePoint
       summary: 拆分为多个知识点（3.5）
+      description: 每道关联题目必须且只能分配到一个新知识点；继承原掌握度与复习安排。旧版缺少分配时返回400，保留原数据。
       requestBody:
         required: true
         content:
@@ -1022,6 +1042,11 @@ paths:
                     properties:
                       name: { type: string, maxLength: 128 }
                       original_text: { type: string }
+                      question_ids:
+                        type: array
+                        uniqueItems: true
+                        description: 分配给此知识点的原关联题目，所有分组必须完整且互斥
+                        items: { type: integer, format: int64, minimum: 1 }
       responses:
         "200":
           description: 拆分出的知识点
@@ -1099,6 +1124,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/QuestionPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
     post:
       tags: [bank]
