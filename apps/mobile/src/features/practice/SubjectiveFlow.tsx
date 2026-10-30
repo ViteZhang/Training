@@ -1,5 +1,9 @@
 // 4.4 主观题作答 → 4.6 批改中 → 4.7（由答题页显示）；次数用完 4.9；批改失败显示「未扣除次数」可重试；「看参考答案」进入自评。
 // 参考答案、拍照作答是同一页里切换的视图：按安卓返回键或「返回作答」回到作答，不退出答题页。
+import { useFeatureFlag } from '@/lib/flags';
+import { getJSON } from '@/lib/storage';
+import { practiceVoiceQueue } from './voiceQueue';
+import { PracticeVoiceInput, voiceEditsKey } from './PracticeVoiceInput';
 import { ApiError } from '@training/api-client';
 import { semantic, spacing } from '@training/ui-tokens';
 import * as Crypto from 'expo-crypto';
@@ -27,6 +31,10 @@ export function SubjectiveFlow({
   onSelfAssess: (level: Level) => void;
 }) {
   const draft = useDraft(sessionId, q.id);
+  const voiceEnabled = useFeatureFlag('voice_answer');
+  const voiceQueue = practiceVoiceQueue(sessionId, q.id);
+  const [recording, setRecording] = useState(false);
+  const [preparing, setPreparing] = useState(false);
   const [timed, setTimed] = useState(false);
   const [showRef, setShowRef] = useState(false);
   const [quotaOut, setQuotaOut] = useState(false);
@@ -55,7 +63,26 @@ export function SubjectiveFlow({
   }, [inSubView]);
 
   // 拍照作答时提交的是识别后核对过的文字与照片；重试沿用上一次的内容。
-  const send = (answer?: { text: string; keys?: string[] }) => {
+  const send = async (answer?: { text: string; keys?: string[] }, retry = false) => {
+    if (recording) { toast('请先结束录音再提交'); return; }
+    if (preparing) return;
+    if (voiceEnabled && !retry) {
+      setPreparing(true);
+      try {
+        await voiceQueue.waitForUploads();
+        const jobs = (await voiceQueue.list()).filter((job) => job.status !== 'discarded');
+        if (jobs.some((job) => job.status !== 'ready')) throw new Error('请等待语音识别完成；失败的录音可重试或弃用');
+        const edits = getJSON<Record<string,string>>(voiceEditsKey(sessionId,q.id)) ?? {};
+        let value = draft.text;
+        for (const job of jobs) {
+          const recognized = edits[job.idempotency_key] ?? job.text;
+          if (!recognized.trim()) throw new Error('识别文字不能为空，请核对或弃用录音');
+          value = draft.appendVoice(job.idempotency_key,recognized);
+        }
+        answer = answer?.keys ? { ...answer, text: [value.trim(), answer.text.trim()].filter(Boolean).join('\n') } : { text: value };
+      } catch (error) { toast(error instanceof Error ? error.message : '录音尚未保存成功'); return; }
+      finally { setPreparing(false); }
+    }
     if (answer) last.current = answer;
     else if (!photo) last.current = { text: draft.text };
     setFailed(false);
@@ -89,7 +116,7 @@ export function SubjectiveFlow({
   };
 
   if (submit.isPending) return <GradingProgress q={q} />;
-  if (failed) return <AIFailed onRetry={() => send()} />;
+  if (failed) return <AIFailed onRetry={() => send(last.current, true)} />;
   if (photo) return <HandwritingFlow onConfirm={(text, keys) => send({ text, keys })} onCancel={() => setPhoto(false)} />;
 
   if (showRef) {
@@ -122,10 +149,11 @@ export function SubjectiveFlow({
 
   return (
     <View style={styles.gap}>
-      <SubjectiveInput q={q} text={draft.text} onChange={draft.setText} timed={timed} onTimed={setTimed} onPhoto={() => setPhoto(true)} />
+      {voiceEnabled ? <PracticeVoiceInput queue={voiceQueue} applied={draft.voices} onRecordingChange={setRecording} onConfirm={(job,value) => { try { draft.appendVoice(job.idempotency_key,value); } catch(error) { toast(error instanceof Error ? error.message : '保存失败'); } }} /> : null}
+      <SubjectiveInput q={q} text={draft.text} onChange={draft.setText} timed={timed} onTimed={setTimed} onPhoto={() => { if (recording) toast('请先结束录音'); else setPhoto(true); }} />
       <View style={styles.row}>
-        <Button title="看参考答案" kind="secondary" style={styles.flex} onPress={() => setShowRef(true)} />
-        <Button title="提交批改" style={styles.flex2} disabled={!draft.text.trim()} onPress={() => send()} />
+        <Button title="看参考答案" kind="secondary" style={styles.flex} onPress={() => { if (recording) toast('请先结束录音'); else setShowRef(true); }} />
+        <Button title="提交批改" style={styles.flex2} disabled={recording || preparing || (!draft.text.trim() && !voiceEnabled)} loading={preparing} onPress={() => { void send(); }} />
       </View>
       <QuotaSheet
         visible={quotaOut}

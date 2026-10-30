@@ -10,6 +10,8 @@ export type QuestionFileSource = 'exam' | 'exercise' | 'unconfirmed';
 /** 1.5 已选的一项：文件、照片或粘贴的文字。 */
 export interface Picked {
   key: string;
+  /** 外部分享待导入记录；解析任务建立后才清理本机副本。 */
+  sharedKey?: string;
   name: string;
   format: Format;
   /** 题目模式下由用户选择的文件级来源。 */
@@ -34,9 +36,9 @@ export class UnsupportedFile extends Error {}
 /** 按扩展名判断格式；旧版 .doc / .xls 给出另存提示（PRD 11.12）。 */
 export function formatOf(name: string, mimeType?: string): Format {
   const ext = name.toLowerCase().split('.').pop() ?? '';
-  if (ext === 'docx') return 'docx';
-  if (ext === 'xlsx') return 'xlsx';
-  if (ext === 'pdf') return 'pdf';
+  if (ext === 'docx' || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'docx';
+  if (ext === 'xlsx' || mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') return 'xlsx';
+  if (ext === 'pdf' || mimeType === 'application/pdf') return 'pdf';
   if (['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp'].includes(ext) || mimeType?.startsWith('image/')) return 'image';
   if (ext === 'doc') throw new UnsupportedFile('旧版 Word（.doc）暂不支持，请另存为 .docx 后再选');
   if (ext === 'xls') throw new UnsupportedFile('旧版 Excel（.xls）暂不支持，请另存为 .xlsx 后再选');

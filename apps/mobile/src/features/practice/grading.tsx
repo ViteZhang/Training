@@ -9,7 +9,6 @@ import { AIGenerating, BottomSheet, Button, Icon, Tag, Text, toast } from '@/com
 import type { IconName } from '@/components/Icon';
 import { importKeys, qtypeNames, useQuota } from '@/features/import/api';
 import { Checkbox } from '@/features/import/ui';
-import { useFeatureFlag } from '@/lib/flags';
 import { api, unwrap } from '@/lib/api';
 import { getJSON, remove, setJSON } from '@/lib/storage';
 import { lossNames, type PracticeQuestion } from './api';
@@ -34,20 +33,37 @@ const draftKey = (sessionId: number, qid: number) => `draft:practice:${sessionId
 
 /** 草稿每 5 秒存一次（CLAUDE.md 必须遵守第 7 条），提交成功后清除。 */
 export function useDraft(sessionId: number, qid: number) {
-  const [text, setText] = useState(() => getJSON<string>(draftKey(sessionId, qid)) ?? '');
+  const saved = getJSON<string | { text: string; voices: string[] }>(draftKey(sessionId, qid));
+  const [text, updateText] = useState(() => typeof saved === 'string' ? saved : saved?.text ?? '');
+  const [voices, setVoices] = useState<string[]>(() => typeof saved === 'object' ? saved.voices : []);
+  const voiceKeys = useRef(voices);
+  const cleared = useRef(false);
   const latest = useRef(text);
   useEffect(() => {
     latest.current = text;
   }, [text]);
   useEffect(() => {
-    const t = setInterval(() => setJSON(draftKey(sessionId, qid), latest.current), 5000);
+    const save = () => { if (!cleared.current) setJSON(draftKey(sessionId, qid), voiceKeys.current.length ? { text: latest.current, voices: voiceKeys.current } : latest.current); };
+    const t = setInterval(save, 5000);
     return () => {
       clearInterval(t);
-      setJSON(draftKey(sessionId, qid), latest.current);
+      save();
     };
   }, [sessionId, qid]);
-  const clear = () => remove(draftKey(sessionId, qid));
-  return { text, setText, clear };
+  const setText = (value: string) => { cleared.current = false; latest.current = value; updateText(value); };
+  const appendVoice = (key: string, value: string) => {
+    if (voiceKeys.current.includes(key)) return latest.current;
+    const combined = [latest.current.trimEnd(), value.trim()].filter(Boolean).join('\n');
+    if ([...combined].length > 20000) throw new Error('本题答案超过 20000 字，请精简后再确认');
+    voiceKeys.current = [...voiceKeys.current, key];
+    latest.current = combined; cleared.current = false;
+    // 原文和已采用任务同一条记录原子保存，重试或重进不会重复追加。
+    setJSON(draftKey(sessionId, qid), { text: combined, voices: voiceKeys.current });
+    setVoices(voiceKeys.current); updateText(combined);
+    return combined;
+  };
+  const clear = () => { cleared.current = true; remove(draftKey(sessionId, qid)); };
+  return { text, setText, clear, voices, appendVoice };
 }
 
 export function useGradingRemaining() {
@@ -84,7 +100,7 @@ export function SubjectiveInput({
   onTimed: (v: boolean) => void;
   onPhoto: () => void;
 }) {
-  const voice = useFeatureFlag('voice_answer');
+
   const remaining = useGradingRemaining();
   const n = [...text.replace(/\s/g, '')].length;
   return (
@@ -107,7 +123,6 @@ export function SubjectiveInput({
         textAlignVertical="top"
       />
       <View style={styles.row}>
-        {voice ? <Tool icon="mic" label="语音" onPress={() => toast('语音作答马上上线')} /> : null}
         <Tool icon="camera" label="拍手写稿" onPress={onPhoto} />
         <Text variant="small" num style={[styles.flex, styles.right]}>
           {wordHint(q.qtype, n)}
