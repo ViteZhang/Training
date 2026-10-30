@@ -1627,6 +1627,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/voice/upload-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 语音作答录音直传地址，功能开关 voice_answer */
+        post: operations["requestVoiceUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice-sessions/{sessionId}/questions/{questionId}/voice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                questionId: components["parameters"]["QuestionId"];
+            };
+            cookie?: never;
+        };
+        /** 原题的语音识别任务，切题及重启后可恢复 */
+        get: operations["listPracticeVoice"];
+        put?: never;
+        /** 登记语音录音并后台识别，同一幂等键可恢复或重试 */
+        post: operations["startPracticeVoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice-sessions/{sessionId}/questions/{questionId}/voice/{voiceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                questionId: components["parameters"]["QuestionId"];
+                voiceId: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 弃用原题录音 */
+        delete: operations["discardPracticeVoice"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/handwriting/upload-requests": {
         parameters: {
             query?: never;
@@ -1918,6 +1977,51 @@ export interface paths {
         put: operations["updatePaperItem"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/paper-sessions/{sessionId}/items/{seq}/handwriting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                seq: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 登记已上传的手写稿并在后台识别，切题不取消；同一幂等键可重试失败任务
+         * @description 必须在交卷及截止时间前登记。交卷后后台先完成这些照片的识别，未核对的结果默认确认，再开始批改。
+         */
+        post: operations["startPaperHandwriting"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/paper-sessions/{sessionId}/items/{seq}/handwriting/{handwritingId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                seq: number;
+                handwritingId: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** 核对后将手写稿文字追加到原题草稿，重复确认不会重复追加 */
+        put: operations["confirmPaperHandwriting"];
+        post?: never;
+        /** 作答期间弃用尚未确认的照片，不影响已经写下的答案 */
+        delete: operations["discardPaperHandwriting"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4253,6 +4357,43 @@ export interface components {
             /** @description 做完计入预估分（只有导入的真题卷） */
             counts_for_estimate: boolean;
         };
+        VoiceUpload: {
+            object_key: string;
+            upload_url: string;
+            upload_headers: {
+                [key: string]: string;
+            };
+            /** Format: date-time */
+            expires_at: string;
+        };
+        VoiceTranscription: {
+            /** Format: int64 */
+            id: number;
+            idempotency_key: string;
+            object_key: string;
+            /** Format: int64 */
+            capture_order?: number;
+            /** @enum {string} */
+            status: "pending" | "ready" | "failed" | "discarded";
+            text: string;
+            error?: string;
+        };
+        PaperHandwriting: {
+            /** Format: int64 */
+            id: number;
+            seq: number;
+            idempotency_key: string;
+            /** Format: int64 */
+            capture_order?: number;
+            /** @enum {string} */
+            input_kind?: "photo" | "voice";
+            object_keys: string[];
+            /** @enum {string} */
+            status: "pending" | "ready" | "confirmed" | "failed" | "discarded";
+            text: string;
+            low_confidence: components["schemas"]["TextRange"][];
+            error?: string;
+        };
         PaperItem: {
             group?: components["schemas"]["QuestionGroup"];
             passage?: components["schemas"]["QuestionPassage"];
@@ -4274,6 +4415,7 @@ export interface components {
             got?: number;
             /** Format: int64 */
             grading_id?: number;
+            handwriting?: components["schemas"]["PaperHandwriting"][];
         };
         PaperReminder: {
             qtype: components["schemas"]["QuestionType"];
@@ -10010,6 +10152,120 @@ export interface operations {
             };
         };
     };
+    requestVoiceUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    content_type: "audio/m4a" | "audio/mp4" | "audio/aac" | "audio/wav" | "audio/mpeg";
+                    size: number;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoiceUpload"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listPracticeVoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                questionId: components["parameters"]["QuestionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["VoiceTranscription"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    startPracticeVoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                questionId: components["parameters"]["QuestionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    object_key: string;
+                    /** Format: int64 */
+                    capture_order?: number;
+                    idempotency_key: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 已保存 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoiceTranscription"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    discardPracticeVoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                questionId: components["parameters"]["QuestionId"];
+                voiceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已弃用 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
     requestHandwritingUploads: {
         parameters: {
             query?: never;
@@ -10475,6 +10731,112 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PaperItem"];
                 };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    startPaperHandwriting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                seq: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    object_keys: string[];
+                    idempotency_key: string;
+                    /**
+                     * Format: int64
+                     * @description 本次拍照或录音的顺序；上传乱序完成时仍按先后拼接
+                     */
+                    capture_order?: number;
+                    /**
+                     * @description voice 时 object_keys 是一个语音上传接口返回的对象键
+                     * @default photo
+                     * @enum {string}
+                     */
+                    input_kind?: "photo" | "voice";
+                };
+            };
+        };
+        responses: {
+            /** @description 已保存，识别在后台进行 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperHandwriting"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    confirmPaperHandwriting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                seq: number;
+                handwritingId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                    /**
+                     * @description false 时只保存核对文字，交卷后按拍照顺序统一追加；true 时立即确认填入草稿
+                     * @default true
+                     */
+                    confirm?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 含更新后的答案及照片状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperItem"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    discardPaperHandwriting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["parameters"]["SessionId"];
+                seq: number;
+                handwritingId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已弃用 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];

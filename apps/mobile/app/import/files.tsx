@@ -1,5 +1,7 @@
 // 1.5 选择文件：文件（Word、PDF、Excel）、相册、拍照、粘贴文字；可多选、显示上传进度、可移除；
 // 使用权声明默认勾选，取消勾选不能开始；解析额度不足在开始前提示（PRD 1.5、11.12）。
+import { WeChatImportGuide } from '@/features/import/WeChatImportGuide';
+import { removeSharedFiles } from '@/features/import/sharedInbox';
 import { ApiError } from '@training/api-client';
 import { radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -109,6 +111,7 @@ export default function FilesScreen() {
       const ids = await uploadAll(subjectId, mode, files, update);
       const question_sources = mode === 'question' ? files.map((file) => ({ material_id: file.materialId!, source: file.questionSource! })) : undefined;
       const job = await unwrap(api.POST('/import-jobs', { body: { subject_id: subjectId, mode, material_ids: ids, question_sources } }));
+      removeSharedFiles(files.flatMap((file) => file.sharedKey ? [file.sharedKey] : []));
       track('import_start', { mode, files: ids.length });
       await qc.invalidateQueries({ queryKey: importKeys.jobs(true) });
       if (onboarding) void setStep('1.6');
@@ -165,6 +168,7 @@ export default function FilesScreen() {
             onBack={() => router.back()}
           />
         )}
+        <WeChatImportGuide pickFile={() => void pickDocs()} />
         <View style={styles.grid}>
           {sources.map((s) => (
             <Pressable key={s.key} accessibilityRole="button" accessibilityLabel={s.title} onPress={s.onPress} style={styles.source} disabled={busy}>

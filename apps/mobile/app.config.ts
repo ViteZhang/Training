@@ -27,6 +27,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: variant === 'production' ? appId : `${appId}.${variant}`,
     supportsTablet: false,
     infoPlist: {
+      CFBundleDocumentTypes: [{ CFBundleTypeName: '学习资料', CFBundleTypeRole: 'Viewer', LSHandlerRank: 'Alternate', LSItemContentTypes: ['com.adobe.pdf', 'org.openxmlformats.wordprocessingml.document', 'org.openxmlformats.spreadsheetml.sheet', 'public.image'] }],
+      LSApplicationQueriesSchemes: ['weixin'],
       NSCameraUsageDescription: '用于拍照导入题目和拍手写稿识别',
       NSPhotoLibraryUsageDescription: '用于从相册导入题目和资料',
       NSMicrophoneUsageDescription: '用于语音作答和口述背诵',
@@ -60,6 +62,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     'expo-document-picker',
+    // dangerous mods 按嵌套顺序执行：自定义替换需在 Expo 模板生成之后运行。
+    './plugins/with-file-receive',
+    ['expo-sharing', {
+      ios: { enabled: true, activationRule: { supportsFileWithMaxCount: 10, supportsImageWithMaxCount: 30 } },
+      android: { enabled: true,
+        singleShareMimeTypes: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'image/*'],
+        multipleShareMimeTypes: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'image/*'],
+      },
+    }],
     // 6.5a 保存客服企业微信二维码到相册：只申请写入权限
     ['expo-media-library', { photosPermission: '用于从相册导入题目和资料', savePhotosPermission: '用于把客服二维码保存到相册', isAccessMediaLocationEnabled: false, granularPermissions: ['photo'] }],
     ['expo-notifications', { color: '#231F55' }],

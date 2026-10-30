@@ -10,7 +10,7 @@ import { setStep } from '@/features/onboarding/api';
 import { Footer, StepHeader, Stepper } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
 
-type FullScore = 100 | 150 | 300;
+import { FullScoreSelect, type FullScore } from '@/features/profile/FullScoreSelect';
 interface Draft {
   full: FullScore;
   target: number | null;
@@ -70,23 +70,9 @@ export default function TargetStep() {
                     {s.code ? <Text variant="bodyStrong" style={styles.code}>{s.code} </Text> : null}
                     {s.name}
                   </Text>
-                  <Text variant="small">满分</Text>
-                  {([100, 150, 300] as FullScore[]).map((full) => (
-                    <Pressable
-                      key={full}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: d.full === full }}
-                      accessibilityLabel={`满分 ${full}`}
-                      onPress={() => set(s.id, { full, target: d.target === null ? null : Math.min(defaultTarget(full), full) })}
-                      style={[styles.full, d.full === full && styles.fullOn]}
-                      hitSlop={6}
-                    >
-                      <Text variant="small" num={600} color={d.full === full ? colors.ink : semantic.textSecondary}>
-                        {full}
-                      </Text>
-                    </Pressable>
-                  ))}
+
                 </View>
+                <FullScoreSelect value={d.full} onChange={(full) => set(s.id, { full, target: d.target === null ? null : Math.min(defaultTarget(full), full) })} />
                 {d.target !== null ? (
                   <>
                     <Stepper value={d.target} min={0} max={d.full} onChange={(v) => set(s.id, { ...d, target: v })} suffix={`/ ${d.full}`} />
