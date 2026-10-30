@@ -6128,6 +6128,387 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /admin/textbooks:
+    get:
+      tags:
+      - admin
+      operationId: listTextbooks
+      summary: 7.16 独立官方教材库
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: q
+        in: query
+        schema:
+          type: string
+          maxLength: 128
+      - name: kind
+        in: query
+        schema:
+          type: string
+          maxLength: 128
+      - name: discipline
+        in: query
+        schema:
+          type: string
+          maxLength: 128
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          default: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - total
+                - page
+                - page_size
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Textbook'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  page_size:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+      - admin
+      operationId: createTextbook
+      summary: 创建独立教材及初始出版版本
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookCreate'
+  /admin/textbooks/{bookId}:
+    get:
+      tags:
+      - admin
+      operationId: getTextbook
+      summary: 教材详情
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+      - admin
+      operationId: updateTextbook
+      summary: 修改教材身份（乐观锁）
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookUpdate'
+  /admin/textbooks/{bookId}/editions:
+    post:
+      tags:
+      - admin
+      operationId: createTextbookEdition
+      summary: 新增出版版本
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookEditionCreate'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions:
+    post:
+      tags:
+      - admin
+      operationId: createTextbookRevision
+      summary: 创建草稿修订
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookRevision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookRevisionCreate'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}:
+    put:
+      tags:
+      - admin
+      operationId: saveTextbookRevision
+      summary: 保存校对原文并使索引失效
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookRevision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookRevisionSave'
+    get:
+      tags:
+      - admin
+      operationId: getTextbookRevision
+      summary: 读取指定修订原文
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookRevision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 components:
   securitySchemes:
     bearerAuth:
@@ -6249,6 +6630,448 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    TextbookMetadata:
+      type: object
+      required:
+      - title
+      - author
+      - kind
+      - discipline
+      - aliases
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 128
+        author:
+          type: string
+          minLength: 1
+          maxLength: 128
+        kind:
+          type: string
+          enum:
+          - textbook
+          - handout
+        discipline:
+          type: string
+          minLength: 1
+          maxLength: 128
+        aliases:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+    TextbookEditionInput:
+      type: object
+      required:
+      - edition
+      - license_note
+      - authorized
+      properties:
+        edition:
+          type: string
+          minLength: 1
+          maxLength: 64
+        publisher:
+          type: string
+          maxLength: 128
+        publication_year:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+        isbn:
+          type: string
+          maxLength: 32
+        license_note:
+          type: string
+          minLength: 1
+          maxLength: 500
+        authorized:
+          type: boolean
+        scope_note:
+          type: string
+          maxLength: 255
+    TextbookRevisionSection:
+      type: object
+      required:
+      - heading
+      - text
+      properties:
+        heading:
+          type: string
+          maxLength: 512
+        text:
+          type: string
+          minLength: 1
+          maxLength: 100000
+        source_page:
+          type: integer
+          minimum: 1
+        printed_page:
+          type: string
+          maxLength: 32
+    TextbookRevision:
+      type: object
+      required:
+      - id
+      - edition_id
+      - revision_no
+      - version
+      - status
+      - content_hash
+      - sections
+      - index_status
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        edition_id:
+          type: integer
+          format: int64
+          minimum: 1
+        revision_no:
+          type: integer
+          format: int64
+          minimum: 1
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          type: string
+          enum:
+          - draft
+          - reviewed
+          - published
+        content_hash:
+          type: string
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/TextbookRevisionSection'
+        index_status:
+          type: string
+          enum:
+          - missing
+          - stale
+          - ready
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TextbookEdition:
+      type: object
+      required:
+      - id
+      - book_id
+      - edition
+      - publisher
+      - isbn
+      - license_note
+      - authorized
+      - scope_note
+      - status
+      - revisions
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        book_id:
+          type: integer
+          format: int64
+          minimum: 1
+        edition:
+          type: string
+          minLength: 1
+          maxLength: 64
+        publisher:
+          type: string
+          maxLength: 128
+        publication_year:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+        isbn:
+          type: string
+          maxLength: 32
+        license_note:
+          type: string
+          minLength: 1
+          maxLength: 500
+        authorized:
+          type: boolean
+        scope_note:
+          type: string
+          maxLength: 255
+        status:
+          type: string
+          enum:
+          - unpublished
+          - published
+          - withdrawn
+        current_revision_id:
+          type: integer
+          format: int64
+          minimum: 1
+        revisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TextbookRevisionSummary'
+    Textbook:
+      type: object
+      required:
+      - id
+      - title
+      - author
+      - kind
+      - discipline
+      - aliases
+      - version
+      - editions
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        title:
+          type: string
+          minLength: 1
+          maxLength: 128
+        author:
+          type: string
+          minLength: 1
+          maxLength: 128
+        kind:
+          type: string
+          enum:
+          - textbook
+          - handout
+        discipline:
+          type: string
+          minLength: 1
+          maxLength: 128
+        aliases:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        editions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TextbookEdition'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TextbookCreate:
+      type: object
+      required:
+      - title
+      - author
+      - kind
+      - discipline
+      - aliases
+      - initial_edition
+      - idempotency_key
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 128
+        author:
+          type: string
+          minLength: 1
+          maxLength: 128
+        kind:
+          type: string
+          enum:
+          - textbook
+          - handout
+        discipline:
+          type: string
+          minLength: 1
+          maxLength: 128
+        aliases:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+        initial_edition:
+          $ref: '#/components/schemas/TextbookEditionInput'
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 128
+    TextbookUpdate:
+      type: object
+      required:
+      - title
+      - author
+      - kind
+      - discipline
+      - aliases
+      - expected_version
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 128
+        author:
+          type: string
+          minLength: 1
+          maxLength: 128
+        kind:
+          type: string
+          enum:
+          - textbook
+          - handout
+        discipline:
+          type: string
+          minLength: 1
+          maxLength: 128
+        aliases:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+    TextbookEditionCreate:
+      type: object
+      required:
+      - edition
+      - license_note
+      - authorized
+      - idempotency_key
+      properties:
+        edition:
+          type: string
+          minLength: 1
+          maxLength: 64
+        publisher:
+          type: string
+          maxLength: 128
+        publication_year:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+        isbn:
+          type: string
+          maxLength: 32
+        license_note:
+          type: string
+          minLength: 1
+          maxLength: 500
+        authorized:
+          type: boolean
+        scope_note:
+          type: string
+          maxLength: 255
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 128
+    TextbookRevisionCreate:
+      type: object
+      required:
+      - idempotency_key
+      properties:
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 128
+    TextbookRevisionSave:
+      type: object
+      required:
+      - expected_version
+      - sections
+      - mark_reviewed
+      properties:
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+        sections:
+          type: array
+          minItems: 1
+          maxItems: 5000
+          items:
+            $ref: '#/components/schemas/TextbookRevisionSection'
+        mark_reviewed:
+          type: boolean
+    TextbookRevisionSummary:
+      type: object
+      required:
+      - id
+      - edition_id
+      - revision_no
+      - version
+      - status
+      - content_hash
+      - index_status
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        edition_id:
+          type: integer
+          format: int64
+          minimum: 1
+        revision_no:
+          type: integer
+          format: int64
+          minimum: 1
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          type: string
+          enum:
+          - draft
+          - reviewed
+          - published
+        content_hash:
+          type: string
+        index_status:
+          type: string
+          enum:
+          - missing
+          - stale
+          - ready
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     PaperKind:
       type: string
       description: 真题卷 / AI 标准卷 / AI 针对卷

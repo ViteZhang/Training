@@ -131,12 +131,17 @@ type Querier interface {
 	// 作文课判断（PRD 11.12）：这门课已解析的资料里作文类占多少。
 	CountSubjectMaterialCategories(ctx context.Context, arg CountSubjectMaterialCategoriesParams) (CountSubjectMaterialCategoriesRow, error)
 	CountSubjects(ctx context.Context, ownerUserID uint64) (int64, error)
+	CountTextbooks(ctx context.Context, arg CountTextbooksParams) (int64, error)
 	CountUnreadMessages(ctx context.Context, arg CountUnreadMessagesParams) (int64, error)
 	// 导入流水线（T10）。每条查询都带 owner_user_id 归属条件。
 	CreateImportJob(ctx context.Context, arg CreateImportJobParams) (int64, error)
 	CreateMaterial(ctx context.Context, arg CreateMaterialParams) (int64, error)
 	CreateOfficialReference(ctx context.Context, arg CreateOfficialReferenceParams) (int64, error)
 	CreateSubject(ctx context.Context, arg CreateSubjectParams) (int64, error)
+	// T38 官方教材库：仅共享教材，不读取用户私有题目或原文。
+	CreateTextbook(ctx context.Context, arg CreateTextbookParams) (int64, error)
+	CreateTextbookEdition(ctx context.Context, arg CreateTextbookEditionParams) (int64, error)
+	CreateTextbookRevision(ctx context.Context, arg CreateTextbookRevisionParams) (int64, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (int64, error)
 	CreateUserBank(ctx context.Context, arg CreateUserBankParams) (int64, error)
 	// 作文资料入库（T11）。每条都带 owner_user_id。
@@ -313,6 +318,12 @@ type Querier interface {
 	GetSubjectBank(ctx context.Context, arg GetSubjectBankParams) (GetSubjectBankRow, error)
 	GetSubscription(ctx context.Context, arg GetSubscriptionParams) (BankSubscription, error)
 	GetSurveyResponse(ctx context.Context, ownerUserID uint64) (SurveyResponse, error)
+	GetTextbook(ctx context.Context, id uint64) (Textbook, error)
+	GetTextbookEdition(ctx context.Context, arg GetTextbookEditionParams) (TextbookEdition, error)
+	GetTextbookEditionRequest(ctx context.Context, arg GetTextbookEditionRequestParams) (TextbookEdition, error)
+	GetTextbookRequest(ctx context.Context, arg GetTextbookRequestParams) (Textbook, error)
+	GetTextbookRevision(ctx context.Context, arg GetTextbookRevisionParams) (TextbookRevision, error)
+	GetTextbookRevisionRequest(ctx context.Context, arg GetTextbookRevisionRequestParams) (TextbookRevision, error)
 	// 用户、刷新令牌、协议、App 版本、会员状态（T06）。
 	// 规矩：查询用户内容一律带归属条件（CLAUDE.md 必须遵守第 4 条）；这里的表以 user_id / id 为归属。
 	GetUserByID(ctx context.Context, id uint64) (User, error)
@@ -563,6 +574,9 @@ type Querier interface {
 	// 还没导入任何资料的专业课（1.8 提示继续导入）。
 	ListSubjectsWithoutContent(ctx context.Context, ownerUserID uint64) ([]uint64, error)
 	ListSubscribers(ctx context.Context, bankID uint64) ([]ListSubscribersRow, error)
+	ListTextbookEditions(ctx context.Context, bookID uint64) ([]TextbookEdition, error)
+	ListTextbookRevisions(ctx context.Context, editionID uint64) ([]ListTextbookRevisionsRow, error)
+	ListTextbooks(ctx context.Context, arg ListTextbooksParams) ([]Textbook, error)
 	// 范文对比（5.6）：用户导入的同题范文。
 	ListTopicModelEssays(ctx context.Context, arg ListTopicModelEssaysParams) ([]ListTopicModelEssaysRow, error)
 	// 登录设备列表：同一设备可能有多条有效令牌（并发刷新），由调用方按 device_id 去重。
@@ -581,6 +595,9 @@ type Querier interface {
 	// 到期复习的错题：没排过复习日的、复习日已到的。
 	ListWrongBookDue(ctx context.Context, arg ListWrongBookDueParams) ([]uint64, error)
 	LockQuotaCounter(ctx context.Context, arg LockQuotaCounterParams) (QuotaCounter, error)
+	LockTextbook(ctx context.Context, id uint64) (Textbook, error)
+	LockTextbookEdition(ctx context.Context, arg LockTextbookEditionParams) (TextbookEdition, error)
+	LockTextbookRevision(ctx context.Context, arg LockTextbookRevisionParams) (TextbookRevision, error)
 	// 锁住邀请人，两个好友同时激活时累计天数不会超过上限。
 	LockUserRow(ctx context.Context, id uint64) (uint64, error)
 	// 用户改了 AI 参考答案（「我来改」），7.5 统计修改率。
@@ -601,6 +618,7 @@ type Querier interface {
 	MoveKPRubric(ctx context.Context, arg MoveKPRubricParams) error
 	// 合并：把来源知识点的题目关联挂到目标知识点（已挂的跳过）。
 	MoveQuestionKPs(ctx context.Context, arg MoveQuestionKPsParams) error
+	NextTextbookRevisionNo(ctx context.Context, editionID uint64) (int64, error)
 	// 高分写法：同题型里有采分点的题，用户确认过的采分点、有资料出处的优先。
 	NormExampleQuestion(ctx context.Context, arg NormExampleQuestionParams) (NormExampleQuestionRow, error)
 	// 官方题库首次上线：自建了同一专业课（代码相同）、能看到官方题库开关的用户收到提醒（PRD 5.6）。
@@ -641,6 +659,7 @@ type Querier interface {
 	RevokeRefreshToken(ctx context.Context, arg RevokeRefreshTokenParams) error
 	// 草稿（客户端每 5 秒存一次）；提交后不能再改。
 	SaveEssayDraft(ctx context.Context, arg SaveEssayDraftParams) (int64, error)
+	SaveTextbookRevision(ctx context.Context, arg SaveTextbookRevisionParams) (int64, error)
 	SearchKPs(ctx context.Context, arg SearchKPsParams) ([]SearchKPsRow, error)
 	SearchMaterialPages(ctx context.Context, arg SearchMaterialPagesParams) ([]SearchMaterialPagesRow, error)
 	SearchQuestions(ctx context.Context, arg SearchQuestionsParams) ([]SearchQuestionsRow, error)
@@ -739,6 +758,7 @@ type Querier interface {
 	UpdateSubject(ctx context.Context, arg UpdateSubjectParams) error
 	// 录取结果可以稍后补（6.14）；不重复送会员。
 	UpdateSurveyResponse(ctx context.Context, arg UpdateSurveyResponseParams) error
+	UpdateTextbookMetadata(ctx context.Context, arg UpdateTextbookMetadataParams) (int64, error)
 	UpdateUserKPCopy(ctx context.Context, arg UpdateUserKPCopyParams) error
 	UpdateUserNickname(ctx context.Context, arg UpdateUserNicknameParams) error
 	UpdateUserOnboarding(ctx context.Context, arg UpdateUserOnboardingParams) error

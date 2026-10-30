@@ -50,6 +50,7 @@ import (
 	"peetraining-server/internal/quota"
 	"peetraining-server/internal/score"
 	"peetraining-server/internal/store"
+	"peetraining-server/internal/textbook"
 )
 
 // Version 保留用于健康检查和日志的兼容字段；镜像发布统一使用 latest，不再注入发布版本号。
@@ -96,8 +97,9 @@ type Base struct {
 	// T27 消息中心。
 	Notify *notify.Service
 	// T28 管理后台。
-	Admin    *admin.Service
-	Official *official.Service
+	Admin     *admin.Service
+	Official  *official.Service
+	Textbooks *textbook.Service
 }
 
 // Open 建立数据库、Redis、队列与云服务客户端。任一失败都关闭已打开的资源并返回错误。
@@ -183,6 +185,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	}
 	base.Admin = admin.New(admin.Deps{DB: db, Redis: rdb, SMS: clients.SMS, OSS: clients.OSS, Params: ps, Quota: qs, Notify: base.Notify, Payment: base.Payment,
 		Import: imp, Log: log, Invalidate: []admin.Invalidator{ps, fl}, LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock})
+	base.Textbooks = textbook.New(db)
 	base.Official = official.New(official.Deps{DB: db, AI: engine, Log: log})
 	return base, nil
 }
@@ -252,6 +255,7 @@ func (b *Base) Handler() (http.Handler, error) {
 		Notify:     b.Notify,
 		Admin:      b.Admin,
 		Official:   b.Official,
+		Textbooks:  b.Textbooks,
 		Events:     events.New(b.Logger, nil),
 		Metrics:    monitor.NewHTTPCounter(b.Redis),
 		DevMockPay: b.devMockPay(),

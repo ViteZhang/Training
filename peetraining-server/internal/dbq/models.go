@@ -7138,6 +7138,56 @@ type SurveyResponse struct {
 	UpdatedAt    time.Time
 }
 
+type Textbook struct {
+	ID          uint64
+	Title       string
+	Author      string
+	Kind        string
+	Discipline  string
+	Aliases     json.RawMessage
+	Version     uint64
+	CreatedBy   uint64
+	RequestKey  string
+	RequestHash string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type TextbookEdition struct {
+	ID                uint64
+	BookID            uint64
+	Edition           string
+	Publisher         string
+	PublicationYear   sql.NullInt16
+	Isbn              string
+	LicenseNote       string
+	Authorized        bool
+	ScopeNote         string
+	Status            string
+	CurrentRevisionID sql.NullInt64
+	CreatedBy         uint64
+	RequestKey        string
+	RequestHash       string
+	CreatedAt         time.Time
+}
+
+type TextbookRevision struct {
+	ID          uint64
+	EditionID   uint64
+	RevisionNo  uint64
+	Version     uint64
+	Status      string
+	Sections    json.RawMessage
+	ContentHash string
+	IndexStatus string
+	ReviewedBy  sql.NullInt64
+	ReviewedAt  sql.NullTime
+	CreatedBy   uint64
+	RequestKey  string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 // App 用户
 type User struct {
 	ID uint64

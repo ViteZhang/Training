@@ -4272,10 +4272,234 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/textbooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.16 独立官方教材库 */
+        get: operations["listTextbooks"];
+        put?: never;
+        /** 创建独立教材及初始出版版本 */
+        post: operations["createTextbook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/textbooks/{bookId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 教材详情 */
+        get: operations["getTextbook"];
+        /** 修改教材身份（乐观锁） */
+        put: operations["updateTextbook"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/textbooks/{bookId}/editions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 新增出版版本 */
+        post: operations["createTextbookEdition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/textbooks/{bookId}/editions/{editionId}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建草稿修订 */
+        post: operations["createTextbookRevision"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 读取指定修订原文 */
+        get: operations["getTextbookRevision"];
+        /** 保存校对原文并使索引失效 */
+        put: operations["saveTextbookRevision"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        TextbookMetadata: {
+            title: string;
+            author: string;
+            /** @enum {string} */
+            kind: "textbook" | "handout";
+            discipline: string;
+            aliases: string[];
+        };
+        TextbookEditionInput: {
+            edition: string;
+            publisher?: string;
+            publication_year?: number;
+            isbn?: string;
+            license_note: string;
+            authorized: boolean;
+            scope_note?: string;
+        };
+        TextbookRevisionSection: {
+            heading: string;
+            text: string;
+            source_page?: number;
+            printed_page?: string;
+        };
+        TextbookRevision: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            edition_id: number;
+            /** Format: int64 */
+            revision_no: number;
+            /** Format: int64 */
+            version: number;
+            /** @enum {string} */
+            status: "draft" | "reviewed" | "published";
+            content_hash: string;
+            sections: components["schemas"]["TextbookRevisionSection"][];
+            /** @enum {string} */
+            index_status: "missing" | "stale" | "ready";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        TextbookEdition: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            book_id: number;
+            edition: string;
+            publisher: string;
+            publication_year?: number;
+            isbn: string;
+            license_note: string;
+            authorized: boolean;
+            scope_note: string;
+            /** @enum {string} */
+            status: "unpublished" | "published" | "withdrawn";
+            /** Format: int64 */
+            current_revision_id?: number;
+            revisions: components["schemas"]["TextbookRevisionSummary"][];
+        };
+        Textbook: {
+            /** Format: int64 */
+            id: number;
+            title: string;
+            author: string;
+            /** @enum {string} */
+            kind: "textbook" | "handout";
+            discipline: string;
+            aliases: string[];
+            /** Format: int64 */
+            version: number;
+            editions: components["schemas"]["TextbookEdition"][];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        TextbookCreate: {
+            title: string;
+            author: string;
+            /** @enum {string} */
+            kind: "textbook" | "handout";
+            discipline: string;
+            aliases: string[];
+            initial_edition: components["schemas"]["TextbookEditionInput"];
+            idempotency_key: string;
+        };
+        TextbookUpdate: {
+            title: string;
+            author: string;
+            /** @enum {string} */
+            kind: "textbook" | "handout";
+            discipline: string;
+            aliases: string[];
+            /** Format: int64 */
+            expected_version: number;
+        };
+        TextbookEditionCreate: {
+            edition: string;
+            publisher?: string;
+            publication_year?: number;
+            isbn?: string;
+            license_note: string;
+            authorized: boolean;
+            scope_note?: string;
+            idempotency_key: string;
+        };
+        TextbookRevisionCreate: {
+            idempotency_key: string;
+        };
+        TextbookRevisionSave: {
+            /** Format: int64 */
+            expected_version: number;
+            sections: components["schemas"]["TextbookRevisionSection"][];
+            mark_reviewed: boolean;
+        };
+        TextbookRevisionSummary: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            edition_id: number;
+            /** Format: int64 */
+            revision_no: number;
+            /** Format: int64 */
+            version: number;
+            /** @enum {string} */
+            status: "draft" | "reviewed" | "published";
+            content_hash: string;
+            /** @enum {string} */
+            index_status: "missing" | "stale" | "ready";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
         /**
          * @description 真题卷 / AI 标准卷 / AI 针对卷
          * @enum {string}
@@ -14346,6 +14570,302 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+        };
+    };
+    listTextbooks: {
+        parameters: {
+            query?: {
+                q?: string;
+                kind?: string;
+                discipline?: string;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Textbook"][];
+                        total: number;
+                        page: number;
+                        page_size: number;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 版本变化或重复创建冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createTextbook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TextbookCreate"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Textbook"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 版本变化或重复创建冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getTextbook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Textbook"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 版本变化或重复创建冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateTextbook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TextbookUpdate"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Textbook"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 版本变化或重复创建冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createTextbookEdition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TextbookEditionCreate"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Textbook"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 版本变化或重复创建冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createTextbookRevision: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+                editionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TextbookRevisionCreate"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextbookRevision"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 版本变化或重复创建冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getTextbookRevision: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+                editionId: number;
+                revisionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextbookRevision"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 版本变化或重复创建冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    saveTextbookRevision: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+                editionId: number;
+                revisionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TextbookRevisionSave"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextbookRevision"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description 版本变化或重复创建冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
 }
