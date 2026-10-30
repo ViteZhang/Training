@@ -26,6 +26,7 @@ import (
 	"peetraining-server/internal/cloud/ocr"
 	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/cloud/pay"
+	"peetraining-server/internal/cloud/vector"
 	"peetraining-server/internal/config"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/essay"
@@ -187,6 +188,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	base.Admin = admin.New(admin.Deps{DB: db, Redis: rdb, SMS: clients.SMS, OSS: clients.OSS, Params: ps, Quota: qs, Notify: base.Notify, Payment: base.Payment,
 		Import: imp, Log: log, Invalidate: []admin.Invalidator{ps, fl}, LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock})
 	base.Textbooks = textbook.New(db)
+	base.Textbooks.ConfigureIndexes(textbook.IndexDeps{Embedding: ai.NewEmbedder(cfg.Textbook).WithAudit(engine), Vector: vector.New(cfg.Textbook.VectorURL, cfg.Textbook.VectorAPIKey), Params: ps, Queue: queue, Production: cfg.IsProduction(), VectorConfigured: cfg.Textbook.VectorURL != ""})
 	base.Textbooks.ConfigureImports(textbook.ImportDeps{OSS: clients.OSS, AI: engine, Renderer: ocr.NewPDFium(nil), Queue: queue, Params: ps})
 	base.Official = official.New(official.Deps{DB: db, AI: engine, Log: log})
 	return base, nil

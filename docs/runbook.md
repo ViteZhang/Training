@@ -445,3 +445,17 @@ ASR_API_KEY=
 上传对象在 `textbooks/imports/<ID>/upload`，大小与 SHA256 核对后写入独立 `source` 对象；封存后不再开放原件重传，页图仅用短期预签名地址供授权后台校对。不要删除已采用结果的原件、页图或数据库页记录，它们是之后引用定位的依据。未完成上传在后台任务列表重新选同一原件恢复。
 
 识别 ready 不写草稿；运营明确选择追加/替换后，服务端检查 expected_version，成功后把草稿退回待校对并使索引失效。任何模型标记的不确定块必须在校对页确认；识别完成不是发布完成。真实模型与真实 PDF 验收仍待 T43，不使用公开合成样例作为效果承诺。
+
+### 官方教材嵌入与索引（T40）
+
+开发密钥填写 `peetraining-server/.env.local` 的 `TEXTBOOK_EMBEDDING_API_KEY`；生产 API 和 Worker 共享服务器后端环境配置。配置示例在 `.env.local.example` / `.env.example`，应用不会自动读取任意 .env，开发脚本负责载入。不要把密钥填写到 web/mobile 的环境文件、后台表单、聊天、日志或 Git。
+
+`TEXTBOOK_EMBEDDING_PROVIDER=openai`、用户提供的 compatible-mode/v1 地址、`qwen3.7-text-embedding-flash`、默认1024维；其他支持维度256/512/768。单独设置 `TEXTBOOK_VECTOR_URL=http://textbook-vector:6333` 和独立 `TEXTBOOK_VECTOR_API_KEY`。默认 provider=disabled，可识别/校对草稿但不能假装索引完成。
+
+Qdrant 是新依赖，部署前确认资源、固定审核镜像摘要和备份目录；可选 compose 文件 `deploy/docker-compose.textbook.yml` 不会被现有流水线自动启动。只加入私有 dreamer-net，不映射公网端口。需先执行新增迁移，再由人工授权启动服务。MySQL须支持 ngram 全文解析器；迁移失败不能跳过全文索引。
+
+备份：MySQL正常备份包含原文/切片/profile/发布指针。Qdrant使用官方集合快照 API（API key 从环境读取），快照转存独立私有备份位置；恢复演练对每个线上代次核对 collection、维度与过滤计数。文件系统直接复制运行中 volume 不能代替一致性快照。尚未提供自动快照调度，运维需在生产启用前配置并演练。Qdrant丢失可用校对正文重建新代次，重建和复核前关闭新检索。
+
+后台“索引与发布”创建异步代次，任务逐段记录完成状态；队列故障由两分钟恢复调度补投。已发布修订不覆盖。新模型或维度必须新代次，查询与文档不兼容时静默降级（答案链路T41接入），不能混用。下架停止新使用；授权停用、到期也停止新使用；“历史摘录展示”单独控制原文可见性。新内容需重新校验发布，恢复授权不会自动上架。
+
+真实嵌入和Qdrant连通、授权PDF闭环、召回质量、并发时延和费用留T43实测；模拟测试不代替验收。

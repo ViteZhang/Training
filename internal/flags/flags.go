@@ -13,12 +13,13 @@ import (
 
 // 功能开关名，与 feature_flags.flag_key 一致。
 const (
-	OnlinePayment = "online_payment"
-	OfficialBank  = "official_bank"
-	OralRecite    = "oral_recite"
-	VoiceAnswer   = "voice_answer"
-	ScannedPDF    = "scanned_pdf"
-	Invite        = "invite"
+	OnlinePayment     = "online_payment"
+	OfficialBank      = "official_bank"
+	TextbookRetrieval = "textbook_retrieval"
+	OralRecite        = "oral_recite"
+	VoiceAnswer       = "voice_answer"
+	ScannedPDF        = "scanned_pdf"
+	Invite            = "invite"
 )
 
 const ttl = 30 * time.Second
