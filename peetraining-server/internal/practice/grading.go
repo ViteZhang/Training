@@ -30,14 +30,15 @@ const grantHours = 72
 
 // rubricSnap 是批改时的采分点快照（gradings.rubric_snapshot），历史批改不随采分点修改变化（PRD 11.14）。
 type rubricSnap struct {
-	Version    int             `json:"version"`
-	Source     string          `json:"source"`
-	Reference  string          `json:"reference"`
-	Points     []ai.GradePoint `json:"points"`
-	FullScore  float64         `json:"full_score"`
-	MaterialID uint64          `json:"material_id,omitempty"`
-	FileName   string          `json:"file_name,omitempty"`
-	Page       int             `json:"page,omitempty"`
+	AnswerSnapshotID uint64          `json:"answer_snapshot_id,omitempty"`
+	Version          int             `json:"version"`
+	Source           string          `json:"source"`
+	Reference        string          `json:"reference"`
+	Points           []ai.GradePoint `json:"points"`
+	FullScore        float64         `json:"full_score"`
+	MaterialID       uint64          `json:"material_id,omitempty"`
+	FileName         string          `json:"file_name,omitempty"`
+	Page             int             `json:"page,omitempty"`
 	// AnswerTier 是批改时参考答案的档位（PRD v3 11.16）：ai 表示按 AI 参考答案批改，结果仅供参考、不计入预估分（4.7b）。
 	AnswerTier string `json:"answer_tier,omitempty"`
 }
@@ -115,12 +116,29 @@ func parseScore(s sql.NullString) (float64, bool) {
 func round1(v float64) float64 { return math.Round(v*10) / 10 }
 
 // snapshot 读出题目当前的采分点作为批改依据。没有采分点时按参考答案整体批改（标「按参考答案」）。
-func (s *Service) snapshot(ctx context.Context, q *dbq.Queries, userID uint64, qr dbq.GetQuestionFullRow) (rubricSnap, error) {
+func (s *Service) snapshot(ctx context.Context, userID uint64, qr dbq.GetQuestionFullRow) (rubricSnap, error) {
+	var out rubricSnap
+	err := s.withTx(ctx, func(q *dbq.Queries) error {
+		current, err := q.LockQuestionAnswer(ctx, dbq.LockQuestionAnswerParams{ID: qr.ID, OwnerUserID: owner(userID)})
+		if err != nil {
+			return err
+		}
+		// Read answer and rubric under the same question lock used by editing and adoption.
+		if current.Answer != qr.Answer || current.AnswerOrigin != qr.AnswerOrigin || current.RubricVersion != qr.RubricVersion || current.AnswerSnapshotID != qr.AnswerSnapshotID || current.Stem != qr.Stem || current.Passage != qr.Passage || current.Score != qr.Score {
+			return apperr.New(apperr.Conflict, "题目依据已更新，请重试批改")
+		}
+		out, err = s.snapshotLocked(ctx, q, userID, qr)
+		return err
+	})
+	return out, err
+}
+
+func (s *Service) snapshotLocked(ctx context.Context, q *dbq.Queries, userID uint64, qr dbq.GetQuestionFullRow) (rubricSnap, error) {
 	rp, err := q.ListQuestionRubric(ctx, dbq.ListQuestionRubricParams{QuestionID: sql.NullInt64{Int64: int64(qr.ID), Valid: true}, OwnerUserID: owner(userID)})
 	if err != nil {
 		return rubricSnap{}, err
 	}
-	snap := rubricSnap{Version: int(qr.RubricVersion), Reference: qr.Answer.String, AnswerTier: string(answerTier(qr))}
+	snap := rubricSnap{AnswerSnapshotID: uint64(qr.AnswerSnapshotID.Int64), Version: int(qr.RubricVersion), Reference: qr.Answer.String, AnswerTier: string(answerTier(qr))}
 	full, hasFull := parseScore(qr.Score)
 	sum, allScored := 0.0, len(rp) > 0
 	for _, p := range rp {
@@ -299,7 +317,7 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 	if qr, err = s.ensureAnswer(ctx, userID, qr, true); err != nil {
 		return Grading{}, err
 	}
-	snap, err := s.snapshot(ctx, s.q, userID, qr)
+	snap, err := s.snapshot(ctx, userID, qr)
 	if err != nil {
 		return Grading{}, err
 	}
@@ -512,7 +530,7 @@ func (s *Service) regrade(ctx context.Context, userID uint64, old Grading, trigg
 	if err != nil {
 		return Grading{}, err
 	}
-	snap, err := s.snapshot(ctx, s.q, userID, qr)
+	snap, err := s.snapshot(ctx, userID, qr)
 	if err != nil {
 		return Grading{}, err
 	}
@@ -677,9 +695,16 @@ func (s *Service) SubmitPending(ctx context.Context, userID uint64) ([]Grading, 
 		if err != nil {
 			continue
 		}
-		snap, err := s.snapshot(ctx, s.q, userID, qr)
-		if err != nil {
-			continue
+		var snap rubricSnap
+		if len(g.RubricSnapshot) > 0 {
+			if err = json.Unmarshal(g.RubricSnapshot, &snap); err != nil {
+				return done, 0, err
+			}
+		} else {
+			snap, err = s.snapshot(ctx, userID, qr)
+			if err != nil {
+				continue
+			}
 		}
 		kpM, kpName, err := s.primaryKP(ctx, s.q, userID, qr.ID)
 		if err != nil {

@@ -9,13 +9,17 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
+	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
+	"peetraining-server/internal/flags"
 	"peetraining-server/internal/rules"
 	"peetraining-server/internal/store"
 )
 
 type Service struct {
+	engine  *ai.Engine
+	flags   *flags.Service
 	imports ImportDeps
 	indexes IndexDeps
 	db      *sql.DB

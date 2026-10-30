@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"peetraining-server/internal/admin"
+	"peetraining-server/internal/answerupdate"
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/params"
@@ -94,11 +95,18 @@ func TestSubjectiveGradingQuotaAndPending(t *testing.T) {
 	if err != nil || len(done) != 0 || remain != 1 {
 		t.Fatalf("当天次数用完不能提交：%d %d %v", len(done), remain, err)
 	}
+	// 排队期间更新参考答案，恢复批改仍使用提交时的依据。
+	if _, err := f.db.Exec("UPDATE questions SET answer='新的参考答案',rubric_version=rubric_version+1 WHERE id=?", q.ID); err != nil {
+		t.Fatal(err)
+	}
 	// 次日 0 点后一键提交。
 	f.clock = f.clock.Add(24 * time.Hour)
 	done, remain, err = f.pr.SubmitPending(ctx, uid)
 	if err != nil || len(done) != 1 || remain != 0 || done[0].Status != "done" || done[0].Trigger != "pending_resubmit" {
 		t.Fatalf("次日提交待批改：%+v %d %v", done, remain, err)
+	}
+	if done[0].Rubric.Reference != queued.Rubric.Reference || done[0].Rubric.Version != queued.Rubric.Version {
+		t.Fatalf("待批改漂移到新依据：%+v != %+v", done[0].Rubric, queued.Rubric)
 	}
 	var used int
 	_ = f.db.QueryRow("SELECT used FROM quota_counters WHERE owner_user_id = ? AND quota_type = 'grading' ORDER BY period_key DESC LIMIT 1", uid).Scan(&used)
@@ -220,6 +228,9 @@ func TestGradingOwnership(t *testing.T) {
 	_, err = f.pr.SubmitSubjective(ctx, b, s.ID, practice.SubjectiveInput{QuestionID: q.ID, Key: nextKey(), Answer: "情景交融"})
 	if kind(err) != apperr.NotFound {
 		t.Errorf("别人的会话：%v", err)
+	}
+	if _, err := answerupdate.New(f.db, nil, nil, nil).GradingSnapshot(ctx, b, g.ID); kind(err) != apperr.NotFound {
+		t.Fatal("别人的批改依据", err)
 	}
 	if _, err := f.pr.Grading(ctx, b, g.ID); kind(err) != apperr.NotFound {
 		t.Errorf("别人的批改：%v", err)

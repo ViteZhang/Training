@@ -184,7 +184,7 @@ func (q *Queries) GetStudyProfile(ctx context.Context, userID uint64) (StudyProf
 }
 
 const getSubject = `-- name: GetSubject :one
-SELECT s.id, s.owner_user_id, s.name, s.code, s.full_score, s.target_score, s.is_essay, s.essay_set_by, s.sort_order, s.created_at, s.updated_at, s.my_majors, s.textbooks, b.id AS bank_id FROM subjects s JOIN banks b ON b.subject_id = s.id
+SELECT s.id, s.owner_user_id, s.name, s.code, s.full_score, s.target_score, s.is_essay, s.essay_set_by, s.sort_order, s.created_at, s.updated_at, s.my_majors, s.textbooks, s.textbook_selections, b.id AS bank_id FROM subjects s JOIN banks b ON b.subject_id = s.id
 WHERE s.id = ? AND s.owner_user_id = ?
 `
 
@@ -194,20 +194,21 @@ type GetSubjectParams struct {
 }
 
 type GetSubjectRow struct {
-	ID          uint64
-	OwnerUserID uint64
-	Name        string
-	Code        sql.NullString
-	FullScore   uint16
-	TargetScore sql.NullInt16
-	IsEssay     bool
-	EssaySetBy  NullSubjectsEssaySetBy
-	SortOrder   uint8
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	MyMajors    sql.NullString
-	Textbooks   dbtypes.NullJSON
-	BankID      uint64
+	ID                 uint64
+	OwnerUserID        uint64
+	Name               string
+	Code               sql.NullString
+	FullScore          uint16
+	TargetScore        sql.NullInt16
+	IsEssay            bool
+	EssaySetBy         NullSubjectsEssaySetBy
+	SortOrder          uint8
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	MyMajors           sql.NullString
+	Textbooks          dbtypes.NullJSON
+	TextbookSelections dbtypes.NullJSON
+	BankID             uint64
 }
 
 func (q *Queries) GetSubject(ctx context.Context, arg GetSubjectParams) (GetSubjectRow, error) {
@@ -227,6 +228,7 @@ func (q *Queries) GetSubject(ctx context.Context, arg GetSubjectParams) (GetSubj
 		&i.UpdatedAt,
 		&i.MyMajors,
 		&i.Textbooks,
+		&i.TextbookSelections,
 		&i.BankID,
 	)
 	return i, err
@@ -308,7 +310,7 @@ func (q *Queries) ListExamDatesFrom(ctx context.Context, subjectExamDate time.Ti
 }
 
 const listSubjects = `-- name: ListSubjects :many
-SELECT s.id, s.owner_user_id, s.name, s.code, s.full_score, s.target_score, s.is_essay, s.essay_set_by, s.sort_order, s.created_at, s.updated_at, s.my_majors, s.textbooks, b.id AS bank_id,
+SELECT s.id, s.owner_user_id, s.name, s.code, s.full_score, s.target_score, s.is_essay, s.essay_set_by, s.sort_order, s.created_at, s.updated_at, s.my_majors, s.textbooks, s.textbook_selections, b.id AS bank_id,
   (SELECT COUNT(*) FROM questions q WHERE q.bank_id = b.id AND q.status = 'active') AS question_count,
   (SELECT COUNT(*) FROM knowledge_points k WHERE k.bank_id = b.id AND k.level = 'point') AS kp_count,
   (SELECT COUNT(*) FROM materials m WHERE m.bank_id = b.id) AS material_count
@@ -318,23 +320,24 @@ ORDER BY s.sort_order, s.id
 `
 
 type ListSubjectsRow struct {
-	ID            uint64
-	OwnerUserID   uint64
-	Name          string
-	Code          sql.NullString
-	FullScore     uint16
-	TargetScore   sql.NullInt16
-	IsEssay       bool
-	EssaySetBy    NullSubjectsEssaySetBy
-	SortOrder     uint8
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	MyMajors      sql.NullString
-	Textbooks     dbtypes.NullJSON
-	BankID        uint64
-	QuestionCount int64
-	KpCount       int64
-	MaterialCount int64
+	ID                 uint64
+	OwnerUserID        uint64
+	Name               string
+	Code               sql.NullString
+	FullScore          uint16
+	TargetScore        sql.NullInt16
+	IsEssay            bool
+	EssaySetBy         NullSubjectsEssaySetBy
+	SortOrder          uint8
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	MyMajors           sql.NullString
+	Textbooks          dbtypes.NullJSON
+	TextbookSelections dbtypes.NullJSON
+	BankID             uint64
+	QuestionCount      int64
+	KpCount            int64
+	MaterialCount      int64
 }
 
 func (q *Queries) ListSubjects(ctx context.Context, ownerUserID uint64) ([]ListSubjectsRow, error) {
@@ -360,6 +363,7 @@ func (q *Queries) ListSubjects(ctx context.Context, ownerUserID uint64) ([]ListS
 			&i.UpdatedAt,
 			&i.MyMajors,
 			&i.Textbooks,
+			&i.TextbookSelections,
 			&i.BankID,
 			&i.QuestionCount,
 			&i.KpCount,

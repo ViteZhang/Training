@@ -18,6 +18,8 @@ import { PageHeader } from '@/features/import/ui';
 import { QuestionSourceChoices } from '@/features/import/QuestionSourceChoices';
 import type { QuestionFileSource } from '@/features/import/files';
 import { api, unwrap } from '@/lib/api';
+import { RecordAnswerEvidence, evidenceKey } from '@/features/answers/Evidence';
+import { AnswerUpdate } from '@/features/answers/AnswerUpdate';
 
 const lossNames: Record<string, string> = { knowledge: '知识没掌握', norm: '答题不规范', time: '时间不够' };
 // 答案档位的标注（PRD 11.16）
@@ -47,6 +49,7 @@ function Editor({ q, onDone }: { q: QuestionDetail; onDone: () => void }) {
       );
       qc.setQueryData(bankKeys.question(q.id), saved);
       void qc.invalidateQueries({ queryKey: ['bank'] });
+      void qc.invalidateQueries({ queryKey: evidenceKey('question', q.id) });
       if (q.answer_tier === 'ai' && saved.answer_tier !== 'ai') track('ai_answer_edit');
       onDone();
     } catch (e) {
@@ -93,7 +96,6 @@ export default function QuestionScreen() {
   const tier = q.answer_tier ?? (q.answer ? 'material' : 'missing');
   const ai = tier === 'ai';
   const subject = subjects.data?.items?.find((x) => x.id === q.subject_id);
-  const books = subject?.textbooks ?? [];
   const answerSrc = q.answer_source ?? (q.answer_match === 'original' ? q.source_ref : undefined);
   const openAnswerFile = () => router.push({ pathname: '/import/answers', params: { subject: String(q.subject_id ?? subject?.id ?? '') } });
 
@@ -103,6 +105,7 @@ export default function QuestionScreen() {
       const saved = await unwrap(api.POST('/questions/{questionId}/answer/confirm', { params: { path: { questionId: qid } } }));
       qc.setQueryData(bankKeys.question(qid), saved);
       void qc.invalidateQueries({ queryKey: ['bank'] });
+      void qc.invalidateQueries({ queryKey: evidenceKey('question', q.id) });
       track('ai_answer_confirm');
       toast('已确认，之后的批改会计入预估分');
     } catch (e) {
@@ -172,10 +175,8 @@ export default function QuestionScreen() {
             {ai ? (
               <View style={styles.aiNote}>
                 <Text variant="caption" color={colors.blueInk} style={styles.lh2}>
-                  <Text variant="caption" color={colors.blueInk} style={styles.bold}>
-                    你的资料里没有这道题的答案
-                  </Text>
-                  ，下面是 AI 参考你的{books.length > 0 ? `教材${books.map((b) => (b.includes('《') ? b.replace(/^.*?(《.*》).*$/, '$1') : `《${b}》`)).join('')}` : '资料'}生成的，确认前不计入预估分
+                  下面是 AI 生成的参考答案，确认前不计入预估分。
+
                 </Text>
                 <Button title="补充答案文件 ›" kind="text" size="sm" color={colors.blueInk} style={styles.link} onPress={openAnswerFile} />
               </View>
@@ -203,6 +204,7 @@ export default function QuestionScreen() {
                   ) : null}
                 </View>
               ) : null}
+              {q.answer ? <RecordAnswerEvidence kind="question" id={q.id} /> : null}
               {!ai ? (
                 <View style={styles.sourceRow}>
                   <Button title={q.answer ? '修改答案' : '补充 / 修改答案'} kind="text" size="sm" color={semantic.info} style={styles.link} onPress={() => setEditing(true)} />
@@ -210,6 +212,7 @@ export default function QuestionScreen() {
                 </View>
               ) : null}
             </InfoCard>
+            {q.answer ? <AnswerUpdate question={q} /> : null}
             {q.rubric_points.length > 0 ? (
               <InfoCard
                 label="采分点 · 批改依据"

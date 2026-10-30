@@ -4634,10 +4634,233 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gradings/{gradingId}/answer-evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getGradingAnswerEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/import-items/{itemId}/answer-evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getImportAnswerEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/textbook-matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 解析本人教材书名，仅返回明确匹配的公开元数据，未匹配静默 */
+        post: operations["matchSubjectTextbooks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/textbooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listProjectTextbooks"];
+        put: operations["setProjectTextbooks"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questions/{questionId}/answer-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 恢复并查看本人答案更新候选 */
+        get: operations["listAnswerUpdateCandidates"];
+        put?: never;
+        /** 主动更新答案：异步成功候选扣一次，采用不再扣 */
+        post: operations["createAnswerUpdateCandidate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questions/{questionId}/answer-candidates/{candidateId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 本人候选详情和可用出处 */
+        get: operations["getAnswerUpdateCandidate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questions/{questionId}/answer-candidates/{candidateId}/adopt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 采用候选（不重复扣次） */
+        post: operations["adoptAnswerUpdateCandidate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questions/{questionId}/answer-candidates/{candidateId}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 放弃已成功候选（不退次） */
+        post: operations["discardAnswerUpdateCandidate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questions/{questionId}/answer-evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 答案的不可变实际引用依据 */
+        get: operations["getQuestionAnswerEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        UserTextbookSelection: {
+            input: string;
+            /** Format: int64 */
+            edition_id: number;
+        };
+        UserTextbookMatch: {
+            input: string;
+            /** Format: int64 */
+            book_id: number;
+            /** Format: int64 */
+            edition_id: number;
+            title: string;
+            author: string;
+            edition: string;
+            /** @enum {string} */
+            method: "auto" | "explicit";
+            catalog_version: string;
+            available: boolean;
+        };
+        AnswerEvidenceSource: {
+            id: string;
+            /** @enum {string} */
+            kind: "official_textbook" | "personal_material";
+            title: string;
+            author?: string;
+            edition?: string;
+            /** Format: int64 */
+            book_id?: number;
+            /** Format: int64 */
+            edition_id?: number;
+            /** Format: int64 */
+            revision_id?: number;
+            /** Format: int64 */
+            generation_id?: number;
+            ordinal?: number;
+            heading?: string;
+            source_page?: number;
+            printed_page?: string;
+            quote: string;
+            claim: string;
+            unavailable?: boolean;
+            /** Format: int64 */
+            material_id?: number;
+            page?: number;
+        };
+        AnswerEvidenceSnapshot: {
+            version: string;
+            /** Format: date-time */
+            generated_at: string;
+            model: string;
+            prompt_version: string;
+            /** @enum {string} */
+            coverage: "none" | "partial" | "sufficient";
+            uses_general_knowledge: boolean;
+            sources: components["schemas"]["AnswerEvidenceSource"][];
+        };
+        AnswerUpdateCandidate: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            question_id: number;
+            /** @enum {string} */
+            status: "queued" | "processing" | "failed" | "ready" | "adopted" | "discarded";
+            answer?: string;
+            points?: components["schemas"]["RubricPointInput"][];
+            snapshot?: components["schemas"]["AnswerEvidenceSnapshot"];
+            failure_message: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
         TextbookRetrievalSettings: {
             embedding_enabled: boolean;
             embedding_provider: string;
@@ -6926,6 +7149,9 @@ export interface components {
             created_at: string;
         };
         OfficialAnswerCandidate: {
+            /** Format: int64 */
+            snapshot_id?: number;
+            snapshot?: components["schemas"]["AnswerEvidenceSnapshot"];
             answer: string;
             points: components["schemas"]["OfficialPoint"][];
             /** @description 生成时引用的官方参考素材段落（出处）；为空表示素材里没找到相关内容，按通用知识生成 */
@@ -7607,6 +7833,7 @@ export interface components {
             target_score?: number | null;
         };
         SubjectPatch: {
+            textbook_selections?: components["schemas"]["UserTextbookSelection"][];
             /** @description 报考方向，多个用顿号分隔；空表示不区分 */
             my_majors?: string | null;
             name?: string;
@@ -7620,6 +7847,7 @@ export interface components {
             textbooks?: string[];
         };
         Subject: {
+            textbook_selections?: components["schemas"]["UserTextbookSelection"][];
             /** @description 报考方向（导入按专业分组的真题时默认只保留匹配的组） */
             my_majors?: string;
             /** Format: int64 */
@@ -16008,6 +16236,319 @@ export interface operations {
                     "application/json": components["schemas"]["TextbookIndex"];
                 };
             };
+        };
+    };
+    getGradingAnswerEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gradingId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 本人记录对应的不可变来源 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        snapshot: components["schemas"]["AnswerEvidenceSnapshot"] | null;
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getImportAnswerEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                itemId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 本人记录对应的不可变来源 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        snapshot: components["schemas"]["AnswerEvidenceSnapshot"] | null;
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    matchSubjectTextbooks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    titles?: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description 明确匹配的教材；可为空，不影响书名保存 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["UserTextbookMatch"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listProjectTextbooks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 关联的明确出版版本 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        version: number;
+                        items: components["schemas"]["UserTextbookMatch"][];
+                    };
+                };
+            };
+        };
+    };
+    setProjectTextbooks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    expected_version: number;
+                    edition_ids: number[];
+                    idempotency_key: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 关联成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        version: number;
+                        items: components["schemas"]["UserTextbookMatch"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listAnswerUpdateCandidates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AnswerUpdateCandidate"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    createAnswerUpdateCandidate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    idempotency_key: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnswerUpdateCandidate"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getAnswerUpdateCandidate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: number;
+                candidateId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnswerUpdateCandidate"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    adoptAnswerUpdateCandidate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: number;
+                candidateId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    idempotency_key: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnswerUpdateCandidate"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    discardAnswerUpdateCandidate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: number;
+                candidateId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    idempotency_key: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnswerUpdateCandidate"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getQuestionAnswerEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        snapshot: components["schemas"]["AnswerEvidenceSnapshot"];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
 }

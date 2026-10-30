@@ -67,3 +67,43 @@ func TestTextbookAdminRoleEnforcement(t *testing.T) {
 		})
 	}
 }
+
+func TestProjectTextbookRoleEnforcement(t *testing.T) {
+	roles, err := AdminRoles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, method := range []string{http.MethodGet, http.MethodPut} {
+		for _, role := range []admin.Role{"admin", "content_lead", "content_editor", "support", "analyst", ""} {
+			t.Run(method+"/"+string(role), func(t *testing.T) {
+				r := gin.New()
+				audit := &textbookAudit{}
+				r.Use(Errors(), func(c *gin.Context) {
+					if role != "" {
+						c.Set(ctxAdmin, admin.Admin{ID: 1, Roles: []admin.Role{role}})
+					}
+					c.Next()
+				}, AdminGate(roles, audit))
+				r.Handle(method, APIPrefix+"/admin/official/projects/:projectId/textbooks", func(c *gin.Context) { c.Status(http.StatusOK) })
+				w := httptest.NewRecorder()
+				r.ServeHTTP(w, httptest.NewRequest(method, APIPrefix+"/admin/official/projects/3/textbooks", nil))
+				want := http.StatusForbidden
+				if role == "" {
+					want = http.StatusUnauthorized
+				} else if role == "admin" || role == "content_lead" || (role == "content_editor" && method == http.MethodGet) {
+					want = http.StatusOK
+				}
+				if w.Code != want {
+					t.Fatalf("status=%d want=%d", w.Code, want)
+				}
+				wantAudit := 0
+				if want == http.StatusOK && method == http.MethodPut {
+					wantAudit = 1
+				}
+				if audit.writes != wantAudit {
+					t.Fatalf("audit=%d want=%d", audit.writes, wantAudit)
+				}
+			})
+		}
+	}
+}

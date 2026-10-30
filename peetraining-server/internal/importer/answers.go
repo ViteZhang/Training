@@ -21,6 +21,7 @@ import (
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/notify"
 	"peetraining-server/internal/quota"
+	"peetraining-server/internal/rules"
 	"peetraining-server/internal/store"
 )
 
@@ -198,12 +199,28 @@ func AnswerInput(ctx context.Context, q *dbq.Queries, userID, bankID uint64, qty
 	case !errors.Is(err, sql.ErrNoRows):
 		return in, err
 	}
+	bindings, err := q.GetBankTextbookSelections(ctx, dbq.GetBankTextbookSelectionsParams{ID: bankID, OwnerUserID: userID})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return in, err
+	}
+	var selections []rules.TextbookSelection
+	_ = json.Unmarshal(bindings, &selections)
+	for _, v := range selections {
+		in.EditionIDs = append(in.EditionIDs, v.EditionID)
+		remaining := []string{}
+		for _, name := range in.Textbooks {
+			if name != v.Input {
+				remaining = append(remaining, name)
+			}
+		}
+		in.Textbooks = remaining
+	}
 	kps, err := q.ListBankKPTexts(ctx, dbq.ListBankKPTextsParams{BankID: bankID, OwnerUserID: owner})
 	if err != nil {
 		return in, err
 	}
 	for _, k := range relatedKPs(stem, kps, 3) {
-		in.Context = append(in.Context, ai.AnswerContext{Source: k.Name, Text: truncate(k.OriginalText.String, 600)})
+		in.Context = append(in.Context, ai.AnswerContext{MaterialID: uint64(k.SourceMaterialID.Int64), Page: int(k.SourcePage.Int32), Source: k.Name, Text: truncate(k.OriginalText.String, 600)})
 	}
 	return in, nil
 }
@@ -693,13 +710,33 @@ func GenerateQuestionAnswer(ctx context.Context, db *sql.DB, q *dbq.Queries, eng
 	if !ai.Subjective(string(qr.Qtype)) {
 		in.Score = 0 // 客观题只要答案与解析，不要采分点
 	}
-	out, _, err := ai.GenerateAnswer.Run(ctx, engine, userID, in)
+	out, _, err := engine.GenerateReferenceAnswer(ctx, userID, in)
 	if err != nil {
 		return false, err
 	}
 	owner := sql.NullInt64{Int64: int64(userID), Valid: true}
 	qid := sql.NullInt64{Int64: int64(qr.ID), Valid: true}
+	written := false
 	err = store.WithTx(ctx, db, func(tx *dbq.Queries) error {
+		current, err := tx.LockQuestionAnswer(ctx, dbq.LockQuestionAnswerParams{ID: qr.ID, OwnerUserID: owner})
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(current.Answer.String) != "" {
+			return nil
+		}
+		if current.Stem != qr.Stem || current.Passage.String != qr.Passage.String || current.Score.String != qr.Score.String {
+			return apperr.New(apperr.Conflict, "题目已修改，请重新生成")
+		}
+		snapshotID, err := engine.SaveAnswerSnapshot(ctx, tx, owner, out.Answer, out.Points, out.Snapshot)
+		if err != nil {
+			return err
+		}
+		if snapshotID > 0 {
+			if err = tx.SetQuestionAnswerSnapshot(ctx, dbq.SetQuestionAnswerSnapshotParams{AnswerSnapshotID: sql.NullInt64{Int64: int64(snapshotID), Valid: true}, ID: qr.ID, OwnerUserID: owner}); err != nil {
+				return err
+			}
+		}
 		if chargeAI {
 			if err := qs.Consume(ctx, tx, quota.Charge{UserID: userID, Type: quota.AIQuestions, Amount: 1,
 				Ref: quota.Ref{Type: "question", ID: qr.ID}, Key: quota.KeyFor("ai_answer", qr.ID)}); err != nil {
@@ -711,6 +748,7 @@ func GenerateQuestionAnswer(ctx context.Context, db *sql.DB, q *dbq.Queries, eng
 			Analysis:     sql.NullString{}, AiAnswerAt: sql.NullTime{Time: now, Valid: true}, ID: qr.ID, OwnerUserID: owner}); err != nil {
 			return err
 		}
+		written = true
 		if !ai.Subjective(string(qr.Qtype)) || len(out.Points) == 0 {
 			return nil
 		}
@@ -723,5 +761,5 @@ func GenerateQuestionAnswer(ctx context.Context, db *sql.DB, q *dbq.Queries, eng
 	if err != nil {
 		return false, err
 	}
-	return true, nil
+	return written, nil
 }
