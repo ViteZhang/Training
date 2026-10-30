@@ -848,6 +848,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/knowledge-points/{kpId}/split-questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kpId: components["parameters"]["KpId"];
+            };
+            cookie?: never;
+        };
+        /** 拆分前获取全部关联题目（含非主关联与历史题，不截断） */
+        get: operations["listSplitQuestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/knowledge-points/{kpId}/split": {
         parameters: {
             query?: never;
@@ -859,7 +878,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 拆分为多个知识点（3.5） */
+        /**
+         * 拆分为多个知识点（3.5）
+         * @description 每道关联题目必须且只能分配到一个新知识点；继承原掌握度与复习安排。旧版缺少分配时返回400，保留原数据。
+         */
         post: operations["splitKnowledgePoint"];
         delete?: never;
         options?: never;
@@ -9028,6 +9050,31 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    listSplitQuestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kpId: components["parameters"]["KpId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 需要逐题分配的全部题目 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["QuestionBrief"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
     splitKnowledgePoint: {
         parameters: {
             query?: never;
@@ -9043,6 +9090,8 @@ export interface operations {
                     parts: {
                         name: string;
                         original_text?: string;
+                        /** @description 分配给此知识点的原关联题目，所有分组必须完整且互斥 */
+                        question_ids?: number[];
                     }[];
                 };
             };
@@ -9149,6 +9198,7 @@ export interface operations {
                     "application/json": components["schemas"]["QuestionPage"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
         };
     };

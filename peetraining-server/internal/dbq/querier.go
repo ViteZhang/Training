@@ -109,6 +109,7 @@ type Querier interface {
 	// 确认 AI 参考答案时一并确认它的采分点。
 	ConfirmQuestionRubric(ctx context.Context, arg ConfirmQuestionRubricParams) error
 	CopyKPSources(ctx context.Context, arg CopyKPSourcesParams) error
+	CopySplitMastery(ctx context.Context, arg CopySplitMasteryParams) error
 	CorrectWrongBookRate(ctx context.Context, arg CorrectWrongBookRateParams) error
 	CountActiveImportJobs(ctx context.Context, ownerUserID uint64) (int64, error)
 	CountAttempts(ctx context.Context, arg CountAttemptsParams) (int64, error)
@@ -438,6 +439,7 @@ type Querier interface {
 	ListBankExamKeys(ctx context.Context, arg ListBankExamKeysParams) ([]ListBankExamKeysRow, error)
 	// 考情分析、知识图谱、作文知识库（T14）。每条查询都带 owner_user_id。
 	ListBankExamQuestions(ctx context.Context, arg ListBankExamQuestionsParams) ([]ListBankExamQuestionsRow, error)
+	ListBankFilterKPLinks(ctx context.Context, arg ListBankFilterKPLinksParams) ([]ListBankFilterKPLinksRow, error)
 	// 同一门课以前导入过的答案（答案文件、真题汇编后附的答案），按年份 + 题号配对。
 	ListBankImportAnswers(ctx context.Context, arg ListBankImportAnswersParams) ([]ListBankImportAnswersRow, error)
 	// 同一门课里有原文表述的知识点：名词解释按名称匹配，其他题交给模型从候选原文里找。
@@ -489,6 +491,8 @@ type Querier interface {
 	ListKPRelations(ctx context.Context, arg ListKPRelationsParams) ([]KpRelation, error)
 	ListKPRubric(ctx context.Context, arg ListKPRubricParams) ([]RubricPoint, error)
 	ListKPSourcesOfKP(ctx context.Context, arg ListKPSourcesOfKPParams) ([]ListKPSourcesOfKPRow, error)
+	// 不截断，包含非主关联与历史题，拆分前必须分配完整。
+	ListKPSplitQuestions(ctx context.Context, arg ListKPSplitQuestionsParams) ([]ListKPSplitQuestionsRow, error)
 	ListKPsOnPage(ctx context.Context, arg ListKPsOnPageParams) ([]ListKPsOnPageRow, error)
 	// 只来自这份资料的知识点：它有来源记录，且全部来源都是这份资料。
 	// 调用前已核对资料属于当前用户；再限定在资料所在的题库内。
@@ -580,6 +584,7 @@ type Querier interface {
 	ListWrongBook(ctx context.Context, arg ListWrongBookParams) ([]ListWrongBookRow, error)
 	// 到期复习的错题：没排过复习日的、复习日已到的。
 	ListWrongBookDue(ctx context.Context, arg ListWrongBookDueParams) ([]uint64, error)
+	LockKPForSplit(ctx context.Context, arg LockKPForSplitParams) (uint64, error)
 	LockQuotaCounter(ctx context.Context, arg LockQuotaCounterParams) (QuotaCounter, error)
 	// 锁住邀请人，两个好友同时激活时累计天数不会超过上限。
 	LockUserRow(ctx context.Context, id uint64) (uint64, error)
@@ -615,6 +620,7 @@ type Querier interface {
 	QTypeScoreRates(ctx context.Context, ownerUserID uint64) ([]QTypeScoreRatesRow, error)
 	ReadyPaperHandwriting(ctx context.Context, arg ReadyPaperHandwritingParams) error
 	ReadyVoiceTranscription(ctx context.Context, arg ReadyVoiceTranscriptionParams) error
+	ReassignSplitQuestion(ctx context.Context, arg ReassignSplitQuestionParams) (int64, error)
 	// 官方采分点有实质变化时，对应背诵重新进入复习（PRD 11.15）。
 	ReciteReviewAgain(ctx context.Context, arg ReciteReviewAgainParams) error
 	// 知识点在真题中出现的次数（3.1、3.8；回忆版不计入）。
