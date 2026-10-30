@@ -120,6 +120,7 @@ func TestIntegrationIDOR(t *testing.T) {
 	ins("INSERT INTO question_kps (question_id, kp_id, is_primary) VALUES (?, ?, 1)", q, kp)
 	ins("INSERT INTO wrong_book (owner_user_id, question_id) VALUES (?, ?)", a, q)
 	sess := ins("INSERT INTO practice_sessions (owner_user_id, subject_id, kind, question_ids) VALUES (?, ?, 'single', JSON_ARRAY(?))", a, sub.ID, q)
+	voice := ins("INSERT INTO voice_transcriptions (owner_user_id, practice_session_id, question_id, idempotency_key, object_key, recognized_text) VALUES (?, ?, ?, 'idor-voice', 'voice.m4a', '')", a, sess, q)
 	recite := ins("INSERT INTO practice_sessions (owner_user_id, subject_id, kind, question_ids) VALUES (?, ?, 'recite', JSON_ARRAY())", a, sub.ID)
 	att := ins("INSERT INTO attempts (owner_user_id, question_id, practice_session_id, answer_mode, answer_text) VALUES (?, ?, ?, 'typed', '情景交融')", a, q, sess)
 	grading := ins("INSERT INTO gradings (owner_user_id, attempt_id, kind, status, score, full_score) VALUES (?, ?, 'subjective', 'done', 6, 10)", a, att)
@@ -130,6 +131,8 @@ func TestIntegrationIDOR(t *testing.T) {
 	paper := ins("INSERT INTO papers (owner_user_id, bank_id, kind, title, exam_year, full_score, actual_score, structure) VALUES (?, ?, 'real_exam', '2024 真题', 2024, 150, 150, JSON_ARRAY())", a, bank)
 	ins("INSERT INTO paper_questions (paper_id, seq, question_id, section, score) VALUES (?, 1, ?, '名词解释', 10)", paper, q)
 	paperSess := ins("INSERT INTO paper_sessions (owner_user_id, subject_id, paper_id, paper_kind, paper_title, mode, full_score) VALUES (?, ?, ?, 'real_exam', '2024 真题', 'practice', 150)", a, sub.ID, paper)
+	ins("INSERT INTO paper_session_items (paper_session_id, seq, question_id, qtype, section, score_max) VALUES (?, 1, ?, 'term', '名词解释', 10)", paperSess, q)
+	handwriting := ins("INSERT INTO paper_handwriting (owner_user_id, paper_session_id, seq, idempotency_key, object_keys, recognized_text, low_confidence) VALUES (?, ?, 1, 'idor-photo', JSON_ARRAY(), '', JSON_ARRAY())", a, paperSess)
 	essay := ins("INSERT INTO essays (owner_user_id, subject_id, topic_source, topic_text) VALUES (?, ?, 'custom', '守正与创新')", a, essaySub.ID)
 	essayMat := ins("INSERT INTO essay_materials (owner_user_id, bank_id, theme, content, origin) VALUES (?, ?, '创新', '素材', 'user_confirmed')", a, essayBank)
 	model := ins("INSERT INTO model_essays (owner_user_id, bank_id, title, content) VALUES (?, ?, '范文', '正文')", a, essayBank)
@@ -141,7 +144,7 @@ func TestIntegrationIDOR(t *testing.T) {
 		"subjectId": fmt.Sprint(sub.ID), "materialId": fmt.Sprint(mat.ID), "jobId": fmt.Sprint(job), "itemId": fmt.Sprint(item), "kpId": fmt.Sprint(kp),
 		"questionId": fmt.Sprint(q), "relationId": fmt.Sprint(rel), "gradingId": fmt.Sprint(grading), "paperId": fmt.Sprint(paper), "essayId": fmt.Sprint(essay),
 		"essayMaterialId": fmt.Sprint(essayMat), "modelEssayId": fmt.Sprint(model), "exportId": fmt.Sprint(export), "messageId": fmt.Sprint(msg),
-		"orderNo": "T20261004000000123456", "deviceId": "device-a", "pageNo": "1", "qtype": "term", "seq": "1", "pairingId": fmt.Sprint(pairing),
+		"voiceId": fmt.Sprint(voice), "handwritingId": fmt.Sprint(handwriting), "orderNo": "T20261004000000123456", "deviceId": "device-a", "pageNo": "1", "qtype": "term", "seq": "1", "pairingId": fmt.Sprint(pairing),
 	}
 	// sessionId 在不同路径下是不同的会话。
 	sessionFor := func(path string) string {

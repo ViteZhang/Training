@@ -103,7 +103,7 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
 | `BAILIAN_API_KEY` | 百炼 API Key | 使用 AI 时必填；模板默认选择已接入的百炼客户端 |
 | `SMS_*` | `SMS_PROVIDER=aliyun`，审核通过的 `SMS_SIGN_NAME`、`SMS_TEMPLATE_CODE`；模板变量不是 `code` 时设 `SMS_TEMPLATE_PARAM` | 必填（短信登录）；凭证用 `ALIYUN_ACCESS_KEY_ID` / `SECRET`，见下方「阿里云短信」 |
 | `OSS_*`、`OCR_*`、`MODERATION_*` | 已接入阿里云，设为 `aliyun` 并按下方「OSS、文字识别、内容安全」开通；PDF 文字层由内嵌 PDFium 解析 | 资料上传与解析必填 OSS 与内容安全；照片资料与扫描版 PDF 另需文字识别；手写作答照片改由 AI 视觉模型识别 |
-| `ASR_*` | 语音识别还没有接入，保持 `disabled` | 口述背诵不可用 |
+| `ASR_*` | 开启语音时设 `ASR_PROVIDER=bailian`、`ASR_MODEL=qwen3-asr-flash`；地址和 API Key 可沿用百炼配置，见下方语音配置 | 练习语音、模拟考试录音和口述背诵需要 ASR |
 | `WECHAT_PAY_*`、`ALIPAY_*`、`APPLE_IAP_*` | 已开通支付渠道的完整凭据 | 只在开放对应支付渠道时填写，并将 `PAY_PROVIDER=real` |
 
 镜像统一使用 ACR 的 `latest` tag，不需要配置 `VERSION`。Compose 每次启动都会拉取最新镜像；API 健康探测由镜像内的 `/app/api healthcheck` 执行，可用 `docker compose ps` 查看状态。
@@ -112,7 +112,7 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
 
 应用实际连接的是 Docker 网络内的容器名，不是 ECS 公网 IP。执行 `docker ps` 确认 MySQL、Redis 容器名；再用 `docker network inspect dreamer-net` 确认这些容器和本项目都在同一个网络。数据库密码建议使用 `openssl rand -hex 24`，避免 DSN 分隔符影响解析。
 
-**短信、OSS、文字识别、内容安全已接入阿里云（`*_PROVIDER=aliyun`）；语音识别（ASR）还没有接入。** 某项设为 `disabled` 时 API 和 Worker 照常启动，相关调用返回不可用，不会伪造成功结果；例如内容安全关闭时资料导入和 AI 生成都不会放行。`aliyun` 缺配置时 api 与 worker 启动直接报错并写明缺哪个变量。生产禁止 mock 短信。数据库迁移需要在发布前单独完成，Compose 不会自动执行迁移。
+**短信、OSS、文字识别、内容安全已接入阿里云（`*_PROVIDER=aliyun`）；语音识别（ASR）已接入百炼 Qwen 语音大模型（`ASR_PROVIDER=bailian`）。** 某项设为 `disabled` 时 API 和 Worker 照常启动，相关调用返回不可用，不会伪造成功结果；例如内容安全关闭时资料导入和 AI 生成都不会放行。`aliyun` 缺配置时 api 与 worker 启动直接报错并写明缺哪个变量。生产禁止 mock 短信。数据库迁移需要在发布前单独完成，Compose 不会自动执行迁移。
 
 若启动日志出现 `微信支付商户私钥：不是合法的 PEM`，表示 `PAY_PROVIDER=real` 已启用微信渠道，但 `WECHAT_PAY_PRIVATE_KEY` 不是有效商户 API 私钥。暂不开通支付时设置 `PAY_PROVIDER=disabled`；已开通其他支付渠道且暂不使用微信时，将全部 `WECHAT_PAY_*` 清空，并保持其他渠道完整配置。需要启用微信时填写真实商户 API 私钥内容（不是文件路径、Nginx HTTPS 私钥或证书），单引号内可用字面量 `\n` 保存 PEM 换行；程序会还原后校验，不能用占位值跳过。
 
@@ -138,7 +138,7 @@ PAY_PROVIDER=disabled
 | OSS | 上传原件、头像、手写照片、录音、导出文件及下载 | 已接入阿里云；关闭时文件相关能力不可用 |
 | OCR | 照片资料识别、扫描版 PDF 的扫描页 | 已接入阿里云；关闭时照片资料导入不可用。手写答案识别走 AI_PROVIDER 的视觉能力，与 OCR_PROVIDER 无关 |
 | PDF | 文字版 PDF 取文字（内嵌 PDFium，本机解析，不调用外部服务） | `PDF_PROVIDER` 不填时跟随 `OCR_PROVIDER`；只想开 PDF 不开 OCR 时设 `PDF_PROVIDER=pdfium` |
-| ASR | 当前用于口述背诵录音转文字 | 口述背诵不可用；文本背诵无需语音识别 |
+| ASR | 练习语音、模拟考试录音、口述背诵转文字 | 语音转文字不可用；文字作答不受影响 |
 | 内容审核 | 导入资料文本、图片，以及生成答案、知识点讲解、变式题、批改评语等 AI 输出 | 资料导入和这些 AI 输出不会放行；不是仅影响一个独立审核页面 |
 
 现有 `dreamer-nginx` 负责 80/443、证书和前端静态文件。它需要加入 `dreamer-net`，并把新域名的请求反向代理到 `http://training-api:8080`。配置片段见 [deploy/nginx/training.conf](../deploy/nginx/training.conf)，DNS、证书挂载、配置合并与验证步骤见 [Nginx HTTPS 接入](nginx-https.md)。片段追加到现有 `http` 块内；本项目不重新占用宿主机 80/443/8080。`/admin/` 静态页面按前端部署方案另外配置。
@@ -388,9 +388,42 @@ unset ADMIN_INITIAL_PASSWORD
 | 队列积压 | asynqmon 各队列 pending 数 | 看 worker 日志里失败最多的任务类型；AI 服务异常时在后台 7.8 回滚提示词版本或模型 |
 | AI 成本异常 | 后台 7.8 成本统计 | 下调免费额度（7.8）或暂时关闭对应功能开关 |
 | 用户付了钱没开通会员 | api 日志搜订单号：「支付回调验签失败」「支付回调开通失败」「订单重复支付」；订单表 status | 验签失败多为平台公钥或 APIv3 密钥配错；金额不符、重复支付需人工核对后在后台 7.3 处理（ADR 0011）；渠道会按自身策略重发回调，修好配置后通常自动补开通 |
-| App 登录提示「网络错误」 | `docker compose ps` 里 api 是否在反复重启；`docker compose logs --tail 50 api` | 多为 api 启动失败（Nginx 返回 502）。日志出现「未知或尚未实现的服务商」：对应的 *_PROVIDER 填了还没实现的值（SMS、OSS、OCR、MODERATION 支持 aliyun；PDF 支持 pdfium；ASR 只支持 mock、disabled），或镜像还是旧版本；出现「SMS_PROVIDER=aliyun 需要设置 …」：按「阿里云短信」补齐配置 |
+| App 登录提示「网络错误」 | `docker compose ps` 里 api 是否在反复重启；`docker compose logs --tail 50 api` | 多为 api 启动失败（Nginx 返回 502）。日志出现「未知或尚未实现的服务商」：对应的 *_PROVIDER 填了还没实现的值（SMS、OSS、OCR、MODERATION 支持 aliyun；PDF 支持 pdfium；ASR 支持 bailian、mock、disabled），或镜像还是旧版本；出现「SMS_PROVIDER=aliyun 需要设置 …」：按「阿里云短信」补齐配置 |
 | 获取验证码提示「验证码发送失败」 | `docker compose logs --since 10m api \| grep "sms send failed"`，看阿里云错误码 | `isv.SMS_SIGNATURE_ILLEGAL` / `isv.SMS_TEMPLATE_ILLEGAL`：签名或模板未审核通过或填错；`isv.TEMPLATE_MISSING_PARAMETERS`：SMS_TEMPLATE_PARAM 与模板变量名不一致；`InvalidAccessKeyId.NotFound` / `SignatureDoesNotMatch`：AccessKey 填错；`Forbidden.RAM`：子账号缺短信权限；`isv.AMOUNT_NOT_ENOUGH`：余额不足；`isv.BUSINESS_LIMIT_CONTROL`：触发阿里云流控 |
 | 证书过期 | 浏览器提示 | 续期并替换 certs 下的文件，`nginx -s reload` |
 
 日志：容器日志 `docker compose logs --since 1h api`；SLS 采集应用机 `/var/lib/docker/containers/*/*-json.log`（T32 配置告警）。
 日志里没有手机号明文、作答原文和资料原文，排查用户问题用请求 ID（响应头 X-Request-ID）定位。
+
+## 模拟考试后台识别（2026-10-30）
+
+发布本次功能前，按上面的迁移步骤执行 `db/migrations/00027_paper_handwriting.sql` 的 Up 部分并登记版本 27，再发布 API 与 Worker，最后分发新版 App。旧 App 不需要发送新字段，升级服务端前必须先创建新表；本轮开发未执行生产迁移或发布。
+
+- `paper:handwriting:<照片任务 ID>` 使用 critical 队列，最长 6 分钟，最多重试 3 次；模型调用仍复用现有 160 秒限时与视觉模型配置，无新增模型密钥。
+- 数据库 `paper_handwriting` 保存用户归属、考试/题号、照片键和识别状态；页面切题或 App 退出不影响已登记任务。截止时间后禁止新增照片和改答案，但交卷前已登记的照片继续识别。
+- `paper:grade` 在计分前完成未结束的手写识别，默认采用未核对的文字。遇到识别失败保留原卷和照片，通过“恢复批改”继续；不要删除数据库照片记录或另开考试替代重试。
+- 手写识别和整卷补偿通过同一 MySQL 连接锁串行执行，防止重复模型调用；请求/Worker 退出后锁会释放。确认结果在事务内只追加一次。
+- 尚未上传/登记的本地照片不能在截止时间后加入原卷。新版 App 会保留这些照片并明确提示未包含在答卷中，不能将其视为已提交。
+
+
+## 2026-10-30 语音输入配置与 App 分享接收
+
+发布前依次执行新增迁移 `00027_paper_handwriting.sql`、`00028_voice_answers.sql`，再更新 API 和 Worker，最后发支持原生分享接收的新 App。不要只升级 API 或只通过 OTA 更新 App。旧 App 继续使用照片与文字接口；新增 `input_kind` 默认为 `photo`。
+
+语音配置（均通过运行环境安全配置，密钥不写入文件示例）：
+
+```dotenv
+ASR_PROVIDER=bailian
+ASR_MODEL=qwen3-asr-flash
+# 可不填，分别沿用 BAILIAN_BASE_URL / BAILIAN_API_KEY
+ASR_BASE_URL=
+ASR_API_KEY=
+```
+
+地址使用百炼 OpenAI 兼容模式的 `/compatible-mode/v1`；账号需开通指定语音模型且 OSS 私有对象的预签名地址能被模型服务访问。API 与 Worker 使用同一配置。`voice_answer` 默认关闭，先通过管理端只对测试用户开启，验证后再扩大范围；关闭时语音入口隐藏，新增语音接口返回 404。已经登记的录音允许后台完成识别，不因关闭开关而当作空白答案批改。口述背诵仍由独立开关 `oral_recite` 控制。
+
+语音为独立 ASR 大模型直接转写，不调用生成答案的提示词，不传采分点或参考答案，也不使用手机系统听写。App 单段约 4 分 50 秒自动结束，单段 10MB 以内；服务端同时检查对象大小和归属，模型限制 5 分钟。请在考试截止前结束录音并完成上传登记；截止后未登记文件只保留本机，不延长考试时间。调用台账记录 `voice_transcribe` 的模型、耗时与结果；当前通用 token 成本字段不计语音时长费用，以百炼账单为准。
+
+练习按题保存录音与识别状态，识别未完成时阻止该题提交，完成后默认采用未确认的原话；整卷交卷先等待上传登记，已登记的照片／录音由 Worker 完成识别、按保存顺序默认确认，再批改。失败保留任务及原件，允许重试或弃用；重复请求不会重复追加答案。真实录音准确率、专业术语与设备麦克风需在灰度账号验收，HTTP 合约测试和 mock 评测不代表真实效果。
+
+微信分享扩展：iOS 的 App Group、分享扩展签名及 Provisioning Profile 需随原生安装包一起生成（EAS 插件已声明）；手工签名时在 Apple 开发者后台登记对应 Group。iPhone 扩展采用「保存待导入 → 手动返回 App」，Android 支持 SEND、SEND_MULTIPLE 和文件 VIEW。App 内“从微信导入”有步骤说明及“保存到手机后选择文件”的兜底；接收后先保存在本机，登录和选择专业课后才上传。需使用真实微信测试，Expo Go 不支持此扩展。

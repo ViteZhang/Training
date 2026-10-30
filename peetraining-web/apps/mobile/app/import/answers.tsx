@@ -2,6 +2,8 @@
 // AI 先按年份 + 题号把答案配到缺答案的题上，对不上的再按题干配；配对结果逐条显示：按题号配上 / 按题干配上 · 请核对 / 仍缺答案；
 // 可改错配的、取消某条；「确认配对 N 题」后这些题的答案来源为「来自你的资料」，采分点由 AI 从答案中提取，在 1.7b 核对。
 // 入口：1.7 说明卡（带 job，配这次导入里缺答案的题）、3.3b、3.1b 缺答案筛选（只带 subject，配题库里缺答案的题）。
+import { WeChatImportGuide } from '@/features/import/WeChatImportGuide';
+import { removeSharedFiles, sharedInbox } from '@/features/import/sharedInbox';
 import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
 import { colors, radius, semantic, spacing } from '@training/ui-tokens';
@@ -36,12 +38,12 @@ function targetLabel(t: Target) {
 }
 
 export default function AnswerFileScreen() {
-  const params = useLocalSearchParams<{ subject: string; job?: string; answerJob?: string }>();
+  const params = useLocalSearchParams<{ subject: string; job?: string; answerJob?: string; shared?: string }>();
   const subjectId = Number(params.subject);
   const targetJob = params.job ? Number(params.job) : undefined;
   const qc = useQueryClient();
   const [answerJob, setAnswerJob] = useState<number | undefined>(params.answerJob ? Number(params.answerJob) : undefined);
-  const [files, setFiles] = useState<Picked[]>([]);
+  const [files, setFiles] = useState<Picked[]>(() => params.shared === '1' ? [...sharedInbox()] : []);
   const [agreed, setAgreed] = useState(true);
   const [busy, setBusy] = useState(false);
   const [quota, setQuota] = useState(false);
@@ -107,6 +109,7 @@ export default function AnswerFileScreen() {
     try {
       const ids = await uploadAll(subjectId, 'question', files, update);
       const job = await unwrap(api.POST('/subjects/{subjectId}/answer-files', { params: { path: { subjectId } }, body: { material_ids: ids, target_job_id: targetJob } }));
+      removeSharedFiles(files.flatMap((file) => file.sharedKey ? [file.sharedKey] : []));
       track('import_start', { mode: 'answers', files: ids.length });
       setAnswerJob(job.id);
       router.setParams({ answerJob: String(job.id) });
@@ -154,6 +157,7 @@ export default function AnswerFileScreen() {
       <Screen>
         <ScrollView contentContainerStyle={styles.scroll}>
           {header}
+          <WeChatImportGuide pickFile={() => void pickDocs()} />
           <View style={styles.grid}>
             {sources.map((s) => (
               <Pressable key={s.key} accessibilityRole="button" accessibilityLabel={s.title} onPress={s.onPress} disabled={busy} style={styles.source}>

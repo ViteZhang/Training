@@ -51,6 +51,9 @@ type Config struct {
 	AI         AIConfig
 	OCR        OCRConfig
 	ASR        ProviderConfig
+	ASRBaseURL string
+	ASRAPIKey  string
+	ASRModel   string
 	Moderation ModerationConfig
 	Pay        PayConfig
 
@@ -261,7 +264,10 @@ func load(getenv func(string) string) (*Config, error) {
 			Endpoint:    get("OCR_ENDPOINT", ""),
 			PDFProvider: get("PDF_PROVIDER", ""),
 		},
-		ASR: ProviderConfig{Provider: get("ASR_PROVIDER", ProviderMock)},
+		ASR:        ProviderConfig{Provider: get("ASR_PROVIDER", ProviderMock)},
+		ASRBaseURL: get("ASR_BASE_URL", get("BAILIAN_BASE_URL", "")),
+		ASRAPIKey:  get("ASR_API_KEY", get("BAILIAN_API_KEY", "")),
+		ASRModel:   get("ASR_MODEL", "qwen3-asr-flash"),
 		Moderation: ModerationConfig{
 			Provider:     get("MODERATION_PROVIDER", ProviderMock),
 			Endpoint:     get("MODERATION_ENDPOINT", ""),

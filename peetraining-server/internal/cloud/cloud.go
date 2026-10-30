@@ -99,7 +99,7 @@ func New(cfg *config.Config) (*Clients, error) {
 		// 对照平台：评测与故障时备用。
 		c.AIAlt = ai.NewOpenAI(cfg.AI.AltBaseURL, cfg.AI.AltAPIKey)
 	}
-	pick("ASR", cfg.ASR.Provider, func() { c.ASR = asr.NewMock() }, func() { c.ASR = disabledService("语音识别") })
+
 	switch cfg.Pay.Provider {
 	case "real":
 		r, err := newRealPay(cfg.Pay)
@@ -173,6 +173,16 @@ func New(cfg *config.Config) (*Clients, error) {
 		c.Moderation = m
 	default:
 		pick("MODERATION", cfg.Moderation.Provider, func() { c.Moderation = moderation.NewMock() }, func() { c.Moderation = disabledService("内容审核") })
+	}
+
+	if cfg.ASR.Provider == "bailian" {
+		var err error
+		c.ASR, err = asr.NewQwen(cfg.ASRBaseURL, cfg.ASRAPIKey, cfg.ASRModel, c.OSS)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	} else {
+		pick("ASR", cfg.ASR.Provider, func() { c.ASR = asr.NewMock() }, func() { c.ASR = disabledService("语音识别") })
 	}
 
 	if cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock {

@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ToastHost } from '@/components';
+import { SharedFileReceiver } from '@/features/import/SharedFileReceiver';
 import { queryClient } from '@/lib/queryClient';
 
 void SplashScreen.preventAutoHideAsync();
@@ -34,6 +35,7 @@ export default function RootLayout() {
           {/* 6.5a 获取兑换码：底部弹层形态，盖在当前页上 */}
           <Stack.Screen name="member/getcode" options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }} />
         </Stack>
+        <SharedFileReceiver />
         <ToastHost />
       </QueryClientProvider>
     </SafeAreaProvider>

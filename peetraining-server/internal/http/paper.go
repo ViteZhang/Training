@@ -64,6 +64,13 @@ func toGenPaperItem(it practice.PaperItem) gen.PaperItem {
 	out := gen.PaperItem{Seq: it.Seq, Section: it.Section, Qtype: gen.QuestionType(it.QType), Score: float32(it.Score), QuestionId: int64(it.QuestionID), Stem: it.Stem,
 		DraftText: optStr(it.Draft), Marked: it.Marked, Answered: it.Answered, TimeSpentSeconds: it.TimeSpent, RequiredWords: it.RequiredWords, Got: f32p(it.Got),
 		Group: toGroup(it.GroupLabel, it.GroupMajors), Passage: toPassage(it.PassageKey, it.Passage)}
+	if len(it.Handwriting) > 0 {
+		hs := make([]gen.PaperHandwriting, len(it.Handwriting))
+		for i, h := range it.Handwriting {
+			hs[i] = toGenPaperHandwriting(h)
+		}
+		out.Handwriting = &hs
+	}
 	if len(it.Options) > 0 {
 		opts := make([]gen.ChoiceOption, len(it.Options))
 		for i, o := range it.Options {
@@ -264,3 +271,54 @@ func (h *Handlers) ListPaperHistory(c *gin.Context, subjectID gen.SubjectId, par
 	c.JSON(http.StatusOK, out)
 }
 func parseHistoryScore(v string) float64 { n, _ := strconv.ParseFloat(v, 64); return n }
+
+func toGenPaperHandwriting(v practice.PaperHandwriting) gen.PaperHandwriting {
+	return gen.PaperHandwriting{Id: int64(v.ID), InputKind: ptr(gen.PaperHandwritingInputKind(v.InputKind)), Seq: v.Seq, IdempotencyKey: v.Key, CaptureOrder: ptr(int64(v.Order)), ObjectKeys: v.Keys, Status: gen.PaperHandwritingStatus(v.Status), Text: v.Text, LowConfidence: ranges(v.LowConfidence), Error: optStr(v.Error)}
+}
+func (h *Handlers) StartPaperHandwriting(c *gin.Context, sessionID gen.SessionId, seq int) {
+	var b gen.StartPaperHandwritingJSONBody
+	if !bind(c, &b) {
+		return
+	}
+	var order int64
+	if b.CaptureOrder != nil {
+		order = *b.CaptureOrder
+	}
+	var v practice.PaperHandwriting
+	var err error
+	if b.InputKind != nil && *b.InputKind == gen.StartPaperHandwritingJSONBodyInputKindVoice {
+		v, err = h.deps.Practice.StartPaperVoice(c.Request.Context(), currentUser(c), uint64(sessionID), seq, b.IdempotencyKey, b.ObjectKeys, order)
+	} else {
+		v, err = h.deps.Practice.StartPaperHandwriting(c.Request.Context(), currentUser(c), uint64(sessionID), seq, b.IdempotencyKey, b.ObjectKeys, order)
+	}
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, toGenPaperHandwriting(v))
+}
+func (h *Handlers) ConfirmPaperHandwriting(c *gin.Context, sessionID gen.SessionId, seq int, handwritingID int64) {
+	var b gen.ConfirmPaperHandwritingJSONBody
+	if !bind(c, &b) {
+		return
+	}
+	var v practice.PaperItem
+	var err error
+	if b.Confirm != nil && !*b.Confirm {
+		v, err = h.deps.Practice.SavePaperHandwritingText(c.Request.Context(), currentUser(c), uint64(sessionID), uint64(handwritingID), seq, b.Text)
+	} else {
+		v, err = h.deps.Practice.ConfirmPaperHandwriting(c.Request.Context(), currentUser(c), uint64(sessionID), uint64(handwritingID), seq, b.Text)
+	}
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, toGenPaperItem(v))
+}
+func (h *Handlers) DiscardPaperHandwriting(c *gin.Context, sessionID gen.SessionId, seq int, handwritingID int64) {
+	if err := h.deps.Practice.DiscardPaperHandwriting(c.Request.Context(), currentUser(c), uint64(sessionID), uint64(handwritingID), seq); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}

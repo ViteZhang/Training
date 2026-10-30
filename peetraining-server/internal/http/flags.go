@@ -11,7 +11,12 @@ import (
 // flagGuards 是受功能开关控制的接口：「方法 路由模板」→ 开关名。开关对当前用户关闭时返回 404（ADR 0009），
 // 而不是报错，App 也不显示入口。支付（T25）、官方题库（T30）、口述背诵（T20）、语音作答（T18）、
 // 扫描版 PDF（T09）、邀请（T26）的接口加入契约时在这里登记。
-var flagGuards = map[string]string{}
+var flagGuards = map[string]string{
+	"POST /api/v1/voice/upload-requests":                                               "voice_answer",
+	"GET /api/v1/practice-sessions/:sessionId/questions/:questionId/voice":             "voice_answer",
+	"POST /api/v1/practice-sessions/:sessionId/questions/:questionId/voice":            "voice_answer",
+	"DELETE /api/v1/practice-sessions/:sessionId/questions/:questionId/voice/:voiceId": "voice_answer",
+}
 
 // FlagChecker 判断开关对某用户是否打开（flags.Service 实现）。
 type FlagChecker interface {

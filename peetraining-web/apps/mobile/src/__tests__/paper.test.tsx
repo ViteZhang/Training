@@ -7,6 +7,7 @@ import { PaperTimer } from '../features/paper/timer';
 import PaperList from '../../app/paper/list';
 import PaperSessionPage from '../../app/paper/session/[id]';
 import { clock } from '../features/paper/api';
+import { PaperPhotoQueue, paperPhotoQueue, type PaperHandwriting } from '../features/paper/photos';
 import { getJSON, setJSON, storage } from '../lib/storage';
 
 const mockPush = jest.fn();
@@ -22,19 +23,31 @@ jest.mock('expo-crypto', () => ({ randomUUID: () => `uuid-${++mockUuid}` }));
 
 const mockUpload = jest.fn(async () => ({ status: 200 }));
 let mockCameraGranted = true;
-jest.mock('expo-file-system', () => ({ File: class { size = 2048; upload = (...a: unknown[]) => mockUpload(...(a as [])); } }));
+jest.mock('expo-file-system', () => ({
+  Paths: { document: { uri: 'file:///documents/' } },
+  Directory: class { uri = 'file:///documents/paper-handwriting/'; create() {} },
+  File: class {
+    size = 2048;
+    exists = true;
+    uri: string;
+    constructor(base: string | { uri: string }, name?: string) { this.uri = typeof base === 'string' ? base : `${base.uri}${name ?? ''}`; }
+    copy() {}
+    delete() {}
+    upload = (...a: unknown[]) => mockUpload(...(a as []));
+  },
+}));
 jest.mock('expo-image-picker', () => ({
   requestCameraPermissionsAsync: async () => ({ granted: mockCameraGranted, canAskAgain: true }),
   launchCameraAsync: async () => ({ canceled: false, assets: [{ uri: 'file:///paper-answer.jpg', mimeType: 'image/jpeg', fileSize: 2048 }] }),
 }));
 let queryClient: QueryClient;
 const mockCalls: { method: string; path: string; init?: unknown }[] = [];
-let mockResponses: Record<string, () => unknown> = {};
-function mockRespond(method: string, path: string, init?: unknown) {
+let mockResponses: Record<string, (init?: unknown) => unknown> = {};
+async function mockRespond(method: string, path: string, init?: unknown) {
   mockCalls.push({ method, path, init });
   const r = mockResponses[`${method} ${path}`];
-  const v = r ? r() : { status: 200, data: {} };
-  const { status, data, error } = v as { status: number; data?: unknown; error?: unknown };
+  const v = r ? r(init) : { status: 200, data: {} };
+  const { status, data, error } = await v as { status: number; data?: unknown; error?: unknown };
   return Promise.resolve({ data, error, response: new Response(null, { status }) });
 }
 jest.mock('../lib/api', () => {
@@ -77,7 +90,9 @@ const session = (over: object = {}) => ({
 beforeEach(() => {
   mockCalls.length = 0;
   mockCameraGranted = true;
-  mockUpload.mockClear();
+  mockUpload.mockReset();
+  mockUpload.mockResolvedValue({ status: 200 });
+  for (const photo of Object.values(paperPhotoQueue(90).snapshot())) paperPhotoQueue(90).discardLocal(photo.key);
   mockPush.mockReset();
   mockReplace.mockReset();
   storage.clearAll();
@@ -242,9 +257,20 @@ describe('模拟考试回归', () => {
   beforeEach(() => { mockParams = { id: '90' }; });
   it('拍照上传、核对修改后填回当前题并保留已有答案，交卷前同步识别文字', async () => {
     storage.set('permission_explained_camera', true);
-    mockResponses['GET /paper-sessions/{sessionId}'] = () => ({ status: 200, data: session({ items: [item(1, { draft_text: '原有要点' })] }) });
+    let draft = '原有要点';
+    let photos: PaperHandwriting[] = [];
+    mockResponses['GET /paper-sessions/{sessionId}'] = () => ({ status: 200, data: session({ items: [item(1, { draft_text: draft, handwriting: photos })] }) });
     mockResponses['POST /handwriting/upload-requests'] = () => ({ status: 200, data: { items: [{ object_key: 'u/1/hw/paper.jpg', upload_url: 'https://oss/paper', upload_headers: {} }] } });
-    mockResponses['POST /handwriting/recognize'] = () => ({ status: 200, data: { text: '识别的要点', low_confidence: [], uncertain_count: 0, pages: [] } });
+    mockResponses['POST /paper-sessions/{sessionId}/items/{seq}/handwriting'] = (init) => {
+      const body = (init as { body: { idempotency_key: string } }).body;
+      photos = [{ id: 51, seq: 1, idempotency_key: body.idempotency_key, object_keys: ['u/1/hw/paper.jpg'], status: 'ready', text: '识别的要点', low_confidence: [] }];
+      return { status: 200, data: photos[0] };
+    };
+    mockResponses['PUT /paper-sessions/{sessionId}/items/{seq}/handwriting/{handwritingId}'] = (init) => {
+      draft = `原有要点\n${(init as { body: { text: string } }).body.text}`;
+      photos = photos.map((p) => ({ ...p, status: 'confirmed' }));
+      return { status: 200, data: item(1, { draft_text: draft, handwriting: photos }) };
+    };
     mockResponses['POST /paper-sessions/{sessionId}/submit'] = () => ({ status: 200, data: session({ status: 'grading' }) });
     const r = await wrap(<PaperSessionPage />);
     await fireEvent.press(await screen.findByText('拍手写稿'));
@@ -258,7 +284,8 @@ describe('模拟考试回归', () => {
     await fireEvent.press(screen.getByText('交卷'));
     await fireEvent.press(screen.getAllByText('交卷').at(-1)!);
     expect(await screen.findByText('正在整卷批改')).toBeTruthy();
-    expect(mockCalls.find((c) => c.method === 'PUT')?.init).toMatchObject({ body: { draft_text: '原有要点\n核对后的要点' } });
+    expect(mockCalls.find((c) => c.path.endsWith('/handwriting/{handwritingId}'))?.init).toMatchObject({ body: { text: '核对后的要点' } });
+    expect(mockCalls.some((c) => c.path === '/handwriting/recognize')).toBe(false);
     await r.unmount();
   });
 
@@ -348,4 +375,286 @@ describe('计时增量在失败、暂停和切题后保留', () => {
     t.setRunning(false); at = 18000; expect(t.seconds(2)).toBe(3);
     t.setRunning(true); at = 20000; expect(t.seconds(2)).toBe(5);
   });
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+function backgroundPhotos(options: { oneItem?: boolean } = {}) {
+  let jobs: PaperHandwriting[] = [];
+  const drafts: Record<number, string> = { 1: '第一题已有答案' };
+  const view = () => session({ items: (options.oneItem ? [1] : [1, 2, 3]).map((seq) => item(seq, { draft_text: drafts[seq] ?? '', handwriting: jobs.filter((job) => job.seq === seq) })) });
+  mockParams = { id: '90' };
+  storage.set('permission_explained_camera', true);
+  mockResponses['GET /paper-sessions/{sessionId}'] = () => ({ status: 200, data: view() });
+  let uploads = 0;
+  mockResponses['POST /handwriting/upload-requests'] = () => ({ status: 200, data: { items: [{ object_key: `u/1/hw/${++uploads}.jpg`, upload_url: `https://oss/${uploads}`, upload_headers: {} }] } });
+  mockResponses['POST /paper-sessions/{sessionId}/items/{seq}/handwriting'] = (init) => {
+    const { params, body } = init as { params: { path: { seq: number } }; body: { object_keys: string[]; idempotency_key: string; capture_order?: number; input_kind?: 'photo' | 'voice' } };
+    let job = jobs.find((j) => j.idempotency_key === body.idempotency_key);
+    if (!job) {
+      job = { id: jobs.length + 100, seq: params.path.seq, capture_order: body.capture_order, input_kind: body.input_kind, idempotency_key: body.idempotency_key, object_keys: body.object_keys, status: 'pending', text: '', low_confidence: [] };
+      jobs = [...jobs, job];
+    }
+    return { status: 200, data: job };
+  };
+  mockResponses['PUT /paper-sessions/{sessionId}/items/{seq}'] = (init) => {
+    const { params, body } = init as { params: { path: { seq: number } }; body: { draft_text?: string } };
+    if (body.draft_text !== undefined) drafts[params.path.seq] = body.draft_text;
+    return { status: 200, data: item(params.path.seq, { draft_text: drafts[params.path.seq] }) };
+  };
+  mockResponses['PUT /paper-sessions/{sessionId}/items/{seq}/handwriting/{handwritingId}'] = (init) => {
+    const { params, body } = init as { params: { path: { seq: number; handwritingId: number } }; body: { text: string; confirm?: boolean } };
+    const job = jobs.find((j) => j.id === params.path.handwritingId)!;
+    if (job.status !== 'confirmed') {
+      if (body.confirm !== false) {
+        const previous = drafts[job.seq] ?? '';
+        drafts[job.seq] = previous ? `${previous}\n${body.text}` : body.text;
+      }
+      jobs = jobs.map((j) => j.id === job.id ? { ...j, status: body.confirm === false ? 'ready' : 'confirmed', text: body.text } : j);
+    }
+    return { status: 200, data: view().items.find((it) => it.seq === params.path.seq) };
+  };
+  mockResponses['POST /paper-sessions/{sessionId}/submit'] = () => {
+    for (const job of [...jobs].sort((a, b) => (a.capture_order ?? a.id) - (b.capture_order ?? b.id))) if (job.status === 'ready') {
+      drafts[job.seq] = drafts[job.seq] ? `${drafts[job.seq]}\n${job.text}` : job.text;
+      jobs = jobs.map((j) => j.id === job.id ? { ...j, status: 'confirmed' } : j);
+    }
+    return { status: 200, data: { ...view(), status: 'grading' } };
+  };
+  return {
+    jobs: () => jobs,
+    drafts,
+    ready: (seq: number, text: string) => { jobs = jobs.map((j) => j.seq === seq ? { ...j, status: 'ready', text } : j); },
+    readyJob: (id: number, text: string) => { jobs = jobs.map((j) => j.id === id ? { ...j, status: 'ready', text } : j); },
+    failed: (seq: number) => { jobs = jobs.map((j) => j.seq === seq ? { ...j, status: 'failed', error: '照片已保存，请重试' } : j); },
+    refresh: () => act(async () => { await queryClient.invalidateQueries({ queryKey: ['paper-session', 90] }); }),
+  };
+}
+async function takePaperPhoto() {
+  await fireEvent.press(await screen.findByText('拍手写稿'));
+  await fireEvent.press(screen.getByText('拍手写稿'));
+}
+async function submitFromCard() {
+  await fireEvent.press(screen.getByText('答题卡'));
+  await fireEvent.press(screen.getAllByText('交卷')[0]!);
+  await fireEvent.press(screen.getAllByText('交卷').at(-1)!);
+}
+
+describe('模拟考试手写稿后台识别', () => {
+  it('上传未完成即可切题；完成后仍归原题，核对中的编辑跨题保留', async () => {
+    const fixture = backgroundPhotos();
+    const upload = deferred<{ status: number }>();
+    mockUpload.mockReturnValueOnce(upload.promise);
+    const r = await wrap(<PaperSessionPage />);
+    await takePaperPhoto();
+    expect(await screen.findByText('正在后台上传照片')).toBeTruthy();
+    expect(Object.values(paperPhotoQueue(90).snapshot())[0]?.seq).toBe(1);
+    await fireEvent.press(screen.getByText('下一题'));
+    await fireEvent.changeText(screen.getByLabelText('你的答案'), '第二题自己的答案');
+    await act(async () => { upload.resolve({ status: 200 }); await paperPhotoQueue(90).waitForUploads(); });
+    expect(fixture.jobs()[0]?.seq).toBe(1);
+    fixture.ready(1, '第一题识别内容');
+    await fixture.refresh();
+    expect(screen.getByDisplayValue('第二题自己的答案')).toBeTruthy();
+    expect(screen.queryByLabelText('识别文字')).toBeNull();
+    await fireEvent.press(screen.getByText('答题卡'));
+    await fireEvent.press(screen.getByLabelText('第 1 题，已答，待核对'));
+    expect(await screen.findByDisplayValue('第一题识别内容')).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('识别文字'), '第一题核对后内容');
+    await fireEvent.press(screen.getByText('下一题'));
+    await fireEvent.press(screen.getByText('上一题'));
+    expect(screen.getByDisplayValue('第一题核对后内容')).toBeTruthy();
+    await fireEvent.press(screen.getByText('确认并填入答案'));
+    expect(await screen.findByDisplayValue('第一题已有答案\n第一题核对后内容')).toBeTruthy();
+    expect(fixture.drafts[2]).toBe('第二题自己的答案');
+    expect(mockCalls.some((c) => c.path === '/handwriting/recognize')).toBe(false);
+    await r.unmount();
+  });
+
+  it('手动交卷等待上传登记，识别中的照片随答卷交给后台处理', async () => {
+    const fixture = backgroundPhotos({ oneItem: true });
+    const upload = deferred<{ status: number }>();
+    mockUpload.mockReturnValueOnce(upload.promise);
+    const r = await wrap(<PaperSessionPage />);
+    await takePaperPhoto();
+    await submitFromCard();
+    expect(mockCalls.filter((c) => c.path.endsWith('/submit'))).toHaveLength(0);
+    expect(await screen.findByText(/正在保存答卷，等待照片和录音上传/)).toBeTruthy();
+    await act(async () => { upload.resolve({ status: 200 }); await paperPhotoQueue(90).waitForUploads(); });
+    expect(await screen.findByText('正在识别答案并整卷批改')).toBeTruthy();
+    expect(fixture.jobs()[0]?.status).toBe('pending');
+    expect(mockCalls.findIndex((c) => c.path.endsWith('/handwriting'))).toBeLessThan(mockCalls.findIndex((c) => c.path.endsWith('/submit')));
+    expect(getJSON('paper:photos:90')).toBeUndefined();
+    await r.unmount();
+  });
+
+  it('上传失败保留本机照片，切题回来可以重试而无需重新拍摄', async () => {
+    backgroundPhotos();
+    mockUpload.mockRejectedValueOnce(new Error('断网了'));
+    const r = await wrap(<PaperSessionPage />);
+    await takePaperPhoto();
+    expect(await screen.findByText('文件保存失败')).toBeTruthy();
+    const saved = Object.values(paperPhotoQueue(90).snapshot())[0]!;
+    expect(saved.shots[0]?.uri).toContain('/documents/paper-handwriting/');
+    await fireEvent.press(screen.getByText('下一题'));
+    await fireEvent.press(screen.getByText('上一题'));
+    expect(screen.getByText('重试上传')).toBeTruthy();
+    await fireEvent.press(screen.getByText('重试上传'));
+    expect(await screen.findByText('手写稿正在后台识别')).toBeTruthy();
+    expect(mockUpload).toHaveBeenCalledTimes(2);
+    expect(Object.values(paperPhotoQueue(90).snapshot())[0]?.key).toBe(saved.key);
+    await r.unmount();
+  });
+
+  it('未点确认的核对编辑在手动交卷时自动保存，不重复追加到答案', async () => {
+    const fixture = backgroundPhotos({ oneItem: true });
+    const r = await wrap(<PaperSessionPage />);
+    await takePaperPhoto();
+    await waitFor(() => expect(fixture.jobs()).toHaveLength(1));
+    fixture.ready(1, '原始识别'); await fixture.refresh();
+    await fireEvent.changeText(await screen.findByLabelText('识别文字'), '用户改过的识别结果');
+    await submitFromCard();
+    expect(await screen.findByText('正在整卷批改')).toBeTruthy();
+    expect(fixture.drafts[1]).toBe('第一题已有答案\n用户改过的识别结果');
+    expect(mockCalls.filter((c) => c.path.endsWith('/handwriting/{handwritingId}'))).toHaveLength(1);
+    await r.unmount();
+  });
+
+  it('已经登记但未识别的照片在截止时间自动交卷时仍交给后台', async () => {
+    const fixture = backgroundPhotos({ oneItem: true });
+    const r = await wrap(<PaperSessionPage />);
+    await takePaperPhoto();
+    await waitFor(() => expect(fixture.jobs()).toHaveLength(1));
+    mockResponses['GET /paper-sessions/{sessionId}'] = () => ({ status: 200, data: session({ deadline_at: new Date(serverNow.getTime() - 1000).toISOString(), items: [item(1, { handwriting: fixture.jobs() })] }) });
+    await fixture.refresh();
+    expect(await screen.findByText('正在识别答案并整卷批改')).toBeTruthy();
+    expect(mockCalls.filter((c) => c.path.endsWith('/submit'))).toHaveLength(1);
+    expect(fixture.jobs()).toHaveLength(1);
+    await r.unmount();
+  });
+
+  it('识别失败不会被当作空白答案交卷，保留照片并提示重试', async () => {
+    const fixture = backgroundPhotos({ oneItem: true });
+    const r = await wrap(<PaperSessionPage />);
+    await takePaperPhoto();
+    await waitFor(() => expect(fixture.jobs()).toHaveLength(1));
+    fixture.failed(1); await fixture.refresh();
+    expect(await screen.findByText('识别失败')).toBeTruthy();
+    await submitFromCard();
+    expect(await screen.findByText('第 1 题识别失败，请重试或弃用文件后交卷')).toBeTruthy();
+    expect(mockCalls.some((c) => c.path.endsWith('/submit'))).toBe(false);
+    expect(Object.values(paperPhotoQueue(90).snapshot())[0]?.shots).toHaveLength(1);
+    await r.unmount();
+  });
+});
+
+it('同题两页上传乱序完成，显示和交卷仍按拍照顺序，未确认的修改保留', async () => {
+  const fixture = backgroundPhotos({ oneItem: true });
+  const firstUpload = deferred<{ status: number }>();
+  mockUpload.mockReturnValueOnce(firstUpload.promise);
+  const r = await wrap(<PaperSessionPage />);
+  await takePaperPhoto();
+  await takePaperPhoto();
+  await waitFor(() => expect(fixture.jobs()).toHaveLength(1));
+  const later = fixture.jobs()[0]!;
+  await act(async () => { firstUpload.resolve({ status: 200 }); await paperPhotoQueue(90).waitForUploads(); });
+  const earlier = fixture.jobs()[1]!;
+  expect(earlier.capture_order).toBeLessThan(later.capture_order!);
+  fixture.readyJob(earlier.id, '第一页识别文字');
+  fixture.readyJob(later.id, '第二页识别文字');
+  await fixture.refresh();
+  const editors = await screen.findAllByLabelText('识别文字');
+  expect(editors[0]?.props.value).toBe('第一页识别文字');
+  expect(editors[1]?.props.value).toBe('第二页识别文字');
+  await fireEvent.press(screen.getAllByText('确认并填入答案')[1]!);
+  expect(mockCalls.filter((c) => c.path.endsWith('/handwriting/{handwritingId}'))).toHaveLength(0);
+  await fireEvent.changeText(editors[1]!, '第二页修改后');
+  await submitFromCard();
+  expect(await screen.findByText('正在整卷批改')).toBeTruthy();
+  expect(fixture.drafts[1]).toBe('第一题已有答案\n第一页识别文字\n第二页修改后');
+  expect(mockCalls.find((c) => c.path.endsWith('/handwriting/{handwritingId}'))?.init).toMatchObject({ body: { text: '第二页修改后', confirm: false } });
+  await r.unmount();
+});
+
+it('登记响应丢失时通过服务端状态找回同一张稿件，不重复上传', async () => {
+  const fixture = backgroundPhotos({ oneItem: true });
+  const register = mockResponses['POST /paper-sessions/{sessionId}/items/{seq}/handwriting']!;
+  mockResponses['POST /paper-sessions/{sessionId}/items/{seq}/handwriting'] = (init) => { register(init); throw new Error('响应丢失'); };
+  const r = await wrap(<PaperSessionPage />);
+  await takePaperPhoto();
+  await waitFor(() => expect(Object.values(paperPhotoQueue(90).snapshot())[0]?.status).toBe('registered'));
+  expect(await screen.findByText('手写稿正在后台识别')).toBeTruthy();
+  expect(fixture.jobs()).toHaveLength(1);
+  expect(mockUpload).toHaveBeenCalledTimes(1);
+  await submitFromCard();
+  expect(await screen.findByText('正在识别答案并整卷批改')).toBeTruthy();
+  await r.unmount();
+});
+
+it('进程重建后恢复已经上传但未登记的照片，沿用照片键与拍照顺序', async () => {
+  backgroundPhotos();
+  setJSON('paper:photos:91', { restored: { key: 'restored', order: 123, seq: 2, shots: [{ uri: 'file:///documents/paper-handwriting/restored.jpg', mimeType: 'image/jpeg', size: 2048 }], keys: ['u/1/hw/restored.jpg'], status: 'uploading' } });
+  const queue = new PaperPhotoQueue(91);
+  queue.resume();
+  await queue.waitForUploads();
+  expect(queue.snapshot().restored?.status).toBe('registered');
+  expect(mockUpload).not.toHaveBeenCalled();
+  expect(mockCalls.find((c) => c.path.endsWith('/handwriting'))?.init).toMatchObject({ params: { path: { sessionId: 91, seq: 2 } }, body: { object_keys: ['u/1/hw/restored.jpg'], idempotency_key: 'restored', capture_order: 123 } });
+});
+
+it('确认成功但响应丢失时先恢复确认结果，旧草稿不会覆盖已追加文字', async () => {
+  const fixture = backgroundPhotos();
+  const confirm = mockResponses['PUT /paper-sessions/{sessionId}/items/{seq}/handwriting/{handwritingId}']!;
+  let online = false;
+  let processed = false;
+  mockResponses['PUT /paper-sessions/{sessionId}/items/{seq}/handwriting/{handwritingId}'] = (init) => {
+    if (!processed) { processed = true; confirm(init); }
+    if (!online) throw new Error('确认响应丢失');
+    return confirm(init);
+  };
+  const r = await wrap(<PaperSessionPage />);
+  await takePaperPhoto();
+  await waitFor(() => expect(fixture.jobs()).toHaveLength(1));
+  fixture.ready(1, '已在服务端确认的文字'); await fixture.refresh();
+  await fireEvent.press(await screen.findByText('确认并填入答案'));
+  await fixture.refresh();
+  expect(fixture.drafts[1]).toBe('第一题已有答案\n已在服务端确认的文字');
+  expect(screen.getByLabelText('你的答案').props.editable).toBe(false);
+  expect(Object.values(paperPhotoQueue(90).snapshot())[0]?.confirmingText).toBe('已在服务端确认的文字');
+  await fireEvent.press(screen.getByText('下一题'));
+  await fireEvent.changeText(screen.getByLabelText('你的答案'), '第二题继续写');
+  await fireEvent.press(screen.getByText('上一题'));
+  online = true;
+  await fireEvent.press(screen.getByText('重试保存识别结果'));
+  expect(await screen.findByDisplayValue('第一题已有答案\n已在服务端确认的文字')).toBeTruthy();
+  expect(fixture.drafts[1]).toBe('第一题已有答案\n已在服务端确认的文字');
+  expect(getJSON<Record<number, string>>('draft:paper:90')?.[2]).toBe('第二题继续写');
+  expect(Object.values(paperPhotoQueue(90).snapshot())[0]?.confirmingText).toBeUndefined();
+  await r.unmount();
+});
+
+
+it('整卷录音停止后可切题，识别重试保留语音类型与原题', async () => {
+  const fixture = backgroundPhotos();
+  storage.set('permission_explained_microphone', true);
+  mockResponses['GET /feature-flags'] = () => ({ status: 200, data: { flags: { voice_answer: true } } });
+  mockResponses['POST /voice/upload-requests'] = () => ({ status: 200, data: { object_key: 'u/1/voice/exam.m4a', upload_url: 'https://oss/voice', upload_headers: {} } });
+  const r = await wrap(<PaperSessionPage />);
+  await fireEvent.press(await screen.findByText('语音输入'));
+  await fireEvent.press(await screen.findByText('结束录音 0:00'));
+  await waitFor(() => expect(fixture.jobs()[0]?.input_kind).toBe('voice'));
+  await fireEvent.press(screen.getByText('下一题'));
+  expect(screen.queryByText('语音正在后台识别')).toBeNull();
+  await fireEvent.press(screen.getByText('上一题'));
+  expect(await screen.findByText('语音正在后台识别')).toBeTruthy();
+  fixture.failed(1); await fixture.refresh();
+  await fireEvent.press(await screen.findByText('重试识别'));
+  const registers = mockCalls.filter((call) => call.path.endsWith('/handwriting'));
+  expect(registers).toHaveLength(2);
+  expect(registers[1]?.init).toMatchObject({ params: { path: { sessionId: 90, seq: 1 } }, body: { input_kind: 'voice', object_keys: ['u/1/voice/exam.m4a'] } });
+  await r.unmount();
 });

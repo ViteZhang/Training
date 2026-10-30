@@ -13,6 +13,7 @@ import { Footer, StepHeader } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { useUpgradeActions } from '@/features/membership/purchase';
+import { ExamYearSelect } from '@/features/profile/ExamYearSelect';
 
 export default function SubjectStep() {
   const qc = useQueryClient();
@@ -28,7 +29,7 @@ export default function SubjectStep() {
   const [removing, setRemoving] = useState<Schemas['Subject'] | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const selectedYear = year ?? years.data?.items[0]?.exam_year;
+  const selectedYear = years.data?.items.find((item) => item.exam_year === year)?.exam_year ?? years.data?.items[0]?.exam_year;
   const list = subjects.data?.items ?? [];
   const full = list.length >= 4;
 
@@ -91,21 +92,7 @@ export default function SubjectStep() {
           <Text variant="caption" color={semantic.textPrimary} style={styles.label}>
             参加哪一年的考试
           </Text>
-          <View style={styles.years} accessibilityRole="radiogroup">
-            {years.data?.items.map((y) => {
-              const on = y.exam_year === selectedYear;
-              return (
-                <Pressable key={y.exam_year} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={y.label} onPress={() => setYear(y.exam_year)} style={[styles.year, on && styles.yearOn]}>
-                  <Text variant="caption" color={semantic.textPrimary} style={on ? styles.bold : undefined}>
-                    {y.label}
-                  </Text>
-                  <Text variant="small" style={styles.yearSub}>
-                    专业课考试 {y.subject_exam_date}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <ExamYearSelect items={years.data?.items ?? []} value={selectedYear} onChange={setYear} />
         </View>
 
         <View style={styles.block}>
