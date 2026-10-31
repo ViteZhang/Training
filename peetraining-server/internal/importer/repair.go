@@ -217,11 +217,16 @@ func examKey(hash string, year int) string { return hash + ":" + strconv.Itoa(ye
 // 补上年份后会与已有真题重复的题（多是后来又导入了一遍）不补，免得同一道真题算两次；补上的会加进 taken。
 func planRepair(qs []repairQ, blocks []ai.Block, taken map[string]bool) []repairFix {
 	var out []repairFix
+	// 多年合在一份资料里时同一道题（如两年都考「意境」）会出现多次；每块先只给一道题用，
+	// 否则后面的题都会对上第一年的块，补成同一年后又被当作重复跳过。
+	used := map[int]bool{}
 	for _, q := range qs {
-		blk, ok := matchBlock(q, blocks)
+		i, ok := matchBlock(q, blocks, used)
 		if !ok {
 			continue
 		}
+		used[i] = true
+		blk := blocks[i]
 		f := repairFix{ID: q.ID}
 		if !q.HasYear && blk.Year > 0 {
 			if taken[examKey(q.ContentHash, blk.Year)] {
@@ -253,15 +258,14 @@ func planRepair(qs []repairQ, blocks []ai.Block, taken map[string]bool) []repair
 }
 
 // matchBlock 按题干找对应的块：题干与块文字要互相大部分重合（短题干如「神话」只会对上「5. 神话」那一块，
-// 不会对上题干里恰好提到神话的长题），同样重合时优先题型相同的。
-func matchBlock(q repairQ, blocks []ai.Block) (ai.Block, bool) {
+// 不会对上题干里恰好提到神话的长题），同样重合时优先题型相同、还没被别的题用过的块；返回块的下标。
+func matchBlock(q repairQ, blocks []ai.Block, used map[int]bool) (int, bool) {
 	stem := stemForMatch(q.Stem)
 	if stem == "" {
-		return ai.Block{}, false
+		return 0, false
 	}
-	var best ai.Block
-	bestScore := 0.0
-	for _, b := range blocks {
+	best, bestScore := 0, 0.0
+	for i, b := range blocks {
 		if b.Answer || b.Whole {
 			continue
 		}
@@ -274,8 +278,11 @@ func matchBlock(q repairQ, blocks []ai.Block) (ai.Block, bool) {
 		if b.QType != "" && b.QType == q.QType {
 			score += 0.01
 		}
+		if !used[i] {
+			score += 0.1
+		}
 		if score > bestScore {
-			best, bestScore = b, score
+			best, bestScore = i, score
 		}
 	}
 	return best, bestScore > 0
@@ -289,7 +296,7 @@ func stemForMatch(stem string) string {
 		if t == "" {
 			continue
 		}
-		if m := reSectionHead.FindStringSubmatch(t); m != nil && !strings.ContainsAny(m[2], "。；;") {
+		if _, ok := isSectionHead(t); ok {
 			continue
 		}
 		if reGroupHead.MatchString(t) && isGroupHead(t) {
