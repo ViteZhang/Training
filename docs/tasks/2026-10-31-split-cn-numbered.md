@@ -25,6 +25,10 @@
 
 回归测试：`TestSplitChineseNumberedQuestions`（用该真题原文）、`TestQuestionLikeAndCNNumber`。已导入的旧题不会自动修正，需要删除后重新导入这份资料。
 
-## 问题 2（待生产确认）
+## 问题 2（已复测正常）
 
-「让 AI 生成」在调用模型前读取 `subjects.textbook_selections`（迁移 00033），保存时写 `answer_evidence_snapshots`（迁移 00032）。模型失败时提示「生成失败，未扣除次数」；提示「服务暂时出了点问题」是服务端内部错误，最可能是生产库还没执行 00032–00035。按 runbook 第 363 行核对 goose 版本并补执行；若已执行，查 API 日志中 `generate-answer` 的报错。
+生产已执行到迁移 35（00032–00035 均已登记），排除迁移缺失。用户随后复测「让 AI 生成」正常，未再复现。
+
+后续可优化（未在本次修改）：
+- 模型平台错误（超时、限流、审核服务不可用）在 `ai.Cap.Run` 中原样返回，供 Asynq 重试；同步接口（如 `/import-items/{itemId}/generate-answer`）因此显示「服务暂时出了点问题」，可改为同步路径映射成 AI_FAILED「生成失败，未扣除次数」。
+- App 对该接口沿用 20 秒通用超时，论述题生成参考答案可能超过 20 秒，可参照拍照识别单独放宽。
