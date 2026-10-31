@@ -111,3 +111,27 @@ func TextbookHash(value any) (string, json.RawMessage, error) {
 	hash := sha256.Sum256(data)
 	return hex.EncodeToString(hash[:]), data, nil
 }
+
+// TextbookEditionScopeUpdate 保持使用范围归属于原出版版本。
+type TextbookEditionScopeUpdate struct {
+	EditionID       uint64
+	ExpectedVersion uint64
+	ScopeNote       string
+}
+
+func NormalizeTextbookEditionScopes(scopes []TextbookEditionScopeUpdate) ([]TextbookEditionScopeUpdate, error) {
+	if len(scopes) > 1000 {
+		return nil, apperr.New(apperr.BadRequest, "单次最多修改 1000 个出版版本")
+	}
+	out := make([]TextbookEditionScopeUpdate, len(scopes))
+	seen := map[uint64]bool{}
+	for i, scope := range scopes {
+		scope.ScopeNote = strings.TrimSpace(scope.ScopeNote)
+		if scope.EditionID == 0 || scope.ExpectedVersion == 0 || seen[scope.EditionID] || !boundedText(scope.ScopeNote, 0, 255) {
+			return nil, apperr.New(apperr.BadRequest, "请检查出版版本及使用范围，范围最多 255 字且版本不可重复")
+		}
+		seen[scope.EditionID] = true
+		out[i] = scope
+	}
+	return out, nil
+}

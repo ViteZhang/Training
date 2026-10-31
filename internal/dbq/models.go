@@ -5842,13 +5842,13 @@ func AllWrongBookStatusValues() []WrongBookStatus {
 type AdminAuditLog struct {
 	ID         uint64
 	AdminID    uint64
-	Action     string
 	TargetType sql.NullString
 	TargetID   sql.NullString
 	// 不含用户内容原文
 	Detail    dbtypes.NullJSON
 	Ip        sql.NullString
 	CreatedAt time.Time
+	Action    string
 }
 
 type AdminSession struct {

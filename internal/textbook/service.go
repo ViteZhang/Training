@@ -193,8 +193,12 @@ func createEdition(ctx context.Context, q *dbq.Queries, book, actor uint64, key 
 	id, err := q.CreateTextbookEdition(ctx, dbq.CreateTextbookEditionParams{BookID: book, Edition: e.Edition, Publisher: e.Publisher, PublicationYear: year, Isbn: e.ISBN, LicenseNote: e.LicenseNote, Authorized: e.Authorized, ScopeNote: e.ScopeNote, CreatedBy: actor, RequestKey: key, RequestHash: hash, CreatedAt: now})
 	return uint64(id), err
 }
-func (s *Service) Update(ctx context.Context, id, version uint64, m rules.TextbookMetadata) (Book, error) {
-	m, err := rules.NormalizeTextbook(m)
+func (s *Service) Update(ctx context.Context, id, version uint64, m rules.TextbookMetadata, scopes ...rules.TextbookEditionScopeUpdate) (Book, error) {
+	scopes, err := rules.NormalizeTextbookEditionScopes(scopes)
+	if err != nil {
+		return Book{}, err
+	}
+	m, err = rules.NormalizeTextbook(m)
 	if err != nil {
 		return Book{}, err
 	}
@@ -209,6 +213,23 @@ func (s *Service) Update(ctx context.Context, id, version uint64, m rules.Textbo
 		}
 		if b.Version != version {
 			return versionConflict()
+		}
+		// 与授权更新保持相同的教材→版次锁顺序，任何版本冲突都会回滚整次编辑。
+		for _, scope := range scopes {
+			edition, err := q.LockTextbookEdition(ctx, dbq.LockTextbookEditionParams{ID: scope.EditionID, BookID: id})
+			if err != nil {
+				return err
+			}
+			if edition.Version != scope.ExpectedVersion {
+				return versionConflict()
+			}
+			rows, err := q.UpdateTextbookEditionScope(ctx, dbq.UpdateTextbookEditionScopeParams{ID: scope.EditionID, BookID: id, Version: scope.ExpectedVersion, ScopeNote: scope.ScopeNote})
+			if err != nil {
+				return err
+			}
+			if rows != 1 {
+				return versionConflict()
+			}
 		}
 		_, err = q.UpdateTextbookMetadata(ctx, dbq.UpdateTextbookMetadataParams{Title: m.Title, Author: m.Author, Kind: m.Kind, Discipline: m.Discipline, Aliases: aliases, UpdatedAt: s.now().UTC(), ID: id, Version: version})
 		return err

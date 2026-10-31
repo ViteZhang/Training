@@ -645,6 +645,31 @@ func (q *Queries) SaveTextbookRevision(ctx context.Context, arg SaveTextbookRevi
 	return result.RowsAffected()
 }
 
+const updateTextbookEditionScope = `-- name: UpdateTextbookEditionScope :execrows
+UPDATE textbook_editions SET scope_note = ?, version = version + 1
+WHERE id = ? AND book_id = ? AND version = ?
+`
+
+type UpdateTextbookEditionScopeParams struct {
+	ScopeNote string
+	ID        uint64
+	BookID    uint64
+	Version   uint64
+}
+
+func (q *Queries) UpdateTextbookEditionScope(ctx context.Context, arg UpdateTextbookEditionScopeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateTextbookEditionScope,
+		arg.ScopeNote,
+		arg.ID,
+		arg.BookID,
+		arg.Version,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateTextbookMetadata = `-- name: UpdateTextbookMetadata :execrows
 UPDATE textbooks SET title = ?, author = ?, kind = ?, discipline = ?, aliases = ?, version = version + 1, updated_at = ?
 WHERE id = ? AND version = ?

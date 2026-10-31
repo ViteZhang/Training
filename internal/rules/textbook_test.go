@@ -37,3 +37,24 @@ func TestTextbookValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalizeTextbookEditionScopes(t *testing.T) {
+	valid := TextbookEditionScopeUpdate{EditionID: 1, ExpectedVersion: 1, ScopeNote: "  院校课程  "}
+	got, err := NormalizeTextbookEditionScopes([]TextbookEditionScopeUpdate{valid})
+	if err != nil || got[0].ScopeNote != "院校课程" {
+		t.Fatalf("%+v %v", got, err)
+	}
+	valid.ScopeNote = ""
+	if _, err := NormalizeTextbookEditionScopes([]TextbookEditionScopeUpdate{valid}); err != nil {
+		t.Fatal(err)
+	}
+	for _, scopes := range [][]TextbookEditionScopeUpdate{
+		{{EditionID: 0, ExpectedVersion: 1}}, {{EditionID: 1}}, {valid, valid},
+		{{EditionID: 1, ExpectedVersion: 1, ScopeNote: strings.Repeat("字", 256)}},
+		make([]TextbookEditionScopeUpdate, 1001),
+	} {
+		if _, err := NormalizeTextbookEditionScopes(scopes); err == nil {
+			t.Fatalf("invalid scopes accepted: %+v", scopes)
+		}
+	}
+}
