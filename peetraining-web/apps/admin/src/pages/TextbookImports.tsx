@@ -5,6 +5,7 @@ import { Alert, App as AntApp, Button, Drawer, Image, InputNumber, List, Modal, 
 import { useRef, useState } from 'react';
 import { Loadable } from '../components/Page';
 import { api, dt, unwrap } from '../lib/api';
+import { uploadTextbookFile } from '../lib/textbookUpload';
 
 type ImportJob = components['schemas']['TextbookImport'];
 type Path = { bookId: number; editionId: number; revisionId: number };
@@ -33,7 +34,7 @@ export function TextbookImports({ path, onClose }: { path: Path; onClose: () => 
       : await unwrap(api.POST(root, { params: { path }, body: { file_name: file.name, format: format as 'pdf' | 'docx' | 'md' | 'txt', size: file.size, sha256, idempotency_key: requestKey(`upload:${file.name}:${sha256}`) } }));
     // OSS 直传地址由服务端签名，不能附加后台会话令牌。
     if (target.job.status === 'uploading' || target.job.status === 'failed') {
-      const res = await fetch(target.upload_url, { method: 'PUT', headers: target.upload_headers, body: file }); if (!res.ok) throw new Error('文件上传失败，可重新选择同一份原件继续上传');
+      await uploadTextbookFile(file, target);
     }
     const actionPath = { ...path, importId: target.job.id };
     return target.job.status === 'failed'
@@ -50,6 +51,7 @@ export function TextbookImports({ path, onClose }: { path: Path; onClose: () => 
   return <Drawer open width={860} title="教材文件导入" onClose={close} maskClosable={false}>
     <Loadable loading={settings.isPending} error={settings.error}>{settings.data && <Typography.Paragraph type="secondary">支持 PDF、DOCX、Markdown、TXT。单文件最多 {settings.data.max_file_mb} MB / {settings.data.max_pages} 页，本修订最多 {settings.data.max_imports_per_revision} 个文件。所有 PDF 页均由视觉模型识别；全局并发 {settings.data.max_concurrent_imports} 个任务，每日 PDF 页处理上限 {settings.data.max_daily_pdf_pages} 次。Word 和文本的单元序号不代表纸质页码。</Typography.Paragraph>}</Loadable>
     {choose()}
+    {upload.isError && <Alert type="error" title={failure(upload.error)} style={{ marginTop: 16 }} />}
     <Alert type="info" title="识别完成后需要明确导入草稿，不会自动覆盖当前原文。" description="不确定的原文会保留待核对标记，校对时逐项确认。教材不会因识别完成而自动发布。" style={{ margin: '20px 0' }} />
     <Loadable loading={tasks.isPending} error={tasks.error}>
       <List dataSource={tasks.data?.items ?? []} locale={{ emptyText: '还没有导入任务' }} renderItem={(job) => <List.Item actions={[
