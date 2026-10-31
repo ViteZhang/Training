@@ -450,9 +450,15 @@ ASR_API_KEY=
 
 开发密钥填写 `peetraining-server/.env.local` 的 `TEXTBOOK_EMBEDDING_API_KEY`；生产 API 和 Worker 共享服务器后端环境配置。配置示例在 `.env.local.example` / `.env.example`，应用不会自动读取任意 .env，开发脚本负责载入。不要把密钥填写到 web/mobile 的环境文件、后台表单、聊天、日志或 Git。
 
-`TEXTBOOK_EMBEDDING_PROVIDER=openai`、用户提供的 compatible-mode/v1 地址、`qwen3.7-text-embedding-flash`、默认1024维；其他支持维度256/512/768。单独设置 `TEXTBOOK_VECTOR_URL=http://textbook-vector:6333` 和独立 `TEXTBOOK_VECTOR_API_KEY`。默认 provider=disabled，可识别/校对草稿但不能假装索引完成。
+`TEXTBOOK_EMBEDDING_PROVIDER=openai`、用户提供的 compatible-mode/v1 地址、`qwen3.7-text-embedding-flash`、默认1024维；其他支持维度256/512/768。嵌入模型与向量库分别配置：已有 `dreamer-qdrant` 且与 API/Worker 同属 `dreamer-net` 时，使用 `TEXTBOOK_VECTOR_URL=http://dreamer-qdrant:6333`；只有使用独立新服务时才使用对应服务名（例如 `textbook-vector`）。`TEXTBOOK_VECTOR_API_KEY` 遵循已有 Qdrant 的鉴权配置，不复用嵌入模型密钥。默认 provider=disabled，可识别/校对草稿但不能假装索引完成。
 
-Qdrant 是新依赖，部署前确认资源、固定审核镜像摘要和备份目录；可选 compose 文件 `deploy/docker-compose.textbook.yml` 不会被现有流水线自动启动。只加入私有 dreamer-net，不映射公网端口。需先执行新增迁移，再由人工授权启动服务。MySQL须支持 ngram 全文解析器；迁移失败不能跳过全文索引。
+优先核查并复用已有 Qdrant，确认版本、网络和鉴权，不为接入教材库重启、升级或清空共享服务。确需新建时，部署前确认资源、固定审核镜像摘要和备份目录；可选 compose 文件 `deploy/docker-compose.textbook.yml` 不会被现有流水线自动启动。只加入私有 dreamer-net，不映射公网端口。需先执行新增迁移，再由人工授权启动服务。MySQL须支持 ngram 全文解析器；迁移失败不能跳过全文索引。
+
+### 教材导入提交出现审计字段超长
+
+若 API 日志出现 `Data too long for column 'action'`，检查 `admin_audit_logs.action` 的长度。旧字段为 `VARCHAR(64)`，教材导入的完整审计路由超过该长度。先备份审计表和 `goose_db_version`，执行 `00035_admin_audit_action_length.sql` 的 Up 部分，将字段扩至 512，并在成功后登记版本 35。无需重新发布后端即可修复现有服务的字段长度错误；迁移源码仍须随后续版本同步。不要通过截断路径或跳过审计规避错误。
+
+上传失败分三步核验：获取签名上传地址、OSS 直传、提交处理任务。OSS 跨域通过不代表任务提交成功。扩容后先刷新同一导入任务，确认其真实状态；若已排队或处理中则等待，仍待上传时再使用“重新上传原件”，不要新建重复任务。确认解析完成后再单独验证索引构建；原件上传成功不等同于向量检索验收成功。
 
 备份：MySQL正常备份包含原文/切片/profile/发布指针。Qdrant使用官方集合快照 API（API key 从环境读取），快照转存独立私有备份位置；恢复演练对每个线上代次核对 collection、维度与过滤计数。文件系统直接复制运行中 volume 不能代替一致性快照。尚未提供自动快照调度，运维需在生产启用前配置并演练。Qdrant丢失可用校对正文重建新代次，重建和复核前关闭新检索。
 
