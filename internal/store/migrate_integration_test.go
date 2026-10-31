@@ -26,8 +26,8 @@ func TestMigrationsUpDownUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	var n int
-	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM feature_flags WHERE enabled_for_all = 0").Scan(&n); err != nil || n != 6 {
-		t.Fatalf("应有 6 个默认关闭的功能开关，got %d %v", n, err)
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM feature_flags WHERE enabled_for_all = 0").Scan(&n); err != nil || n != 7 {
+		t.Fatalf("应有 7 个默认关闭的功能开关（含 00031 的教材检索），got %d %v", n, err)
 	}
 	if err := store.MigrateDownTo(ctx, db, 0); err != nil {
 		t.Fatalf("整体回滚：%v", err)
