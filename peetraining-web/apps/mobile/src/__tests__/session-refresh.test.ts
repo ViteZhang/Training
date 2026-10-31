@@ -128,3 +128,12 @@ test('只为拍照识别延长超时，其他接口沿用 20 秒', () => {
     .toBe(API_REQUEST_TIMEOUT_MS);
   expect(apiRequestTimeoutMs(new Request('https://example.test/api/v1/paper-sessions/1'))).toBe(API_REQUEST_TIMEOUT_MS);
 });
+
+test('导入核对页让 AI 生成参考答案单独放宽超时', () => {
+  const { apiRequestTimeoutMs, AI_ANSWER_REQUEST_TIMEOUT_MS, API_REQUEST_TIMEOUT_MS } = require('../lib/api');
+  expect(apiRequestTimeoutMs(new Request('https://example.test/api/v1/import-items/42/generate-answer', { method: 'POST' })))
+    .toBe(AI_ANSWER_REQUEST_TIMEOUT_MS);
+  expect(AI_ANSWER_REQUEST_TIMEOUT_MS).toBeGreaterThan(API_REQUEST_TIMEOUT_MS);
+  expect(apiRequestTimeoutMs(new Request('https://example.test/api/v1/import-items/42'))).toBe(API_REQUEST_TIMEOUT_MS);
+  expect(apiRequestTimeoutMs(new Request('https://example.test/api/v1/import-items/42', { method: 'POST' }))).toBe(API_REQUEST_TIMEOUT_MS);
+});
