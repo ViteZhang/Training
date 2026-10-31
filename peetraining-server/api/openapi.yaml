@@ -998,6 +998,25 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /knowledge-points/{kpId}/split-questions:
+    parameters:
+      - $ref: "#/components/parameters/KpId"
+    get:
+      tags: [bank]
+      operationId: listSplitQuestions
+      summary: 拆分前获取全部关联题目（含非主关联与历史题，不截断）
+      responses:
+        "200":
+          description: 需要逐题分配的全部题目
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/QuestionBrief" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /knowledge-points/{kpId}/split:
     parameters:
       - $ref: "#/components/parameters/KpId"
@@ -1005,6 +1024,7 @@ paths:
       tags: [bank]
       operationId: splitKnowledgePoint
       summary: 拆分为多个知识点（3.5）
+      description: 每道关联题目必须且只能分配到一个新知识点；继承原掌握度与复习安排。旧版缺少分配时返回400，保留原数据。
       requestBody:
         required: true
         content:
@@ -1022,6 +1042,11 @@ paths:
                     properties:
                       name: { type: string, maxLength: 128 }
                       original_text: { type: string }
+                      question_ids:
+                        type: array
+                        uniqueItems: true
+                        description: 分配给此知识点的原关联题目，所有分组必须完整且互斥
+                        items: { type: integer, format: int64, minimum: 1 }
       responses:
         "200":
           description: 拆分出的知识点
@@ -1099,6 +1124,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/QuestionPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
     post:
       tags: [bank]
@@ -6128,6 +6154,1710 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /admin/textbooks:
+    get:
+      tags:
+      - admin
+      operationId: listTextbooks
+      summary: 7.16 独立官方教材库
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: q
+        in: query
+        schema:
+          type: string
+          maxLength: 128
+      - name: kind
+        in: query
+        schema:
+          type: string
+          maxLength: 128
+      - name: discipline
+        in: query
+        schema:
+          type: string
+          maxLength: 128
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          default: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - total
+                - page
+                - page_size
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Textbook'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  page_size:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+      - admin
+      operationId: createTextbook
+      summary: 创建独立教材及初始出版版本
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookCreate'
+  /admin/textbooks/{bookId}:
+    get:
+      tags:
+      - admin
+      operationId: getTextbook
+      summary: 教材详情
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+      - admin
+      operationId: updateTextbook
+      summary: 修改教材身份（乐观锁）
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookUpdate'
+  /admin/textbooks/{bookId}/editions:
+    post:
+      tags:
+      - admin
+      operationId: createTextbookEdition
+      summary: 新增出版版本
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookEditionCreate'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions:
+    post:
+      tags:
+      - admin
+      operationId: createTextbookRevision
+      summary: 创建草稿修订
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookRevision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookRevisionCreate'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}:
+    put:
+      tags:
+      - admin
+      operationId: saveTextbookRevision
+      summary: 保存校对原文并使索引失效
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookRevision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookRevisionSave'
+    get:
+      tags:
+      - admin
+      operationId: getTextbookRevision
+      summary: 读取指定修订原文
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookRevision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/textbook-import-settings:
+    get:
+      tags:
+      - admin
+      operationId: getTextbookImportSettings
+      summary: 教材导入限制
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImportSettings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports:
+    get:
+      tags:
+      - admin
+      operationId: listTextbookImports
+      summary: 导入任务列表
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TextbookImport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+      - admin
+      operationId: createTextbookImport
+      summary: 申请私有文件直传
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImportUpload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookImportCreate'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}:
+    get:
+      tags:
+      - admin
+      operationId: getTextbookImport
+      summary: 导入进度
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/commit:
+    post:
+      tags:
+      - admin
+      operationId: commitTextbookImport
+      summary: 确认上传并排队
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - idempotency_key
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/retry:
+    post:
+      tags:
+      - admin
+      operationId: retryTextbookImport
+      summary: 重试失败任务
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - idempotency_key
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/apply:
+    post:
+      tags:
+      - admin
+      operationId: applyTextbookImport
+      summary: 明确采用识别结果写入草稿
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookRevision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookImportApply'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/pages/{pageNo}:
+    get:
+      tags:
+      - admin
+      operationId: getTextbookImportPage
+      summary: 读取指定页识别原文和私有页图
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: pageNo
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImportPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/upload:
+    post:
+      tags:
+      - admin
+      operationId: renewTextbookImportUpload
+      summary: 恢复未完成的原件上传
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImportUpload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/textbook-retrieval-settings:
+    get:
+      tags:
+      - admin
+      operationId: getTextbookRetrievalSettings
+      summary: 教材嵌入及向量配置状态（不返回凭证）
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookRetrievalSettings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/indexes:
+    get:
+      tags:
+      - admin
+      operationId: listTextbookIndexes
+      summary: 索引代次与真实进度
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TextbookIndex'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema: &id001_t40_2
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: revisionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+    post:
+      tags:
+      - admin
+      operationId: buildTextbookIndex
+      summary: 为校对修订构建新索引代次
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookIndex'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: editionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: revisionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotency_key: &id002_t40_2
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+                expected_version: *id001_t40_2
+              required:
+              - idempotency_key
+              - expected_version
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/search:
+    post:
+      tags:
+      - admin
+      operationId: searchTextbookRevision
+      summary: 显式试检索就绪草稿或已发布修订；仅官方原文
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookSearchResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: editionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: revisionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  minLength: 1
+                  maxLength: 1800
+                generation_id: *id001_t40_2
+              required:
+              - query
+              - generation_id
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/publish:
+    post:
+      tags:
+      - admin
+      operationId: publishTextbookRevision
+      summary: 服务端校验并原子发布修订及代次
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: editionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: revisionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotency_key: *id002_t40_2
+                expected_version: *id001_t40_2
+                expected_edition_version: *id001_t40_2
+                generation_id: *id001_t40_2
+                summary:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+              required:
+              - idempotency_key
+              - expected_version
+              - expected_edition_version
+              - generation_id
+              - summary
+  /admin/textbooks/{bookId}/editions/{editionId}/availability:
+    post:
+      tags:
+      - admin
+      operationId: setTextbookEditionAvailability
+      summary: 下架、停用授权及历史摘录展示控制
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: editionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookAvailabilityChange'
+  /admin/textbooks/{bookId}/editions/{editionId}/default:
+    post:
+      tags:
+      - admin
+      operationId: setTextbookDefaultEdition
+      summary: 设置明确的默认已发布版本
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: editionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotency_key: *id002_t40_2
+                expected_book_version: *id001_t40_2
+                expected_edition_version: *id001_t40_2
+                enabled:
+                  type: boolean
+              required:
+              - idempotency_key
+              - expected_book_version
+              - expected_edition_version
+              - enabled
+  /admin/textbooks/{bookId}/publications:
+    get:
+      tags:
+      - admin
+      operationId: listTextbookPublications
+      summary: 教材发布与可用性审计记录
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TextbookPublication'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema: *id001_t40_2
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/indexes/{generationId}/retry:
+    post:
+      tags:
+      - admin
+      operationId: retryTextbookIndex
+      summary: 继续失败的索引代次，复用已完成片段
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: generationId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - idempotency_key
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookIndex'
+  /gradings/{gradingId}/answer-evidence:
+    get:
+      tags: [bank]
+      operationId: getGradingAnswerEvidence
+      parameters:
+      - {name: gradingId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      responses:
+        '200':
+          description: 本人记录对应的不可变来源
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [snapshot]
+                properties:
+                  snapshot:
+                    allOf: [{$ref: '#/components/schemas/AnswerEvidenceSnapshot'}]
+                    nullable: true
+        '404': {$ref: '#/components/responses/NotFound'}
+  /import-items/{itemId}/answer-evidence:
+    get:
+      tags: [bank]
+      operationId: getImportAnswerEvidence
+      parameters:
+      - {name: itemId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      responses:
+        '200':
+          description: 本人记录对应的不可变来源
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [snapshot]
+                properties:
+                  snapshot:
+                    allOf: [{$ref: '#/components/schemas/AnswerEvidenceSnapshot'}]
+                    nullable: true
+        '404': {$ref: '#/components/responses/NotFound'}
+  /subjects/{subjectId}/textbook-matches:
+    post:
+      tags: [profile]
+      operationId: matchSubjectTextbooks
+      summary: 解析本人教材书名，仅返回明确匹配的公开元数据，未匹配静默
+      parameters:
+      - {name: subjectId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                titles: {type: array, maxItems: 5, items: {type: string, minLength: 1, maxLength: 64}}
+      responses:
+        '200':
+          description: 明确匹配的教材；可为空，不影响书名保存
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/UserTextbookMatch'}}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /admin/official/projects/{projectId}/textbooks:
+    get:
+      tags: [admin]
+      x-roles: [content_lead, content_editor]
+      security: [{adminAuth: []}]
+      operationId: listProjectTextbooks
+      parameters:
+      - {name: projectId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      responses:
+        '200':
+          description: 关联的明确出版版本
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, version]
+                properties:
+                  version: {type: integer, format: int64, minimum: 1}
+                  items: {type: array, items: {$ref: '#/components/schemas/UserTextbookMatch'}}
+    put:
+      tags: [admin]
+      x-roles: [content_lead]
+      security: [{adminAuth: []}]
+      operationId: setProjectTextbooks
+      parameters:
+      - {name: projectId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [edition_ids, idempotency_key, expected_version]
+              properties:
+                expected_version: {type: integer, format: int64, minimum: 1}
+                edition_ids: {type: array, maxItems: 20, uniqueItems: true, items: {type: integer, format: int64, minimum: 1}}
+                idempotency_key: {type: string, minLength: 8, maxLength: 128}
+      responses:
+        '200':
+          description: 关联成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, version]
+                properties:
+                  version: {type: integer, format: int64, minimum: 1}
+                  items: {type: array, items: {$ref: '#/components/schemas/UserTextbookMatch'}}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /questions/{questionId}/answer-candidates:
+    post:
+      tags:
+      - bank
+      operationId: createAnswerUpdateCandidate
+      summary: 主动更新答案：异步成功候选扣一次，采用不再扣
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerUpdateCandidate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+              required:
+              - idempotency_key
+    get:
+      tags:
+      - bank
+      operationId: listAnswerUpdateCandidates
+      summary: 恢复并查看本人答案更新候选
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AnswerUpdateCandidate'
+                required:
+                - items
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /questions/{questionId}/answer-candidates/{candidateId}:
+    get:
+      tags:
+      - bank
+      operationId: getAnswerUpdateCandidate
+      summary: 本人候选详情和可用出处
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: candidateId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerUpdateCandidate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /questions/{questionId}/answer-candidates/{candidateId}/adopt:
+    post:
+      tags:
+      - bank
+      operationId: adoptAnswerUpdateCandidate
+      summary: 采用候选（不重复扣次）
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: candidateId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerUpdateCandidate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+              required:
+              - idempotency_key
+  /questions/{questionId}/answer-candidates/{candidateId}/discard:
+    post:
+      tags:
+      - bank
+      operationId: discardAnswerUpdateCandidate
+      summary: 放弃已成功候选（不退次）
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: candidateId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerUpdateCandidate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+              required:
+              - idempotency_key
+  /questions/{questionId}/answer-evidence:
+    get:
+      tags:
+      - bank
+      operationId: getQuestionAnswerEvidence
+      summary: 答案的不可变实际引用依据
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  snapshot:
+                    $ref: '#/components/schemas/AnswerEvidenceSnapshot'
+                    nullable: true
+                required:
+                - snapshot
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
 components:
   securitySchemes:
     bearerAuth:
@@ -6249,6 +7979,1049 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    UserTextbookSelection:
+      type: object
+      required: [input, edition_id]
+      properties:
+        input: {type: string, minLength: 1, maxLength: 64}
+        edition_id: {type: integer, format: int64, minimum: 1}
+    UserTextbookMatch:
+      type: object
+      required: [input, book_id, edition_id, title, author, edition, method, catalog_version, available]
+      properties:
+        input: {type: string}
+        book_id: {type: integer, format: int64}
+        edition_id: {type: integer, format: int64}
+        title: {type: string}
+        author: {type: string}
+        edition: {type: string}
+        method: {type: string, enum: [auto, explicit]}
+        catalog_version: {type: string}
+        available: {type: boolean}
+    AnswerEvidenceSource:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum:
+          - official_textbook
+          - personal_material
+        title:
+          type: string
+        author:
+          type: string
+        edition:
+          type: string
+        book_id:
+          type: integer
+          format: int64
+          minimum: 1
+        edition_id:
+          type: integer
+          format: int64
+          minimum: 1
+        revision_id:
+          type: integer
+          format: int64
+          minimum: 1
+        generation_id:
+          type: integer
+          format: int64
+          minimum: 1
+        ordinal:
+          type: integer
+        heading:
+          type: string
+        source_page:
+          type: integer
+        printed_page:
+          type: string
+        quote:
+          type: string
+        claim:
+          type: string
+        unavailable:
+          type: boolean
+        material_id:
+          type: integer
+          format: int64
+          minimum: 1
+        page:
+          type: integer
+      required:
+      - id
+      - kind
+      - title
+      - quote
+      - claim
+    AnswerEvidenceSnapshot:
+      type: object
+      properties:
+        version:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
+        model:
+          type: string
+        prompt_version:
+          type: string
+        coverage:
+          type: string
+          enum:
+          - none
+          - partial
+          - sufficient
+        uses_general_knowledge:
+          type: boolean
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnswerEvidenceSource'
+      required:
+      - version
+      - generated_at
+      - model
+      - prompt_version
+      - coverage
+      - uses_general_knowledge
+      - sources
+    AnswerUpdateCandidate:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        question_id:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          type: string
+          enum:
+          - queued
+          - processing
+          - failed
+          - ready
+          - adopted
+          - discarded
+        answer:
+          type: string
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/RubricPointInput'
+        snapshot:
+          $ref: '#/components/schemas/AnswerEvidenceSnapshot'
+        failure_message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - question_id
+      - status
+      - failure_message
+      - created_at
+      - updated_at
+    TextbookRetrievalSettings:
+      type: object
+      properties:
+        embedding_enabled:
+          type: boolean
+        embedding_provider:
+          type: string
+          maxLength: 16
+        embedding_model:
+          type: string
+          maxLength: 128
+        embedding_dimensions:
+          type: integer
+        profile_id:
+          type: string
+          maxLength: 64
+        vector_configured:
+          type: boolean
+        production:
+          type: boolean
+        parameters:
+          $ref: '#/components/schemas/TextbookRetrievalParameters'
+      required:
+      - embedding_enabled
+      - embedding_provider
+      - embedding_model
+      - embedding_dimensions
+      - profile_id
+      - vector_configured
+      - production
+      - parameters
+    TextbookRetrievalParameters:
+      type: object
+      properties:
+        version:
+          type: string
+          maxLength: 32
+        chunk_runes:
+          type: integer
+          minimum: 200
+          maximum: 1500
+        overlap_runes:
+          type: integer
+          minimum: 0
+          maximum: 300
+        recall_k:
+          type: integer
+          minimum: 1
+          maximum: 50
+        result_k:
+          type: integer
+          minimum: 1
+          maximum: 20
+        context_runes:
+          type: integer
+          minimum: 1000
+          maximum: 16000
+      required:
+      - version
+      - chunk_runes
+      - overlap_runes
+      - recall_k
+      - result_k
+      - context_runes
+    TextbookIndex:
+      type: object
+      properties:
+        id: &id001_t40_3
+          type: integer
+          format: int64
+          minimum: 1
+        revision_id: *id001_t40_3
+        source_version: *id001_t40_3
+        content_hash:
+          type: string
+          maxLength: 64
+        profile_id:
+          type: string
+          maxLength: 64
+        model:
+          type: string
+          maxLength: 128
+        dimensions:
+          type: integer
+        status:
+          type: string
+          enum:
+          - queued
+          - processing
+          - failed
+          - ready
+          - stale
+        chunk_count:
+          type: integer
+        completed_chunks:
+          type: integer
+        failure_message:
+          type: string
+          maxLength: 255
+        created_at: &id002_t40_3
+          type: string
+          format: date-time
+        updated_at: *id002_t40_3
+        parameters:
+          $ref: '#/components/schemas/TextbookRetrievalParameters'
+      required:
+      - id
+      - revision_id
+      - source_version
+      - content_hash
+      - profile_id
+      - model
+      - dimensions
+      - status
+      - chunk_count
+      - completed_chunks
+      - failure_message
+      - created_at
+      - updated_at
+      - parameters
+    TextbookSearchResult:
+      type: object
+      properties:
+        generation_id: *id001_t40_3
+        profile_id:
+          type: string
+          maxLength: 64
+        fusion:
+          type: string
+          enum:
+          - rrf-v1
+        hits:
+          type: array
+          items:
+            $ref: '#/components/schemas/TextbookSearchHit'
+        notice:
+          type: string
+          maxLength: 500
+      required:
+      - generation_id
+      - profile_id
+      - fusion
+      - hits
+      - notice
+    TextbookSearchHit:
+      type: object
+      properties:
+        ordinal:
+          type: integer
+        section_no:
+          type: integer
+        start_rune:
+          type: integer
+        end_rune:
+          type: integer
+        heading:
+          type: string
+          maxLength: 512
+        text:
+          type: string
+          maxLength: 1500
+        text_hash:
+          type: string
+          maxLength: 64
+        source_page:
+          type: integer
+        printed_page:
+          type: string
+          maxLength: 32
+        fulltext_rank:
+          type: integer
+        vector_rank:
+          type: integer
+        fusion_score:
+          type: number
+      required:
+      - ordinal
+      - section_no
+      - start_rune
+      - end_rune
+      - heading
+      - text
+      - text_hash
+      - fulltext_rank
+      - vector_rank
+      - fusion_score
+    TextbookAvailabilityChange:
+      type: object
+      properties:
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 128
+        expected_version: *id001_t40_3
+        withdrawn:
+          type: boolean
+        authorized:
+          type: boolean
+        license_note:
+          type: string
+          minLength: 1
+          maxLength: 500
+        license_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        excerpts_enabled:
+          type: boolean
+        summary:
+          type: string
+          minLength: 1
+          maxLength: 500
+      required:
+      - idempotency_key
+      - expected_version
+      - withdrawn
+      - authorized
+      - license_note
+      - license_expires_at
+      - excerpts_enabled
+      - summary
+    TextbookPublication:
+      type: object
+      properties:
+        id: *id001_t40_3
+        edition_id: *id001_t40_3
+        revision_id: *id001_t40_3
+        generation_id: *id001_t40_3
+        action:
+          type: string
+          maxLength: 24
+        summary:
+          type: string
+          maxLength: 500
+        created_by: *id001_t40_3
+        created_at: *id002_t40_3
+      required:
+      - id
+      - edition_id
+      - action
+      - summary
+      - created_by
+      - created_at
+    TextbookMetadata:
+      type: object
+      required:
+      - title
+      - author
+      - kind
+      - discipline
+      - aliases
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 128
+        author:
+          type: string
+          minLength: 1
+          maxLength: 128
+        kind:
+          type: string
+          enum:
+          - textbook
+          - handout
+        discipline:
+          type: string
+          minLength: 1
+          maxLength: 128
+        aliases:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+    TextbookEditionInput:
+      type: object
+      required:
+      - edition
+      - license_note
+      - authorized
+      properties:
+        edition:
+          type: string
+          minLength: 1
+          maxLength: 64
+        publisher:
+          type: string
+          maxLength: 128
+        publication_year:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+        isbn:
+          type: string
+          maxLength: 32
+        license_note:
+          type: string
+          minLength: 1
+          maxLength: 500
+        authorized:
+          type: boolean
+        scope_note:
+          type: string
+          maxLength: 255
+    TextbookRevisionSection:
+      type: object
+      required:
+      - heading
+      - text
+      properties:
+        source_import_id:
+          type: integer
+          format: int64
+          minimum: 1
+        needs_review:
+          type: boolean
+        heading:
+          type: string
+          maxLength: 512
+        text:
+          type: string
+          minLength: 1
+          maxLength: 100000
+        source_page:
+          type: integer
+          minimum: 1
+        printed_page:
+          type: string
+          maxLength: 32
+    TextbookRevision:
+      type: object
+      required:
+      - id
+      - edition_id
+      - revision_no
+      - version
+      - status
+      - content_hash
+      - sections
+      - index_status
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        edition_id:
+          type: integer
+          format: int64
+          minimum: 1
+        revision_no:
+          type: integer
+          format: int64
+          minimum: 1
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          type: string
+          enum:
+          - draft
+          - reviewed
+          - published
+        content_hash:
+          type: string
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/TextbookRevisionSection'
+        index_status:
+          type: string
+          enum:
+          - missing
+          - stale
+          - ready
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        ready_generation_id:
+          type: integer
+          format: int64
+          minimum: 1
+    TextbookEdition:
+      type: object
+      required:
+      - id
+      - book_id
+      - edition
+      - publisher
+      - isbn
+      - license_note
+      - authorized
+      - scope_note
+      - status
+      - revisions
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        book_id:
+          type: integer
+          format: int64
+          minimum: 1
+        edition:
+          type: string
+          minLength: 1
+          maxLength: 64
+        publisher:
+          type: string
+          maxLength: 128
+        publication_year:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+        isbn:
+          type: string
+          maxLength: 32
+        license_note:
+          type: string
+          minLength: 1
+          maxLength: 500
+        authorized:
+          type: boolean
+        scope_note:
+          type: string
+          maxLength: 255
+        status:
+          type: string
+          enum:
+          - unpublished
+          - published
+          - withdrawn
+        current_revision_id:
+          type: integer
+          format: int64
+          minimum: 1
+        revisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TextbookRevisionSummary'
+        version: &id001_t40_4
+          type: integer
+          format: int64
+          minimum: 1
+        current_generation_id: *id001_t40_4
+        license_expires_at:
+          type: string
+          format: date-time
+        excerpts_enabled:
+          type: boolean
+    Textbook:
+      type: object
+      required:
+      - id
+      - title
+      - author
+      - kind
+      - discipline
+      - aliases
+      - version
+      - editions
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        title:
+          type: string
+          minLength: 1
+          maxLength: 128
+        author:
+          type: string
+          minLength: 1
+          maxLength: 128
+        kind:
+          type: string
+          enum:
+          - textbook
+          - handout
+        discipline:
+          type: string
+          minLength: 1
+          maxLength: 128
+        aliases:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        editions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TextbookEdition'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        default_edition_id:
+          type: integer
+          format: int64
+          minimum: 1
+    TextbookCreate:
+      type: object
+      required:
+      - title
+      - author
+      - kind
+      - discipline
+      - aliases
+      - initial_edition
+      - idempotency_key
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 128
+        author:
+          type: string
+          minLength: 1
+          maxLength: 128
+        kind:
+          type: string
+          enum:
+          - textbook
+          - handout
+        discipline:
+          type: string
+          minLength: 1
+          maxLength: 128
+        aliases:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+        initial_edition:
+          $ref: '#/components/schemas/TextbookEditionInput'
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 128
+    TextbookUpdate:
+      type: object
+      required:
+      - title
+      - author
+      - kind
+      - discipline
+      - aliases
+      - expected_version
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 128
+        author:
+          type: string
+          minLength: 1
+          maxLength: 128
+        kind:
+          type: string
+          enum:
+          - textbook
+          - handout
+        discipline:
+          type: string
+          minLength: 1
+          maxLength: 128
+        aliases:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+    TextbookEditionCreate:
+      type: object
+      required:
+      - edition
+      - license_note
+      - authorized
+      - idempotency_key
+      properties:
+        edition:
+          type: string
+          minLength: 1
+          maxLength: 64
+        publisher:
+          type: string
+          maxLength: 128
+        publication_year:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+        isbn:
+          type: string
+          maxLength: 32
+        license_note:
+          type: string
+          minLength: 1
+          maxLength: 500
+        authorized:
+          type: boolean
+        scope_note:
+          type: string
+          maxLength: 255
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 128
+    TextbookRevisionCreate:
+      type: object
+      required:
+      - idempotency_key
+      properties:
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 128
+    TextbookRevisionSave:
+      type: object
+      required:
+      - expected_version
+      - sections
+      - mark_reviewed
+      properties:
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+        sections:
+          type: array
+          minItems: 1
+          maxItems: 5000
+          items:
+            $ref: '#/components/schemas/TextbookRevisionSection'
+        mark_reviewed:
+          type: boolean
+    TextbookRevisionSummary:
+      type: object
+      required:
+      - id
+      - edition_id
+      - revision_no
+      - version
+      - status
+      - content_hash
+      - index_status
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        edition_id:
+          type: integer
+          format: int64
+          minimum: 1
+        revision_no:
+          type: integer
+          format: int64
+          minimum: 1
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          type: string
+          enum:
+          - draft
+          - reviewed
+          - published
+        content_hash:
+          type: string
+        index_status:
+          type: string
+          enum:
+          - missing
+          - stale
+          - ready
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        ready_generation_id:
+          type: integer
+          format: int64
+          minimum: 1
+    TextbookImportSettings:
+      type: object
+      required:
+      - max_concurrent_imports
+      - max_file_mb
+      - max_pages
+      - max_imports_per_revision
+      - max_daily_pdf_pages
+      properties:
+        max_concurrent_imports:
+          type: integer
+          minimum: 1
+          maximum: 4
+        max_file_mb:
+          type: integer
+          minimum: 1
+        max_pages:
+          type: integer
+          minimum: 1
+        max_imports_per_revision:
+          type: integer
+          minimum: 1
+        max_daily_pdf_pages:
+          type: integer
+          minimum: 1
+    TextbookImportCreate:
+      type: object
+      required:
+      - file_name
+      - format
+      - size
+      - sha256
+      - idempotency_key
+      properties:
+        file_name:
+          type: string
+          maxLength: 255
+        format:
+          type: string
+          enum:
+          - pdf
+          - docx
+          - md
+          - txt
+        size:
+          type: integer
+          format: int64
+          minimum: 1
+        sha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 128
+    TextbookImport:
+      type: object
+      required:
+      - can_reupload
+      - id
+      - revision_id
+      - file_name
+      - format
+      - status
+      - page_count
+      - completed_pages
+      - uncertain_pages
+      - attempt
+      - created_at
+      - updated_at
+      properties:
+        can_reupload:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        revision_id:
+          type: integer
+          format: int64
+          minimum: 1
+        file_name:
+          type: string
+        format:
+          type: string
+        status:
+          type: string
+          enum:
+          - uploading
+          - queued
+          - processing
+          - ready
+          - failed
+          - applied
+        page_count:
+          type: integer
+        completed_pages:
+          type: integer
+        uncertain_pages:
+          type: integer
+        attempt:
+          type: integer
+        failure_message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TextbookImportUpload:
+      type: object
+      required:
+      - job
+      - upload_url
+      - upload_headers
+      - expires_at
+      properties:
+        job:
+          $ref: '#/components/schemas/TextbookImport'
+        upload_url:
+          type: string
+        upload_headers:
+          type: object
+          additionalProperties:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+    TextbookImportPage:
+      type: object
+      required:
+      - page_no
+      - blank
+      - blocks
+      properties:
+        page_no:
+          type: integer
+          minimum: 1
+        blank:
+          type: boolean
+        printed_page:
+          type: string
+          maxLength: 32
+        image_url:
+          type: string
+        blocks:
+          type: array
+          items:
+            type: object
+            required:
+            - heading
+            - text
+            - uncertain
+            properties:
+              heading:
+                type: string
+                maxLength: 512
+              text:
+                type: string
+                maxLength: 100000
+              uncertain:
+                type: boolean
+    TextbookImportApply:
+      type: object
+      required:
+      - expected_version
+      - mode
+      properties:
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+        mode:
+          type: string
+          enum:
+          - append
+          - replace
     PaperKind:
       type: string
       description: 真题卷 / AI 标准卷 / AI 针对卷
@@ -8717,6 +11490,8 @@ components:
       - points
       - citations
       properties:
+        snapshot_id: {type: integer, format: int64, minimum: 1}
+        snapshot: {$ref: '#/components/schemas/AnswerEvidenceSnapshot'}
         answer:
           type: string
         points:
@@ -9515,6 +12290,7 @@ components:
     SubjectPatch:
       type: object
       properties:
+        textbook_selections: {type: array, maxItems: 5, items: {$ref: '#/components/schemas/UserTextbookSelection'}}
         my_majors: { type: string, maxLength: 255, nullable: true, description: 报考方向，多个用顿号分隔；空表示不区分 }
         name: { type: string, minLength: 1, maxLength: 64 }
         code: { type: string, maxLength: 16, nullable: true }
@@ -9530,6 +12306,7 @@ components:
       type: object
       required: [id, name, full_score, is_essay, bank_id, question_count, kp_count, material_count]
       properties:
+        textbook_selections: {type: array, items: {$ref: '#/components/schemas/UserTextbookSelection'}}
         my_majors: { type: string, description: 报考方向（导入按专业分组的真题时默认只保留匹配的组） }
         id: { type: integer, format: int64 }
         name: { type: string }

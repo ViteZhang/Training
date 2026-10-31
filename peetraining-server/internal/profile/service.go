@@ -346,7 +346,8 @@ type SubjectPatch struct {
 	MyMajors    *string
 	ClearMajors bool
 	// Textbooks 是参考教材书名（PRD v3 1.3、6.9）；非 nil 时整体替换，空列表表示清空。
-	Textbooks *[]string
+	Textbooks          *[]string
+	TextbookSelections *[]rules.TextbookSelection
 }
 
 // MaxTextbooks 是每门专业课最多填几本参考教材。
@@ -431,7 +432,26 @@ func (s *Service) UpdateSubject(ctx context.Context, userID, id uint64, in Subje
 			books, _ = json.Marshal(list)
 		}
 	}
+	selections := []rules.TextbookSelection{}
+	_ = json.Unmarshal(cur.TextbookSelections, &selections)
+	if in.TextbookSelections != nil {
+		selections = *in.TextbookSelections
+	}
+	bookNames := Textbooks(cur.Textbooks)
+	if in.Textbooks != nil {
+		bookNames = Textbooks(books)
+	}
+	selections, err = rules.CleanTextbookSelections(bookNames, selections)
+	if err != nil {
+		return Subject{}, err
+	}
+	selectionJSON, _ := json.Marshal(selections)
 	err = store.WithTx(ctx, s.db, func(q *dbq.Queries) error {
+		if in.Textbooks != nil || in.TextbookSelections != nil {
+			if err := q.SetSubjectTextbookSelections(ctx, dbq.SetSubjectTextbookSelectionsParams{ID: id, OwnerUserID: userID, TextbookSelections: selectionJSON}); err != nil {
+				return err
+			}
+		}
 		if err := q.UpdateSubject(ctx, p); err != nil {
 			return err
 		}
@@ -553,4 +573,9 @@ func (s *Service) Overview(ctx context.Context, userID uint64) (Overview, error)
 		return Overview{}, err
 	}
 	return Overview{Materials: int(r.Materials), Questions: int(r.Questions), Wrong: int(r.Wrong), Essays: int(r.Essays)}, nil
+}
+
+// Subject returns only a subject owned by this user.
+func (s *Service) Subject(ctx context.Context, userID, id uint64) (Subject, error) {
+	return s.subject(ctx, userID, id)
 }

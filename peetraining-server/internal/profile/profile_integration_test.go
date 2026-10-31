@@ -3,6 +3,7 @@ package profile_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"strings"
@@ -229,5 +230,42 @@ func TestProfilePendingChanges(t *testing.T) {
 	}
 	if _, err := f.svc.Upsert(ctx, uid, profile.Input{ExamYear: 2031, Stage: rules.Sprint, DailyMinutes: 60}); kind(err) != apperr.BadRequest {
 		t.Fatal("没有配置的年份应 400")
+	}
+}
+
+func TestTextbookSelectionsOwnershipAndLegacyClient(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	uid, other := f.user(t, "13800110201"), f.user(t, "13800110202")
+	names := []string{"未匹配的讲义", "指定教材"}
+	sub, err := f.svc.CreateSubject(ctx, uid, profile.SubjectInput{Name: "文学", FullScore: 150})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.svc.UpdateSubject(ctx, uid, sub.ID, profile.SubjectPatch{Textbooks: &names}); err != nil {
+		t.Fatal(err)
+	}
+	selected := []rules.TextbookSelection{{Input: "指定教材", EditionID: 42}}
+	if _, err = f.svc.UpdateSubject(ctx, other, sub.ID, profile.SubjectPatch{TextbookSelections: &selected}); !apperr.IsKind(err, apperr.NotFound) {
+		t.Fatal("other user selected edition", err)
+	}
+	sub, err = f.svc.UpdateSubject(ctx, uid, sub.ID, profile.SubjectPatch{TextbookSelections: &selected})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []rules.TextbookSelection
+	if err = json.Unmarshal(sub.TextbookSelections, &got); err != nil || len(got) != 1 || got[0].EditionID != 42 {
+		t.Fatal(got, err)
+	}
+	names = []string{"未匹配的讲义"}
+	sub, err = f.svc.UpdateSubject(ctx, uid, sub.ID, profile.SubjectPatch{Textbooks: &names})
+	if err != nil {
+		t.Fatal("unmatched name must save", err)
+	}
+	if err = json.Unmarshal(sub.TextbookSelections, &got); err != nil || len(got) != 0 {
+		t.Fatal("deleted name retained explicit binding", got, err)
+	}
+	if len(profile.Textbooks(sub.Textbooks)) != 1 {
+		t.Fatal("free title lost")
 	}
 }

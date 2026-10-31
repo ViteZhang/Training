@@ -5,14 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
-	"peetraining-server/internal/importer"
 	"peetraining-server/internal/store"
 )
 
@@ -42,9 +40,6 @@ const (
 	segmentTarget     = 600     // 一段攒到这么多字就切
 	segmentMax        = 1200    // 单个自然段超过这么长时硬切
 	maxSegments       = 5000    // 一份素材最多切这么多段（约 300 万字）
-	citeOverlap       = 0.3     // 题目二字片段在段落里出现的比例，达到才算相关
-	maxCitations      = 3       // 交给模型的段落数
-	citeContextRune   = 800     // 每段交给模型的字数上限
 )
 
 // reHeading 认章节标题：「第一章 文学活动」「第三节」「一、」「1.2 」「# 标题」。
@@ -191,39 +186,11 @@ type Citation struct {
 
 // AnswerCandidate 是 AI 给官方题生成的参考答案、采分点与出处。
 type AnswerCandidate struct {
-	Answer    string
-	Points    []Point
-	Citations []Citation
-}
-
-// relatedSegments 按题目在段落里的字面重合度挑出最相关的几段。
-func relatedSegments(stem string, segs []dbq.ListOfficialReferenceSegmentsRow, n int) []dbq.ListOfficialReferenceSegmentsRow {
-	core := importer.Normalize(stem)
-	for _, p := range []string{"名词解释", "简答题", "简述", "论述题", "试论", "论述"} {
-		core = strings.TrimPrefix(core, p)
-	}
-	if core == "" {
-		return nil
-	}
-	type scored struct {
-		seg dbq.ListOfficialReferenceSegmentsRow
-		v   float64
-	}
-	var all []scored
-	for _, g := range segs {
-		if v := ai.Overlap(core, g.Heading+g.Text); v >= citeOverlap {
-			all = append(all, scored{g, v})
-		}
-	}
-	sort.SliceStable(all, func(i, j int) bool { return all[i].v > all[j].v })
-	out := make([]dbq.ListOfficialReferenceSegmentsRow, 0, n)
-	for _, x := range all {
-		if len(out) == n {
-			break
-		}
-		out = append(out, x.seg)
-	}
-	return out
+	SnapshotID uint64
+	Snapshot   *ai.AnswerSnapshot
+	Answer     string
+	Points     []Point
+	Citations  []Citation
 }
 
 // AnswerCandidates 给官方题生成参考答案与采分点：相关的官方参考素材段落 → 教材书名 → 通用知识（PRD v3 7.11、11.16 第 5 条）。
@@ -233,30 +200,15 @@ func (s *Service) AnswerCandidates(ctx context.Context, projectID uint64, qtype,
 	if err != nil {
 		return AnswerCandidate{}, err
 	}
-	refs, err := s.q.ListOfficialReferences(ctx, projectID)
-	if err != nil {
-		return AnswerCandidate{}, err
-	}
-	segs, err := s.q.ListOfficialReferenceSegments(ctx, projectID)
-	if err != nil {
-		return AnswerCandidate{}, err
-	}
 	in := ai.GenerateAnswerIn{Subject: p.SubjectName, QType: qtype, Stem: stem, Score: score}
-	for _, r := range refs {
-		if r.Kind == dbq.OfficialReferencesKindTextbook {
-			in.Textbooks = append(in.Textbooks, r.Title)
-		}
+	links, err := s.q.ListProjectTextbooks(ctx, projectID)
+	if err != nil {
+		return AnswerCandidate{}, err
 	}
-	var cites []Citation
-	for _, g := range relatedSegments(stem, segs, maxCitations) {
-		src := g.Title
-		if g.Heading != "" {
-			src += " · " + g.Heading
-		}
-		in.Context = append(in.Context, ai.AnswerContext{Source: src, Text: cutRunes(g.Text, citeContextRune)})
-		cites = append(cites, Citation{ReferenceID: g.ReferenceID, Title: g.Title, Heading: g.Heading})
+	for _, v := range links {
+		in.EditionIDs = append(in.EditionIDs, v.ID)
 	}
-	out, _, err := ai.GenerateAnswer.Run(ctx, s.d.AI, 0, in)
+	out, _, err := s.d.AI.GenerateReferenceAnswer(ctx, 0, in)
 	if err != nil {
 		return AnswerCandidate{}, apperr.New(apperr.AIFailed, "AI 生成参考答案失败，请稍后再试").Wrap(err)
 	}
@@ -264,10 +216,17 @@ func (s *Service) AnswerCandidates(ctx context.Context, projectID uint64, qtype,
 	for i, x := range out.Points {
 		pts[i] = Point{Content: x.Content, Score: x.Score, Keywords: x.Keywords}
 	}
-	if cites == nil {
-		cites = []Citation{}
+	id, err := s.saveOfficialEvidence(ctx, projectID, qtype, stem, out, pts)
+	if err != nil {
+		return AnswerCandidate{}, err
 	}
-	return AnswerCandidate{Answer: out.Answer, Points: pts, Citations: cites}, nil
+	cites := []Citation{}
+	if out.Snapshot != nil {
+		for _, v := range out.Snapshot.Sources {
+			cites = append(cites, Citation{ReferenceID: v.BookID, Title: v.Title, Heading: v.Heading})
+		}
+	}
+	return AnswerCandidate{Answer: out.Answer, Points: pts, Citations: cites, SnapshotID: id, Snapshot: out.Snapshot}, nil
 }
 
 func cutRunes(s string, n int) string {

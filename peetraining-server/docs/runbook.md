@@ -427,3 +427,72 @@ ASR_API_KEY=
 练习按题保存录音与识别状态，识别未完成时阻止该题提交，完成后默认采用未确认的原话；整卷交卷先等待上传登记，已登记的照片／录音由 Worker 完成识别、按保存顺序默认确认，再批改。失败保留任务及原件，允许重试或弃用；重复请求不会重复追加答案。真实录音准确率、专业术语与设备麦克风需在灰度账号验收，HTTP 合约测试和 mock 评测不代表真实效果。
 
 微信分享扩展：iOS 的 App Group、分享扩展签名及 Provisioning Profile 需随原生安装包一起生成（EAS 插件已声明）；手工签名时在 Apple 开发者后台登记对应 Group。iPhone 扩展采用「保存待导入 → 手动返回 App」，Android 支持 SEND、SEND_MULTIPLE 和文件 VIEW。App 内“从微信导入”有步骤说明及“保存到手机后选择文件”的兜底；接收后先保存在本机，登录和选择专业课后才上传。需使用真实微信测试，Expo Go 不支持此扩展。
+
+## 官方教材库目录基础（T38）
+
+教材库使用 `00029_textbook_catalog.sql` 新增共享教材、出版版本和内容修订。不得直接对生产运行完整 `db/init.sql`；生产发布前只应用尚未登记的增量迁移，并按本手册登记 goose 版本。旧 APP 与项目素材接口继续兼容。
+
+`admin` 与 `content_lead` 可维护独立 `/admin/textbooks`；其他角色拒绝。原文保存在未发布草稿，校对通过也不会自动进入 APP。索引、发布及 APP 检索现已接入；完整真实服务与真机验收见 T43，代码实现不代表整体上线。单次原文保存最多 8 MiB / 5000 单元，每单元最多 10 万字；失败或并发冲突保留前端输入，刷新前先复制未保存原文。
+
+开发验证禁止使用 `make dev` / `make migrate-up` 连接共享数据库；使用隔离 testcontainers。若本机 Docker Hub 无法获取 Ryuk，可在确认仅连接隔离测试容器后设置 `TESTCONTAINERS_RYUK_DISABLED=true`，测试后只回收本次测试创建的容器。
+
+## 官方教材文件导入（T39）
+
+增量迁移为 `00030_textbook_import.sql`，发布时 API 与 Worker 同步更新。`textbook:import` 在 low 队列逐页处理，`textbook:recover` 每两分钟恢复未投递任务。任务处理最长两小时并自动重试 3 次，MySQL 保存已成功页面，后续从检查点继续。教材 PDF 全部页面渲染后进入 `textbook_recognize@v1` 视觉能力，不使用个人资料的文字层/OCR 分支。
+
+`rule_params.textbook_import_limits` 包含大小、页数、每修订文件数、全局并发（1–4）与每日 PDF 页处理次数；默认 50 MB / 1000 页 / 50 文件 / 并发 2 / 每日 2000 页处理次。预算按北京时间，每次未完成页尝试预占一次，模型内校验可再试一次，不能当成精确货币费用。真实模型费用需在灰度前测量。
+
+上传对象在 `textbooks/imports/<ID>/upload`，大小与 SHA256 核对后写入独立 `source` 对象；封存后不再开放原件重传，页图仅用短期预签名地址供授权后台校对。不要删除已采用结果的原件、页图或数据库页记录，它们是之后引用定位的依据。未完成上传在后台任务列表重新选同一原件恢复。
+
+识别 ready 不写草稿；运营明确选择追加/替换后，服务端检查 expected_version，成功后把草稿退回待校对并使索引失效。任何模型标记的不确定块必须在校对页确认；识别完成不是发布完成。真实模型与真实 PDF 验收仍待 T43，不使用公开合成样例作为效果承诺。
+
+### 官方教材嵌入与索引（T40）
+
+开发密钥填写 `peetraining-server/.env.local` 的 `TEXTBOOK_EMBEDDING_API_KEY`；生产 API 和 Worker 共享服务器后端环境配置。配置示例在 `.env.local.example` / `.env.example`，应用不会自动读取任意 .env，开发脚本负责载入。不要把密钥填写到 web/mobile 的环境文件、后台表单、聊天、日志或 Git。
+
+`TEXTBOOK_EMBEDDING_PROVIDER=openai`、用户提供的 compatible-mode/v1 地址、`qwen3.7-text-embedding-flash`、默认1024维；其他支持维度256/512/768。单独设置 `TEXTBOOK_VECTOR_URL=http://textbook-vector:6333` 和独立 `TEXTBOOK_VECTOR_API_KEY`。默认 provider=disabled，可识别/校对草稿但不能假装索引完成。
+
+Qdrant 是新依赖，部署前确认资源、固定审核镜像摘要和备份目录；可选 compose 文件 `deploy/docker-compose.textbook.yml` 不会被现有流水线自动启动。只加入私有 dreamer-net，不映射公网端口。需先执行新增迁移，再由人工授权启动服务。MySQL须支持 ngram 全文解析器；迁移失败不能跳过全文索引。
+
+备份：MySQL正常备份包含原文/切片/profile/发布指针。Qdrant使用官方集合快照 API（API key 从环境读取），快照转存独立私有备份位置；恢复演练对每个线上代次核对 collection、维度与过滤计数。文件系统直接复制运行中 volume 不能代替一致性快照。尚未提供自动快照调度，运维需在生产启用前配置并演练。Qdrant丢失可用校对正文重建新代次，重建和复核前关闭新检索。
+
+后台“索引与发布”创建异步代次，任务逐段记录完成状态；队列故障由两分钟恢复调度补投。已发布修订不覆盖。新模型或维度必须新代次，查询与文档不兼容时静默降级（答案链路T41接入），不能混用。下架停止新使用；授权停用、到期也停止新使用；“历史摘录展示”单独控制原文可见性。新内容需重新校验发布，恢复授权不会自动上架。
+
+真实嵌入和Qdrant连通、授权PDF闭环、召回质量、并发时延和费用留T43实测；模拟测试不代替验收。
+
+
+### 答案依据与 APP 接入（T41 / T42）
+
+新增增量迁移顺序为 `00032_answer_evidence.sql`、`00033_textbook_links.sql`、`00034_textbook_lifecycle.sql`；包含答案快照、异步候选、个人与项目明确版次、请求账本、级联清理及旧素材对账字段。发布前在备份及隔离副本核验已登记的 goose 版本，逐项执行待应用迁移；本次开发未运行生产迁移。API 与 Worker 应使用同一契约和迁移版本。
+
+新检索由 `textbook_retrieval` 开关控制，默认关闭；未匹配、歧义、开关关闭或检索失败不阻止 APP 保存书名。官方生产使用项目明确关联的授权版次。索引服务和嵌入模型的配置、维度必须与已发布代次一致，不能只改环境维度后复用旧代次。
+
+主动更新由 `answer:candidate` 任务生成，数据库保存状态及幂等信息；恢复调度重新投递未完成候选。成功候选和扣次在同一事务中提交，采用不再次扣次；失败不扣，放弃不退。不能手工重置任务为成功，也不能在发生并发冲突后直接覆盖题目。采用前还会验证原题指纹及来源可用性。
+
+题目答案、导入待确认、官方候选与历史批改保存当时依据快照。新修订不会改写旧答案；普通下架停止新使用但可保留获准的历史摘录；撤销摘录展示会隐藏正文。不要为旧答案补造来源。注销及删除遵循 `00034` 约束清理用户候选与私有快照。
+
+### 旧项目素材迁移
+
+`cmd/migrate-legacy-textbooks` 不自动载入 `.env.local`，不执行 schema 迁移。仅在明确指定的目标数据库中运行：默认 `go run ./cmd/migrate-legacy-textbooks` 为 dry-run；核对后使用 `--apply --actor=<后台管理员ID>`。先保存 dry-run JSON，再比较 apply 的 reference_id、segments、chars、source_hash 和映射；输出不含原文或凭证。
+
+每条旧记录创建独立待核对、未授权草稿，不猜测同名是否同书，不删除源记录、不自动关联或发布。映射保存源项目、标题、逐段 ID/序号/哈希。重跑返回 already_migrated；源变化返回 source_changed 并非零退出，必须人工对账，不能覆盖已校对正文。原项目删除不级联删除共享教材。
+
+旧记录作者与版次占位为“待核对（旧项目素材）”。先核实作者、真实版次及授权；目录可修改作者，正确版次通过现有新增版本流程建立，把核对后的单元录入该版次再校对/索引/发布。迁移占位版次保持未授权，不能把占位版次直接发布；当前迁移命令不提供自动重命名或跨版次搬运。
+
+### 本地真实模型探测与验收限制（T43）
+
+仅后端私有 `.env.local` 配置 DeepSeek：`AI_PROVIDER=relay`、`AI_RELAY_BASE_URL=https://api.deepseek.com`、`AI_RELAY_MODEL_STRONG=deepseek-flash`、`AI_RELAY_MODEL_CHEAP=deepseek-flash`、`AI_PREFER_STRONG=true`，密钥放 `AI_RELAY_API_KEY`；不要在示例文件填写凭证。视觉模型必须支持图片输入。嵌入凭证仍使用独立 `TEXTBOOK_EMBEDDING_API_KEY`。
+
+显式载入本地环境后可运行：
+
+```sh
+go run ./cmd/check-textbook-embedding -config-only
+go run ./cmd/check-textbook-embedding
+go run ./cmd/check-textbook-pdf -pdf /absolute/path/to/authorized.pdf -out /private/path/out -recognize
+```
+
+上述命令不初始化应用，不连接业务数据库、队列或对象存储。PDF 命令默认只渲染；`-recognize` 调用真实视觉、嵌入及答案能力，产生费用。默认抽测第 4、5、9 页，`-pages` 可明确指定；输出目录必须位于仓库外且仅本人可访问。识别正文和答案只写私有文件，标准输出只含计数、token、时延及安全错误类别；失败也保存部分调用报告。PDF 探测命令为直接测试会将本次嵌入 provider 设为 openai，不修改环境文件；当前运行服务的 TEXTBOOK_EMBEDDING_PROVIDER 仍保持 disabled，待真实 Qdrant 验收后再启用。嵌入探测与精确余弦召回不能替代 Qdrant 与混合检索验收。
+
+本次真实模型小样本已通过；完整记录见 [验证记录](verification/official-textbook-library-2026-10-30.md)。Qdrant 镜像下载、本机 Docker 稳定性、真实多题标注集、费用/并发、快照恢复及真机仍待验证。另有已复现的 bank 年份基线测试失败及 mock essay 示例未达门槛，不能宣称全套测试通过或直接合并上线。
+
+回滚优先关闭 `textbook_retrieval`、停止新教材导入/发布及候选任务，保留数据库新增表与历史快照，不删除已发布原件/页图。旧 APP 自由书名、已有答案与历史批改继续可读。回退旧二进制前需排空或暂停新增任务，不能让不认识新任务类型的 Worker 消费它们。

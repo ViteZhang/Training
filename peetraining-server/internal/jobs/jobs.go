@@ -117,14 +117,16 @@ func NewImportFinishTask(userID, jobID uint64) (*asynq.Task, error) {
 
 // Handlers 是全部任务处理器的依赖。后续卡片在这里加业务服务。
 type Handlers struct {
-	Logger    *slog.Logger
-	Auth      AccountPurger
-	Material  MaterialExtractor
-	Permanent IsPermanent
-	Import    Importer
-	Plan      PlanGenerator
-	Paper     PaperGrader
-	Voice     interface {
+	AnswerCandidates AnswerCandidates
+	Textbooks        TextbookImporter
+	Logger           *slog.Logger
+	Auth             AccountPurger
+	Material         MaterialExtractor
+	Permanent        IsPermanent
+	Import           Importer
+	Plan             PlanGenerator
+	Paper            PaperGrader
+	Voice            interface {
 		RecognizePracticeVoice(context.Context, uint64, uint64) error
 	}
 	Essay   EssayGrader
@@ -277,6 +279,21 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 	mux := asynq.NewServeMux()
 	mux.Use(h.withLogger)
 	mux.HandleFunc(TypePing, h.handlePing)
+	mux.HandleFunc(TypeTextbookImport, h.handleTextbookImport)
+	mux.HandleFunc(TypeTextbookIndex, h.handleTextbookIndex)
+	mux.HandleFunc(TypeAnswerCandidate, h.handleAnswerCandidate)
+	mux.HandleFunc(TypeAnswerCandidateRecover, func(ctx context.Context, _ *asynq.Task) error {
+		if h.AnswerCandidates == nil {
+			return nil
+		}
+		return h.AnswerCandidates.RecoverAnswerCandidates(ctx)
+	})
+	mux.HandleFunc(TypeTextbookRecover, func(ctx context.Context, _ *asynq.Task) error {
+		if err := h.Textbooks.RecoverImports(ctx); err != nil {
+			return err
+		}
+		return h.Textbooks.RecoverIndexes(ctx)
+	})
 	mux.HandleFunc(TypePurgeAccounts, h.handlePurgeAccounts)
 	mux.HandleFunc(TypeExtract, h.handleExtract)
 	mux.HandleFunc(TypeImportFile, h.handleImportFile)
@@ -473,6 +490,7 @@ type Schedule struct {
 // Schedules 是全部定时任务。业务日期按北京时间（CLAUDE.md 必须遵守第 13 条）；
 // 每日计划每天 0 点生成；用户当天首次打开首页时也会补生成，定时任务只是提前准备。
 var Schedules = []Schedule{
+	{Cron: "*/2 * * * *", Type: TypeAnswerCandidateRecover},
 	{Cron: "17 * * * *", Type: TypePurgeAccounts},
 	{Cron: "0 0 * * *", Type: TypeDailyPlan},
 	{Cron: "23 * * * *", Type: TypeExportCleanup},
@@ -485,6 +503,7 @@ var Schedules = []Schedule{
 	{Cron: "7 * * * *", Type: TypeStatsAggregate},
 	// 监控告警（T32）。
 	{Cron: "*/5 * * * *", Type: TypeMonitor},
+	{Cron: "*/2 * * * *", Type: TypeTextbookRecover},
 }
 
 // RegisterSchedules 注册定时任务。调度器全局只启一个，跑在 Worker 里。

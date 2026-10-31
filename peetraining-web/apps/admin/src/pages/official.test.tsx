@@ -104,7 +104,7 @@ describe('7.12 录题 · 引用官方参考素材生成参考答案', () => {
     g.mockApi['GET /admin/official/projects/{id}/drafts'] = () => ({ status: 200, body: { items: [] } });
     g.mockApi['POST /admin/official/projects/{id}/answer-candidates'] = () => ({
       status: 200,
-      body: { answer: '意境是情景交融、虚实相生的艺术境界。', points: [{ content: '情景交融', score: 3 }, { content: '虚实相生', score: 2 }],
+      body: { snapshot_id: 42, answer: '意境是情景交融、虚实相生的艺术境界。', points: [{ content: '情景交融', score: 3 }, { content: '虚实相生', score: 2 }],
         citations: [{ reference_id: 1, title: '《文学理论教程》', heading: '第五章 审美范畴' }] },
     });
   });
@@ -113,41 +113,40 @@ describe('7.12 录题 · 引用官方参考素材生成参考答案', () => {
     wrap(<Produce />);
     fireEvent.click(await screen.findByRole('button', { name: /录\s*题/ }));
     fireEvent.change(await screen.findByLabelText('题干'), { target: { value: '名词解释：意境' } });
-    fireEvent.click(screen.getByRole('button', { name: /AI 生成（引用官方参考素材）/ }));
+    fireEvent.click(screen.getByRole('button', { name: /AI 生成（优先参考关联教材）/ }));
     expect(await screen.findByText('AI 生成，引用：《文学理论教程》 · 第五章 审美范畴')).toBeTruthy();
     expect(screen.getByDisplayValue('意境是情景交融、虚实相生的艺术境界。')).toBeTruthy();
     expect(screen.getByDisplayValue('虚实相生')).toBeTruthy();
+    g.mockApi['POST /admin/official/projects/{id}/drafts'] = () => ({ status: 200, body: {} });
+    fireEvent.click(screen.getByRole('button', { name: '存为草稿' }));
+    await waitFor(() => expect(posted('POST', /drafts$/)).toHaveLength(1));
+    expect((await posted('POST', /drafts$/)[0]!.json()).payload.answer_snapshot_id).toBe(42);
   });
 });
 
-describe('7.11 官方参考素材', () => {
+describe('7.11 关联官方教材', () => {
   beforeEach(() => {
     g.mockApi['GET /admin/official/projects/{id}'] = () => ({ status: 200, body: project });
     g.mockApi['GET /admin/accounts'] = () => ({ status: 200, body: { items: [] } });
-    g.mockApi['GET /admin/official/projects/{id}/references'] = () => ({
-      status: 200,
-      body: { items: [{ id: 1, title: '童庆炳《文学理论教程》第五版', kind: 'textbook', license_note: '出版社授权', segments: 412, chars: 240000, created_at: '2026-10-20T02:00:00Z' }] },
-    });
-    g.mockApi['POST /admin/official/projects/{id}/references'] = () => ({ status: 201, body: { id: 2, title: '讲义', kind: 'handout', license_note: '授权', segments: 3, chars: 900, created_at: '2026-10-26T02:00:00Z' } });
+    g.mockApi['GET /admin/official/projects/{id}/textbooks'] = () => ({ status: 200, body: { version: 1, items: [{ input: '文学理论教程', title: '文学理论教程', author: '童庆炳', edition: '第五版', book_id: 1, edition_id: 2, method: 'explicit', catalog_version: '1', available: true }] } });
+    g.mockApi['GET /admin/textbooks'] = () => ({ status: 200, body: { items: [], total: 0 } });
+    g.mockApi['PUT /admin/official/projects/{id}/textbooks'] = () => ({ status: 200, body: { items: [] } });
   });
-
-  it('列出素材与切分段数；录入时必须确认已获授权', async () => {
+  it('维护明确版次的关联，不再在项目内录入教材原文', async () => {
     wrap(<Official />);
     fireEvent.click(await screen.findByText('某某大学 · 中国古代文学'));
-    expect(await screen.findByText('童庆炳《文学理论教程》第五版')).toBeTruthy();
-    expect(screen.getByText(/已切分 412 段/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /录入素材/ }));
-    fireEvent.change(await screen.findByLabelText('素材名称'), { target: { value: '复习讲义' } });
-    fireEvent.change(screen.getByLabelText('授权说明'), { target: { value: '作者授权' } });
-    fireEvent.change(screen.getByLabelText('素材原文'), { target: { value: '第一章 文学活动\n文学活动由作品、作家、世界、读者四要素构成。' } });
-    fireEvent.click(screen.getByRole('button', { name: /^录\s*入$/ }));
-    expect(await screen.findByText('只能录入已获授权的素材')).toBeTruthy();
-    expect(posted('POST', /\/references$/)).toHaveLength(0);
-    fireEvent.click(screen.getByLabelText('我确认这份素材已获授权'));
-    fireEvent.click(screen.getByRole('button', { name: /^录\s*入$/ }));
-    await waitFor(() => expect(posted('POST', /\/references$/)).toHaveLength(1));
-    const body = (await posted('POST', /\/references$/)[0]!.json()) as { authorized: boolean; kind: string; title: string };
-    expect(body).toMatchObject({ authorized: true, kind: 'textbook', title: '复习讲义' });
+    expect(await screen.findByText('文学理论教程')).toBeTruthy();
+    expect(screen.getByText('童庆炳 · 第五版')).toBeTruthy();
+    expect(screen.queryByText('+ 录入素材')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '关联已有教材' }));
+    await waitFor(() => expect(document.querySelector('.ant-modal')).toBeTruthy());
+    // rc-util 在测试环境生成相同 test-id；断言弹窗内容与保存行为。
+    expect(document.querySelector('.ant-modal')?.getAttribute('role')).toBe('dialog');
+    fireEvent.click(screen.getByRole('button', { name: '保存关联' }));
+    await waitFor(() => expect(posted('PUT', /textbooks$/)).toHaveLength(1));
+    const body = await posted('PUT', /textbooks$/)[0]!.json();
+    expect(body).toMatchObject({ edition_ids: [2], expected_version: 1 });
+    expect(body.idempotency_key).toBeTruthy();
   });
 });
 

@@ -1,6 +1,7 @@
 // 1.7b 核对：显示出处（文件 + 页码）；参考答案标来源；主观题采分点逐条可改分值、可增删，合计须等于题目分值；
 // 缺答案时可让 AI 生成参考答案（标「AI 生成」，计入 AI 出题次数）；可改知识点归属；「稍后再看」或「确认」。
 // 知识点与作文资料条目可以确认或删除。
+import { RecordAnswerEvidence, evidenceKey } from '@/features/answers/Evidence';
 import { ApiError, type Schemas } from '@training/api-client';
 import { colors, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQueryClient } from '@tanstack/react-query';
@@ -67,6 +68,7 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
     try {
       const saved = await unwrap(api.POST('/import-items/{itemId}/generate-answer', { params: { path: { itemId: item.id } } }));
       qc.setQueryData(importKeys.item(item.id), saved);
+      void qc.invalidateQueries({ queryKey: evidenceKey('import', item.id) });
       if (saved.question) setQ(saved.question);
     } catch (e) {
       if (e instanceof ApiError && e.isQuotaExceeded) setQuota(true);
@@ -140,6 +142,7 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
           </Card>
         )}
 
+        {q.answer && q.answer === item.question?.answer && JSON.stringify(q.rubric_points) === JSON.stringify(item.question?.rubric_points) ? <RecordAnswerEvidence kind="import" id={item.id} /> : null}
         {subjective ? <RubricEditor points={points} score={q.score} onChange={(p) => setQ({ ...q, rubric_points: p })} /> : null}
 
         <Text variant="caption" color={semantic.textPrimary} style={[styles.section, styles.medium]}>
@@ -194,6 +197,7 @@ function OtherItem({ item, onSaved }: { item: ImportItem; onSaved: (it: ImportIt
       if (essayTopic) body.essay = { ...e, source };
       const saved = await unwrap(api.PATCH('/import-items/{itemId}', { params: { path: { itemId: item.id } }, body }));
       qc.setQueryData(importKeys.item(item.id), saved);
+      void qc.invalidateQueries({ queryKey: evidenceKey('import', item.id) });
       await qc.invalidateQueries({ queryKey: ['import-items', item.job_id] });
       onSaved(saved);
     } catch (e) {

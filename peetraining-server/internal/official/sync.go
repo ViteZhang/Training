@@ -351,6 +351,9 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 				if err := copyQuestionKPs(ctx, q, owner, uint64(id), oc.qKPs[o.ID], kpMap); err != nil {
 					return err
 				}
+				if err := s.copyQuestionEvidence(ctx, q, uint64(o.AnswerSnapshotID.Int64), userID, uint64(id)); err != nil {
+					return err
+				}
 				res.Added++
 				continue
 			}
@@ -376,6 +379,15 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 			}
 			if err := copyQuestionKPs(ctx, q, owner, u.ID, oc.qKPs[o.ID], kpMap); err != nil {
 				return err
+			}
+			if o.AnswerSnapshotID.Valid {
+				if err := s.copyQuestionEvidence(ctx, q, uint64(o.AnswerSnapshotID.Int64), userID, u.ID); err != nil {
+					return err
+				}
+			} else {
+				if err := q.SetQuestionAnswerSnapshot(ctx, dbq.SetQuestionAnswerSnapshotParams{ID: u.ID, OwnerUserID: owner}); err != nil {
+					return err
+				}
 			}
 			res.Updated++
 		}

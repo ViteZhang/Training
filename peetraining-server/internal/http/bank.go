@@ -136,6 +136,19 @@ func (h *Handlers) MergeKnowledgePoint(c *gin.Context, id gen.KpId) {
 	c.JSON(http.StatusOK, toKPDetail(d))
 }
 
+func (h *Handlers) ListSplitQuestions(c *gin.Context, id gen.KpId) {
+	items, err := h.deps.Bank.SplitQuestions(c.Request.Context(), currentUser(c), uint64(id))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	out := make([]gen.QuestionBrief, 0, len(items))
+	for _, q := range items {
+		out = append(out, gen.QuestionBrief{Id: int64(q.ID), Qtype: gen.QuestionType(q.QType), Stem: q.Stem, Source: gen.QuestionSource(q.Source), ExamYear: q.ExamYear})
+	}
+	c.JSON(http.StatusOK, gin.H{"items": out})
+}
+
 func (h *Handlers) SplitKnowledgePoint(c *gin.Context, id gen.KpId) {
 	var req gen.SplitKnowledgePointJSONBody
 	if !bind(c, &req) {
@@ -144,6 +157,9 @@ func (h *Handlers) SplitKnowledgePoint(c *gin.Context, id gen.KpId) {
 	parts := make([]bank.SplitPart, len(req.Parts))
 	for i, p := range req.Parts {
 		parts[i].Name = p.Name
+		if p.QuestionIds != nil {
+			parts[i].QuestionIDs = uint64s(*p.QuestionIds)
+		}
 		if p.OriginalText != nil {
 			parts[i].OriginalText = *p.OriginalText
 		}
@@ -265,6 +281,19 @@ func toKPDetail(d bank.KPDetail) gen.KnowledgePointDetail {
 }
 
 func (h *Handlers) ListQuestions(c *gin.Context, subjectID gen.SubjectId, p gen.ListQuestionsParams) {
+	// 错拼或重复的筛选参数必须报错，不能静默返回全部题目。
+	for key, values := range c.Request.URL.Query() {
+		switch key {
+		case "qtype", "source", "exam_year", "kp_id", "status", "answer_status", "sort", "limit", "cursor":
+		default:
+			_ = c.Error(ErrBadRequest("不支持的筛选参数：" + key + "；答案状态请使用 answer_status"))
+			return
+		}
+		if len(values) != 1 || values[0] == "" {
+			_ = c.Error(ErrBadRequest("筛选参数不能为空或重复：" + key))
+			return
+		}
+	}
 	f := bank.QuestionFilter{ExamYear: p.ExamYear}
 	if p.Qtype != nil {
 		f.QType = string(*p.Qtype)

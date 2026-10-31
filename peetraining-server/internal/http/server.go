@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"peetraining-server/internal/admin"
+	"peetraining-server/internal/answerupdate"
 	"peetraining-server/internal/auth"
 	"peetraining-server/internal/bank"
 	"peetraining-server/internal/cloud/oss"
@@ -34,6 +35,7 @@ import (
 	"peetraining-server/internal/profile"
 	"peetraining-server/internal/quota"
 	"peetraining-server/internal/score"
+	"peetraining-server/internal/textbook"
 )
 
 // APIPrefix 是 App 接口的路由前缀；后台接口在 APIPrefix + "/admin" 下。
@@ -75,7 +77,9 @@ type Deps struct {
 	// T28 管理后台。
 	Admin *admin.Service
 	// T30 官方题库。
-	Official *official.Service
+	Official      *official.Service
+	Textbooks     *textbook.Service
+	AnswerUpdates *answerupdate.Service
 	// T32 埋点与接口错误率计数。
 	Events  *events.Recorder
 	Metrics *monitor.HTTPCounter

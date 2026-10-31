@@ -141,7 +141,7 @@ describe('1.3 备考安排', () => {
     };
     await wrap(<Setup />);
     expect(await screen.findByText('范文选')).toBeTruthy();
-    expect(screen.getByText('资料里缺答案时，AI 会尽量按这本教材的表述给参考答案')).toBeTruthy();
+    expect(screen.getByText('缺答案时，优先参考指定教材的相关原文。')).toBeTruthy();
     await fireEvent.press(screen.getByText('+ 添加教材'));
     await fireEvent.press(screen.getByText('654 语言文学基础'));
     await fireEvent.changeText(screen.getByLabelText('教材名称'), '童庆炳《文学理论教程》');

@@ -5948,6 +5948,14 @@ type Announcement struct {
 	CreatedAt   time.Time
 }
 
+type AnswerEvidenceSnapshot struct {
+	ID          uint64
+	OwnerUserID sql.NullInt64
+	AnswerHash  string
+	Payload     json.RawMessage
+	CreatedAt   time.Time
+}
+
 // 1.7c 答案文件配对结果，用户确认后写进题目
 type AnswerPairing struct {
 	ID          uint64
@@ -5964,6 +5972,21 @@ type AnswerPairing struct {
 	Status    AnswerPairingsStatus
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type AnswerUpdateCandidate struct {
+	ID             uint64
+	OwnerUserID    uint64
+	QuestionID     uint64
+	RequestKey     string
+	BaseHash       string
+	Status         string
+	Answer         sql.NullString
+	Points         dbtypes.NullJSON
+	SnapshotID     sql.NullInt64
+	FailureMessage string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type AppVersion struct {
@@ -6480,6 +6503,18 @@ type KpSource struct {
 	OwnerUserID sql.NullInt64
 }
 
+type LegacyTextbookMigration struct {
+	ReferenceID     uint64
+	BookID          uint64
+	EditionID       uint64
+	RevisionID      uint64
+	CreatedAt       time.Time
+	SourceHash      string
+	Manifest        json.RawMessage
+	SourceProjectID uint64
+	SourceTitle     string
+}
+
 // 用户上传的资料文件
 type Material struct {
 	ID          uint64
@@ -6570,6 +6605,12 @@ type ModelEssay struct {
 	CreatedAt        time.Time
 }
 
+type OfficialAnswerCandidateEvidence struct {
+	ProjectID   uint64
+	SnapshotID  uint64
+	ContentHash string
+}
+
 // 7.10 标为未规划的专业课
 type OfficialDemandMark struct {
 	SubjectCode string
@@ -6610,6 +6651,19 @@ type OfficialProject struct {
 	CreatedBy           sql.NullInt64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	TextbookLinkVersion uint64
+}
+
+type OfficialProjectTextbook struct {
+	ProjectID uint64
+	EditionID uint64
+	CreatedAt time.Time
+}
+
+type OfficialProjectTextbookWrite struct {
+	ProjectID   uint64
+	RequestKey  string
+	RequestHash string
 }
 
 // 7.11 官方参考素材
@@ -6861,8 +6915,9 @@ type Question struct {
 	// AI 参考答案被用户确认还是修改过
 	AiAnswerOutcome NullQuestionsAiAnswerOutcome
 	// 客观题 AI 答案被报错次数，3 次自动撤回（PRD 11.16 第 7 条）
-	AiAnswerReports uint16
-	Source          QuestionsSource
+	AiAnswerReports  uint16
+	Source           QuestionsSource
+	AnswerSnapshotID sql.NullInt64
 }
 
 // 题目与知识点多对多
@@ -7119,7 +7174,8 @@ type Subject struct {
 	// 报考方向：导入按专业分组的真题时默认只保留与它匹配的组
 	MyMajors sql.NullString
 	// 参考教材书名列表，如 ["童庆炳《文学理论教程》"]
-	Textbooks dbtypes.NullJSON
+	Textbooks          dbtypes.NullJSON
+	TextbookSelections dbtypes.NullJSON
 }
 
 // 考后回访（6.14），每人一次
@@ -7136,6 +7192,146 @@ type SurveyResponse struct {
 	MembershipID sql.NullInt64
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+}
+
+type Textbook struct {
+	ID               uint64
+	Title            string
+	Author           string
+	Kind             string
+	Discipline       string
+	Aliases          json.RawMessage
+	Version          uint64
+	CreatedBy        uint64
+	RequestKey       string
+	RequestHash      string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	DefaultEditionID sql.NullInt64
+}
+
+type TextbookChunk struct {
+	GenerationID uint64
+	Ordinal      uint32
+	SectionNo    uint32
+	StartRune    uint32
+	EndRune      uint32
+	Heading      string
+	Body         string
+	TextHash     string
+	VectorReady  bool
+}
+
+type TextbookDailyBudget struct {
+	BudgetDay time.Time
+	PdfPages  uint32
+}
+
+type TextbookEdition struct {
+	ID                  uint64
+	BookID              uint64
+	Edition             string
+	Publisher           string
+	PublicationYear     sql.NullInt16
+	Isbn                string
+	LicenseNote         string
+	Authorized          bool
+	ScopeNote           string
+	Status              string
+	CurrentRevisionID   sql.NullInt64
+	CreatedBy           uint64
+	RequestKey          string
+	RequestHash         string
+	CreatedAt           time.Time
+	Version             uint64
+	CurrentGenerationID sql.NullInt64
+	LicenseExpiresAt    sql.NullTime
+	ExcerptsEnabled     bool
+}
+
+type TextbookImport struct {
+	ID             uint64
+	RevisionID     uint64
+	FileName       string
+	Format         string
+	SizeBytes      int64
+	Sha256         string
+	Status         string
+	PageCount      uint32
+	Attempt        uint32
+	FailureMessage string
+	Sealed         bool
+	RetryKey       string
+	AppliedMode    string
+	CreatedBy      uint64
+	RequestKey     string
+	RequestHash    string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type TextbookImportPage struct {
+	ImportID      uint64
+	PageNo        uint32
+	Payload       json.RawMessage
+	Uncertain     bool
+	Model         string
+	PromptVersion string
+}
+
+type TextbookIndexGeneration struct {
+	ID             uint64
+	BookID         uint64
+	EditionID      uint64
+	RevisionID     uint64
+	SourceVersion  uint64
+	ContentHash    string
+	Profile        json.RawMessage
+	ProfileHash    string
+	SplitConfig    json.RawMessage
+	CollectionName string
+	Status         string
+	ChunkCount     uint32
+	Attempt        uint32
+	RetryKey       string
+	FailureMessage string
+	CreatedBy      uint64
+	RequestKey     string
+	RequestHash    string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type TextbookPublicationEvent struct {
+	ID           uint64
+	BookID       uint64
+	EditionID    uint64
+	RevisionID   sql.NullInt64
+	GenerationID sql.NullInt64
+	Action       string
+	Summary      string
+	CreatedBy    uint64
+	RequestKey   string
+	RequestHash  string
+	CreatedAt    time.Time
+}
+
+type TextbookRevision struct {
+	ID                uint64
+	EditionID         uint64
+	RevisionNo        uint64
+	Version           uint64
+	Status            string
+	Sections          json.RawMessage
+	ContentHash       string
+	IndexStatus       string
+	ReviewedBy        sql.NullInt64
+	ReviewedAt        sql.NullTime
+	CreatedBy         uint64
+	RequestKey        string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	ReadyGenerationID sql.NullInt64
 }
 
 // App 用户

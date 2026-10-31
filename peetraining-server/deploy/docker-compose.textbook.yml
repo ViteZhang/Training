@@ -1,0 +1,22 @@
+# 可选新增依赖：与 docker-compose.yml 合并使用；只有人工授权部署时才执行。
+# docker compose -f docker-compose.yml -f docker-compose.textbook.yml up -d
+services:
+  textbook-vector:
+    image: ${TEXTBOOK_VECTOR_IMAGE:?设置审核后的固定 Qdrant 镜像版本及摘要}
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__API_KEY: ${TEXTBOOK_VECTOR_API_KEY:?设置独立向量服务密钥}
+      QDRANT__SERVICE__ENABLE_TLS: "false"
+    volumes:
+      - textbook-vector:/qdrant/storage
+      - textbook-vector-snapshots:/qdrant/snapshots
+    expose: ["6333"]
+    networks:
+      dreamer-net:
+        aliases: [textbook-vector]
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "3" }
+volumes:
+  textbook-vector:
+  textbook-vector-snapshots:

@@ -45,7 +45,7 @@ UPDATE knowledge_points SET name = ?, original_text = ? WHERE id = ? AND bank_id
 DELETE FROM knowledge_points WHERE id = ? AND bank_id = ? AND owner_user_id IS NULL;
 
 -- name: ListOfficialQuestions :many
-SELECT id, qtype, stem, options, answer, analysis, score, exam_year, status FROM questions WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY id;
+SELECT id, qtype, stem, options, answer, analysis, score, exam_year, status, answer_snapshot_id FROM questions WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY id;
 
 -- name: InsertOfficialQuestion :execlastid
 INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, score, source, exam_year, content_hash)

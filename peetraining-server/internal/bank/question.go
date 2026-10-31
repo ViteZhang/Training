@@ -124,6 +124,9 @@ func lastTime(v any) time.Time {
 
 // Questions 返回题目列表与筛选项统计。
 func (s *Service) Questions(ctx context.Context, userID, subjectID uint64, f QuestionFilter) ([]QuestionSummary, Facets, int, error) {
+	if f.AnswerStatus != "" && f.AnswerStatus != "material" && f.AnswerStatus != "confirmed" && f.AnswerStatus != "ai" && f.AnswerStatus != "missing" {
+		return nil, Facets{}, 0, apperr.New(apperr.BadRequest, "答案状态不正确")
+	}
 	b, err := s.subject(ctx, userID, subjectID)
 	if err != nil {
 		return nil, Facets{}, 0, err
@@ -169,6 +172,18 @@ func (s *Service) Questions(ctx context.Context, userID, subjectID uint64, f Que
 			}
 		}
 	}
+	matchesKP := map[uint64]bool{}
+	if under != nil {
+		links, err := s.q.ListBankFilterKPLinks(ctx, dbq.ListBankFilterKPLinksParams{BankID: b.BankID, OwnerUserID: owner(userID), OwnerUserID_2: owner(userID)})
+		if err != nil {
+			return nil, Facets{}, 0, err
+		}
+		for _, link := range links {
+			if under[link.KpID] {
+				matchesKP[link.QuestionID] = true
+			}
+		}
+	}
 	facets := Facets{ByQType: map[string]int{}, BySource: map[string]int{}, ByAnswer: map[string]int{}}
 	years := map[int]bool{}
 	var out []QuestionSummary
@@ -190,7 +205,7 @@ func (s *Service) Questions(ctx context.Context, userID, subjectID uint64, f Que
 		case f.QType != "" && string(r.Qtype) != f.QType,
 			f.Source != "" && string(r.Source) != f.Source,
 			f.ExamYear != nil && (!r.ExamYear.Valid || int(r.ExamYear.Int16) != *f.ExamYear),
-			under != nil && !under[kp],
+			under != nil && !matchesKP[r.ID],
 			f.Status != "" && tag != f.Status:
 			continue
 		}
@@ -573,17 +588,17 @@ func (s *Service) UpdateQuestion(ctx context.Context, userID, id uint64, in Ques
 	if in.ScoreSet {
 		score = in.Score
 	}
-	var rubric []RubricInput
+	cur, err := s.q.ListQuestionRubric(ctx, dbq.ListQuestionRubricParams{QuestionID: sql.NullInt64{Int64: int64(id), Valid: true}, OwnerUserID: owner(userID)})
+	if err != nil {
+		return QuestionDetail{}, err
+	}
+	var currentRubric []RubricInput
+	for _, r := range toRubric(cur) {
+		currentRubric = append(currentRubric, RubricInput{Content: r.Content, Score: r.Score, Keywords: r.Keywords})
+	}
+	rubric := currentRubric
 	if in.Rubric != nil {
 		rubric = *in.Rubric
-	} else {
-		cur, err := s.q.ListQuestionRubric(ctx, dbq.ListQuestionRubricParams{QuestionID: sql.NullInt64{Int64: int64(id), Valid: true}, OwnerUserID: owner(userID)})
-		if err != nil {
-			return QuestionDetail{}, err
-		}
-		for _, r := range toRubric(cur) {
-			rubric = append(rubric, RubricInput{Content: r.Content, Score: r.Score, Keywords: r.Keywords})
-		}
 	}
 	if err := checkRubricSum(qtype, score, rubric); err != nil {
 		return QuestionDetail{}, err
@@ -640,6 +655,12 @@ func (s *Service) UpdateQuestion(ctx context.Context, userID, id uint64, in Ques
 		p.NeedsReview, p.ReviewReasons = false, nil
 	}
 	err = store.WithTx(ctx, s.db, func(tx *dbq.Queries) error {
+		// 题干/题型等依据变化也使出处失效；仅重复保存原答案不丢失出处。
+		if p.Answer != q.Answer || p.Stem != q.Stem || p.Qtype != q.Qtype || p.Score != q.Score || in.Options != nil || ai.AnswerHash("", currentRubric) != ai.AnswerHash("", rubric) {
+			if err := tx.SetQuestionAnswerSnapshot(ctx, dbq.SetQuestionAnswerSnapshotParams{ID: id, OwnerUserID: owner(userID)}); err != nil {
+				return err
+			}
+		}
 		if err := tx.UpdateQuestion(ctx, p); err != nil {
 			return err
 		}
