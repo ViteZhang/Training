@@ -25,11 +25,16 @@ export const REFRESH_RETRY_MS = [1000, 2500];
 export const API_REQUEST_TIMEOUT_MS = 20_000;
 export const HANDWRITING_REQUEST_TIMEOUT_MS = 180_000;
 
-/** 多图视觉识别有独立等待时间；其余接口沿用常规超时。 */
+/** 导入核对页「让 AI 生成」参考答案：检索、生成、引文核对可能连调几次模型，论述题常超过 20 秒；服务端 Nginx 等 300 秒。 */
+export const AI_ANSWER_REQUEST_TIMEOUT_MS = 180_000;
+
+/** 多图视觉识别、AI 生成参考答案有独立等待时间；其余接口沿用常规超时。 */
 export function apiRequestTimeoutMs(request: Request): number {
-  return request.method === 'POST' && new URL(request.url).pathname.endsWith('/handwriting/recognize')
-    ? HANDWRITING_REQUEST_TIMEOUT_MS
-    : API_REQUEST_TIMEOUT_MS;
+  if (request.method !== 'POST') return API_REQUEST_TIMEOUT_MS;
+  const path = new URL(request.url).pathname;
+  if (path.endsWith('/handwriting/recognize')) return HANDWRITING_REQUEST_TIMEOUT_MS;
+  if (/\/import-items\/[^/]+\/generate-answer$/.test(path)) return AI_ANSWER_REQUEST_TIMEOUT_MS;
+  return API_REQUEST_TIMEOUT_MS;
 }
 
 export const REFRESH_REQUEST_TIMEOUT_MS = 8_000;

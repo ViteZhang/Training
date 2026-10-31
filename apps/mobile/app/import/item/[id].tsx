@@ -89,7 +89,7 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
     }
   };
 
-  if (busy === 'gen') return <AIGenerating steps={['理解题目', '写参考答案', '提取采分点']} current={1} eta="约 20 秒" />;
+  if (busy === 'gen') return <AIGenerating steps={['理解题目', '写参考答案', '提取采分点']} current={1} eta="约 20–60 秒" />;
 
   return (
     <>
