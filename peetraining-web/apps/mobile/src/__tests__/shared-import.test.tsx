@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Linking, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { ResolvedSharePayload } from 'expo-sharing';
@@ -9,6 +9,9 @@ import { storage } from '../lib/storage';
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() } }));
 let mockUuid = 0;
 let mockFileSize = 2048;
+let mockTargetSize = 2048;
+const mockSavedFiles = new Map<string, number>();
+const mockDelete = jest.fn();
 const mockCopy = jest.fn();
 jest.mock('expo-crypto', () => ({ randomUUID: () => `shared-${++mockUuid}` }));
 jest.mock('expo-file-system', () => ({
@@ -16,11 +19,14 @@ jest.mock('expo-file-system', () => ({
  Directory:class {uri='file:///documents/shared-imports/';create(){}},
  File:class {
   uri:string;constructor(base:string|{uri:string},name?:string){this.uri=typeof base==='string'?base:`${base.uri}${name??''}`;}
-  get size(){return mockFileSize;} copy = mockCopy; delete(){}
+  get exists(){return mockSavedFiles.has(this.uri);}
+  get size(){return this.uri.startsWith('file:///documents/') ? mockSavedFiles.get(this.uri) ?? 0 : mockFileSize;}
+  async copy(target:{uri:string}){await mockCopy(target);mockSavedFiles.set(target.uri,mockTargetSize);}
+  delete(){mockDelete(this.uri);if(!mockSavedFiles.delete(this.uri))throw new Error('file does not exist');}
  },
 }));
 const payload=(over:Partial<ResolvedSharePayload>={}):ResolvedSharePayload=>({value:'content://weixin/1',shareType:'file',mimeType:'application/pdf',contentUri:'content://weixin/1',contentType:'file',contentSize:2048,contentMimeType:'application/pdf',originalName:'文学讲义.pdf',...over} as ResolvedSharePayload);
-beforeEach(()=>{clearSharedReceipts();removeSharedFiles(sharedInbox().map(file=>file.key));storage.clearAll();mockFileSize=2048;mockCopy.mockReset();});
+beforeEach(()=>{clearSharedReceipts();removeSharedFiles(sharedInbox().map(file=>file.key));storage.clearAll();mockFileSize=2048;mockTargetSize=2048;mockCopy.mockReset();mockSavedFiles.clear();mockDelete.mockReset();});
 it('从微信的临时URI复制文件，登录和选课前持久保存；重复接收不新增',async()=>{
  expect(await receiveSharedFiles([payload()])).toEqual([]);
  const saved=sharedInbox()[0]!;
@@ -72,4 +78,69 @@ it('部分接收失败后，已导入移除的文件不会被原生重试重复�
  expect(await receiveSharedFiles([payload(), second], true)).toEqual([]);
  expect(sharedInbox()).toHaveLength(1);
  expect(sharedInbox()[0]?.sourceUri).toBe('content://weixin/2');
+});
+
+
+it('等待中文文件复制完成才读取大小和持久化，不提前删除尚不存在的副本', async () => {
+ let finish!: () => void;
+ mockCopy.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+ const receiving = receiveSharedFiles([payload({ originalName: '北师大77 文学综合真题.docx' })]);
+ await waitFor(() => expect(mockCopy).toHaveBeenCalledTimes(1));
+ expect(sharedInbox()).toEqual([]);
+ expect(mockDelete).not.toHaveBeenCalled();
+ finish();
+ expect(await receiving).toEqual([]);
+ expect(sharedInbox()[0]).toMatchObject({ name: '北师大77 文学综合真题.docx', size: 2048 });
+ expect(mockDelete).not.toHaveBeenCalled();
+});
+
+it('异步复制失败返回原始错误，允许重新分享重试', async () => {
+ mockCopy.mockRejectedValueOnce(new Error('微信临时权限失效'));
+ expect(await receiveSharedFiles([payload()])).toEqual(['微信临时权限失效']);
+ expect(sharedInbox()).toEqual([]);
+ expect(mockDelete).not.toHaveBeenCalled();
+ expect(await receiveSharedFiles([payload()])).toEqual([]);
+ expect(sharedInbox()).toHaveLength(1);
+});
+
+it('复制后检查真实大小，清理空文件与超限文件', async () => {
+ for (const size of [0, 51 * 1024 * 1024]) {
+  mockTargetSize = size;
+  const errors = await receiveSharedFiles([payload()]);
+  expect(errors[0]).toContain(size ? '超过 50 MB' : '文件为空');
+  expect(sharedInbox()).toEqual([]);
+  expect(mockSavedFiles.size).toBe(0);
+ }
+ expect(mockDelete).toHaveBeenCalledTimes(2);
+});
+
+it('清理失败不覆盖复制后校验的错误', async () => {
+ mockTargetSize = 0;
+ mockDelete.mockImplementationOnce(() => { throw new Error('无法删除'); });
+ expect(await receiveSharedFiles([payload()])).toEqual(['文件为空或未下载完成']);
+ expect(sharedInbox()).toEqual([]);
+});
+
+it('原生分享与深链并发接收同一文件只复制并保存一次', async () => {
+ let finish!: () => void;
+ mockCopy.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+ const native = receiveSharedFiles([payload()], true);
+ await waitFor(() => expect(mockCopy).toHaveBeenCalledTimes(1));
+ const link = receiveSharedFiles([payload()]);
+ finish();
+ expect(await Promise.all([native, link])).toEqual([[], []]);
+ expect(mockCopy).toHaveBeenCalledTimes(1);
+ expect(sharedInbox()).toHaveLength(1);
+});
+
+
+it('异步复制中断后清理残留副本，保留复制失败原因', async () => {
+ mockCopy.mockImplementationOnce(async (target: { uri: string }) => {
+  mockSavedFiles.set(target.uri, 512);
+  throw new Error('复制中断');
+ });
+ expect(await receiveSharedFiles([payload()])).toEqual(['复制中断']);
+ expect(sharedInbox()).toEqual([]);
+ expect(mockSavedFiles.size).toBe(0);
+ expect(mockDelete).toHaveBeenCalledTimes(1);
 });
