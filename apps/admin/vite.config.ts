@@ -13,5 +13,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
+    // antd 页面在 jsdom 里渲染慢，全量并行跑时单个用例常超过默认 5 秒；与 mobile 的 jest 保持一致。
+    testTimeout: 20000,
   },
 });

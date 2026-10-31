@@ -29,9 +29,11 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 }) as typeof fetch;
 
 // vitest 没开 globals 时 Testing Library 不会自动清理，每个用例后手动卸载。
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { afterEach } from 'vitest';
 afterEach(() => cleanup());
+// findBy*/waitFor 默认只等 1 秒，全量并行时 antd 弹窗、表格常来不及渲染，导致偶发失败。
+configure({ asyncUtilTimeout: 5000 });
 
 // antd 的表格与图片依赖 ResizeObserver，jsdom 没有。
 class RO {
