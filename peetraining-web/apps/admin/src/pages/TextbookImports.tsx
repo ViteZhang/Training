@@ -29,17 +29,19 @@ export function TextbookImports({ path, onClose }: { path: Path; onClose: () => 
     if (file.size < 1 || file.size > settings.data.max_file_mb * 1024 * 1024) throw new Error(`单个文件需为 1 字节至 ${settings.data.max_file_mb} MB`);
     const format = file.name.split('.').at(-1)?.toLowerCase(); if (!['pdf', 'docx', 'md', 'txt'].includes(format ?? '')) throw new Error('仅支持 PDF、DOCX、Markdown、TXT');
     const data = await file.arrayBuffer(); const digest = await crypto.subtle.digest('SHA-256', data); const sha256 = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
-    const target = job
-      ? await unwrap(api.POST('/admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/upload', { params: { path: { ...path, importId: job.id } } }))
-      : await unwrap(api.POST(root, { params: { path }, body: { file_name: file.name, format: format as 'pdf' | 'docx' | 'md' | 'txt', size: file.size, sha256, idempotency_key: requestKey(`upload:${file.name}:${sha256}`) } }));
+    const target = await (job
+      ? unwrap(api.POST('/admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/upload', { params: { path: { ...path, importId: job.id } } }))
+      : unwrap(api.POST(root, { params: { path }, body: { file_name: file.name, format: format as 'pdf' | 'docx' | 'md' | 'txt', size: file.size, sha256, idempotency_key: requestKey(`upload:${file.name}:${sha256}`) } })))
+      .catch((e: unknown) => { throw new Error(`获取原件上传地址失败：${failure(e)}`); });
     // OSS 直传地址由服务端签名，不能附加后台会话令牌。
     if (target.job.status === 'uploading' || target.job.status === 'failed') {
       await uploadTextbookFile(file, target);
     }
     const actionPath = { ...path, importId: target.job.id };
-    return target.job.status === 'failed'
+    return (target.job.status === 'failed'
       ? unwrap(api.POST('/admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/retry', { params: { path: actionPath }, body: { idempotency_key: requestKey(`retry:${target.job.id}`) } }))
-      : unwrap(api.POST('/admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/commit', { params: { path: actionPath }, body: { idempotency_key: requestKey(`commit:${target.job.id}`) } }));
+      : unwrap(api.POST('/admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/commit', { params: { path: actionPath }, body: { idempotency_key: requestKey(`commit:${target.job.id}`) } })))
+      .catch((e: unknown) => { throw new Error(`原件已上传，提交处理任务失败：${failure(e)}`); });
   }, onSuccess: (j) => { invalidate(); message.success('已提交后台处理，可以关闭此窗口'); keys.current.delete(`retry:${j.id}`); }, onError: (e) => { invalidate(); message.error(failure(e)); } });
   const retry = useMutation({ mutationFn: (job: ImportJob) => unwrap(api.POST('/admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/retry', { params: { path: { ...path, importId: job.id } }, body: { idempotency_key: requestKey(`retry:${job.id}`) } })), onSuccess: (j) => { keys.current.delete(`retry:${j.id}`); invalidate(); }, onError: (e) => message.error(failure(e)) });
   const apply = useMutation({ mutationFn: async () => {
