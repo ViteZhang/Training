@@ -16,7 +16,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: variant === 'production' ? baseName : `${baseName}${variant === 'preview' ? ' 内测' : ' 开发'}`,
   slug: 'peetraining',
   scheme: 'peetraining',
-  version: '0.1.0',
+  version: '0.1.3',
+  updates: { url: 'https://u.expo.dev/3f07ec04-8c0e-474c-abb8-fa5b89eb596d' },
+  runtimeVersion: { policy: 'appVersion' },
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
@@ -34,6 +36,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: variant === 'production' ? appId : `${appId}.${variant}`,
+    versionCode: 4,
     adaptiveIcon: {
       backgroundColor: '#231F55',
       foregroundImage: './assets/android-icon-foreground.png',
@@ -78,6 +81,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ],
   experiments: { typedRoutes: true },
   extra: {
+    eas: { projectId: '3f07ec04-8c0e-474c-abb8-fa5b89eb596d' },
     apiBaseUrl: process.env.API_BASE_URL ?? 'https://training.dreamerlab.cn/api/v1',
     variant,
   },

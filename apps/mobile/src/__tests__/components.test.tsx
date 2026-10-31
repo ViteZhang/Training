@@ -2,14 +2,14 @@ import { ApiError } from '@training/api-client';
 import { router } from 'expo-router';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Button, EmptyState, ErrorState, Loading, ProgressBar, Tag, Text, toast, ToastHost } from '../components';
+import { Button, EmptyState, ErrorState, Loading, NETWORK_AUTO_RETRY_MS, ProgressBar, Tag, Text, toast, ToastHost } from '../components';
 import { logout } from '../features/auth/actions';
 import { useSession } from '../lib/session';
 import { getJSON, setJSON } from '../lib/storage';
 
 jest.mock('../features/auth/actions', () => ({ logout: jest.fn() }));
 // 顶部栏的返回按钮默认用 expo-router 返回上一页
-jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() } }));
+jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn(), replace: jest.fn(), canGoBack: jest.fn(() => false) } }));
 
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
 const wrap = (ui: React.ReactElement) => render(<SafeAreaProvider initialMetrics={metrics}>{ui}</SafeAreaProvider>);
@@ -83,12 +83,37 @@ describe('五种状态', () => {
       refreshToken: 'refresh',
       refreshExpiresAt: '2099-01-02T00:00:00Z',
     });
-    await wrap(<ErrorState error={new ApiError(503, { code: 'NETWORK', message: '网络还没连上，请稍后再试' })} onRetry={() => {}} />);
+    await wrap(<ErrorState error={new ApiError(401, { code: 'UNAUTHORIZED', message: '登录已失效，请重新登录' })} onRetry={() => {}} />);
 
     await fireEvent.press(screen.getByText('重新登录'));
 
     expect(logout).toHaveBeenCalledTimes(1);
     expect(router.replace).toHaveBeenCalledWith('/(auth)/login');
+  });
+
+  it('断网时不提示重新登录，网络恢复后自动重试', async () => {
+    useSession.getState().setSession({
+      accessToken: 'access',
+      accessExpiresAt: '2099-01-01T00:00:00Z',
+      refreshToken: 'refresh',
+      refreshExpiresAt: '2099-01-02T00:00:00Z',
+    });
+    const onRetry = jest.fn();
+    await wrap(<ErrorState error={new ApiError(0, undefined)} onRetry={onRetry} />);
+
+    expect(screen.queryByText('重新登录')).toBeNull();
+    await act(() => jest.advanceTimersByTime(NETWORK_AUTO_RETRY_MS[0]!));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    await act(() => jest.advanceTimersByTime(NETWORK_AUTO_RETRY_MS[1]!));
+    expect(onRetry).toHaveBeenCalledTimes(2);
+  });
+
+  it('栈页错误态给出返回入口，Tab 页根节点没有', async () => {
+    jest.mocked(router.canGoBack).mockReturnValue(true);
+    await wrap(<ErrorState error={new ApiError(500, { code: 'INTERNAL', message: '服务暂时出了点问题' })} onRetry={() => {}} />);
+    await fireEvent.press(screen.getByText('返回上一页'));
+    expect(router.back).toHaveBeenCalledTimes(1);
+    jest.mocked(router.canGoBack).mockReturnValue(false);
   });
 
   it('Toast 2 秒后消失', async () => {

@@ -53,4 +53,19 @@ describe('0.1 启动页', () => {
     expect(storage.getString('onboarding_step')).toBe('done');
     expect(mockReplace).toHaveBeenCalledWith('/(tabs)/today');
   });
+
+  it('离线冷启动且本机没有引导进度：停在可恢复页，不把老用户丢进引导第一步', async () => {
+    mockGet.mockRejectedValue(new Error('Network request failed'));
+    await launch();
+    expect(screen.getByText('登录状态暂时无法验证')).toBeTruthy();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('离线冷启动但有本机引导进度：按记下的进度继续进首页', async () => {
+    storage.set('onboarding_step', 'done');
+    mockGet.mockRejectedValue(new Error('Network request failed'));
+    await launch();
+    expect(mockReplace).toHaveBeenCalledWith('/(tabs)/today');
+    expect(screen.queryByText('登录状态暂时无法验证')).toBeNull();
+  });
 });
