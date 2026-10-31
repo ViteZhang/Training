@@ -10,6 +10,7 @@ import { TextbookIndexes, TextbookRetrievalStatus, TextbookAvailability, Textboo
 
 type Book = components['schemas']['Textbook'];
 type Metadata = components['schemas']['TextbookMetadata'];
+type BookFormValues = Metadata & EditionInput & { edition_scopes?: components['schemas']['TextbookEditionScopeUpdate'][] };
 type EditionInput = components['schemas']['TextbookEditionInput'];
 type Revision = components['schemas']['TextbookRevision'];
 type Section = components['schemas']['TextbookRevisionSection'];
@@ -17,7 +18,8 @@ const kinds = [{ value: 'textbook', label: '教材' }, { value: 'handout', label
 const statusNames = { draft: '待校对', reviewed: '已校对', published: '已发布' };
 const indexNames = { missing: '未构建', stale: '待构建', ready: '可检索' };
 const catalogKey = ['admin', 'textbooks'];
-const errorText = (e: unknown) => e instanceof ApiError ? e.message : '操作失败，请重试';
+class SaveVerificationError extends Error {}
+const errorText = (e: unknown) => e instanceof ApiError || e instanceof SaveVerificationError ? e.message : '操作失败，请重试';
 
 export function Textbooks() {
   const [filters, setFilters] = useState({ q: '', kind: '', discipline: '', page: 1, page_size: 20 });
@@ -39,6 +41,7 @@ export function Textbooks() {
         { title: '教材 / 讲义', render: (_, b) => <><Button type="link" style={{ padding: 0 }} onClick={() => setBookId(b.id)}>{b.title}</Button><div><Typography.Text type="secondary">{b.author}</Typography.Text></div></> },
         { title: '类型', render: (_, b) => b.kind === 'textbook' ? '教材' : '讲义' },
         { title: '适用学科', dataIndex: 'discipline' },
+        { title: '使用范围', render: (_, b) => b.editions.length ? <Space orientation="vertical" size={4} style={{ maxWidth: 300, overflowWrap: 'anywhere' }}>{b.editions.map((e) => <div key={e.id}><Typography.Text type="secondary">{e.edition}：</Typography.Text>{e.scope_note || '未填写'}</div>)}</Space> : '—' },
         { title: '出版版本与内容状态', render: (_, b) => <Space orientation="vertical" size={4}>{b.editions.map((e) => <div key={e.id}><span>{e.edition} </span><Tag color={e.status === 'published' ? 'green' : 'default'}>{e.status === 'published' ? '线上已发布' : e.status === 'withdrawn' ? '已下架' : '未发布'}</Tag>{e.revisions[0] ? <Typography.Text type="secondary">最新 r{e.revisions[0].revision_no} · {statusNames[e.revisions[0].status]} · 索引{indexNames[e.revisions[0].index_status]}</Typography.Text> : <Typography.Text type="secondary">尚无原文</Typography.Text>}</div>)}</Space> },
         { title: '更新时间', render: (_, b) => dt(b.updated_at) },
         { title: '操作', render: (_, b) => <Button onClick={() => setBookId(b.id)}>管理</Button> },
@@ -73,21 +76,47 @@ function EditionFields() {
     <Form.Item name="authorized" valuePropName="checked" rules={[{ validator: (_, v) => v ? Promise.resolve() : Promise.reject(new Error('请确认素材使用授权')) }]}><Checkbox>确认可用于应用内检索及相关摘录展示</Checkbox></Form.Item>
   </>;
 }
-function BookForm({ book, onClose, onDone }: { book?: Book; onClose: () => void; onDone: (book: Book) => void }) {
-  const [form] = Form.useForm<Metadata & EditionInput>();
+function BookForm({ book: initialBook, onClose, onDone }: { book?: Book; onClose: () => void; onDone: (book: Book) => void }) {
+  // 保留打开表单时的版本快照，后台刷新不能让旧输入绕过冲突检查。
+  const [book] = useState(initialBook);
+  const [form] = Form.useForm<BookFormValues>();
   const [key] = useState(() => crypto.randomUUID());
   const qc = useQueryClient();
-  const { modal } = AntApp.useApp();
-  const mutation = useMutation({ mutationFn: (v: Metadata & EditionInput) => book
-    ? unwrap(api.PUT('/admin/textbooks/{bookId}', { params: { path: { bookId: book.id } }, body: { title: v.title, author: v.author, kind: v.kind, discipline: v.discipline, aliases: v.aliases ?? [], expected_version: book.version } }))
-    : unwrap(api.POST('/admin/textbooks', { body: { title: v.title, author: v.author, kind: v.kind, discipline: v.discipline, aliases: v.aliases ?? [], idempotency_key: key, initial_edition: { edition: v.edition, publisher: v.publisher, publication_year: v.publication_year ?? undefined, isbn: v.isbn, license_note: v.license_note, authorized: v.authorized, scope_note: v.scope_note } } })),
-    onSuccess: (b) => { void qc.invalidateQueries({ queryKey: catalogKey }); onDone(b); },
+  const { modal, message } = AntApp.useApp();
+  const mutation = useMutation({ mutationFn: async (v: BookFormValues) => {
+    if (!book) return unwrap(api.POST('/admin/textbooks', { body: { title: v.title, author: v.author, kind: v.kind, discipline: v.discipline, aliases: v.aliases ?? [], idempotency_key: key, initial_edition: { edition: v.edition, publisher: v.publisher, publication_year: v.publication_year ?? undefined, isbn: v.isbn, license_note: v.license_note, authorized: v.authorized, scope_note: v.scope_note } } }));
+    const editionScopes = v.edition_scopes?.filter((scope) => scope.scope_note !== book.editions.find((edition) => edition.id === scope.edition_id)?.scope_note) ?? [];
+    const params = { path: { bookId: book.id } };
+    await unwrap(api.PUT('/admin/textbooks/{bookId}', { params, body: { title: v.title, author: v.author, kind: v.kind, discipline: v.discipline, aliases: v.aliases ?? [], expected_version: book.version, edition_scopes: editionScopes } }));
+    // 保存后重新读取；旧服务忽略新增字段或数据未落库时，不能仅凭 HTTP 200 关闭表单。
+    let saved: Book;
+    try { saved = await unwrap(api.GET('/admin/textbooks/{bookId}', { params, cache: 'no-store' })); }
+    catch { throw new SaveVerificationError('暂时无法确认保存结果，当前输入已保留，请重试'); }
+    const aliases = [...new Set((v.aliases ?? []).map((alias) => alias.trim()))];
+    if (saved.title !== v.title.trim() || saved.author !== v.author.trim() || saved.kind !== v.kind || saved.discipline !== v.discipline.trim() || JSON.stringify(saved.aliases) !== JSON.stringify(aliases)) {
+      throw new SaveVerificationError('教材信息未保存成功，当前输入已保留，请重试');
+    }
+    if (editionScopes.some((scope) => saved.editions.find((edition) => edition.id === scope.edition_id)?.scope_note !== scope.scope_note.trim())) {
+      throw new SaveVerificationError('使用范围未保存成功，当前输入已保留，请重试');
+    }
+    return saved;
+  },
+    onSuccess: (b) => { qc.setQueryData([...catalogKey, b.id], b); void qc.invalidateQueries({ queryKey: catalogKey }); void message.success(book ? '教材信息已保存' : '教材已创建'); onDone(b); },
   });
   const close = () => { if (mutation.isPending) return; if (form.isFieldsTouched()) modal.confirm({ title: '放弃未保存的修改？', onOk: onClose }); else onClose(); };
   return <Modal open title={book ? '编辑教材信息' : '新建教材 / 讲义'} width={660} okText="保存" onOk={() => form.submit()} confirmLoading={mutation.isPending} onCancel={close} maskClosable={false}>
     {mutation.isError && <Alert type="error" showIcon title={errorText(mutation.error)} style={{ marginBottom: 16 }} />}
-    <Form form={form} layout="vertical" initialValues={book ?? { kind: 'textbook', aliases: [], authorized: false }} onFinish={(v) => mutation.mutate(v)}>
-      <MetadataFields />{!book && <><Typography.Title level={5}>首个出版版本</Typography.Title><EditionFields /></>}
+    <Form form={form} layout="vertical" initialValues={book ? { ...book, edition_scopes: book.editions.map((e) => ({ edition_id: e.id, expected_version: e.version ?? 1, scope_note: e.scope_note })) } : { kind: 'textbook', aliases: [], authorized: false }} onFinish={(v) => mutation.mutate(v)}>
+      <MetadataFields />{book && <>
+        <Typography.Title level={5}>各出版版本的使用范围</Typography.Title>
+        <Form.List name="edition_scopes">{(fields) => fields.map((field) => <div key={field.key}>
+          <Form.Item name={[field.name, 'edition_id']} hidden><InputNumber /></Form.Item>
+          <Form.Item name={[field.name, 'expected_version']} hidden><InputNumber /></Form.Item>
+          <Form.Item name={[field.name, 'scope_note']} label={`${book.editions[field.name]?.edition} · 使用范围`} rules={[{ max: 255, message: '使用范围最多 255 字' }]}>
+            <Input.TextArea rows={2} maxLength={255} showCount placeholder="如：适用院校、课程及使用范围；留空可清除" />
+          </Form.Item>
+        </div>)}</Form.List>
+      </>}{!book && <><Typography.Title level={5}>首个出版版本</Typography.Title><EditionFields /></>}
     </Form>
   </Modal>;
 }
