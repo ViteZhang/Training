@@ -19,12 +19,20 @@ type Page struct {
 var (
 	// 题型标题：「三、论述题」后面的括号说明可以很长（「本题共分七组，请按专业分组答题……」），只限制括号前的部分。
 	reSectionHead = regexp.MustCompile(`^\s*([一二三四五六七八九十]{1,3})\s*[、.．]\s*(\S.{0,40}?(?:[（(].*)?)$`)
-	rePerScore    = regexp.MustCompile(`每(?:小)?题\s*(\d+(?:\.\d+)?)\s*分`)
-	reYearTitle   = regexp.MustCompile(`((?:19|20)\d{2})\s*年`)
-	reYearLead    = regexp.MustCompile(`^((?:19|20)\d{2})\s*\S`) // 「2024 北师大 808 中国语言文学真题」：年份在行首、没有「年」字
-	reQNoDot      = regexp.MustCompile(`^\s*(\d{1,3})\s*[.．、]\s*\S`)
-	reQNoParen    = regexp.MustCompile(`^\s*[（(]\s*(\d{1,3})\s*[)）]\s*\S`)
-	reAnswerHead  = regexp.MustCompile(`^\s*[【\[]?\s*(?:参考)?答案(?:与解析|及解析|解析)?\s*[】\]]?\s*[:：]?\s*$`)
+	// 每题分值：「每题 10 分」，也有写成「10 分每题」的（川大等院校的试卷）。
+	rePerScore = regexp.MustCompile(`每(?:小)?题\s*(\d+(?:\.\d+)?)\s*分|(\d+(?:\.\d+)?)\s*分\s*每(?:小)?题`)
+	reAnyScore = regexp.MustCompile(`(\d+(?:\.\d+)?)\s*分`)
+	// 题末的分值「(25分)」
+	reTrailScore = regexp.MustCompile(`[（(]\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$`)
+	// 汉字题号的整行：「一、简述孔子的“为政以德”思想。(25分)」，标题太长 reSectionHead 匹配不上时也要认出来。
+	reCNNumbered = regexp.MustCompile(`^\s*([一二三四五六七八九十]{1,3})\s*[、.．]\s*(\S.*)$`)
+	// 「【中西哲学史】」：一张卷子里分科目的大部分标题。
+	rePartHead   = regexp.MustCompile(`^[【\[]\s*([^】\]]{1,20}?)\s*[】\]]$`)
+	reYearTitle  = regexp.MustCompile(`((?:19|20)\d{2})\s*年`)
+	reYearLead   = regexp.MustCompile(`^((?:19|20)\d{2})\s*\S`) // 「2024 北师大 808 中国语言文学真题」：年份在行首、没有「年」字
+	reQNoDot     = regexp.MustCompile(`^\s*(\d{1,3})\s*[.．、]\s*\S`)
+	reQNoParen   = regexp.MustCompile(`^\s*[（(]\s*(\d{1,3})\s*[)）]\s*\S`)
+	reAnswerHead = regexp.MustCompile(`^\s*[【\[]?\s*(?:参考)?答案(?:与解析|及解析|解析)?\s*[】\]]?\s*[:：]?\s*$`)
 	// 「第一组：请选择文艺学、比较文学与世界文学专业的考生作答」：论述题按专业分组，只答报考专业那一组。
 	reGroupHead = regexp.MustCompile(`^\s*(第\s*[一二三四五六七八九十\d]{1,3}\s*组)\s*[：:．.、]?\s*(.*)$`)
 	reGroupFor  = regexp.MustCompile(`(?:请|供)?(?:选择|报考)?(.+?)(?:专业|方向)?的?考生(?:作答|选答|选做|答题)`)
@@ -99,6 +107,70 @@ func sectionQType(title string) string {
 	return ""
 }
 
+// perScore 取「每题 N 分」「N 分每题」里的分值。
+func perScore(s string) float64 {
+	m := rePerScore.FindStringSubmatch(s)
+	if m == nil {
+		return 0
+	}
+	v := m[1]
+	if v == "" {
+		v = m[2]
+	}
+	f, _ := strconv.ParseFloat(v, 64)
+	return f
+}
+
+// beforeParen 取括号说明之前的部分：「一、名词解释(10 分每题，每个不超过 100 字。)」→「名词解释」。
+func beforeParen(s string) string {
+	if i := strings.IndexAny(s, "（("); i >= 0 {
+		return strings.TrimSpace(s[:i])
+	}
+	return strings.TrimSpace(s)
+}
+
+// questionLike 判断汉字编号后面的文字是一道题而不是题型标题：题型标题短且不成句（「名词解释」「简答题」「外国哲学史部分」），
+// 题目是完整的句子（「简述孔子的“为政以德”思想。」）。括号里的说明（分值、字数要求）不参与判断。
+func questionLike(title string) bool {
+	head := beforeParen(reTrailScore.ReplaceAllString(title, ""))
+	if strings.ContainsAny(head, "。？?；;") {
+		return true
+	}
+	return len([]rune(head)) >= 10 && !strings.Contains(head, "题") && !strings.Contains(head, "部分")
+}
+
+// isSectionHead 判断一行是不是题型标题，返回标题里题号之后的文字。
+func isSectionHead(line string) (string, bool) {
+	m := reSectionHead.FindStringSubmatch(line)
+	if m == nil || questionLike(m[2]) {
+		return "", false
+	}
+	return m[2], true
+}
+
+// cnNumber 把一到九十九的汉字数字转成阿拉伯数字串：「三」→「3」，「十二」→「12」，「二十」→「20」。
+func cnNumber(s string) string {
+	digits := map[rune]int{'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9}
+	r := []rune(s)
+	n := 0
+	switch {
+	case len(r) == 1 && r[0] == '十':
+		n = 10
+	case len(r) == 1:
+		n = digits[r[0]]
+	case len(r) == 2 && r[0] == '十':
+		n = 10 + digits[r[1]]
+	case len(r) == 2 && r[1] == '十':
+		n = digits[r[0]] * 10
+	case len(r) == 3 && r[1] == '十':
+		n = digits[r[0]]*10 + digits[r[2]]
+	}
+	if n == 0 {
+		return ""
+	}
+	return strconv.Itoa(n)
+}
+
 // Split 是第 5 步「切题」：按题号与题型标题把原文切成候选题块；某页规则切不开时整页作一块交给模型。
 //
 // 识别：
@@ -109,6 +181,9 @@ func sectionQType(title string) string {
 //   - 分组标题「第一组：请选择××专业的考生作答」：之后的题记上组名与适用专业，直到下一个分组或题型标题
 //   - 共用材料：分组标题（或题型标题）之后、第一道题之前的文字，挂到这一组（这一题型）后面的每道题上
 //   - Markdown 转来的资料：先去掉行首 #、>、列表符号与加粗星号
+//   - 汉字题号的题「一、简述……。(25分)」：一行就是一道题（与题型标题同级），题末括号是分值
+//   - 大部分标题「【中西哲学史】」：结束上一部分的题型、分组与材料
+//   - 题型标题下没有编号的唯一一道题（「三、论述题(50 分)」下直接是题干）：整段作为一道题，不当材料
 func Split(pages []Page) []ai.Block {
 	var (
 		blocks    []ai.Block
@@ -126,6 +201,9 @@ func Split(pages []Page) []ai.Block {
 		pending   strings.Builder // 标题之后、第一道题之前收集到的文字
 		inGroup   bool            // pending 是不是在分组标题下收集的
 		openHead  bool            // 题型标题的括号还没闭合，下一行接到标题上
+		sectionNo string          // 当前题型标题的汉字序号（阿拉伯数字）
+		total     float64         // 题型标题里的总分（没有每题分值时，给唯一一道题用）
+		sectionQ  bool            // 当前题型下是否已经切出了题
 	)
 	// resetContext 在新的题型、分组或试卷开始时清掉材料；不是新分组时连分组一起清掉。
 	resetContext := func(newGroup bool) {
@@ -146,6 +224,19 @@ func Split(pages []Page) []ai.Block {
 		cur = nil
 		curText.Reset()
 	}
+	// closeSection：题型标题下没有编号的题时，标题之后收集的文字就是唯一的一道题（「三、论述题(50 分)」）。
+	// 不收的话它会被当成共用材料挂到下一部分的题上，或者整道题丢掉。
+	closeSection := func(pageNo int) {
+		t := strings.TrimSpace(pending.String())
+		if section != "" && !sectionQ && !inAnswers && group == "" && len([]rune(t)) >= 10 {
+			sc := score
+			if sc == 0 {
+				sc = total
+			}
+			blocks = append(blocks, ai.Block{Page: pageNo, Section: section, QType: qtype, Score: sc, Year: year, No: sectionNo, Text: t})
+		}
+		section, sectionNo, total, sectionQ = "", "", 0, false
+	}
 	for _, p := range pages {
 		before := len(blocks)
 		var loose strings.Builder // 本页不属于任何题的文字
@@ -157,8 +248,8 @@ func Split(pages []Page) []ai.Block {
 			if openHead {
 				section += trim
 				openHead = unclosedParen(section)
-				if s := rePerScore.FindStringSubmatch(section); s != nil && score == 0 {
-					score, _ = strconv.ParseFloat(s[1], 64)
+				if score == 0 {
+					score = perScore(section)
 				}
 				continue
 			}
@@ -169,32 +260,59 @@ func Split(pages []Page) []ai.Block {
 			if m != nil && len([]rune(trim)) <= 60 &&
 				(strings.Contains(trim, "真题") || strings.Contains(trim, "试题") || strings.Contains(trim, "试卷") || strings.Contains(trim, "考研")) {
 				flush()
+				closeSection(p.No)
 				year, _ = strconv.Atoi(m[1])
 				inAnswers = strings.Contains(trim, "答案")
-				section, qtype, score = "", "", 0
+				qtype, score = "", 0
 				resetContext(false)
 				continue
 			}
 			if reAnswerHead.MatchString(trim) {
 				flush()
+				closeSection(p.No)
 				inAnswers = true
 				continue
 			}
-			if m := reSectionHead.FindStringSubmatch(trim); m != nil && !strings.ContainsAny(m[2], "。；;") {
+			if rePartHead.MatchString(trim) && !inAnswers {
 				flush()
+				closeSection(p.No)
+				qtype, score = "", 0
+				resetContext(false)
+				continue
+			}
+			if title, ok := isSectionHead(trim); ok {
+				flush()
+				closeSection(p.No)
 				section = trim
+				sectionNo = cnNumber(reSectionHead.FindStringSubmatch(trim)[1])
 				openHead = unclosedParen(trim)
 				resetContext(false)
-				if q := sectionQType(m[2]); q != "" || !inAnswers {
+				if q := sectionQType(title); q != "" || !inAnswers {
 					qtype = q
 				}
-				score = 0
-				if s := rePerScore.FindStringSubmatch(trim); s != nil {
-					score, _ = strconv.ParseFloat(s[1], 64)
+				score = perScore(trim)
+				if score == 0 {
+					if s := reAnyScore.FindStringSubmatch(trim); s != nil {
+						total, _ = strconv.ParseFloat(s[1], 64)
+					}
 				}
-				if strings.Contains(m[2], "答案") {
+				if strings.Contains(title, "答案") {
 					inAnswers = true
 				}
+				continue
+			}
+			// 汉字题号的题与题型标题同级：自成一块，并结束上一个题型。
+			if m := reCNNumbered.FindStringSubmatch(trim); m != nil && !inAnswers && cnNumber(m[1]) != "" {
+				flush()
+				closeSection(p.No)
+				qtype, score = "", 0
+				resetContext(false)
+				blk := &ai.Block{Page: p.No, QType: sectionQType(beforeParen(m[2])), Year: year, No: cnNumber(m[1])}
+				if s := reTrailScore.FindStringSubmatch(trim); s != nil {
+					blk.Score, _ = strconv.ParseFloat(s[1], 64)
+				}
+				cur = blk
+				curText.WriteString(trim)
 				continue
 			}
 			if m := reGroupHead.FindStringSubmatch(trim); m != nil && !inAnswers && isGroupHead(trim) {
@@ -218,6 +336,7 @@ func Split(pages []Page) []ai.Block {
 						passage = t
 					}
 					pending.Reset()
+					sectionQ = true
 					cur = &ai.Block{Page: p.No, Section: section, QType: qtype, Score: score, Year: year, No: m[1], Answer: inAnswers,
 						Group: group, GroupMajors: majors, Passage: passage}
 					curText.WriteString(trim)
@@ -236,15 +355,25 @@ func Split(pages []Page) []ai.Block {
 				}
 			}
 		}
-		if len(blocks) == before && cur == nil && len([]rune(strings.TrimSpace(loose.String()))) >= 20 {
+		// 题型下还没有题、文字等着 closeSection 收成一道题时，不再整页兜底，免得同一道题出现两次。
+		waiting := section != "" && !sectionQ && !inAnswers && group == "" && strings.TrimSpace(pending.String()) != ""
+		if len(blocks) == before && cur == nil && !waiting && len([]rune(strings.TrimSpace(loose.String()))) >= 20 {
 			blocks = append(blocks, ai.Block{Page: p.No, Section: section, QType: qtype, Year: year, Whole: true, Answer: inAnswers, Text: strings.TrimSpace(loose.String())})
 		}
 	}
 	flush()
+	closeSection(lastPage(pages))
 	for i := range blocks {
 		blocks[i].ID = i + 1
 	}
 	return blocks
+}
+
+func lastPage(pages []Page) int {
+	if len(pages) == 0 {
+		return 0
+	}
+	return pages[len(pages)-1].No
 }
 
 // Chunk 把块分批交给模型：每批不超过 maxChars 字（长上下文也要控制单次输出长度与失败重跑的代价）。

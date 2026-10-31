@@ -290,3 +290,71 @@ func TestPickGroup(t *testing.T) {
 		t.Error("没有分组时原样返回")
 	}
 }
+
+// 2023 四川大学哲学真题（用户反馈）：中西哲学史用汉字题号「一、简述……。(25分)」，哲学通论的题型标题括号里带句号、
+// 分值写成「10 分每题」，论述题下没有题号。以前中西哲学史的 6 道题全被当成哲学通论各题的共用材料，论述题也丢了。
+func TestSplitChineseNumberedQuestions(t *testing.T) {
+	text := `2023年四川大学哲学考研真题
+【中西哲学史】
+一、简述孔子的“为政以德”思想。(25分)
+二、简述庄子的“齐物”思想。(25分）
+三、简述朱熹、陆九渊哲学思想的异同。(25 分)
+四、穆勒为解决归纳逻辑的可靠性问题，提出了五种归纳法。请列举这五种归纳法，并解释。(25分)
+五、试论述阿格里帕的五种论证。(25分)
+六、简述康德对美的分析。(25分)
+【哲学通论】
+一、名词解释(10 分每题，每个不超过 100 字。)
+1、四圣谛
+2.目的论
+3.儒家学说
+4.人本主义
+5、反思的特性
+二、简答题(25 分每题，每小题不超过 200 字。)
+1.从古希腊时期起否定存在问题，就长期困扰着西方哲学家。什么是否定存在问题?请简述罗素对否定存在问题的解决方案。
+2.在某些直接指称论者看来名称只有指称而没有涵义,但以孔子为代表的很多中国哲学家却强调“正名”,什么是正名？在你看来为什么要正名？(25分)
+三、论述题(尽可较详细论述不限字数。50 分)
+《论语》首章讲君子三乐,庄子讲逍遥之乐,宋明理学讲“孔颜乐处”。请结合你自己的经验引述哲学史知识，论述你支持的快乐和幸福学说。`
+	got := Split([]Page{{No: 1, Text: text}})
+	type want struct {
+		no, qtype, prefix string
+		score             float64
+	}
+	wants := []want{
+		{"1", "short_answer", "一、简述孔子", 25}, {"2", "short_answer", "二、简述庄子", 25}, {"3", "short_answer", "三、简述朱熹", 25},
+		{"4", "", "四、穆勒", 25}, {"5", "discussion", "五、试论述", 25}, {"6", "short_answer", "六、简述康德", 25},
+		{"1", "term", "1、四圣谛", 10}, {"2", "term", "2.目的论", 10}, {"3", "term", "3.儒家学说", 10}, {"4", "term", "4.人本主义", 10}, {"5", "term", "5、反思的特性", 10},
+		{"1", "short_answer", "1.从古希腊", 25}, {"2", "short_answer", "2.在某些", 25},
+		{"3", "discussion", "《论语》首章", 50},
+	}
+	if len(got) != len(wants) {
+		for _, b := range got {
+			t.Logf("%+v", b)
+		}
+		t.Fatalf("块数 %d，应为 %d", len(got), len(wants))
+	}
+	for i, w := range wants {
+		b := got[i]
+		if b.No != w.no || b.QType != w.qtype || !strings.HasPrefix(b.Text, w.prefix) || b.Score != w.score || b.Year != 2023 || b.Passage != "" || b.Answer || b.Whole {
+			t.Errorf("第 %d 块：%+v，应为 %+v", i+1, b, w)
+		}
+		if strings.Contains(b.Text, "【") {
+			t.Errorf("第 %d 块混进了部分标题：%q", i+1, b.Text)
+		}
+	}
+}
+
+func TestQuestionLikeAndCNNumber(t *testing.T) {
+	for title, want := range map[string]bool{
+		"名词解释（每题 5 分）": false, "名词解释(10 分每题，每个不超过 100 字。)": false, "论述题(尽可较详细论述不限字数。50 分)": false,
+		"外国哲学史部分（共 75 分）": false, "简答题": false, "简述孔子的“为政以德”思想。(25分)": true, "试论述阿格里帕的五种论证(25分)": true,
+	} {
+		if got := questionLike(title); got != want {
+			t.Errorf("questionLike(%q) = %v", title, got)
+		}
+	}
+	for in, want := range map[string]string{"一": "1", "十": "10", "十二": "12", "二十": "20", "二十三": "23"} {
+		if got := cnNumber(in); got != want {
+			t.Errorf("cnNumber(%q) = %q", in, got)
+		}
+	}
+}

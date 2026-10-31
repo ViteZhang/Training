@@ -137,6 +137,7 @@ func TestIntegrationIDOR(t *testing.T) {
 	essayMat := ins("INSERT INTO essay_materials (owner_user_id, bank_id, theme, content, origin) VALUES (?, ?, '创新', '素材', 'user_confirmed')", a, essayBank)
 	model := ins("INSERT INTO model_essays (owner_user_id, bank_id, title, content) VALUES (?, ?, '范文', '正文')", a, essayBank)
 	export := ins("INSERT INTO export_jobs (owner_user_id, subject_id, options, format) VALUES (?, ?, JSON_OBJECT(), 'pdf')", a, sub.ID)
+	candidate := ins("INSERT INTO answer_update_candidates (owner_user_id, question_id, request_key, base_hash, status, created_at, updated_at) VALUES (?, ?, 'idor-candidate', SHA2('idor', 256), 'ready', NOW(3), NOW(3))", a, q)
 	msg := ins("INSERT INTO messages (owner_user_id, mtype, title, body) VALUES (?, 'announcement', '公告', '内容')", a)
 	ins("INSERT INTO orders (owner_user_id, order_no, tier, channel, amount_cents) VALUES (?, 'T20261004000000123456', 'sprint', 'apple_iap', 16900)", a)
 
@@ -144,7 +145,7 @@ func TestIntegrationIDOR(t *testing.T) {
 		"subjectId": fmt.Sprint(sub.ID), "materialId": fmt.Sprint(mat.ID), "jobId": fmt.Sprint(job), "itemId": fmt.Sprint(item), "kpId": fmt.Sprint(kp),
 		"questionId": fmt.Sprint(q), "relationId": fmt.Sprint(rel), "gradingId": fmt.Sprint(grading), "paperId": fmt.Sprint(paper), "essayId": fmt.Sprint(essay),
 		"essayMaterialId": fmt.Sprint(essayMat), "modelEssayId": fmt.Sprint(model), "exportId": fmt.Sprint(export), "messageId": fmt.Sprint(msg),
-		"voiceId": fmt.Sprint(voice), "handwritingId": fmt.Sprint(handwriting), "orderNo": "T20261004000000123456", "deviceId": "device-a", "pageNo": "1", "qtype": "term", "seq": "1", "pairingId": fmt.Sprint(pairing),
+		"voiceId": fmt.Sprint(voice), "handwritingId": fmt.Sprint(handwriting), "orderNo": "T20261004000000123456", "deviceId": "device-a", "pageNo": "1", "qtype": "term", "seq": "1", "pairingId": fmt.Sprint(pairing), "candidateId": fmt.Sprint(candidate),
 	}
 	// sessionId 在不同路径下是不同的会话。
 	sessionFor := func(path string) string {
