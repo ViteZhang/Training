@@ -42,6 +42,8 @@ async function doRefresh(): Promise<string | undefined> {
   const client = createApiClient({
     baseUrl: appConfig.apiBaseUrl,
     getAccessToken: () => undefined,
+    // Hermes 没有 globalThis.crypto，缺省实现会让刷新请求在发出前就抛 TypeError；写请求的幂等键统一用 expo-crypto。
+    newIdempotencyKey: () => Crypto.randomUUID(),
     requestTimeoutMs: REFRESH_REQUEST_TIMEOUT_MS,
   });
   try {
