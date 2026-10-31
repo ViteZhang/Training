@@ -1,7 +1,8 @@
+import { onlineManager } from '@tanstack/react-query';
 import { colors, radius, semantic, spacing, timing } from '@training/ui-tokens';
 import { ApiError } from '@training/api-client';
 import { router } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { logout } from '../features/auth/actions';
 import { useSession } from '../lib/session';
@@ -63,19 +64,62 @@ export function EmptyState({ title, desc, actionText, onAction }: { title: strin
   );
 }
 
-/** 网络错误与登录恢复：作答内容先存本地，恢复后自动提交（由调用方处理）。 */
-export function ErrorState({ error, onRetry, title, desc }: { error?: unknown; onRetry?: () => void; title?: string; desc?: string }) {
+/** 网络错误后自动重试的时刻（毫秒，从错误页出现算起）：手机熄屏唤醒后网络要 2～5 秒才真的通。 */
+export const NETWORK_AUTO_RETRY_MS = [3_000, 9_000, 20_000];
+
+/**
+ * 网络错误与登录恢复：作答内容先存本地，恢复后自动提交（由调用方处理）。
+ * 网络错误会自己重试并盯着网络恢复，用户不必手点；只有服务端明确拒绝（401）才提示重新登录，
+ * 免得一次瞬断就把仍有会话的用户踢去收短信。栈页把 header 一起换掉了，所以这里补一个返回入口。
+ */
+export function ErrorState({
+  error,
+  onRetry,
+  title,
+  desc,
+  allowReauthenticate = false,
+}: {
+  error?: unknown;
+  onRetry?: () => void;
+  title?: string;
+  desc?: string;
+  /** 服务端已经否认登录态、只是刷新又碰上网络问题时，允许用户直接重新登录。 */
+  allowReauthenticate?: boolean;
+}) {
   const network = !(error instanceof ApiError) || error.isNetwork;
   const hasSession = useSession((state) => !!state.session);
-  const canReauthenticate = hasSession && (network || (error instanceof ApiError && error.isUnauthorized));
+  const canReauthenticate = hasSession && (allowReauthenticate || (error instanceof ApiError && error.isUnauthorized));
+  const retryRef = useRef(onRetry);
+  retryRef.current = onRetry;
+  const canGoBack = router.canGoBack?.() ?? false;
+
+  useEffect(() => {
+    if (!network || !retryRef.current) return;
+    // 离线时不空跑：网络恢复由下面的订阅负责立即重试。
+    const timers = NETWORK_AUTO_RETRY_MS.map((ms) =>
+      setTimeout(() => {
+        if (onlineManager.isOnline()) retryRef.current?.();
+      }, ms),
+    );
+    const unsubscribe = onlineManager.subscribe((online) => {
+      if (online) retryRef.current?.();
+    });
+    return () => {
+      timers.forEach(clearTimeout);
+      unsubscribe();
+    };
+  }, [network]);
+
+  const actions = onRetry || canReauthenticate || canGoBack;
   return (
     <StateBlock
       icon="offline"
       title={title ?? (network ? '网络开小差了' : '出了点问题')}
       desc={desc ?? (network ? (error instanceof ApiError && error.isTimeout ? '连接超时，检查网络后重试，已作答的内容不会丢' : '检查网络后重试，已作答的内容不会丢') : error instanceof ApiError ? error.message : undefined)}
-      action={onRetry || canReauthenticate ? (
+      action={actions ? (
         <View style={styles.errorActions}>
           {onRetry ? <Button title="重试" kind="secondary" onPress={onRetry} /> : null}
+          {canGoBack ? <Button title="返回上一页" kind="text" onPress={() => router.back()} /> : null}
           {canReauthenticate ? (
             <Button
               title="重新登录"

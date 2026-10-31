@@ -82,6 +82,12 @@ export default function Splash() {
         const saved = storage.getString(ONBOARDING_KEY);
         if (saved) result = { ...result, onboarding_step: saved };
       }
+      // 离线冷启动且本机没记过引导进度：判断不了该去引导还是首页，停在可恢复页，
+      // 别把老用户丢进空白的引导第一步（看起来像数据没了）。
+      if (!b && result.logged_in && !result.onboarding_step) {
+        setSessionRecovery(true);
+        return;
+      }
       timer = setTimeout(() => {
         if (!active) return;
         setBoot(result);
@@ -102,6 +108,7 @@ export default function Splash() {
           error={new Error('Session verification unavailable')}
           title="登录状态暂时无法验证"
           desc="请重试连接，或重新登录。当前会话会保留，直到你选择重新登录。"
+          allowReauthenticate
           onRetry={() => {
             setSessionRecovery(false);
             setRetryAttempt((attempt) => attempt + 1);
