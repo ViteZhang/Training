@@ -90,7 +90,9 @@ export function ErrorState({
   const hasSession = useSession((state) => !!state.session);
   const canReauthenticate = hasSession && (allowReauthenticate || (error instanceof ApiError && error.isUnauthorized));
   const retryRef = useRef(onRetry);
-  retryRef.current = onRetry;
+  useEffect(() => {
+    retryRef.current = onRetry;
+  }, [onRetry]);
   const canGoBack = router.canGoBack?.() ?? false;
 
   useEffect(() => {
