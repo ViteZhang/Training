@@ -46,3 +46,83 @@ describe('7.16 独立官方教材库', () => {
     const body = await calls('PUT', '/revisions/30')[0]!.json(); expect(body).toMatchObject({ expected_version: 1, mark_reviewed: false, sections: [{ text: '我正在编辑的原文。' }] }); expect(screen.queryByRole('button', { name: /^发\s*布$/ })).toBeNull();
   });
 });
+
+
+describe('教材使用范围', () => {
+  function scopesBook() {
+    return { ...book, editions: [
+      { ...book.editions[0]!, version: 2, scope_note: '北京师范大学 · 文学专业' },
+      { ...book.editions[0]!, id: 21, edition: '第六版', version: 3, scope_note: '全国院校 · 文学理论课程' },
+    ] };
+  }
+  it('列表按版次展示范围，编辑回填并保存修改和清空，刷新列表', async () => {
+    let current = scopesBook();
+    g.mockApi['GET /admin/textbooks'] = () => ({ status: 200, body: { items: [current], total: 1, page: 1, page_size: 20 } });
+    g.mockApi['GET /admin/textbooks/{id}'] = () => ({ status: 200, body: current });
+    g.mockApi['PUT /admin/textbooks/{id}'] = async (req) => {
+      const body = await req.json();
+      current = { ...current, version: 2, editions: current.editions.map((e) => ({ ...e, scope_note: body.edition_scopes.find((v: { edition_id: number }) => v.edition_id === e.id)?.scope_note ?? e.scope_note })) };
+      return { status: 200, body: current };
+    };
+    mount();
+    expect(await screen.findByText('北京师范大学 · 文学专业')).toBeTruthy();
+    expect(screen.getByText('全国院校 · 文学理论课程')).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: '使用范围' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /管\s*理/ }));
+    fireEvent.click(await screen.findByRole('button', { name: '编辑教材信息' }));
+    const modal = within((await screen.findByLabelText('第五版 · 使用范围')).closest('[role="dialog"]') as HTMLElement);
+    expect((modal.getByLabelText('第五版 · 使用范围') as HTMLTextAreaElement).value).toBe('北京师范大学 · 文学专业');
+    fireEvent.change(modal.getByLabelText('第五版 · 使用范围'), { target: { value: '北京师范大学 · 808 文学综合' } });
+    fireEvent.change(modal.getByLabelText('第六版 · 使用范围'), { target: { value: '' } });
+    fireEvent.click(modal.getByRole('button', { name: /保\s*存/ }));
+    await waitFor(() => expect(calls('PUT', '/admin/textbooks/10')).toHaveLength(1));
+    expect(await calls('PUT', '/admin/textbooks/10')[0]!.json()).toMatchObject({ expected_version: 1, edition_scopes: [
+      { edition_id: 20, expected_version: 2, scope_note: '北京师范大学 · 808 文学综合' },
+      { edition_id: 21, expected_version: 3, scope_note: '' },
+    ] });
+    await waitFor(() => expect(screen.queryByLabelText('第五版 · 使用范围')).toBeNull());
+    await waitFor(() => expect(within(screen.getByRole('columnheader', { name: '使用范围' }).closest('table') as HTMLElement).getByText('北京师范大学 · 808 文学综合')).toBeTruthy());
+    expect(within(screen.getByRole('columnheader', { name: '使用范围' }).closest('table') as HTMLElement).getByText('未填写')).toBeTruthy();
+  });
+  it('版本冲突保留范围输入，不显示保存成功', async () => {
+    const current = scopesBook();
+    g.mockApi['GET /admin/textbooks/{id}'] = () => ({ status: 200, body: current });
+    g.mockApi['PUT /admin/textbooks/{id}'] = () => ({ status: 409, body: { code: 'CONFLICT', message: '内容已被更新，请刷新后重试' } });
+    mount(); fireEvent.click(await screen.findByRole('button', { name: /管\s*理/ }));
+    fireEvent.click(await screen.findByRole('button', { name: '编辑教材信息' }));
+    const modal = within((await screen.findByLabelText('第五版 · 使用范围')).closest('[role="dialog"]') as HTMLElement);
+    fireEvent.change(modal.getByLabelText('第五版 · 使用范围'), { target: { value: '尚未保存的范围' } });
+    fireEvent.click(modal.getByRole('button', { name: /保\s*存/ }));
+    expect(await modal.findByText('内容已被更新，请刷新后重试')).toBeTruthy();
+    expect(modal.getByDisplayValue('尚未保存的范围')).toBeTruthy();
+    const body = await calls('PUT', '/admin/textbooks/10')[0]!.json();
+    expect(body.edition_scopes).toEqual([{ edition_id: 20, expected_version: 2, scope_note: '尚未保存的范围' }]);
+  });
+});
+
+
+it('保存返回200但回读仍为旧数据时，提示未保存并保留范围输入', async () => {
+ const current = { ...book, editions: [{ ...book.editions[0]!, version: 2, scope_note: '原使用范围' }] };
+ g.mockApi['GET /admin/textbooks/{id}'] = () => ({ status: 200, body: current });
+ g.mockApi['PUT /admin/textbooks/{id}'] = () => ({ status: 200, body: current });
+ mount(); fireEvent.click(await screen.findByRole('button', { name: /管\s*理/ }));
+ fireEvent.click(await screen.findByRole('button', { name: '编辑教材信息' }));
+ const modal = within((await screen.findByLabelText('第五版 · 使用范围')).closest('[role="dialog"]') as HTMLElement);
+ fireEvent.change(modal.getByLabelText('第五版 · 使用范围'), { target: { value: '本次修改的范围' } });
+ fireEvent.click(modal.getByRole('button', { name: /保\s*存/ }));
+ expect(await modal.findByText('使用范围未保存成功，当前输入已保留，请重试')).toBeTruthy();
+ expect(modal.getByDisplayValue('本次修改的范围')).toBeTruthy();
+ expect(screen.queryByText('教材信息已保存')).toBeNull();
+ expect(calls('GET', '/admin/textbooks/10').length).toBeGreaterThanOrEqual(2);
+});
+
+it('书名更新未落库时不能静默成功', async () => {
+ g.mockApi['PUT /admin/textbooks/{id}'] = () => ({ status: 200, body: book });
+ mount(); fireEvent.click(await screen.findByRole('button', { name: /管\s*理/ }));
+ fireEvent.click(await screen.findByRole('button', { name: '编辑教材信息' }));
+ const modal = within((await screen.findByLabelText('第五版 · 使用范围')).closest('[role="dialog"]') as HTMLElement);
+ fireEvent.change(modal.getByLabelText('标准书名'), { target: { value: '新的教材书名' } });
+ fireEvent.click(modal.getByRole('button', { name: /保\s*存/ }));
+ expect(await modal.findByText('教材信息未保存成功，当前输入已保留，请重试')).toBeTruthy();
+ expect(modal.getByDisplayValue('新的教材书名')).toBeTruthy();
+});

@@ -69,3 +69,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 UPDATE textbook_revisions SET sections = ?, content_hash = ?, status = ?, version = version + 1,
  index_status = 'stale', ready_generation_id = NULL, reviewed_by = ?, reviewed_at = ?, updated_at = ?
 WHERE id = ? AND edition_id = ? AND version = ? AND status <> 'published';
+
+-- name: UpdateTextbookEditionScope :execrows
+UPDATE textbook_editions SET scope_note = ?, version = version + 1
+WHERE id = ? AND book_id = ? AND version = ?;

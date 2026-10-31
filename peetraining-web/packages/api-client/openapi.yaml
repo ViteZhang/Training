@@ -8728,6 +8728,30 @@ components:
           type: integer
           format: int64
           minimum: 1
+        edition_scopes:
+          type: array
+          description: 按出版版本更新使用范围；省略时保留原值，空字符串清空范围。与教材信息在同一事务保存。
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/TextbookEditionScopeUpdate'
+    TextbookEditionScopeUpdate:
+      type: object
+      required:
+      - edition_id
+      - expected_version
+      - scope_note
+      properties:
+        edition_id:
+          type: integer
+          format: int64
+          minimum: 1
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+        scope_note:
+          type: string
+          maxLength: 255
     TextbookEditionCreate:
       type: object
       required:

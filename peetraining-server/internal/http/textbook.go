@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/gen"
 	"peetraining-server/internal/rules"
@@ -105,7 +106,17 @@ func (h *Handlers) UpdateTextbook(c *gin.Context, bookID int64) {
 	if !bind(c, &body) {
 		return
 	}
-	b, err := h.deps.Textbooks.Update(c.Request.Context(), uint64(bookID), uint64(body.ExpectedVersion), rules.TextbookMetadata{Title: body.Title, Author: body.Author, Kind: string(body.Kind), Discipline: body.Discipline, Aliases: body.Aliases})
+	var scopes []rules.TextbookEditionScopeUpdate
+	if body.EditionScopes != nil {
+		for _, scope := range *body.EditionScopes {
+			if scope.EditionId < 1 || scope.ExpectedVersion < 1 {
+				_ = c.Error(apperr.New(apperr.BadRequest, "出版版本及版本号不正确"))
+				return
+			}
+			scopes = append(scopes, rules.TextbookEditionScopeUpdate{EditionID: uint64(scope.EditionId), ExpectedVersion: uint64(scope.ExpectedVersion), ScopeNote: scope.ScopeNote})
+		}
+	}
+	b, err := h.deps.Textbooks.Update(c.Request.Context(), uint64(bookID), uint64(body.ExpectedVersion), rules.TextbookMetadata{Title: body.Title, Author: body.Author, Kind: string(body.Kind), Discipline: body.Discipline, Aliases: body.Aliases}, scopes...)
 	if err != nil {
 		_ = c.Error(err)
 		return

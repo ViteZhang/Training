@@ -843,6 +843,7 @@ type Querier interface {
 	UpdateSubject(ctx context.Context, arg UpdateSubjectParams) error
 	// 录取结果可以稍后补（6.14）；不重复送会员。
 	UpdateSurveyResponse(ctx context.Context, arg UpdateSurveyResponseParams) error
+	UpdateTextbookEditionScope(ctx context.Context, arg UpdateTextbookEditionScopeParams) (int64, error)
 	UpdateTextbookImportState(ctx context.Context, arg UpdateTextbookImportStateParams) error
 	UpdateTextbookMetadata(ctx context.Context, arg UpdateTextbookMetadataParams) (int64, error)
 	UpdateUserKPCopy(ctx context.Context, arg UpdateUserKPCopyParams) error

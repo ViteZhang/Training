@@ -5085,6 +5085,15 @@ export interface components {
             aliases: string[];
             /** Format: int64 */
             expected_version: number;
+            /** @description 按出版版本更新使用范围；省略时保留原值，空字符串清空范围。与教材信息在同一事务保存。 */
+            edition_scopes?: components["schemas"]["TextbookEditionScopeUpdate"][];
+        };
+        TextbookEditionScopeUpdate: {
+            /** Format: int64 */
+            edition_id: number;
+            /** Format: int64 */
+            expected_version: number;
+            scope_note: string;
         };
         TextbookEditionCreate: {
             edition: string;

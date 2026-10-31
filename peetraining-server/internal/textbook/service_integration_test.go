@@ -227,3 +227,56 @@ func TestConcurrentRevisionNumbersAndSaves(t *testing.T) {
 		t.Fatalf("并发覆盖: %d/%d", success, conflict)
 	}
 }
+
+func TestUpdateEditionScopesAtomicAndIsolated(t *testing.T) {
+	s, _ := setup(t)
+	ctx := context.Background()
+	b := mustBook(t, s, "scope-book-1")
+	e := edition()
+	e.Edition = "第六版"
+	e.ScopeNote = "原使用范围"
+	b, err := s.AddEdition(ctx, b.ID, 1, "scope-edition-2", e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := mustBook(t, s, "scope-book-2")
+	m := metadata()
+	m.Title = "新书名"
+	first, second := b.Editions[0], b.Editions[1]
+	change := rules.TextbookEditionScopeUpdate{EditionID: first.ID, ExpectedVersion: first.Version, ScopeNote: " 新使用范围 "}
+	// 第二个版本不属于本教材时，先前写入也必须回滚。
+	_, err = s.Update(ctx, b.ID, b.Version, m, change, rules.TextbookEditionScopeUpdate{EditionID: other.Editions[0].ID, ExpectedVersion: other.Editions[0].Version})
+	if !apperr.IsKind(err, apperr.NotFound) {
+		t.Fatalf("跨教材: %v", err)
+	}
+	unchanged, err := s.Get(ctx, b.ID)
+	if err != nil || unchanged.Version != b.Version || unchanged.Editions[0].ScopeNote != first.ScopeNote {
+		t.Fatalf("未回滚: %+v %v", unchanged, err)
+	}
+	_, err = s.Update(ctx, b.ID, b.Version, m, change, rules.TextbookEditionScopeUpdate{EditionID: second.ID, ExpectedVersion: second.Version + 1})
+	if !apperr.IsKind(err, apperr.Conflict) {
+		t.Fatalf("版本冲突: %v", err)
+	}
+	updated, err := s.Update(ctx, b.ID, b.Version, m, change)
+	if err != nil || updated.Title != m.Title || updated.Editions[0].ScopeNote != "新使用范围" || updated.Editions[0].Version != first.Version+1 || updated.Editions[1].ScopeNote != "原使用范围" {
+		t.Fatalf("保存: %+v %v", updated, err)
+	}
+	// 兼容未传范围的旧请求，已填范围不丢失。
+	updated, err = s.Update(ctx, b.ID, updated.Version, metadata())
+	if err != nil || updated.Editions[0].ScopeNote != "新使用范围" {
+		t.Fatalf("旧请求: %+v %v", updated, err)
+	}
+	updated, err = s.Update(ctx, b.ID, updated.Version, metadata(), rules.TextbookEditionScopeUpdate{EditionID: first.ID, ExpectedVersion: updated.Editions[0].Version, ScopeNote: ""})
+	if err != nil || updated.Editions[0].ScopeNote != "" {
+		t.Fatalf("清空: %+v %v", updated, err)
+	}
+	list, _, err := s.List(ctx, Filter{Search: "文论教程", Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range list {
+		if item.ID == b.ID && item.Editions[1].ScopeNote != "原使用范围" {
+			t.Fatal("列表范围丢失")
+		}
+	}
+}
