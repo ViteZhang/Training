@@ -28,6 +28,7 @@ import (
 	"peetraining-server/internal/membership"
 	"peetraining-server/internal/params"
 	"peetraining-server/internal/quota"
+	"peetraining-server/internal/rules"
 	"peetraining-server/internal/store"
 )
 
@@ -159,7 +160,41 @@ func (s *Service) Center(ctx context.Context, userID uint64) (Center, error) {
 		out.Plans = append(out.Plans, p)
 	}
 	sort.Slice(out.Plans, func(i, j int) bool { return tierOrder[out.Plans[i].Tier] < tierOrder[out.Plans[j].Tier] })
+	if err := s.markRecommended(ctx, userID, now, out.Plans); err != nil {
+		return Center{}, err
+	}
 	return out, nil
+}
+
+// markRecommended 按距最近一次初试结束的天数改写推荐档（PRD v3 13.2）。天数从这次购买生效起算（会员叠加时从现有会员到期日起），
+// 所以已是会员的人看到的是续费该买哪档。初试日期没配置，或推荐档下架了，就保留后台 7.8 配置的推荐。
+func (s *Service) markRecommended(ctx context.Context, userID uint64, now time.Time, plans []Plan) error {
+	var stage rules.StageParams
+	if err := s.d.Params.Get(ctx, "stage", &stage); err != nil {
+		return err
+	}
+	start, end, err := membership.Span(ctx, s.q, membership.Grant{UserID: userID, Tier: "sprint", Now: now})
+	hasExam := true
+	switch {
+	case errors.Is(err, membership.ErrNoExamDate):
+		hasExam = false
+	case err != nil:
+		return err
+	}
+	tier := rules.RecommendTier(int(end.Sub(start).Hours()/24), hasExam, stage)
+	ok := false
+	for _, p := range plans {
+		if p.Tier == tier && p.Available {
+			ok = true
+		}
+	}
+	if !ok {
+		return nil
+	}
+	for i := range plans {
+		plans[i].Recommended = plans[i].Tier == tier
+	}
+	return nil
 }
 
 // Order 是订单（6.6 支付结果轮询它）。
