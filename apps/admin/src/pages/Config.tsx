@@ -226,11 +226,11 @@ export function PurchaseEntryPanel() {
                 <Form.Item label="客服名称" name="name" rules={[{ max: 32 }]}>
                   <Input placeholder="考研Training 客服" />
                 </Form.Item>
-                <Form.Item label="企业微信 ID" name="wecom_id" rules={[{ max: 64 }]}>
+                <Form.Item label="企业微信 ID（选填）" name="wecom_id" rules={[{ max: 64 }]} extra="没有可搜索的 ID 就留空，App 只显示二维码">
                   <Input placeholder="kaoyan-training" />
                 </Form.Item>
-                <Form.Item label="回复时间" name="reply_time" rules={[{ max: 64 }]}>
-                  <Input placeholder="工作日 9:00–22:00 回复，周末会晚一些" />
+                <Form.Item label="服务时间" name="reply_time" rules={[{ max: 64 }]} extra="App 里显示为「服务时间 · 这里的内容」">
+                  <Input placeholder="每天 9:00–22:00" />
                 </Form.Item>
                 <Form.Item label="说明文案" name="note" rules={[{ max: 200 }]} extra="显示在会员中心「获取兑换码」按钮上方和获取兑换码弹层里">
                   <Input.TextArea rows={2} placeholder="暂未开放在线支付，加客服企业微信获取兑换码" />
