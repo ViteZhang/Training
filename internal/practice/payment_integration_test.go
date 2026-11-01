@@ -94,10 +94,20 @@ func TestMockPaymentFlow(t *testing.T) {
 	if err != nil || c.PaymentEnabled || len(c.Plans) != 3 || len(c.Benefits) != 6 {
 		t.Fatalf("会员中心：%+v %v", c, err)
 	}
-	if c.Plans[0].Tier != "sprint" || !c.Plans[0].Available || c.Plans[1].Available || c.Plans[1].UnavailableReason == "" || !c.Plans[1].Recommended ||
+	if c.Plans[0].Tier != "sprint" || !c.Plans[0].Available || c.Plans[1].Available || c.Plans[1].UnavailableReason == "" ||
 		c.Plans[2].PriceCents != 2990 || !c.Plans[2].EndsAt.Equal(f.clock.AddDate(0, 0, 30)) {
 		t.Errorf("档位：冲刺卡可买、考季卡缺次年初试日期、月卡 30 天：%+v", c.Plans)
 	}
+	// 推荐档按距初试结束天数（PRD v3 13.2）：10 月 2 日距 12 月 20 日约 79 天，强化期推荐冲刺卡；11 月 1 日不到 60 天推荐月卡。
+	if !c.Plans[0].Recommended || c.Plans[1].Recommended || c.Plans[2].Recommended {
+		t.Errorf("10 月 2 日推荐冲刺卡：%+v", c.Plans)
+	}
+	saved := f.clock
+	f.clock = time.Date(2026, 11, 1, 2, 0, 0, 0, time.UTC)
+	if c, err := svc.Center(ctx, uid); err != nil || c.Plans[0].Recommended || !c.Plans[2].Recommended {
+		t.Errorf("11 月 1 日推荐月卡：%+v %v", c.Plans, err)
+	}
+	f.clock = saved
 	if _, err := svc.CreateOrder(ctx, uid, "monthly", pay.ChannelWechat, ""); kind(err) != apperr.NotFound {
 		t.Fatalf("开关关闭时下单 404：%v", err)
 	}

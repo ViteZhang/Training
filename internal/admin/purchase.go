@@ -57,8 +57,9 @@ func (s *Service) UpdatePurchaseEntry(ctx context.Context, adminID uint64, in pa
 	in.WeCom.QRKey = cur.WeCom.QRKey
 	in.WeCom.Name = strings.TrimSpace(in.WeCom.Name)
 	in.WeCom.WeComID = strings.TrimSpace(in.WeCom.WeComID)
-	if (in.Android || in.IOS) && (in.WeCom.Name == "" || in.WeCom.WeComID == "") {
-		return PurchaseEntry{}, apperr.New(apperr.BadRequest, "打开购买入口前先填好客服企业微信名称和 ID")
+	// ID 选填（11 月 1 日起）：用户扫二维码就能加，没有可搜索的 ID 时 App 不显示 ID 和复制按钮。
+	if (in.Android || in.IOS) && (in.WeCom.Name == "" || (in.WeCom.WeComID == "" && in.WeCom.QRKey == "")) {
+		return PurchaseEntry{}, apperr.New(apperr.BadRequest, "打开购买入口前先填好客服企业微信名称，并上传二维码或填写 ID")
 	}
 	return s.savePurchaseEntry(ctx, adminID, in, version)
 }

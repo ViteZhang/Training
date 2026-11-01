@@ -104,6 +104,17 @@ func TestIntegrationPurchaseEntryAndManualCode(t *testing.T) {
 	if e := entry("ios"); e.Contact == nil || e.Contact.QrUrl == nil {
 		t.Errorf("上传后 App 拿到二维码地址：%+v", e)
 	}
+	// 企业微信 ID 选填：有二维码时可以不填 ID，App 拿到空 ID 就只显示二维码。
+	_, body = f.do("GET", "/api/v1/admin/config/purchase-entry", root, "")
+	_ = json.Unmarshal([]byte(body), &pe)
+	noID, _ := json.Marshal(map[string]any{"android": true, "ios": true, "version": pe.Version,
+		"wecom": map[string]any{"name": "考研Training 客服", "wecom_id": "", "reply_time": "每天 9:00–22:00", "note": ""}})
+	if code, body := f.do("PUT", "/api/v1/admin/config/purchase-entry", root, string(noID)); code != 200 {
+		t.Fatalf("有二维码时 ID 可以不填：%d %s", code, body)
+	}
+	if e := entry("android"); e.Contact == nil || e.Contact.WecomId != "" || e.Contact.QrUrl == nil {
+		t.Errorf("没填 ID：%+v", e)
+	}
 
 	// 7.4 单个发码：客服可以发；收入记入 7.3（渠道企业微信客服）；码不绑定手机号，兑换后订单补上兑换人。
 	issue := `{"phone":"13900001234","tier":"monthly","amount_cents":2990,"pay_method":"企业微信转账","remark":"小红书来的"}`
