@@ -1,4 +1,4 @@
-// 6.5 会员中心（T25）：权益对比表（PRD 13.1）；三档会员（冲刺卡、考季卡推荐、月卡）与现在购买的有效期截止；
+// 6.5 会员中心（T25）：权益对比表（PRD 13.1）；三档会员（冲刺卡、考季卡、月卡，推荐档由服务端判断）与现在购买的有效期截止；
 // 在线支付开通前主按钮为「获取兑换码」（→ 6.5a），上方说明「暂未开放在线支付，加客服企业微信获取兑换码」；
 // 开通后为「立即开通 ¥价格」；「我已有兑换码」→ 6.7；会员服务协议；注明不自动续费。
 // 购买入口关闭的平台（iOS 提审前）不显示本页入口，误进来时直接退回（PRD v3 3.4）。
@@ -19,7 +19,8 @@ import { tierNames, ymd } from '@/features/mine/api';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
 
-const positioning: Record<Schemas['PlanTier'], string> = { sprint: '冲刺期考生', season: '默认推荐', monthly: '灵活试用' };
+// 推荐档由服务端按距初试天数判断（PRD v3 13.2）：临近初试推荐月卡、强化期推荐冲刺卡、更早推荐考季卡。
+const positioning: Record<Schemas['PlanTier'], string> = { sprint: '用到本次初试结束', season: '长线备考，含下一年初试', monthly: '30 天，按需续' };
 
 export default function MemberCenter() {
   const center = useMemberCenter();
