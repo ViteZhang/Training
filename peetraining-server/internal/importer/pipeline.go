@@ -22,9 +22,10 @@ import (
 // 每批交给模型的字数：结构化按块分批，知识点按页分批。
 // 模型要把题目、知识点原文逐字带回来，输出字数与输入相当；批太大时一次生成要好几分钟，容易超时、也容易超出输出上限。
 const (
-	structureChunkChars = 4000
-	kpChunkChars        = 3000
-	tagBatch            = 30
+	structureChunkChars  = 4000
+	structureChunkBlocks = 40
+	kpChunkChars         = 3000
+	tagBatch             = 30
 )
 
 // aiParallel 是同一份资料同时调用模型的批数：几百页的资料也能在任务时限内整理完，又不至于触发平台限流。
@@ -241,7 +242,7 @@ func (s *Service) structureQuestions(ctx context.Context, job dbq.GetImportJobRo
 		in[i] = Page{No: int(p.PageNo), Text: p.Text}
 	}
 	n, failed := 0, 0
-	chunks := Chunk(Split(in), structureChunkChars)
+	chunks := Chunk(Split(in), structureChunkChars, structureChunkBlocks)
 	type result struct {
 		out  ai.StructureOut
 		meta ai.Meta
@@ -265,7 +266,7 @@ func (s *Service) structureQuestions(ctx context.Context, job dbq.GetImportJobRo
 			continue
 		}
 		s.notePrompt(ctx, job, ai.Structure.Name, r.meta)
-		for _, it := range r.out.Items {
+		for _, it := range append(r.out.Items, ruleFallback(r.out.Dropped, blocks)...) {
 			if err := s.saveStructured(ctx, job, materialID, questionSource, it, blocks[it.Block]); err != nil {
 				return n, failed, err
 			}
@@ -273,6 +274,25 @@ func (s *Service) structureQuestions(ctx context.Context, job dbq.GetImportJobRo
 		}
 	}
 	return n, failed, nil
+}
+
+// fallbackConfidence 低于 LowConfidence：用原文兜底的题都进「待确认」，由用户核对题型与题干。
+const fallbackConfidence = 0.5
+
+// ruleFallback 把模型输出没过校验的块按规则整理成题（原文照录），不让这几道题丢掉。
+func ruleFallback(dropped []int, blocks map[int]ai.Block) []ai.QItem {
+	var out []ai.QItem
+	for _, id := range dropped {
+		b, ok := blocks[id]
+		if !ok {
+			continue
+		}
+		if it, ok := ai.RuleItem(b); ok {
+			it.Confidence = min(it.Confidence, fallbackConfidence)
+			out = append(out, it)
+		}
+	}
+	return out
 }
 
 // saveStructured 写一条结构化结果；分组与共用材料取自切题规则识别的块（不经过模型）。

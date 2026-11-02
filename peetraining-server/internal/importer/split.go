@@ -376,14 +376,15 @@ func lastPage(pages []Page) int {
 	return pages[len(pages)-1].No
 }
 
-// Chunk 把块分批交给模型：每批不超过 maxChars 字（长上下文也要控制单次输出长度与失败重跑的代价）。
-func Chunk(blocks []ai.Block, maxChars int) [][]ai.Block {
+// Chunk 把块分批交给模型：每批不超过 maxChars 字、maxBlocks 块（长上下文也要控制单次输出长度与失败重跑的代价）。
+// 只按字数分批不够：名词解释、引文题每块只有几个字，4000 字能装下上百道题，模型要输出上万 token，一次调用一两分钟。
+func Chunk(blocks []ai.Block, maxChars, maxBlocks int) [][]ai.Block {
 	var out [][]ai.Block
 	var cur []ai.Block
 	n := 0
 	for _, b := range blocks {
 		size := len([]rune(b.Text))
-		if len(cur) > 0 && n+size > maxChars {
+		if len(cur) > 0 && (n+size > maxChars || len(cur) >= maxBlocks) {
 			out = append(out, cur)
 			cur, n = nil, 0
 		}
