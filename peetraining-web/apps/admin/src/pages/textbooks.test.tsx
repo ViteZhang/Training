@@ -126,3 +126,17 @@ it('书名更新未落库时不能静默成功', async () => {
  expect(await modal.findByText('教材信息未保存成功，当前输入已保留，请重试')).toBeTruthy();
  expect(modal.getByDisplayValue('新的教材书名')).toBeTruthy();
 });
+it('编辑套书名：提交去空格后的套书名，回读一致才算保存成功，详情显示套书名', async () => {
+ let current: typeof book & { series?: string } = book;
+ g.mockApi['GET /admin/textbooks/{id}'] = () => ({ status: 200, body: current });
+ g.mockApi['PUT /admin/textbooks/{id}'] = async (req) => { const body = await req.json(); current = { ...current, version: 2, series: body.series }; return { status: 200, body: current }; };
+ mount(); fireEvent.click(await screen.findByRole('button', { name: /管\s*理/ }));
+ expect(await screen.findByText('套书名')).toBeTruthy();
+ fireEvent.click(await screen.findByRole('button', { name: '编辑教材信息' }));
+ const modal = within((await screen.findByLabelText('第五版 · 使用范围')).closest('[role="dialog"]') as HTMLElement);
+ fireEvent.change(modal.getByLabelText('套书名（选填）'), { target: { value: ' 文学理论 ' } });
+ fireEvent.click(modal.getByRole('button', { name: /保\s*存/ }));
+ await waitFor(() => expect(calls('PUT', '/admin/textbooks/10')).toHaveLength(1));
+ expect(await calls('PUT', '/admin/textbooks/10')[0]!.json()).toMatchObject({ series: '文学理论', aliases: ['文论教程'] });
+ expect(await screen.findByText('文学理论')).toBeTruthy();
+});

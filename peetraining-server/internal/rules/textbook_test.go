@@ -58,3 +58,23 @@ func TestNormalizeTextbookEditionScopes(t *testing.T) {
 		}
 	}
 }
+
+func TestTextbookSelectionsAllowSeries(t *testing.T) {
+	got, err := CleanTextbookSelections([]string{"西方哲学史"}, []TextbookSelection{{"西方哲学史", 1}, {"西方哲学史", 2}, {"西方哲学史", 2}, {"已删除", 3}})
+	if err != nil || len(got) != 2 || got[0].EditionID != 1 || got[1].EditionID != 2 {
+		t.Fatal(got, err)
+	}
+	many := []TextbookSelection{}
+	for i := 1; i <= MaxEditionsPerTextbook+1; i++ {
+		many = append(many, TextbookSelection{"西方哲学史", uint64(i)})
+	}
+	if _, err = CleanTextbookSelections([]string{"西方哲学史"}, many); err == nil {
+		t.Fatal("超出册数上限未拒绝")
+	}
+	if _, err = CleanTextbookSelections([]string{"西方哲学史"}, []TextbookSelection{{"西方哲学史", 0}}); err == nil {
+		t.Fatal("空版次未拒绝")
+	}
+	if _, err = NormalizeTextbook(TextbookMetadata{Title: "a", Author: "b", Kind: "textbook", Discipline: "c", Series: string(make([]rune, 129))}); err == nil {
+		t.Fatal("套书名超长未拒绝")
+	}
+}

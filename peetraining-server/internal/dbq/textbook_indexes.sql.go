@@ -306,7 +306,7 @@ func (q *Queries) InsertTextbookChunk(ctx context.Context, arg InsertTextbookChu
 }
 
 const listPublishedTextbookEditions = `-- name: ListPublishedTextbookEditions :many
-SELECT b.title,b.author,b.kind,b.discipline,b.aliases,b.default_edition_id,e.id, e.book_id, e.edition, e.publisher, e.publication_year, e.isbn, e.license_note, e.authorized, e.scope_note, e.status, e.current_revision_id, e.created_by, e.request_key, e.request_hash, e.created_at, e.version, e.current_generation_id, e.license_expires_at, e.excerpts_enabled
+SELECT b.title,b.author,b.kind,b.discipline,b.aliases,b.series,b.default_edition_id,e.id, e.book_id, e.edition, e.publisher, e.publication_year, e.isbn, e.license_note, e.authorized, e.scope_note, e.status, e.current_revision_id, e.created_by, e.request_key, e.request_hash, e.created_at, e.version, e.current_generation_id, e.license_expires_at, e.excerpts_enabled
 FROM textbook_editions e JOIN textbooks b ON b.id=e.book_id
 WHERE e.status='published' AND e.authorized=TRUE AND (e.license_expires_at IS NULL OR e.license_expires_at>?)
 ORDER BY e.book_id,e.id
@@ -318,6 +318,7 @@ type ListPublishedTextbookEditionsRow struct {
 	Kind                string
 	Discipline          string
 	Aliases             json.RawMessage
+	Series              string
 	DefaultEditionID    sql.NullInt64
 	ID                  uint64
 	BookID              uint64
@@ -355,6 +356,7 @@ func (q *Queries) ListPublishedTextbookEditions(ctx context.Context, licenseExpi
 			&i.Kind,
 			&i.Discipline,
 			&i.Aliases,
+			&i.Series,
 			&i.DefaultEditionID,
 			&i.ID,
 			&i.BookID,

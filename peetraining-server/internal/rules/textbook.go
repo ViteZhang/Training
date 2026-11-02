@@ -17,6 +17,8 @@ type TextbookMetadata struct {
 	Kind       string   `json:"kind"`
 	Discipline string   `json:"discipline"`
 	Aliases    []string `json:"aliases"`
+	// Series 是套书名（如上下卷共用「西方哲学史」）；omitempty 让单册教材的请求哈希与旧版一致。
+	Series string `json:"series,omitempty"`
 }
 type TextbookEditionInput struct {
 	Edition         string `json:"edition"`
@@ -44,6 +46,10 @@ func NormalizeTextbook(m TextbookMetadata) (TextbookMetadata, error) {
 	m.Title = strings.TrimSpace(m.Title)
 	m.Author = strings.TrimSpace(m.Author)
 	m.Discipline = strings.TrimSpace(m.Discipline)
+	m.Series = strings.TrimSpace(m.Series)
+	if !boundedText(m.Series, 0, 128) {
+		return m, apperr.New(apperr.BadRequest, "套书名最多 128 字")
+	}
 	if !boundedText(m.Title, 1, 128) || !boundedText(m.Author, 1, 128) || !boundedText(m.Discipline, 1, 128) || (m.Kind != "textbook" && m.Kind != "handout") || len(m.Aliases) > 20 {
 		return m, apperr.New(apperr.BadRequest, "请完整填写书名、作者、类型和学科")
 	}

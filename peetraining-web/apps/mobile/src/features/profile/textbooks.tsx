@@ -15,7 +15,8 @@ export const textbookHint = '缺答案时，优先参考指定教材的相关原
 export type TextbookMap = Record<number, string[]>;
 export type TextbookSelectionMap = Record<number, Schemas['UserTextbookSelection'][]>;
 
-function MatchHint({ subjectId, title, onSelect }: { subjectId: number; title: string; onSelect?: (selection: Schemas['UserTextbookSelection']) => void }) {
+/** 书名匹配提示。套书（上下卷等）会匹配到多册，锁定时整套一起保存。 */
+function MatchHint({ subjectId, title, onSelect }: { subjectId: number; title: string; onSelect?: (selections: Schemas['UserTextbookSelection'][]) => void }) {
   const [debounced, setDebounced] = useState('');
   useEffect(() => { const timer = setTimeout(() => setDebounced(title.trim()), 350); return () => clearTimeout(timer); }, [title]);
   const query = useQuery({
@@ -24,11 +25,13 @@ function MatchHint({ subjectId, title, onSelect }: { subjectId: number; title: s
     enabled: subjectId > 0 && !!debounced,
     retry: false,
   });
-  const match = title.trim() === debounced ? query.data?.items?.[0] : undefined;
-  if (!match) return null;
+  const items = title.trim() === debounced ? query.data?.items ?? [] : [];
+  const first = items[0];
+  if (!first) return null;
+  const set = items.length > 1;
   return <View style={styles.match}>
-    <Text variant="small">已匹配 · {match.author} · {match.edition}</Text>
-    {onSelect ? <Button title="使用该版本" kind="text" color={semantic.textPrimary} onPress={() => onSelect({ input: title.trim(), edition_id: match.edition_id })} /> : null}
+    <Text variant="small">{set ? `已匹配整套 ${items.length} 册 · ${first.author} · ${items.map((m) => m.title).join('、')}` : `已匹配 · ${first.author} · ${first.edition}`}</Text>
+    {onSelect ? <Button title={set ? `使用这 ${items.length} 册` : '使用该版本'} kind="text" color={semantic.textPrimary} onPress={() => onSelect(items.map((m) => ({ input: title.trim(), edition_id: m.edition_id })))} /> : null}
   </View>;
 }
 
@@ -92,8 +95,8 @@ export function TextbookList({ subjects, value, onChange, selections, onSelectio
         <AddTextbookSheet
           subjects={subjects.filter((s) => (value[s.id] ?? []).length < MAX_TEXTBOOKS)}
           onClose={() => setAdding(false)}
-          onAdd={(subjectId, title, selection) => {
-            if (selection) onSelectionsChange?.({ ...selections, [subjectId]: [...(selections?.[subjectId] ?? subjects.find((s) => s.id === subjectId)?.textbook_selections ?? []).filter((v) => v.input !== title), selection] });
+          onAdd={(subjectId, title, picked) => {
+            if (picked) onSelectionsChange?.({ ...selections, [subjectId]: [...(selections?.[subjectId] ?? subjects.find((s) => s.id === subjectId)?.textbook_selections ?? []).filter((v) => v.input !== title), ...picked] });
             const cur = value[subjectId] ?? [];
             if (!cur.includes(title)) onChange({ ...value, [subjectId]: [...cur, title] });
             setAdding(false);
@@ -104,7 +107,7 @@ export function TextbookList({ subjects, value, onChange, selections, onSelectio
   );
 }
 
-function AddTextbookSheet({ subjects, onClose, onAdd }: { subjects: Schemas['Subject'][]; onClose: () => void; onAdd: (subjectId: number, title: string, selection?: Schemas['UserTextbookSelection']) => void }) {
+function AddTextbookSheet({ subjects, onClose, onAdd }: { subjects: Schemas['Subject'][]; onClose: () => void; onAdd: (subjectId: number, title: string, selections?: Schemas['UserTextbookSelection'][]) => void }) {
   const [subjectId, setSubjectId] = useState<number>(subjects[0]?.id ?? 0);
   const [title, setTitle] = useState('');
   return (
@@ -129,7 +132,7 @@ function AddTextbookSheet({ subjects, onClose, onAdd }: { subjects: Schemas['Sub
       <Text variant="small" style={styles.hint}>
         写上作者和书名即可，不需要上传教材
       </Text>
-      <MatchHint subjectId={subjectId} title={title} onSelect={(selection) => onAdd(subjectId, title.trim(), selection)} />
+      <MatchHint subjectId={subjectId} title={title} onSelect={(picked) => onAdd(subjectId, title.trim(), picked)} />
       <Button title="添加" disabled={!title.trim() || !subjectId} onPress={() => subjectId && onAdd(subjectId, title.trim())} style={styles.sheetButton} />
     </BottomSheet>
   );
@@ -190,7 +193,7 @@ export function TextbookSheet({ subject, onClose, onSaved }: { subject: Schemas[
           </View>
         ) : null}
       </View>
-      {books.length < MAX_TEXTBOOKS ? <MatchHint subjectId={subject.id} title={title} onSelect={(selection) => { setSelections([...selections.filter((s) => s.input !== selection.input), selection]); add(); }} /> : null}
+      {books.length < MAX_TEXTBOOKS ? <MatchHint subjectId={subject.id} title={title} onSelect={(picked) => { setSelections([...selections.filter((s) => s.input !== title.trim()), ...picked]); add(); }} /> : null}
       <Text variant="small">仅影响之后新生成的答案，已有答案和历史批改保持不变。</Text>
       {error ? (
         <Text variant="caption" color={semantic.danger}>

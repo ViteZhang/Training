@@ -61,6 +61,7 @@ function MetadataFields() {
     </Space>
     <Form.Item name="discipline" label="适用学科" rules={[{ required: true, whitespace: true }]}><Input maxLength={128} /></Form.Item>
     <Form.Item name="aliases" label="简称与别名" extra="回车添加，最多 20 个；别名可重复存在于不同教材中。"><Select mode="tags" maxCount={20} tokenSeparators={['，', ',']} /></Form.Item>
+    <Form.Item name="series" label="套书名（选填）" extra="分上下卷等多册出版时，每册填同一个套书名（作者也需相同）；用户输入套书名会整套一起匹配。单册教材不填。"><Input maxLength={128} placeholder="如：西方哲学史" /></Form.Item>
   </>;
 }
 function EditionFields() {
@@ -84,16 +85,16 @@ function BookForm({ book: initialBook, onClose, onDone }: { book?: Book; onClose
   const qc = useQueryClient();
   const { modal, message } = AntApp.useApp();
   const mutation = useMutation({ mutationFn: async (v: BookFormValues) => {
-    if (!book) return unwrap(api.POST('/admin/textbooks', { body: { title: v.title, author: v.author, kind: v.kind, discipline: v.discipline, aliases: v.aliases ?? [], idempotency_key: key, initial_edition: { edition: v.edition, publisher: v.publisher, publication_year: v.publication_year ?? undefined, isbn: v.isbn, license_note: v.license_note, authorized: v.authorized, scope_note: v.scope_note } } }));
+    if (!book) return unwrap(api.POST('/admin/textbooks', { body: { title: v.title, author: v.author, kind: v.kind, discipline: v.discipline, aliases: v.aliases ?? [], series: v.series?.trim() ?? '', idempotency_key: key, initial_edition: { edition: v.edition, publisher: v.publisher, publication_year: v.publication_year ?? undefined, isbn: v.isbn, license_note: v.license_note, authorized: v.authorized, scope_note: v.scope_note } } }));
     const editionScopes = v.edition_scopes?.filter((scope) => scope.scope_note !== book.editions.find((edition) => edition.id === scope.edition_id)?.scope_note) ?? [];
     const params = { path: { bookId: book.id } };
-    await unwrap(api.PUT('/admin/textbooks/{bookId}', { params, body: { title: v.title, author: v.author, kind: v.kind, discipline: v.discipline, aliases: v.aliases ?? [], expected_version: book.version, edition_scopes: editionScopes } }));
+    await unwrap(api.PUT('/admin/textbooks/{bookId}', { params, body: { title: v.title, author: v.author, kind: v.kind, discipline: v.discipline, aliases: v.aliases ?? [], series: v.series?.trim() ?? '', expected_version: book.version, edition_scopes: editionScopes } }));
     // 保存后重新读取；旧服务忽略新增字段或数据未落库时，不能仅凭 HTTP 200 关闭表单。
     let saved: Book;
     try { saved = await unwrap(api.GET('/admin/textbooks/{bookId}', { params, cache: 'no-store' })); }
     catch { throw new SaveVerificationError('暂时无法确认保存结果，当前输入已保留，请重试'); }
     const aliases = [...new Set((v.aliases ?? []).map((alias) => alias.trim()))];
-    if (saved.title !== v.title.trim() || saved.author !== v.author.trim() || saved.kind !== v.kind || saved.discipline !== v.discipline.trim() || JSON.stringify(saved.aliases) !== JSON.stringify(aliases)) {
+    if (saved.title !== v.title.trim() || saved.author !== v.author.trim() || saved.kind !== v.kind || saved.discipline !== v.discipline.trim() || JSON.stringify(saved.aliases) !== JSON.stringify(aliases) || (saved.series ?? '') !== (v.series ?? '').trim()) {
       throw new SaveVerificationError('教材信息未保存成功，当前输入已保留，请重试');
     }
     if (editionScopes.some((scope) => saved.editions.find((edition) => edition.id === scope.edition_id)?.scope_note !== scope.scope_note.trim())) {
@@ -147,7 +148,7 @@ function BookDetail({ bookId, onClose }: { bookId: number; onClose: () => void }
   const b = q.data;
   return <Drawer open width={880} title={b?.title ?? '教材详情'} onClose={onClose}>
     <Loadable loading={q.isPending} error={q.error}>{b && <>
-      <Descriptions size="small" column={2} items={[{ key: 'author', label: '作者 / 编者', children: b.author }, { key: 'kind', label: '类型', children: b.kind === 'textbook' ? '教材' : '讲义' }, { key: 'discipline', label: '适用学科', children: b.discipline }, { key: 'aliases', label: '别名', children: b.aliases.join('、') || '—' }]} />
+      <Descriptions size="small" column={2} items={[{ key: 'author', label: '作者 / 编者', children: b.author }, { key: 'kind', label: '类型', children: b.kind === 'textbook' ? '教材' : '讲义' }, { key: 'discipline', label: '适用学科', children: b.discipline }, { key: 'aliases', label: '别名', children: b.aliases.join('、') || '—' }, { key: 'series', label: '套书名', children: b.series || '—' }]} />
       <Space style={{ margin: '16px 0 24px' }}><Button onClick={() => setEditing(true)}>编辑教材信息</Button><Button onClick={() => setAddingEdition(true)}>新增出版版本</Button></Space>
       {b.editions.map((e) => <Card key={e.id} title={e.edition} size="small" style={{ marginBottom: 20 }} extra={<Button onClick={() => createRevision.mutate(e.id)} loading={createRevision.isPending && createRevision.variables === e.id} disabled={createRevision.isPending}>新建原文草稿</Button>}>
         <Space wrap style={{marginBottom:16}}>{b.default_edition_id===e.id&&<Tag color="green">默认版次</Tag>}<Button onClick={()=>setAvailability(e)}>授权与下架</Button><Button disabled={setDefault.isPending||(b.default_edition_id!==e.id&&e.status!=='published')} onClick={()=>modal.confirm({title:b.default_edition_id===e.id?'取消默认版次？':'设为默认版次？',content:'影响之后未指定版次的书名匹配，已有答案保持不变。',onOk:()=>setDefault.mutateAsync(e).then(()=>undefined)})}>{b.default_edition_id===e.id?'取消默认':'设为默认'}</Button></Space><Descriptions column={2} size="small" items={[{ key: 'state', label: '线上状态', children: e.status === 'published' ? '已发布' : e.status === 'withdrawn' ? '已下架' : '未发布' }, { key: 'pub', label: '出版社 / 年份', children: [e.publisher, e.publication_year].filter(Boolean).join(' · ') || '—' }, { key: 'isbn', label: 'ISBN', children: e.isbn || '—' }, { key: 'license', label: '授权说明', children: e.license_note }, { key: 'scope', label: '适用范围', children: e.scope_note || '—' }]} />

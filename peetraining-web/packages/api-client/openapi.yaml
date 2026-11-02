@@ -7981,6 +7981,7 @@ components:
   schemas:
     UserTextbookSelection:
       type: object
+      description: 同一书名可锁定多个版次（如套书的上下卷），每册一条
       required: [input, edition_id]
       properties:
         input: {type: string, minLength: 1, maxLength: 64}
@@ -8407,6 +8408,10 @@ components:
             type: string
             minLength: 1
             maxLength: 128
+        series:
+          type: string
+          maxLength: 128
+          description: 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册
     TextbookEditionInput:
       type: object
       required:
@@ -8598,6 +8603,7 @@ components:
       - kind
       - discipline
       - aliases
+      - series
       - version
       - editions
       - created_at
@@ -8631,6 +8637,10 @@ components:
             type: string
             minLength: 1
             maxLength: 128
+        series:
+          type: string
+          maxLength: 128
+          description: 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册
         version:
           type: integer
           format: int64
@@ -8684,6 +8694,10 @@ components:
             type: string
             minLength: 1
             maxLength: 128
+        series:
+          type: string
+          maxLength: 128
+          description: 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册
         initial_edition:
           $ref: '#/components/schemas/TextbookEditionInput'
         idempotency_key:
@@ -8724,6 +8738,10 @@ components:
             type: string
             minLength: 1
             maxLength: 128
+        series:
+          type: string
+          maxLength: 128
+          description: 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册
         expected_version:
           type: integer
           format: int64

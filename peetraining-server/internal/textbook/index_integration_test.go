@@ -304,3 +304,70 @@ func TestMatchingIsUnambiguousAndSnapshotAvailability(t *testing.T) {
 		t.Fatal("撤销摘录展示未生效", visible, err)
 	}
 }
+
+// 上下卷填同一套书名：输入套书名整套匹配，输入单册书名只匹配该册，不同作者的同名套书靠学科消歧。
+func TestSeriesMatchesWholeSet(t *testing.T) {
+	s, db := setup(t)
+	ctx := context.Background()
+	_, r, g, _ := indexedRevision(t, s)
+	if err := s.ProcessIndex(ctx, g.ID); err != nil {
+		t.Fatal(err)
+	}
+	create := func(key, title, author, discipline string) Book {
+		m := rules.TextbookMetadata{Title: title, Author: author, Kind: "textbook", Discipline: discipline, Aliases: []string{}, Series: " 西方哲学史 "}
+		b, err := s.Create(ctx, 1, key, m, edition())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if b.Series != "西方哲学史" {
+			t.Fatal("套书名未保存", b.Series)
+		}
+		// 复用已建好的索引代次，只为测试目录匹配规则。
+		if _, err = db.Exec("UPDATE textbook_editions SET status='published',current_revision_id=?,current_generation_id=? WHERE id=?", r.ID, g.ID, b.Editions[0].ID); err != nil {
+			t.Fatal(err)
+		}
+		return b
+	}
+	down := create("series-down-key", "西方哲学史（下卷）", "邓晓芒", "西方哲学史")
+	up := create("series-up-key", "西方哲学史（上卷）", "邓晓芒", "西方哲学史")
+	ids := func(rows []dbq.ListPublishedTextbookEditionsRow) []uint64 {
+		out := []uint64{}
+		for _, v := range rows {
+			out = append(out, v.ID)
+		}
+		return out
+	}
+	for _, name := range []string{"西方哲学史", "《西方哲学史》", "邓晓芒西方哲学史"} {
+		got, err := s.MatchEditions(ctx, []string{name}, "西方哲学史", nil)
+		if err != nil || len(got) != 2 || got[0].ID != up.Editions[0].ID || got[1].ID != down.Editions[0].ID {
+			t.Fatal(name, ids(got), err)
+		}
+	}
+	got, _ := s.MatchEditions(ctx, []string{"西方哲学史（下卷）"}, "西方哲学史", nil)
+	if len(got) != 1 || got[0].ID != down.Editions[0].ID {
+		t.Fatal("单册书名应只匹配该册", ids(got))
+	}
+	// 显式锁定一册后，同名输入不再自动补全整套。
+	got, _ = s.MatchEditions(ctx, []string{"西方哲学史"}, "西方哲学史", []uint64{up.Editions[0].ID})
+	if len(got) != 1 || got[0].ID != up.Editions[0].ID {
+		t.Fatal("显式版次被自动匹配覆盖", ids(got))
+	}
+	// 另一作者的同名套书：学科不同则按专业课名称消歧，学科都不符则不猜。
+	other := rules.TextbookMetadata{Title: "西方哲学史", Author: "赵敦华", Kind: "textbook", Discipline: "哲学", Aliases: []string{}, Series: "西方哲学史"}
+	ob, err := s.Create(ctx, 1, "series-other-key", other, edition())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec("UPDATE textbook_editions SET status='published',current_revision_id=?,current_generation_id=? WHERE id=?", r.ID, g.ID, ob.Editions[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = s.MatchEditions(ctx, []string{"西方哲学史"}, "西方哲学史", nil); len(got) != 2 {
+		t.Fatal("学科消歧失败", ids(got))
+	}
+	if got, _ = s.MatchEditions(ctx, []string{"西方哲学史"}, "伦理学", nil); len(got) != 0 {
+		t.Fatal("歧义时不应猜", ids(got))
+	}
+	if got, _ = s.MatchEditions(ctx, []string{"赵敦华西方哲学史"}, "伦理学", nil); len(got) != 1 || got[0].ID != ob.Editions[0].ID {
+		t.Fatal("作者限定应唯一", ids(got))
+	}
+}

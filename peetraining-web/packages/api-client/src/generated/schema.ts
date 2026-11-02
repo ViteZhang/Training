@@ -4811,6 +4811,7 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description 同一书名可锁定多个版次（如套书的上下卷），每册一条 */
         UserTextbookSelection: {
             input: string;
             /** Format: int64 */
@@ -4981,6 +4982,8 @@ export interface components {
             kind: "textbook" | "handout";
             discipline: string;
             aliases: string[];
+            /** @description 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册 */
+            series?: string;
         };
         TextbookEditionInput: {
             edition: string;
@@ -5056,6 +5059,8 @@ export interface components {
             kind: "textbook" | "handout";
             discipline: string;
             aliases: string[];
+            /** @description 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册 */
+            series: string;
             /** Format: int64 */
             version: number;
             editions: components["schemas"]["TextbookEdition"][];
@@ -5073,6 +5078,8 @@ export interface components {
             kind: "textbook" | "handout";
             discipline: string;
             aliases: string[];
+            /** @description 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册 */
+            series?: string;
             initial_edition: components["schemas"]["TextbookEditionInput"];
             idempotency_key: string;
         };
@@ -5083,6 +5090,8 @@ export interface components {
             kind: "textbook" | "handout";
             discipline: string;
             aliases: string[];
+            /** @description 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册 */
+            series?: string;
             /** Format: int64 */
             expected_version: number;
             /** @description 按出版版本更新使用范围；省略时保留原值，空字符串清空范围。与教材信息在同一事务保存。 */

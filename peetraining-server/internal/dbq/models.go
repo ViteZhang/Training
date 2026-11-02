@@ -7208,6 +7208,7 @@ type Textbook struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	DefaultEditionID sql.NullInt64
+	Series           string
 }
 
 type TextbookChunk struct {

@@ -23,6 +23,7 @@ func (s *Service) ConfigureEvidence(engine *ai.Engine, f *flags.Service) {
 }
 
 // MatchEditions 只匹配当前可用版次；无默认的多版本、同名异作者保持未确定。
+// 套书（上下卷等）按套书名整套匹配，每册各取一个版次。
 func (s *Service) MatchEditions(ctx context.Context, names []string, subject string, explicit []uint64) ([]dbq.ListPublishedTextbookEditionsRow, error) {
 	rows, err := dbq.New(s.db).ListPublishedTextbookEditions(ctx, sql.NullTime{Time: s.now().UTC(), Valid: true})
 	if err != nil {
@@ -46,14 +47,14 @@ func (s *Service) MatchEditions(ctx context.Context, names []string, subject str
 		if err != nil {
 			continue
 		}
-		names := []string{book.Title}
 		var aliases []string
 		_ = json.Unmarshal(book.Aliases, &aliases)
-		names = append(names, aliases...)
-		for _, name := range names {
-			for _, v := range []string{name, name + book.Author, book.Author + name, book.Author + name + e.Edition, name + e.Edition, name + book.Author + e.Edition, name + e.Edition + book.Author} {
-				explicitNames[rules.NormalizeTextbookName(v)] = true
-			}
+		titles := append([]string{book.Title}, aliases...)
+		if book.Series != "" {
+			titles = append(titles, book.Series)
+		}
+		for _, v := range nameVariants(titles, book.Author, e.Edition) {
+			explicitNames[v] = true
 		}
 	}
 	for _, id := range explicit {
@@ -68,57 +69,119 @@ func (s *Service) MatchEditions(ctx context.Context, names []string, subject str
 		if explicitNames[input] {
 			continue
 		}
-		candidates := []dbq.ListPublishedTextbookEditionsRow{}
-		for _, e := range rows {
-			aliases := []string{e.Title}
-			var more []string
-			_ = json.Unmarshal(e.Aliases, &more)
-			aliases = append(aliases, more...)
-			match := false
-			for _, alias := range aliases {
-				for _, v := range []string{alias, alias + e.Author, e.Author + alias, e.Author + alias + e.Edition, alias + e.Edition, alias + e.Author + e.Edition, alias + e.Edition + e.Author} {
-					if input == rules.NormalizeTextbookName(v) {
-						match = true
-					}
-				}
-			}
-			if match {
-				candidates = append(candidates, e)
+		for _, e := range matchByName(rows, input, subject) {
+			add(e)
+		}
+	}
+	return out, nil
+}
+
+// nameVariants 是一本书可被识别的写法：书名或别名，可带作者（前后均可）和版次，均已规范化。
+func nameVariants(titles []string, author, edition string) []string {
+	out := make([]string, 0, len(titles)*7)
+	for _, t := range titles {
+		for _, v := range []string{t, t + author, author + t, author + t + edition, t + edition, t + author + edition, t + edition + author} {
+			out = append(out, rules.NormalizeTextbookName(v))
+		}
+	}
+	return out
+}
+
+func hasVariant(input string, titles []string, author, edition string) bool {
+	for _, v := range nameVariants(titles, author, edition) {
+		if v == input {
+			return true
+		}
+	}
+	return false
+}
+
+// matchByName 把书名解析为唯一的一本书或一整套书。命中多个选项时只用严格相同学科消歧，仍不唯一则不匹配。
+func matchByName(rows []dbq.ListPublishedTextbookEditionsRow, input, subject string) []dbq.ListPublishedTextbookEditionsRow {
+	type option struct {
+		rows   []dbq.ListPublishedTextbookEditionsRow
+		series bool
+	}
+	options := map[string]*option{}
+	order := []string{}
+	put := func(key string, series bool, e dbq.ListPublishedTextbookEditionsRow) {
+		o := options[key]
+		if o == nil {
+			o = &option{series: series}
+			options[key] = o
+			order = append(order, key)
+		}
+		o.rows = append(o.rows, e)
+	}
+	seriesOf := map[uint64]string{}
+	for _, e := range rows {
+		titles := []string{e.Title}
+		var more []string
+		_ = json.Unmarshal(e.Aliases, &more)
+		titles = append(titles, more...)
+		if hasVariant(input, titles, e.Author, e.Edition) {
+			put(fmt.Sprintf("book:%d", e.BookID), false, e)
+		}
+		if e.Series != "" {
+			// 同一套书要求套书名和作者都相同，避免不同作者的同名套书被并成一套。
+			key := "series:" + rules.NormalizeTextbookName(e.Series) + "\x00" + rules.NormalizeTextbookName(e.Author)
+			seriesOf[e.BookID] = key
+			if hasVariant(input, []string{e.Series}, e.Author, e.Edition) {
+				put(key, true, e)
 			}
 		}
-		// 精确同名有多书时只用严格相同学科消歧，不把相近学科当确定匹配。
-		books := map[uint64]bool{}
-		for _, e := range candidates {
-			books[e.BookID] = true
+	}
+	// 某册书名恰好等于套书名时，整套优先，不再单独算这一册。
+	keys := []string{}
+	for _, k := range order {
+		o := options[k]
+		if !o.series {
+			if sk := seriesOf[o.rows[0].BookID]; sk != "" && options[sk] != nil {
+				continue
+			}
 		}
-		if len(books) > 1 {
-			filtered := candidates[:0]
-			for _, e := range candidates {
+		keys = append(keys, k)
+	}
+	if len(keys) > 1 {
+		filtered := []string{}
+		for _, k := range keys {
+			for _, e := range options[k].rows {
 				if rules.NormalizeTextbookName(e.Discipline) == rules.NormalizeTextbookName(subject) {
-					filtered = append(filtered, e)
+					filtered = append(filtered, k)
+					break
 				}
 			}
-			candidates = filtered
-			books = map[uint64]bool{}
-			for _, e := range candidates {
-				books[e.BookID] = true
-			}
 		}
-		if len(books) != 1 {
-			continue
+		keys = filtered
+	}
+	if len(keys) != 1 {
+		return nil
+	}
+	byBook := map[uint64][]dbq.ListPublishedTextbookEditionsRow{}
+	books := []uint64{}
+	for _, e := range options[keys[0]].rows {
+		if byBook[e.BookID] == nil {
+			books = append(books, e.BookID)
 		}
+		byBook[e.BookID] = append(byBook[e.BookID], e)
+	}
+	// 套书按书名排序，上卷在前、下卷在后。
+	sort.SliceStable(books, func(i, j int) bool { return byBook[books[i]][0].Title < byBook[books[j]][0].Title })
+	out := []dbq.ListPublishedTextbookEditionsRow{}
+	for _, b := range books {
+		candidates := byBook[b]
 		if len(candidates) == 1 {
-			add(candidates[0])
+			out = append(out, candidates[0])
 			continue
 		}
 		for _, e := range candidates {
 			if e.DefaultEditionID.Valid && uint64(e.DefaultEditionID.Int64) == e.ID {
-				add(e)
+				out = append(out, e)
 				break
 			}
 		}
 	}
-	return out, nil
+	return out
 }
 func (s *Service) PrepareAnswer(ctx context.Context, user uint64, in ai.GenerateAnswerIn) (ai.GenerateAnswerIn, error) {
 	if s.flags == nil || s.engine == nil {

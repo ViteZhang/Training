@@ -54,6 +54,19 @@ it('未匹配和匹配接口故障不影响自由书名保存，不显示缺口�
   await waitFor(() => expect(saved).toHaveBeenCalled());
   expect(mockCalls.find((c) => c.method === 'PATCH')?.body).toEqual({ textbooks: ['未收录的讲义'], textbook_selections: [] });
 });
+it('套书匹配到多册时显示整套，锁定时每册各存一条版次', async () => {
+  const match = (id: number, title: string) => ({ input: '西方哲学史', book_id: id, edition_id: id * 10, title, author: '邓晓芒', edition: '第一版', method: 'auto', catalog_version: '1', available: true });
+  mockResponses['POST /subjects/{subjectId}/textbook-matches'] = () => ({ status: 200, data: { items: [match(1, '西方哲学史（上卷）'), match(2, '西方哲学史（下卷）')] } });
+  mockResponses['PATCH /subjects/{subjectId}'] = () => ({ status: 200, data: {} });
+  const saved = jest.fn();
+  await wrap(<TextbookSheet subject={{ id: 1, name: '西方哲学史', textbooks: [] } as unknown as Schemas['Subject']} onClose={jest.fn()} onSaved={saved} />);
+  await fireEvent.changeText(screen.getByLabelText('教材名称'), '西方哲学史');
+  expect(await screen.findByText('已匹配整套 2 册 · 邓晓芒 · 西方哲学史（上卷）、西方哲学史（下卷）')).toBeTruthy();
+  await fireEvent.press(screen.getByText('使用这 2 册'));
+  await fireEvent.press(screen.getByText('保存'));
+  await waitFor(() => expect(saved).toHaveBeenCalled());
+  expect(mockCalls.find((c) => c.method === 'PATCH')?.body).toEqual({ textbooks: ['西方哲学史'], textbook_selections: [{ input: '西方哲学史', edition_id: 10 }, { input: '西方哲学史', edition_id: 20 }] });
+});
 it('生成前说明扣次，成功候选不自动覆盖；退出后恢复并允许采用', async () => {
   mockResponses['GET /questions/{questionId}/answer-evidence'] = () => ({ status: 200, data: { snapshot: null } });
   let created = false;
