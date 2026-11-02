@@ -156,7 +156,7 @@ func (s *Service) Create(ctx context.Context, actor uint64, key string, m rules.
 			return err
 		}
 		now := s.now().UTC()
-		n, err := q.CreateTextbook(ctx, dbq.CreateTextbookParams{Title: m.Title, Author: m.Author, Kind: m.Kind, Discipline: m.Discipline, Aliases: aliases, CreatedBy: actor, RequestKey: key, RequestHash: hash, CreatedAt: now, UpdatedAt: now})
+		n, err := q.CreateTextbook(ctx, dbq.CreateTextbookParams{Title: m.Title, Author: m.Author, Kind: m.Kind, Discipline: m.Discipline, Aliases: aliases, Series: m.Series, CreatedBy: actor, RequestKey: key, RequestHash: hash, CreatedAt: now, UpdatedAt: now})
 		if err != nil {
 			return err
 		}
@@ -231,7 +231,7 @@ func (s *Service) Update(ctx context.Context, id, version uint64, m rules.Textbo
 				return versionConflict()
 			}
 		}
-		_, err = q.UpdateTextbookMetadata(ctx, dbq.UpdateTextbookMetadataParams{Title: m.Title, Author: m.Author, Kind: m.Kind, Discipline: m.Discipline, Aliases: aliases, UpdatedAt: s.now().UTC(), ID: id, Version: version})
+		_, err = q.UpdateTextbookMetadata(ctx, dbq.UpdateTextbookMetadataParams{Title: m.Title, Author: m.Author, Kind: m.Kind, Discipline: m.Discipline, Aliases: aliases, Series: m.Series, UpdatedAt: s.now().UTC(), ID: id, Version: version})
 		return err
 	})
 	if err != nil {

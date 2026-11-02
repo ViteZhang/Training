@@ -49,7 +49,7 @@ UPDATE textbook_editions SET status=?,authorized=?,license_note=?,license_expire
 -- name: SetTextbookDefaultEdition :exec
 UPDATE textbooks SET default_edition_id=?,version=version+1,updated_at=? WHERE id=?;
 -- name: ListPublishedTextbookEditions :many
-SELECT b.title,b.author,b.kind,b.discipline,b.aliases,b.default_edition_id,e.*
+SELECT b.title,b.author,b.kind,b.discipline,b.aliases,b.series,b.default_edition_id,e.*
 FROM textbook_editions e JOIN textbooks b ON b.id=e.book_id
 WHERE e.status='published' AND e.authorized=TRUE AND (e.license_expires_at IS NULL OR e.license_expires_at>?)
 ORDER BY e.book_id,e.id;

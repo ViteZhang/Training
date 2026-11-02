@@ -33,7 +33,7 @@ func textbookSummary(r dbq.ListTextbookRevisionsRow) gen.TextbookRevisionSummary
 	return out
 }
 func textbookBook(b textbook.Book) gen.Textbook {
-	out := gen.Textbook{Id: int64(b.ID), Title: b.Title, Author: b.Author, Kind: gen.TextbookKind(b.Kind), Discipline: b.Discipline, Aliases: b.Aliases, Version: int64(b.Version), CreatedAt: b.CreatedAt, UpdatedAt: b.UpdatedAt, Editions: []gen.TextbookEdition{}}
+	out := gen.Textbook{Id: int64(b.ID), Title: b.Title, Author: b.Author, Kind: gen.TextbookKind(b.Kind), Discipline: b.Discipline, Aliases: b.Aliases, Series: b.Series, Version: int64(b.Version), CreatedAt: b.CreatedAt, UpdatedAt: b.UpdatedAt, Editions: []gen.TextbookEdition{}}
 	if b.DefaultEditionID.Valid {
 		out.DefaultEditionId = &b.DefaultEditionID.Int64
 	}
@@ -94,7 +94,7 @@ func (h *Handlers) CreateTextbook(c *gin.Context) {
 	if !bind(c, &body) {
 		return
 	}
-	b, err := h.deps.Textbooks.Create(c.Request.Context(), currentAdmin(c).ID, body.IdempotencyKey, rules.TextbookMetadata{Title: body.Title, Author: body.Author, Kind: string(body.Kind), Discipline: body.Discipline, Aliases: body.Aliases}, editionInput(body.InitialEdition))
+	b, err := h.deps.Textbooks.Create(c.Request.Context(), currentAdmin(c).ID, body.IdempotencyKey, rules.TextbookMetadata{Title: body.Title, Author: body.Author, Kind: string(body.Kind), Discipline: body.Discipline, Aliases: body.Aliases, Series: deref(body.Series)}, editionInput(body.InitialEdition))
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -116,7 +116,7 @@ func (h *Handlers) UpdateTextbook(c *gin.Context, bookID int64) {
 			scopes = append(scopes, rules.TextbookEditionScopeUpdate{EditionID: uint64(scope.EditionId), ExpectedVersion: uint64(scope.ExpectedVersion), ScopeNote: scope.ScopeNote})
 		}
 	}
-	b, err := h.deps.Textbooks.Update(c.Request.Context(), uint64(bookID), uint64(body.ExpectedVersion), rules.TextbookMetadata{Title: body.Title, Author: body.Author, Kind: string(body.Kind), Discipline: body.Discipline, Aliases: body.Aliases}, scopes...)
+	b, err := h.deps.Textbooks.Update(c.Request.Context(), uint64(bookID), uint64(body.ExpectedVersion), rules.TextbookMetadata{Title: body.Title, Author: body.Author, Kind: string(body.Kind), Discipline: body.Discipline, Aliases: body.Aliases, Series: deref(body.Series)}, scopes...)
 	if err != nil {
 		_ = c.Error(err)
 		return
