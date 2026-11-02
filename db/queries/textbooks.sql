@@ -1,7 +1,7 @@
 -- T38 官方教材库：仅共享教材，不读取用户私有题目或原文。
 -- name: CreateTextbook :execlastid
-INSERT INTO textbooks (title, author, kind, discipline, aliases, created_by, request_key, request_hash, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO textbooks (title, author, kind, discipline, aliases, series, created_by, request_key, request_hash, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: GetTextbook :one
 SELECT * FROM textbooks WHERE id = ?;
@@ -13,19 +13,19 @@ SELECT * FROM textbooks WHERE id = ? FOR UPDATE;
 SELECT * FROM textbooks WHERE created_by = ? AND request_key = ?;
 
 -- name: UpdateTextbookMetadata :execrows
-UPDATE textbooks SET title = ?, author = ?, kind = ?, discipline = ?, aliases = ?, version = version + 1, updated_at = ?
+UPDATE textbooks SET title = ?, author = ?, kind = ?, discipline = ?, aliases = ?, series = ?, version = version + 1, updated_at = ?
 WHERE id = ? AND version = ?;
 
 -- name: ListTextbooks :many
 SELECT * FROM textbooks
-WHERE (CAST(sqlc.arg(search) AS CHAR) = '' OR LOCATE(CAST(sqlc.arg(search) AS CHAR), CONCAT(title, ' ', author, ' ', CAST(aliases AS CHAR))) > 0)
+WHERE (CAST(sqlc.arg(search) AS CHAR) = '' OR LOCATE(CAST(sqlc.arg(search) AS CHAR), CONCAT(title, ' ', author, ' ', series, ' ', CAST(aliases AS CHAR))) > 0)
 AND (CAST(sqlc.arg(kind) AS CHAR) = '' OR kind = CAST(sqlc.arg(kind) AS CHAR))
 AND (CAST(sqlc.arg(discipline) AS CHAR) = '' OR discipline = CAST(sqlc.arg(discipline) AS CHAR))
 ORDER BY id DESC LIMIT ? OFFSET ?;
 
 -- name: CountTextbooks :one
 SELECT COUNT(*) FROM textbooks
-WHERE (CAST(sqlc.arg(search) AS CHAR) = '' OR LOCATE(CAST(sqlc.arg(search) AS CHAR), CONCAT(title, ' ', author, ' ', CAST(aliases AS CHAR))) > 0)
+WHERE (CAST(sqlc.arg(search) AS CHAR) = '' OR LOCATE(CAST(sqlc.arg(search) AS CHAR), CONCAT(title, ' ', author, ' ', series, ' ', CAST(aliases AS CHAR))) > 0)
 AND (CAST(sqlc.arg(kind) AS CHAR) = '' OR kind = CAST(sqlc.arg(kind) AS CHAR))
 AND (CAST(sqlc.arg(discipline) AS CHAR) = '' OR discipline = CAST(sqlc.arg(discipline) AS CHAR));
 

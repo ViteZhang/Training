@@ -436,6 +436,10 @@ ASR_API_KEY=
 
 开发验证禁止使用 `make dev` / `make migrate-up` 连接共享数据库；使用隔离 testcontainers。若本机 Docker Hub 无法获取 Ryuk，可在确认仅连接隔离测试容器后设置 `TESTCONTAINERS_RYUK_DISABLED=true`，测试后只回收本次测试创建的容器。
 
+### 教材套书名（2026-11-02，迁移 00036）
+
+发布 server 前先在生产库执行 `00036_textbook_series.sql`（只给 `textbooks` 加 `series` 列，默认空，不影响已有数据）。之后在后台把上下卷等多册教材分别填同一个套书名（作者需相同），用户输入套书名即可整套匹配。回滚无需删列：清空套书名即恢复原匹配规则。
+
 ## 官方教材文件导入（T39）
 
 增量迁移为 `00030_textbook_import.sql`，发布时 API 与 Worker 同步更新。`textbook:import` 在 low 队列逐页处理，`textbook:recover` 每两分钟恢复未投递任务。任务处理最长两小时并自动重试 3 次，MySQL 保存已成功页面，后续从检查点继续。教材 PDF 全部页面渲染后进入 `textbook_recognize@v1` 视觉能力，不使用个人资料的文字层/OCR 分支。

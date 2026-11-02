@@ -14,7 +14,7 @@ import (
 
 const countTextbooks = `-- name: CountTextbooks :one
 SELECT COUNT(*) FROM textbooks
-WHERE (CAST(? AS CHAR) = '' OR LOCATE(CAST(? AS CHAR), CONCAT(title, ' ', author, ' ', CAST(aliases AS CHAR))) > 0)
+WHERE (CAST(? AS CHAR) = '' OR LOCATE(CAST(? AS CHAR), CONCAT(title, ' ', author, ' ', series, ' ', CAST(aliases AS CHAR))) > 0)
 AND (CAST(? AS CHAR) = '' OR kind = CAST(? AS CHAR))
 AND (CAST(? AS CHAR) = '' OR discipline = CAST(? AS CHAR))
 `
@@ -40,8 +40,8 @@ func (q *Queries) CountTextbooks(ctx context.Context, arg CountTextbooksParams) 
 }
 
 const createTextbook = `-- name: CreateTextbook :execlastid
-INSERT INTO textbooks (title, author, kind, discipline, aliases, created_by, request_key, request_hash, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO textbooks (title, author, kind, discipline, aliases, series, created_by, request_key, request_hash, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateTextbookParams struct {
@@ -50,6 +50,7 @@ type CreateTextbookParams struct {
 	Kind        string
 	Discipline  string
 	Aliases     json.RawMessage
+	Series      string
 	CreatedBy   uint64
 	RequestKey  string
 	RequestHash string
@@ -65,6 +66,7 @@ func (q *Queries) CreateTextbook(ctx context.Context, arg CreateTextbookParams) 
 		arg.Kind,
 		arg.Discipline,
 		arg.Aliases,
+		arg.Series,
 		arg.CreatedBy,
 		arg.RequestKey,
 		arg.RequestHash,
@@ -152,7 +154,7 @@ func (q *Queries) CreateTextbookRevision(ctx context.Context, arg CreateTextbook
 }
 
 const getTextbook = `-- name: GetTextbook :one
-SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at, default_edition_id FROM textbooks WHERE id = ?
+SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at, default_edition_id, series FROM textbooks WHERE id = ?
 `
 
 func (q *Queries) GetTextbook(ctx context.Context, id uint64) (Textbook, error) {
@@ -172,6 +174,7 @@ func (q *Queries) GetTextbook(ctx context.Context, id uint64) (Textbook, error) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DefaultEditionID,
+		&i.Series,
 	)
 	return i, err
 }
@@ -250,7 +253,7 @@ func (q *Queries) GetTextbookEditionRequest(ctx context.Context, arg GetTextbook
 }
 
 const getTextbookRequest = `-- name: GetTextbookRequest :one
-SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at, default_edition_id FROM textbooks WHERE created_by = ? AND request_key = ?
+SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at, default_edition_id, series FROM textbooks WHERE created_by = ? AND request_key = ?
 `
 
 type GetTextbookRequestParams struct {
@@ -275,6 +278,7 @@ func (q *Queries) GetTextbookRequest(ctx context.Context, arg GetTextbookRequest
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DefaultEditionID,
+		&i.Series,
 	)
 	return i, err
 }
@@ -444,8 +448,8 @@ func (q *Queries) ListTextbookRevisions(ctx context.Context, editionID uint64) (
 }
 
 const listTextbooks = `-- name: ListTextbooks :many
-SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at, default_edition_id FROM textbooks
-WHERE (CAST(? AS CHAR) = '' OR LOCATE(CAST(? AS CHAR), CONCAT(title, ' ', author, ' ', CAST(aliases AS CHAR))) > 0)
+SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at, default_edition_id, series FROM textbooks
+WHERE (CAST(? AS CHAR) = '' OR LOCATE(CAST(? AS CHAR), CONCAT(title, ' ', author, ' ', series, ' ', CAST(aliases AS CHAR))) > 0)
 AND (CAST(? AS CHAR) = '' OR kind = CAST(? AS CHAR))
 AND (CAST(? AS CHAR) = '' OR discipline = CAST(? AS CHAR))
 ORDER BY id DESC LIMIT ? OFFSET ?
@@ -491,6 +495,7 @@ func (q *Queries) ListTextbooks(ctx context.Context, arg ListTextbooksParams) ([
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DefaultEditionID,
+			&i.Series,
 		); err != nil {
 			return nil, err
 		}
@@ -506,7 +511,7 @@ func (q *Queries) ListTextbooks(ctx context.Context, arg ListTextbooksParams) ([
 }
 
 const lockTextbook = `-- name: LockTextbook :one
-SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at, default_edition_id FROM textbooks WHERE id = ? FOR UPDATE
+SELECT id, title, author, kind, discipline, aliases, version, created_by, request_key, request_hash, created_at, updated_at, default_edition_id, series FROM textbooks WHERE id = ? FOR UPDATE
 `
 
 func (q *Queries) LockTextbook(ctx context.Context, id uint64) (Textbook, error) {
@@ -526,6 +531,7 @@ func (q *Queries) LockTextbook(ctx context.Context, id uint64) (Textbook, error)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DefaultEditionID,
+		&i.Series,
 	)
 	return i, err
 }
@@ -671,7 +677,7 @@ func (q *Queries) UpdateTextbookEditionScope(ctx context.Context, arg UpdateText
 }
 
 const updateTextbookMetadata = `-- name: UpdateTextbookMetadata :execrows
-UPDATE textbooks SET title = ?, author = ?, kind = ?, discipline = ?, aliases = ?, version = version + 1, updated_at = ?
+UPDATE textbooks SET title = ?, author = ?, kind = ?, discipline = ?, aliases = ?, series = ?, version = version + 1, updated_at = ?
 WHERE id = ? AND version = ?
 `
 
@@ -681,6 +687,7 @@ type UpdateTextbookMetadataParams struct {
 	Kind       string
 	Discipline string
 	Aliases    json.RawMessage
+	Series     string
 	UpdatedAt  time.Time
 	ID         uint64
 	Version    uint64
@@ -693,6 +700,7 @@ func (q *Queries) UpdateTextbookMetadata(ctx context.Context, arg UpdateTextbook
 		arg.Kind,
 		arg.Discipline,
 		arg.Aliases,
+		arg.Series,
 		arg.UpdatedAt,
 		arg.ID,
 		arg.Version,
