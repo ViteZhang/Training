@@ -9,6 +9,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"peetraining-server/internal/gen"
+	"peetraining-server/internal/official"
 	"peetraining-server/internal/profile"
 	"peetraining-server/internal/rules"
 )
@@ -95,6 +96,30 @@ func (h *Handlers) CreateSubject(c *gin.Context, _ gen.CreateSubjectParams) {
 		_ = c.Error(err)
 		return
 	}
+	// 新 1.1：记下这门课来自院校专业课库的哪门课，或进「待入库」（T44）。
+	if req.CatalogCourseId != nil || req.School != nil {
+		ch := official.CourseChoice{Name: req.Name}
+		if req.CatalogCourseId != nil {
+			ch.CatalogCourseID = uint64(*req.CatalogCourseId)
+		}
+		if req.School != nil {
+			ch.School = *req.School
+		}
+		if req.Major != nil {
+			ch.Major = *req.Major
+		}
+		if code := nullableStr(req.Code); code != nil {
+			ch.Code = *code
+		}
+		if err := h.deps.Official.AttachSubject(c.Request.Context(), currentUser(c), s.ID, ch); err != nil {
+			_ = c.Error(err)
+			return
+		}
+		if s, err = h.deps.Profile.Subject(c.Request.Context(), currentUser(c), s.ID); err != nil {
+			_ = c.Error(err)
+			return
+		}
+	}
 	c.JSON(http.StatusCreated, toSubject(s))
 }
 
@@ -158,6 +183,10 @@ func toSubject(s profile.Subject) gen.Subject {
 	}
 	if s.MyMajors.Valid {
 		out.MyMajors = &s.MyMajors.String
+	}
+	out.School, out.Major = optStr(s.School.String), optStr(s.Major.String)
+	if s.CatalogCourseID.Valid {
+		out.CatalogCourseId = ptr(s.CatalogCourseID.Int64)
 	}
 	if books := profile.Textbooks(s.Textbooks); len(books) > 0 {
 		out.Textbooks = &books
