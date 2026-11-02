@@ -84,12 +84,38 @@ func TestSplitParenStyle(t *testing.T) {
 
 func TestChunk(t *testing.T) {
 	bs := []ai.Block{{Text: strings.Repeat("a", 30)}, {Text: strings.Repeat("b", 30)}, {Text: strings.Repeat("c", 50)}, {Text: strings.Repeat("d", 200)}}
-	got := Chunk(bs, 100)
+	got := Chunk(bs, 100, 40)
 	if len(got) != 3 || len(got[0]) != 2 || len(got[1]) != 1 || len(got[2]) != 1 {
 		t.Fatalf("%d", len(got))
 	}
-	if Chunk(nil, 100) != nil {
+	if Chunk(nil, 100, 40) != nil {
 		t.Fatal("空")
+	}
+	// 名词解释每块只有几个字：字数没到上限，也要按块数分批（川大真题合集 124 道曾挤进一批 108 道）。
+	short := make([]ai.Block, 90)
+	for i := range short {
+		short[i] = ai.Block{ID: i + 1, Text: "1.坐忘"}
+	}
+	got = Chunk(short, 4000, 40)
+	if len(got) != 3 || len(got[0]) != 40 || len(got[1]) != 40 || len(got[2]) != 10 {
+		t.Fatalf("按块数分批：%d 批", len(got))
+	}
+}
+
+// 模型输出没过校验的块用规则原文兜底，置信度压到待确认以下；整页块规则拆不开，不兜底。
+func TestRuleFallback(t *testing.T) {
+	blocks := map[int]ai.Block{
+		1: {ID: 1, Page: 3, Year: 2010, No: "1", QType: "short_answer", Score: 10, Section: "二、简答（每題 10 分）说出以下各语的出处，并简要分析其含义：", Text: "1.興於詩，立於禮，成於樂."},
+		2: {ID: 2, Page: 3, Whole: true, Text: "整页原文"},
+	}
+	got := ruleFallback([]int{1, 2, 9}, blocks)
+	if len(got) != 1 {
+		t.Fatalf("应只兜底第 1 块：%+v", got)
+	}
+	it := got[0]
+	if it.Kind != "question" || it.Stem != "興於詩，立於禮，成於樂." || it.QType != "short_answer" || it.QuestionNo != "1" ||
+		it.ExamYear == nil || *it.ExamYear != 2010 || it.Score == nil || *it.Score != 10 || it.Confidence >= LowConfidence {
+		t.Fatalf("%+v", it)
 	}
 }
 
