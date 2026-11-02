@@ -359,7 +359,7 @@ func evalImport(ctx context.Context, e *ai.Engine, base string, samples []sample
 		}
 		var qs []ai.QItem
 		answers := map[string]string{}
-		for _, chunk := range importer.Chunk(importer.Split(ps), 6000) {
+		for _, chunk := range importer.Chunk(importer.Split(ps), 6000, 40) {
 			out, _, err := ai.Structure.Run(ctx, e, 0, ai.StructureIn{Blocks: chunk})
 			if err != nil {
 				failed++

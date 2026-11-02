@@ -58,6 +58,8 @@ type QItem struct {
 
 type StructureOut struct {
 	Items []QItem `json:"items"`
+	// Dropped 是校验时剔除的条目所在的块（不来自模型输出）：调用方用规则切出的原文兜底，不让一条不合格拖垮整批。
+	Dropped []int `json:"-"`
 }
 
 // QTypes 是题型（与 questions.qtype 一致）。
@@ -97,32 +99,47 @@ var Structure = &Cap[StructureIn, StructureOut]{
 	Mock:  mockStructure,
 }
 
-// checkStructure：引用的块必须存在；题目必须有题型与题干，题干要来自这块原文（防止编造）；答案条目要有题号与答案。
+// checkStructure 逐条校验，不合格的条目剔除并记进 Dropped，其余照常保留（一批几十道题，不能因为一条整批作废）；
+// 全部不合格才整批判不合格。
+// 引用的块必须存在；题目必须有题型与题干，题干要来自这块原文或它的题型标题（防止编造）；答案条目要有题号与答案。
+// 题型标题算作原文：「二、简答……说出以下各语的出处，并简要分析其含义：」下每题只有一句引文，模型把这句要求并进题干是对的。
 func checkStructure(in StructureIn, out *StructureOut) error {
 	blocks := map[int]Block{}
 	for _, b := range in.Blocks {
 		blocks[b.ID] = b
 	}
-	for i, it := range out.Items {
+	kept := out.Items[:0]
+	dropped := map[int]bool{}
+	for _, it := range out.Items {
 		b, ok := blocks[it.Block]
 		if !ok {
-			return fmt.Errorf("第 %d 条引用了不存在的块 %d", i+1, it.Block)
+			continue // 块号是编的，没有原文可兜底
 		}
-		switch it.Kind {
-		case "question":
-			if it.QType == "" || strings.TrimSpace(it.Stem) == "" {
-				return fmt.Errorf("第 %d 条缺题型或题干", i+1)
-			}
-			if Overlap(it.Stem, b.Text) < 0.8 {
-				return fmt.Errorf("第 %d 条题干不在原文里", i+1)
-			}
-		case "answer":
-			if it.QuestionNo == "" || strings.TrimSpace(it.Answer) == "" {
-				return fmt.Errorf("第 %d 条答案缺题号或内容", i+1)
-			}
+		if itemOK(it, b) {
+			kept = append(kept, it)
+			continue
+		}
+		if !dropped[it.Block] {
+			dropped[it.Block] = true
+			out.Dropped = append(out.Dropped, it.Block)
 		}
 	}
+	// 一条都没过：模型这次整体答偏了（编造、答非所问），整批判不合格，重试一次。
+	if len(kept) == 0 && len(out.Items) > 0 {
+		return fmt.Errorf("%d 条题目都不合格（题干不在原文里或缺题型、题干）", len(out.Items))
+	}
+	out.Items = kept
 	return nil
+}
+
+func itemOK(it QItem, b Block) bool {
+	switch it.Kind {
+	case "question":
+		return it.QType != "" && strings.TrimSpace(it.Stem) != "" && Overlap(it.Stem, b.Section+"\n"+b.Text) >= 0.8
+	case "answer":
+		return it.QuestionNo != "" && strings.TrimSpace(it.Answer) != ""
+	}
+	return false
 }
 
 var (
@@ -131,63 +148,64 @@ var (
 	reLeadNo       = regexp.MustCompile(`^\s*(?:[（(]\s*)?\d{1,3}\s*[.．、)）]\s*`)
 )
 
-// mockStructure 按规则结构化（开发期与测试用）：块文本里「答案：」之后是答案，A. B. 开头的行是选项。
+// mockStructure 按规则结构化（开发期与测试用）。
 func mockStructure(in StructureIn) (StructureOut, error) {
 	var out StructureOut
 	for _, b := range in.Blocks {
-		if b.Whole {
-			continue // 规则切不开的整页只有真实模型能处理
-		}
-		text := reLeadNo.ReplaceAllString(strings.TrimSpace(b.Text), "")
-		it := QItem{Block: b.ID, Page: b.Page, QuestionNo: b.No, Confidence: 0.9}
-		if b.Year > 0 {
-			y := b.Year
-			it.ExamYear = &y
-		}
-		if b.Answer {
-			it.Kind, it.Answer = "answer", text
-			if it.QuestionNo == "" || it.Answer == "" {
-				continue
-			}
+		if it, ok := RuleItem(b); ok {
 			out.Items = append(out.Items, it)
-			continue
 		}
-		it.Kind = "question"
-		if m := reInlineAnswer.FindStringSubmatch(text); m != nil {
-			text, it.Answer = strings.TrimSpace(m[1]), strings.TrimSpace(m[2])
-		}
-		if opts := reOption.FindAllStringSubmatchIndex(text, -1); len(opts) >= 2 {
-			for _, o := range opts {
-				it.Options = append(it.Options, Option{Key: text[o[2]:o[3]], Text: strings.TrimSpace(text[o[4]:o[5]])})
-			}
-			text = strings.TrimSpace(text[:opts[0][0]])
-		}
-		it.Stem = text
-		it.QType = b.QType
-		if it.QType == "" {
-			switch {
-			case len(it.Options) > 0:
-				it.QType = "single_choice"
-			case len([]rune(it.Stem)) <= 12:
-				it.QType = "term"
-			default:
-				it.QType = "short_answer"
-			}
-			it.Confidence = 0.6
-		}
-		if it.QType == "single_choice" && len([]rune(strings.ReplaceAll(it.Answer, " ", ""))) > 1 && reAllLetters.MatchString(it.Answer) {
-			it.QType = "multi_choice"
-		}
-		if b.Score > 0 {
-			s := b.Score
-			it.Score = &s
-		}
-		if it.Stem == "" {
-			continue
-		}
-		out.Items = append(out.Items, it)
 	}
 	return out, nil
+}
+
+// RuleItem 不经模型、按规则把一块原文整理成一条：块文本里「答案：」之后是答案，A. B. 开头的行是选项。
+// 用于 mock，以及模型那一条没过校验时用原文兜底。规则切不开的整页（Whole）只有模型能处理，返回 false。
+func RuleItem(b Block) (QItem, bool) {
+	if b.Whole {
+		return QItem{}, false
+	}
+	text := reLeadNo.ReplaceAllString(strings.TrimSpace(b.Text), "")
+	it := QItem{Block: b.ID, Page: b.Page, QuestionNo: b.No, Confidence: 0.9}
+	if b.Year > 0 {
+		y := b.Year
+		it.ExamYear = &y
+	}
+	if b.Answer {
+		it.Kind, it.Answer = "answer", text
+		return it, it.QuestionNo != "" && it.Answer != ""
+	}
+	it.Kind = "question"
+	if m := reInlineAnswer.FindStringSubmatch(text); m != nil {
+		text, it.Answer = strings.TrimSpace(m[1]), strings.TrimSpace(m[2])
+	}
+	if opts := reOption.FindAllStringSubmatchIndex(text, -1); len(opts) >= 2 {
+		for _, o := range opts {
+			it.Options = append(it.Options, Option{Key: text[o[2]:o[3]], Text: strings.TrimSpace(text[o[4]:o[5]])})
+		}
+		text = strings.TrimSpace(text[:opts[0][0]])
+	}
+	it.Stem = text
+	it.QType = b.QType
+	if it.QType == "" {
+		switch {
+		case len(it.Options) > 0:
+			it.QType = "single_choice"
+		case len([]rune(it.Stem)) <= 12:
+			it.QType = "term"
+		default:
+			it.QType = "short_answer"
+		}
+		it.Confidence = 0.6
+	}
+	if it.QType == "single_choice" && len([]rune(strings.ReplaceAll(it.Answer, " ", ""))) > 1 && reAllLetters.MatchString(it.Answer) {
+		it.QType = "multi_choice"
+	}
+	if b.Score > 0 {
+		s := b.Score
+		it.Score = &s
+	}
+	return it, it.Stem != ""
 }
 
 var reAllLetters = regexp.MustCompile(`^[A-H\s,，、]+$`)
