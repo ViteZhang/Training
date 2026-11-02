@@ -554,6 +554,128 @@ func AllBanksSourceValues() []BanksSource {
 	}
 }
 
+type CatalogCoursesStatus string
+
+const (
+	CatalogCoursesStatusActive CatalogCoursesStatus = "active"
+	CatalogCoursesStatusHidden CatalogCoursesStatus = "hidden"
+)
+
+func (e *CatalogCoursesStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CatalogCoursesStatus(s)
+	case string:
+		*e = CatalogCoursesStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CatalogCoursesStatus: %T", src)
+	}
+	return nil
+}
+
+type NullCatalogCoursesStatus struct {
+	CatalogCoursesStatus CatalogCoursesStatus
+	Valid                bool // Valid is true if CatalogCoursesStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCatalogCoursesStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.CatalogCoursesStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CatalogCoursesStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCatalogCoursesStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CatalogCoursesStatus), nil
+}
+
+func (e CatalogCoursesStatus) Valid() bool {
+	switch e {
+	case CatalogCoursesStatusActive,
+		CatalogCoursesStatusHidden:
+		return true
+	}
+	return false
+}
+
+func AllCatalogCoursesStatusValues() []CatalogCoursesStatus {
+	return []CatalogCoursesStatus{
+		CatalogCoursesStatusActive,
+		CatalogCoursesStatusHidden,
+	}
+}
+
+type CatalogPendingCoursesStatus string
+
+const (
+	CatalogPendingCoursesStatusPending CatalogPendingCoursesStatus = "pending"
+	CatalogPendingCoursesStatusAdded   CatalogPendingCoursesStatus = "added"
+	CatalogPendingCoursesStatusMerged  CatalogPendingCoursesStatus = "merged"
+	CatalogPendingCoursesStatusIgnored CatalogPendingCoursesStatus = "ignored"
+)
+
+func (e *CatalogPendingCoursesStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CatalogPendingCoursesStatus(s)
+	case string:
+		*e = CatalogPendingCoursesStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CatalogPendingCoursesStatus: %T", src)
+	}
+	return nil
+}
+
+type NullCatalogPendingCoursesStatus struct {
+	CatalogPendingCoursesStatus CatalogPendingCoursesStatus
+	Valid                       bool // Valid is true if CatalogPendingCoursesStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCatalogPendingCoursesStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.CatalogPendingCoursesStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CatalogPendingCoursesStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCatalogPendingCoursesStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CatalogPendingCoursesStatus), nil
+}
+
+func (e CatalogPendingCoursesStatus) Valid() bool {
+	switch e {
+	case CatalogPendingCoursesStatusPending,
+		CatalogPendingCoursesStatusAdded,
+		CatalogPendingCoursesStatusMerged,
+		CatalogPendingCoursesStatusIgnored:
+		return true
+	}
+	return false
+}
+
+func AllCatalogPendingCoursesStatusValues() []CatalogPendingCoursesStatus {
+	return []CatalogPendingCoursesStatus{
+		CatalogPendingCoursesStatusPending,
+		CatalogPendingCoursesStatusAdded,
+		CatalogPendingCoursesStatusMerged,
+		CatalogPendingCoursesStatusIgnored,
+	}
+}
+
 type ContentAccessGrantsSource string
 
 const (
@@ -3738,14 +3860,15 @@ func AllPapersKindValues() []PapersKind {
 type PracticeSessionsKind string
 
 const (
-	PracticeSessionsKindDaily     PracticeSessionsKind = "daily"
-	PracticeSessionsKindTypeDrill PracticeSessionsKind = "type_drill"
-	PracticeSessionsKindCustom    PracticeSessionsKind = "custom"
-	PracticeSessionsKindWrongRedo PracticeSessionsKind = "wrong_redo"
-	PracticeSessionsKindPlacement PracticeSessionsKind = "placement"
-	PracticeSessionsKindHighFreq  PracticeSessionsKind = "high_freq"
-	PracticeSessionsKindRecite    PracticeSessionsKind = "recite"
-	PracticeSessionsKindSingle    PracticeSessionsKind = "single"
+	PracticeSessionsKindDaily         PracticeSessionsKind = "daily"
+	PracticeSessionsKindTypeDrill     PracticeSessionsKind = "type_drill"
+	PracticeSessionsKindCustom        PracticeSessionsKind = "custom"
+	PracticeSessionsKindWrongRedo     PracticeSessionsKind = "wrong_redo"
+	PracticeSessionsKindPlacement     PracticeSessionsKind = "placement"
+	PracticeSessionsKindHighFreq      PracticeSessionsKind = "high_freq"
+	PracticeSessionsKindRecite        PracticeSessionsKind = "recite"
+	PracticeSessionsKindSingle        PracticeSessionsKind = "single"
+	PracticeSessionsKindOfficialFirst PracticeSessionsKind = "official_first"
 )
 
 func (e *PracticeSessionsKind) Scan(src interface{}) error {
@@ -3792,7 +3915,8 @@ func (e PracticeSessionsKind) Valid() bool {
 		PracticeSessionsKindPlacement,
 		PracticeSessionsKindHighFreq,
 		PracticeSessionsKindRecite,
-		PracticeSessionsKindSingle:
+		PracticeSessionsKindSingle,
+		PracticeSessionsKindOfficialFirst:
 		return true
 	}
 	return false
@@ -3808,6 +3932,7 @@ func AllPracticeSessionsKindValues() []PracticeSessionsKind {
 		PracticeSessionsKindHighFreq,
 		PracticeSessionsKindRecite,
 		PracticeSessionsKindSingle,
+		PracticeSessionsKindOfficialFirst,
 	}
 }
 
@@ -6067,6 +6192,52 @@ type BankSubscription struct {
 	AddedAt            time.Time
 }
 
+// 院校专业课库（后台配置组维护）
+type CatalogCourse struct {
+	ID uint64
+	// 院校全称
+	School string
+	Major  string
+	// 学科，如 哲学、文学；1.10、7.16 按它筛选
+	Discipline  string
+	SubjectName string
+	// 专业课代码，选填
+	SubjectCode sql.NullString
+	// 参考书目，字符串数组
+	Textbooks dbtypes.NullJSON
+	// 适用考试年份；为空表示各年通用
+	ExamYear  sql.NullInt16
+	Status    CatalogCoursesStatus
+	CreatedBy sql.NullInt64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// 用户在 1.1 手动添加、待运营入库的课程
+type CatalogPendingCourse struct {
+	ID uint64
+	// 院校 + 代码（有代码时）或院校 + 课程名
+	GroupKey     string
+	School       string
+	Major        string
+	SubjectName  string
+	SubjectCode  sql.NullString
+	RequestCount uint32
+	Status       CatalogPendingCoursesStatus
+	// 入库或合并到的课程
+	CatalogCourseID sql.NullInt64
+	HandledBy       sql.NullInt64
+	HandledAt       sql.NullTime
+	FirstAt         time.Time
+	LastAt          time.Time
+}
+
+// 待入库课程的去重计数（同一用户只算一次）
+type CatalogPendingUser struct {
+	PendingID uint64
+	UserID    uint64
+}
+
 // 用户授权后台查看内容（PRD 10.1）
 type ContentAccessGrant struct {
 	ID       uint64
@@ -6838,7 +7009,6 @@ type PracticeSession struct {
 	ID          uint64
 	OwnerUserID uint64
 	SubjectID   sql.NullInt64
-	Kind        PracticeSessionsKind
 	Title       string
 	// 自定义练习条件等
 	Config dbtypes.NullJSON
@@ -6851,6 +7021,7 @@ type PracticeSession struct {
 	Summary    dbtypes.NullJSON
 	StartedAt  time.Time
 	FinishedAt sql.NullTime
+	Kind       PracticeSessionsKind
 }
 
 // 题目
@@ -7176,6 +7347,11 @@ type Subject struct {
 	// 参考教材书名列表，如 ["童庆炳《文学理论教程》"]
 	Textbooks          dbtypes.NullJSON
 	TextbookSelections dbtypes.NullJSON
+	// 1.1 从院校专业课库选的课；官方题库上线时通知选了该课的用户
+	CatalogCourseID sql.NullInt64
+	// 1.1 选的院校
+	School sql.NullString
+	Major  sql.NullString
 }
 
 // 考后回访（6.14），每人一次

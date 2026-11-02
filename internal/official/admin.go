@@ -1005,6 +1005,32 @@ func (s *Service) notifyRelease(ctx context.Context, p Project, version string, 
 		_, _ = s.q.NotifyOfficialLaunch(ctx, dbq.NotifyOfficialLaunchParams{Title: "官方题库上线：" + p.School + " " + p.SubjectCode,
 			Body: fmt.Sprintf("「%s %s」官方题库已上线，可以在题库页添加，和你自建的题库一起练", p.School, p.SubjectName), Link: notify.Link("official_banks", nil),
 			DedupeKey: sql.NullString{String: "official_launch:" + strconv.FormatUint(p.BankID, 10), Valid: true}, Code: nullStr(p.SubjectCode)})
+		s.notifyLaunchChosen(ctx, p)
+	}
+}
+
+// notifyLaunchChosen 官方题库首次上线时通知在 1.1 选了这门课的用户（PRD v3 增补「申请收录」最后一条）；
+// 和上面的上线提醒用同一个去重键，同一个人只收到一条。
+func (s *Service) notifyLaunchChosen(ctx context.Context, p Project) {
+	courses, err := s.q.CatalogCoursesOfProject(ctx, p.ID)
+	if err != nil {
+		return
+	}
+	seen := map[uint64]bool{}
+	for _, cid := range courses {
+		users, err := s.q.UsersOfCatalogCourse(ctx, sql.NullInt64{Int64: int64(cid), Valid: true})
+		if err != nil {
+			continue
+		}
+		for _, u := range users {
+			if seen[u] {
+				continue
+			}
+			seen[u] = true
+			_ = s.q.InsertMessage(ctx, dbq.InsertMessageParams{OwnerUserID: u, Mtype: dbq.MessagesMtypeOfficialBank, Title: "官方题库上线：" + p.School + " " + p.SubjectName,
+				Body: fmt.Sprintf("你选的「%s %s」有官方题库了，所有用户免费使用，不需要上传任何资料", p.School, p.SubjectName), Link: notify.Link("official_banks", nil),
+				DedupeKey: sql.NullString{String: "official_launch:" + strconv.FormatUint(p.BankID, 10), Valid: true}})
+		}
 	}
 }
 
