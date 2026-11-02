@@ -219,6 +219,19 @@ func TestHomeStatesAndPlanAfterImport(t *testing.T) {
 	if gc["new"]+gc["review"]+gc["weak"]+gc["recite"] != len(p.Items) {
 		t.Errorf("未知分组：%v", gc)
 	}
+	// 背诵条目只排有原文表述的知识点，与背诵队列同一口径，否则首页背诵数与背诵页对不上。
+	for _, it := range p.Items {
+		if it.Group != "recite" {
+			continue
+		}
+		var text sql.NullString
+		if err := f.db.QueryRow("SELECT original_text FROM knowledge_points WHERE id = ?", it.KPID).Scan(&text); err != nil {
+			t.Fatal(err)
+		}
+		if !text.Valid || text.String == "" {
+			t.Errorf("背诵条目 kp %d 没有原文，背诵队列里背不了", it.KPID)
+		}
+	}
 
 	// 再导一份：没核对完时首页提示「去核对」；条目删光后任务虽仍是待核对状态，也不应再提示。
 	m, err := f.mat.CreatePasted(ctx, uid, sid, "question", "资料3", exam, true)

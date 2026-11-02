@@ -101,6 +101,7 @@ func (s *Service) candidates(ctx context.Context, userID uint64, subject dbq.Get
 		state  rules.MasteryState
 		exam   int
 		weight float64
+		text   bool // 有原文表述，才进得了背诵队列
 	}
 	info := map[uint64]kpInfo{}
 	var coverage []rules.CoverageKP
@@ -111,7 +112,7 @@ func (s *Service) candidates(ctx context.Context, userID uint64, subject dbq.Get
 		m, _ := strconv.ParseFloat(k.M, 64)
 		st := rules.MasteryState(k.State)
 		w := rules.KPWeight(prof.SectionShares[int64(stats.Section(k.ID))], int(k.ExamCount), prof.Ready, sectionCount, p.Plan)
-		info[k.ID] = kpInfo{m: m, state: st, exam: int(k.ExamCount), weight: w}
+		info[k.ID] = kpInfo{m: m, state: st, exam: int(k.ExamCount), weight: w, text: k.HasText.Valid && k.HasText.Bool}
 		coverage = append(coverage, rules.CoverageKP{State: st, ExamCount: int(k.ExamCount)})
 	}
 	qs, err := s.q.ListBankQuestionsFull(ctx, dbq.ListBankQuestionsFullParams{UserID: userID, BankID: subject.BankID, Owner: owner})
@@ -155,8 +156,12 @@ func (s *Service) candidates(ctx context.Context, userID uint64, subject dbq.Get
 			out = append(out, nc)
 		}
 	}
-	// 背诵：复习日已到或从没背过、而且有原文或采分点可背的知识点。
+	// 背诵：复习日已到或从没背过、而且有原文表述可背的知识点。
+	// 与背诵队列（ListReciteCandidates）同一口径，否则计划里会排进背不了的条目，首页背诵数与背诵页对不上。
 	for id, k := range info {
+		if !k.text {
+			continue
+		}
 		mr, ok := mastery[id]
 		// 从没背过（没有背诵复习日），或背诵复习日已到（PRD 11.3：没记住的 1 天后再背）。
 		due := !ok || !mr.ReciteNextReviewOn.Valid || rules.DayFromDateColumn(mr.ReciteNextReviewOn.Time) <= today

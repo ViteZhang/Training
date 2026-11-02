@@ -539,7 +539,8 @@ func (q *Queries) ListBankFilterKPLinks(ctx context.Context, arg ListBankFilterK
 
 const listBankKPsFull = `-- name: ListBankKPsFull :many
 SELECT k.id, k.parent_id, k.level, k.name, k.exam_count, k.needs_review, k.official_kp_id, k.origin, k.official_new_until, k.sort_order,
-  COALESCE(m.m, 0) AS m, COALESCE(m.state, 'unlearned') AS state
+  COALESCE(m.m, 0) AS m, COALESCE(m.state, 'unlearned') AS state,
+  (k.original_text IS NOT NULL AND k.original_text <> '') AS has_text
 FROM knowledge_points k
 LEFT JOIN kp_mastery m ON m.kp_id = k.id AND m.owner_user_id = ?
 WHERE k.bank_id = ? AND k.owner_user_id = ?
@@ -565,6 +566,7 @@ type ListBankKPsFullRow struct {
 	SortOrder        uint32
 	M                string
 	State            KpMasteryState
+	HasText          sql.NullBool
 }
 
 func (q *Queries) ListBankKPsFull(ctx context.Context, arg ListBankKPsFullParams) ([]ListBankKPsFullRow, error) {
@@ -589,6 +591,7 @@ func (q *Queries) ListBankKPsFull(ctx context.Context, arg ListBankKPsFullParams
 			&i.SortOrder,
 			&i.M,
 			&i.State,
+			&i.HasText,
 		); err != nil {
 			return nil, err
 		}

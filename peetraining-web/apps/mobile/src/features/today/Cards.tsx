@@ -130,11 +130,41 @@ export function EstimateLine({ e, target }: { e: Schemas['EstimateCard']; target
 
 const groupDot: Record<string, string> = { new: colors.ink, review: colors.blue, weak: colors.peach, recite: colors.lavender };
 
+type PlanSubject = { id: number; code?: string | null; name: string };
+
+/** 计划按课程拆开：训练页一次只练一门课，首页合计数要说明各门课几项。 */
+function bySubject(plan: TodayPlan) {
+  const out: { id: number; count: number; done: number }[] = [];
+  for (const it of plan.items) {
+    let s = out.find((x) => x.id === it.subject_id);
+    if (!s) out.push((s = { id: it.subject_id, count: 0, done: 0 }));
+    s.count++;
+    if (it.done) s.done++;
+  }
+  return out;
+}
+
 /** 今日训练：分组题数与预计用时，「开始训练」进入训练（T17）。 */
-export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) {
+export function PlanCard({ plan, early, subjects = [] }: { plan: TodayPlan; early?: boolean; subjects?: PlanSubject[] }) {
   const doneGroups = plan.groups.filter((g) => g.done >= g.count).length;
   const weakName = plan.stage === 'foundation' ? groupNames.weak : '题型专项';
   const count = plan.groups.reduce((n, g) => n + g.count, 0);
+  const per = bySubject(plan);
+  // 跳到还有没做完的那门课，训练页直接选中它。
+  const next = per.find((x) => x.done < x.count) ?? per[0];
+  const go = () => router.push(next ? { pathname: '/(tabs)/train', params: { subjectId: String(next.id) } } : '/(tabs)/train');
+  const split =
+    per.length > 1
+      ? per
+          .map((x) => {
+            const sub = subjects.find((s) => s.id === x.id);
+            return `${sub ? (sub.code ? `${sub.code} ${sub.name}` : sub.name) : '其他课'} ${x.count} 项`;
+          })
+          .join(' · ') + '，训练页按课分开练'
+      : null;
+  // 今日训练会话只装题目，背诵项要从训练页的「背诵」入口背。
+  const hasRecite = plan.groups.some((g) => g.group === 'recite' && g.count > g.done);
+  const note = [split, hasRecite ? '背诵项在训练页的「背诵」里完成' : null].filter(Boolean).join('；');
   if (early) {
     // 2.1b 题库整理中：先从已识别的题里练起来
     return (
@@ -148,7 +178,7 @@ export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) 
         <Text variant="caption" style={styles.lh}>
           从已识别的题里挑了 {count} 道，先熟悉一下怎么刷、怎么批改
         </Text>
-        <Button title={`先练 ${count} 道`} onPress={() => router.push('/(tabs)/train')} />
+        <Button title={`先练 ${count} 道`} onPress={go} />
       </Card>
     );
   }
@@ -180,12 +210,13 @@ export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) 
           })}
         </View>
       )}
+      {note ? <Text variant="small">{note}</Text> : null}
       {plan.shortfall_minutes ? (
         <Text variant="small">题量还不够排满每天 {plan.budget_minutes} 分钟，导入更多题目可以补上</Text>
       ) : null}
       {plan.done_minutes > 0 ? <ProgressBar value={plan.total_minutes ? plan.done_minutes / plan.total_minutes : 0} /> : null}
       {plan.items.length > 0 ? (
-        <Button title={plan.done_minutes > 0 ? '继续训练' : '开始训练'} onPress={() => router.push('/(tabs)/train')} />
+        <Button title={plan.done_minutes > 0 ? '继续训练' : '开始训练'} onPress={go} />
       ) : (
         <Button title="导入资料" kind="secondary" onPress={() => router.push('/import')} />
       )}

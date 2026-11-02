@@ -183,7 +183,7 @@ export default function TodayTab() {
               <Button title="去核对" onPress={() => router.push({ pathname: '/import/confirm/[id]', params: { id: String(jobId) } })} />
             ) : null}
           </Card>
-          {h.plan && h.plan.items.length > 0 ? <PlanCard plan={h.plan} early /> : null}
+          {h.plan && h.plan.items.length > 0 ? <PlanCard plan={h.plan} early subjects={list} /> : null}
           <BanksCard banks={h.banks} jobId={jobId} />
         </ScrollView>
         {target}
@@ -205,7 +205,7 @@ export default function TodayTab() {
           </View>
         ) : null}
         <EstimateCard subjects={list} estimates={h.estimates} onEditTarget={() => setEditTarget(true)} />
-        {h.state === 'done' ? <DoneCard home={h} summary={summary.data} /> : h.plan ? <PlanCard plan={h.plan} /> : null}
+        {h.state === 'done' ? <DoneCard home={h} summary={summary.data} /> : h.plan ? <PlanCard plan={h.plan} subjects={list} /> : null}
         {h.state !== 'done' && h.stage_push ? <PushCard push={h.stage_push} /> : null}
         <BanksCard banks={h.banks} />
         <FalseMasteryCard count={h.false_mastery_count} />

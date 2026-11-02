@@ -18,7 +18,8 @@ SELECT
 
 -- name: ListBankKPsFull :many
 SELECT k.id, k.parent_id, k.level, k.name, k.exam_count, k.needs_review, k.official_kp_id, k.origin, k.official_new_until, k.sort_order,
-  COALESCE(m.m, 0) AS m, COALESCE(m.state, 'unlearned') AS state
+  COALESCE(m.m, 0) AS m, COALESCE(m.state, 'unlearned') AS state,
+  (k.original_text IS NOT NULL AND k.original_text <> '') AS has_text
 FROM knowledge_points k
 LEFT JOIN kp_mastery m ON m.kp_id = k.id AND m.owner_user_id = sqlc.arg(user_id)
 WHERE k.bank_id = sqlc.arg(bank_id) AND k.owner_user_id = sqlc.arg(owner)

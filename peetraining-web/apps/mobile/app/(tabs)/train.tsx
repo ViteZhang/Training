@@ -2,7 +2,7 @@
 // 冲刺期、考前期把整卷置顶。题目都来自用户的题库，不够时 AI 出变式题。
 import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Button, Card, EmptyState, ErrorState, Icon, Loading, ProgressBar, Screen, Segmented, Tag, Text, toast } from '@/components';
@@ -34,6 +34,13 @@ function Row({ title, desc, onPress, icon, tone, first }: { title: string; desc:
 export default function TrainTab() {
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => unwrap(api.GET('/subjects')) });
   const [picked, setPicked] = useState<number>();
+  // 从首页「开始训练」进来时带上课程，直接选中计划里还没练完的那门课。
+  const { subjectId } = useLocalSearchParams<{ subjectId?: string }>();
+  const [fromParam, setFromParam] = useState<string>();
+  if (subjectId && subjectId !== fromParam) {
+    setFromParam(subjectId);
+    setPicked(Number(subjectId));
+  }
   const list = subjects.data?.items ?? [];
   const subject = list.find((s) => s.id === picked) ?? list.find((s) => !s.is_essay) ?? list[0];
   const home = usePracticeHome(subject?.id);

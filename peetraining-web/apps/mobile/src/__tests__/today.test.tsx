@@ -78,10 +78,26 @@ describe('2.1 今日首页', () => {
     expect(screen.getByText('3 个知识点「以为会了」')).toBeTruthy();
     expect(screen.getByText('做完一套整卷后生成预估分')).toBeTruthy();
     await fireEvent.press(screen.getByText('开始训练'));
-    expect(mockPush).toHaveBeenCalledWith('/(tabs)/train');
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/(tabs)/train', params: { subjectId: '7' } });
+    expect(screen.getByText('背诵项在训练页的「背诵」里完成')).toBeTruthy();
     // 铃铛：有未读时显示红点，点进 2.3。
     await fireEvent.press(await screen.findByLabelText('消息，3 条未读'));
     expect(mockPush).toHaveBeenCalledWith('/messages');
+  });
+
+  it('今日训练跨两门课：写明各门课几项，「开始训练」跳到还没练完的那门课', async () => {
+    const items = [
+      { group: 'weak', kp_id: 1, subject_id: 7, question_id: 3, qtype: 'term', minutes: 1.5, done: true },
+      { group: 'weak', kp_id: 2, subject_id: 8, question_id: 4, qtype: 'term', minutes: 1.5, done: false },
+      { group: 'weak', kp_id: 3, subject_id: 8, question_id: 5, qtype: 'term', minutes: 1.5, done: false },
+    ];
+    const groups = [{ group: 'weak', count: 3, done: 1, minutes: 4.5 }];
+    mockResponses['GET /home'] = () => ({ status: 200, data: home({ plan: plan({ items, groups, done_minutes: 1.5 }) }) });
+    mockResponses['GET /subjects'] = () => ({ status: 200, data: { ...subjects, items: [...subjects.items, { ...subjects.items[0], id: 8, name: '中国哲学史', code: '662' }] } });
+    await wrap(<TodayTab />);
+    expect(await screen.findByText('654 语言文学基础 1 项 · 662 中国哲学史 2 项，训练页按课分开练')).toBeTruthy();
+    await fireEvent.press(screen.getByText('继续训练'));
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/(tabs)/train', params: { subjectId: '8' } });
   });
 
   it('预估分卡（PRD 11.6）：区间、今天的变化、差距与主要差在、依据；点「提分看板」进 6.2', async () => {
