@@ -138,6 +138,7 @@ func TestIntegrationIDOR(t *testing.T) {
 	model := ins("INSERT INTO model_essays (owner_user_id, bank_id, title, content) VALUES (?, ?, '范文', '正文')", a, essayBank)
 	export := ins("INSERT INTO export_jobs (owner_user_id, subject_id, options, format) VALUES (?, ?, JSON_OBJECT(), 'pdf')", a, sub.ID)
 	candidate := ins("INSERT INTO answer_update_candidates (owner_user_id, question_id, request_key, base_hash, status, created_at, updated_at) VALUES (?, ?, 'idor-candidate', SHA2('idor', 256), 'ready', NOW(3), NOW(3))", a, q)
+	trial := ins("INSERT INTO trials (owner_user_id, kind, input_mode, qtype, score, stem, reference_answer, answer_source, rubric) VALUES (?, 'own', 'paste', 'term', 5, '意境', '情景交融', 'user', JSON_ARRAY(JSON_OBJECT('content', '情景交融', 'score', 5)))", a)
 	msg := ins("INSERT INTO messages (owner_user_id, mtype, title, body) VALUES (?, 'announcement', '公告', '内容')", a)
 	ins("INSERT INTO orders (owner_user_id, order_no, tier, channel, amount_cents) VALUES (?, 'T20261004000000123456', 'sprint', 'apple_iap', 16900)", a)
 
@@ -146,6 +147,7 @@ func TestIntegrationIDOR(t *testing.T) {
 		"questionId": fmt.Sprint(q), "relationId": fmt.Sprint(rel), "gradingId": fmt.Sprint(grading), "paperId": fmt.Sprint(paper), "essayId": fmt.Sprint(essay),
 		"essayMaterialId": fmt.Sprint(essayMat), "modelEssayId": fmt.Sprint(model), "exportId": fmt.Sprint(export), "messageId": fmt.Sprint(msg),
 		"voiceId": fmt.Sprint(voice), "handwritingId": fmt.Sprint(handwriting), "orderNo": "T20261004000000123456", "deviceId": "device-a", "pageNo": "1", "qtype": "term", "seq": "1", "pairingId": fmt.Sprint(pairing), "candidateId": fmt.Sprint(candidate),
+		"trialId": fmt.Sprint(trial),
 	}
 	// sessionId 在不同路径下是不同的会话。
 	sessionFor := func(path string) string {
@@ -230,7 +232,7 @@ func TestIntegrationIDOR(t *testing.T) {
 	// 反过来确认这些 ID 对 A 是有效的（不是因为 ID 不存在才 404）。
 	for _, u := range []string{"/subjects/" + values["subjectId"] + "/bank", "/questions/" + values["questionId"], "/knowledge-points/" + values["kpId"],
 		"/materials/" + values["materialId"], "/gradings/" + values["gradingId"], "/import-items/" + values["itemId"], "/papers/" + values["paperId"],
-		"/model-essays/" + values["modelEssayId"], "/exports/" + values["exportId"]} {
+		"/model-essays/" + values["modelEssayId"], "/exports/" + values["exportId"], "/trials/" + values["trialId"]} {
 		if code, resp := f.do("GET", "/api/v1"+u, tokenA, ""); code != 200 {
 			t.Errorf("A 自己访问 %s：%d %s", u, code, trim(resp))
 		}

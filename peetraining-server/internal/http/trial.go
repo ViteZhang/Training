@@ -134,10 +134,6 @@ func (h *Handlers) SaveTrial(c *gin.Context, trialID int64) {
 	if body.SubjectId != nil {
 		subject = uint64(*body.SubjectId)
 	}
-	if body.Action != "discard" && subject == 0 {
-		_ = c.Error(apperr.New(apperr.BadRequest, "请选择加入哪门专业课"))
-		return
-	}
 	qid, err := h.deps.Practice.SaveTrial(c.Request.Context(), currentUser(c), uint64(trialID), string(body.Action), subject)
 	if err != nil {
 		_ = c.Error(err)
