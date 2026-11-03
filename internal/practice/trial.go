@@ -433,6 +433,9 @@ func (s *Service) SaveTrial(ctx context.Context, userID, id uint64, action strin
 	if r.Status != dbq.TrialsStatusGraded {
 		return 0, apperr.New(apperr.BadRequest, "先提交批改")
 	}
+	if subjectID == 0 {
+		return 0, apperr.New(apperr.BadRequest, "请选择加入哪门专业课")
+	}
 	b, err := s.subject(ctx, userID, subjectID)
 	if err != nil {
 		return 0, err

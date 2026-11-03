@@ -26,7 +26,9 @@ func init() {
 		grade_result grade_dispute grade_recheck rubric_edit question_report
 		quota_block member_page_view getcode_view getcode_copy_id getcode_save_qr pay_success redeem invite_success export
 		answer_status_import answer_match_done answer_file_import ai_answer_generate ai_answer_confirm ai_answer_edit
-		survey_submit app_open official_bank_add`) {
+		survey_submit app_open official_bank_add
+		onboarding_route official_add first_grade_done trial_start trial_submit trial_save apply_submit
+		supplement_prompt upload_step upload_exit_reason`) {
 		Names[n] = true
 	}
 }
