@@ -27,6 +27,8 @@
    - 给用户生产迁移时，直接给出可以在 ECS 上粘贴执行的完整 SQL：先 `SET NAMES utf8mb4;`，再按编号从小到大放每个迁移文件 `-- +goose Up` 部分的全文，每个文件后面紧跟 `INSERT INTO goose_db_version (version_id, is_applied) VALUES (N, 1);`；
      连同进入 MySQL 的命令（`docker exec -it dreamer-mysql mysql -uroot -p --default-character-set=utf8mb4 training`）、执行前查版本号与执行后核对的 SQL 一起给。
      不要让用户在本机仓库里生成 SQL、scp 文件或跑脚本；给之前先在 testcontainers 上验证这份 SQL 能从上一个版本执行到最新
+   - 粘贴进 ECS 上 mysql 客户端时中文会被吞掉（2026-11-03 迁移 00037–00041 时出现过：课程名、方向名变成空串）：给用户的 SQL 必须全是 ASCII，
+     中文一律写成 `CONVERT(X'E59B9B…' USING utf8mb4)`（UTF-8 十六进制），表和列的中文 COMMENT 可以省略；给之前检查一遍没有非 ASCII 字符
 
 不要做的事：
 - 不要强推云效或 GitHub 的 main；脚本提示「两边都有新提交」时先 pull 合并
