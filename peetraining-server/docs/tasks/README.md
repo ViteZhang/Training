@@ -71,6 +71,18 @@
 
 当前卡见 [T43](T43-real-validation.md)，实际结果与限制见[验证记录](../verification/official-textbook-library-2026-10-30.md)。本地独立分支开发；未操作生产。
 
+## 官方题库先行（PRD v3 增补，2026-11-02）
+
+计划与拆卡见 [T44-official-first.md](T44-official-first.md)，需求副本见 [docs/features/official-first.md](../features/official-first.md)。
+
+| 卡 | 内容 | 状态 |
+| --- | --- | --- |
+| T44 | 院校专业课库、引导分流、官方首题（1.1–1.1c） | 后端完成；前端见 peetraining-web |
+| T45 | 体验一道题、学科通用体验题、AI 现场出题（1.9–1.10、7.18） | 后端完成（sample_question@v1 真实模型评测待做） |
+| T46 | 申请收录（1.11、7.16、种子用户） | 后端完成 |
+| T47 | 后台 AI 解析导入与表格导入（7.17） | 后端完成（真实 PDF 与模型待验） |
+| T48 | 题库「官方 / 我的」与补充资料提示（3.1e） | 后端完成 |
+
 ## 卡片模板
 
 ```

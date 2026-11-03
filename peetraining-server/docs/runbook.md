@@ -506,3 +506,22 @@ go run ./cmd/check-textbook-pdf -pdf /absolute/path/to/authorized.pdf -out /priv
 本次真实模型小样本已通过；完整记录见 [验证记录](verification/official-textbook-library-2026-10-30.md)。Qdrant 镜像下载、本机 Docker 稳定性、真实多题标注集、费用/并发、快照恢复及真机仍待验证。另有已复现的 bank 年份基线测试失败及 mock essay 示例未达门槛，不能宣称全套测试通过或直接合并上线。
 
 回滚优先关闭 `textbook_retrieval`、停止新教材导入/发布及候选任务，保留数据库新增表与历史快照，不删除已发布原件/页图。旧 APP 自由书名、已有答案与历史批改继续可读。回退旧二进制前需排空或暂停新增任务，不能让不认识新任务类型的 Worker 消费它们。
+
+## 官方题库先行（2026-11-03，T44–T48，迁移 00037–00041）
+
+发布 server 前按「二、日常发布」在生产库依次执行迁移（先备份）：
+
+- 00037 院校专业课库（catalog_courses，含四川大学哲学 662、812 两门）、subjects 加院校与库里的课、practice_sessions 增加 official_first、开关 onboarding_route
+- 00038 体验（trials、trial_usage、sample_directions、sample_questions）、开关 trial / sample_trial / ai_live_question、rule_params.official_first
+- 00039 申请收录（course_application_groups、course_applications）、users.is_seed、开关 course_apply
+- 00040 7.17 解析导入（official_import_files、official_import_items）
+- 00041 批改异议原因 teacher_differs、supplement_prompt_dismissals
+
+新环境变量（应用机 .env，可不配）：
+
+- `OPS_WECOM_WEBHOOK_URL`：运营企业微信群机器人地址，申请收录的新申请与「建议立项」推送到这里；不配时只写日志
+- `ADMIN_BASE_URL`：推送里的后台链接前缀，默认 https://training.dreamerlab.cn/admin
+
+上线节奏（增补「功能开关与上线节奏」）：新开关默认全部关闭，先在 7.8 只对自己和种子用户打开。官方题库开关仍是 official_bank；
+onboarding_route 要等院校专业课库录完再开；sample_trial 要等 7.18 至少一个方向有审核通过的题；ai_live_question 要在种子用户中抽检通过后再开。
+
