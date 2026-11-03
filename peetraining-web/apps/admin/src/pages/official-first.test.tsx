@@ -3,12 +3,16 @@ import { App as AntApp } from 'antd';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { MemoryRouter } from 'react-router';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { visibleMenu } from '../lib/menu';
+import { uploadTextbookFile } from '../lib/textbookUpload';
 import { Applications, hoursAgo, toCSV } from './Applications';
 import { Catalog, splitBooks } from './Catalog';
-import { formatOf } from './OfficialImport';
+import { formatOf, itemTitle, OfficialImport, yearFromName } from './OfficialImport';
 import { rubricSum, Samples } from './Samples';
+
+// jsdom 的 fetch 发不了 File，OSS 直传换成假的，只记录调用。
+vi.mock('../lib/textbookUpload', () => ({ uploadTextbookFile: vi.fn(async () => undefined) }));
 
 type Handler = (req: Request) => { status: number; body?: unknown } | Promise<{ status: number; body?: unknown }>;
 const g = globalThis as unknown as { mockApi: Record<string, Handler>; apiCalls: Request[] };
@@ -162,5 +166,52 @@ describe('7.17 AI 解析导入', () => {
     expect(formatOf('回忆版.jpg')).toBe('image');
     expect(formatOf('题目.csv')).toBe('csv');
     expect(formatOf('旧版.doc')).toBeUndefined();
+  });
+
+  it('文件名里只有一个年份时才当真题年份，多年合集留给逐题识别', () => {
+    expect(yearFromName('2024真题.pdf')).toBe(2024);
+    expect(yearFromName('四川大学2019年中国哲学史.docx')).toBe(2019);
+    expect(yearFromName('四川大学中国哲学史真题（1997—2026）.docx')).toBeUndefined();
+    expect(yearFromName('812真题.pdf')).toBeUndefined();
+    expect(yearFromName('真题12024.pdf')).toBeUndefined();
+  });
+
+  it('解析结果标题带上年份', () => {
+    const it = { item_type: 'question', payload: { qtype: 'term', stem: '仁', exam_year: 1997 } } as unknown as Parameters<typeof itemTitle>[0];
+    expect(itemTitle(it)).toBe('1997 · 名词解释：仁');
+  });
+
+  it('一次选多个文件：每个文件建一条解析记录、各自直传并开始解析，文件名里的年份带上', async () => {
+    const project = { id: 7, school: '四川大学', major: '中国哲学', subject_code: '812', subject_name: '中国哲学史', stage: 'materials' };
+    let next = 100;
+    g.mockApi = {
+      'GET /admin/official/projects': () => ({ status: 200, body: { items: [project] } }),
+      'GET /admin/official/projects/{id}/imports': () => ({ status: 200, body: { items: [] } }),
+      'POST /admin/official/projects/{id}/imports': () => {
+        next += 1;
+        return { status: 200, body: { id: next, kind: 'exam', file_name: 'x', format: 'docx', status: 'uploading', question_count: 0, kp_count: 0, reviewed_count: 0, upload_url: `http://oss.test/put/${next}`, upload_headers: {} } };
+      },
+      'POST /admin/official/projects/{id}/imports/{id}/confirm': () => ({ status: 204 }),
+    };
+    wrap(<OfficialImport />);
+    // 只有一个项目时自动选中
+    fireEvent.click(await screen.findByText('+ 上传资料'));
+    const input = document.querySelector('input[type=file]') as HTMLInputElement;
+    expect(input.multiple).toBe(true);
+    const files = [new File(['a'], '四川大学中国哲学史真题（1997—2026）.docx'), new File(['b'], '2024真题.pdf')];
+    fireEvent.change(input, { target: { files } });
+    expect(await screen.findByText('已选 2 个文件，每个文件单独解析、单独核对')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /确\s*定/ }));
+    await waitFor(() => expect(calls('POST', /\/imports\/\d+\/confirm$/)).toHaveLength(2));
+    const created = await Promise.all(calls('POST', /\/projects\/7\/imports$/).map((r) => r.json()));
+    expect(created).toEqual([
+      expect.objectContaining({ kind: 'exam', format: 'docx', file_name: '四川大学中国哲学史真题（1997—2026）.docx' }),
+      expect.objectContaining({ kind: 'exam', format: 'pdf', file_name: '2024真题.pdf', exam_year: 2024 }),
+    ]);
+    expect(created[0]).not.toHaveProperty('exam_year');
+    expect(vi.mocked(uploadTextbookFile).mock.calls.map(([f, t]) => [f.name, t.upload_url])).toEqual([
+      ['四川大学中国哲学史真题（1997—2026）.docx', 'http://oss.test/put/101'],
+      ['2024真题.pdf', 'http://oss.test/put/102'],
+    ]);
   });
 });

@@ -43,11 +43,18 @@ export function formatOf(name: string): ImportFile['format'] | undefined {
   return undefined;
 }
 
+/** 一条解析结果的真题年份。 */
+function yearOf(it: Item): number | undefined {
+  const y = (it.payload as Record<string, unknown>).exam_year;
+  return typeof y === 'number' ? y : undefined;
+}
+
 /** 一条解析结果的标题。 */
 export function itemTitle(it: Item) {
   const p = it.payload as Record<string, unknown>;
   if (it.item_type === 'knowledge_point') return `知识点：${String(p.name ?? '')}`;
-  return `${qtypeNames[String(p.qtype)] ?? ''}：${String(p.stem ?? '')}`;
+  const year = typeof p.exam_year === 'number' ? `${p.exam_year} · ` : '';
+  return `${year}${qtypeNames[String(p.qtype)] ?? ''}：${String(p.stem ?? '')}`;
 }
 
 export function OfficialImport() {
@@ -110,59 +117,109 @@ function ProjectImports({ projectId, fileId, onFile }: { projectId: number; file
   );
 }
 
+/** 文件名里只有一个年份时（「2024真题.pdf」）用它当这份真题的年份；「1997—2026」这类多年合集返回 undefined，按文件里的年份标题逐题识别。 */
+export function yearFromName(name: string): number | undefined {
+  const years = new Set(name.match(/(?<!\d)(?:19|20)\d{2}(?!\d)/g) ?? []);
+  return years.size === 1 ? Number([...years][0]) : undefined;
+}
+
 function AddFile({ projectId, open, onClose }: { projectId: number; open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
-  const { message } = AntApp.useApp();
+  const { message, modal } = AntApp.useApp();
   const [form] = Form.useForm();
   const kind = Form.useWatch('kind', form) as ImportFile['kind'] | undefined;
-  const [file, setFile] = useState<File>();
-  const [busy, setBusy] = useState(false);
-  const submit = async (v: { kind: ImportFile['kind']; text?: string; exam_year?: number; is_recollection?: boolean }) => {
-    setBusy(true);
-    try {
-      const format = v.kind === 'table' ? 'csv' : file ? formatOf(file.name) : 'text';
-      if (!format) throw new Error('只支持 PDF、Word（.docx）、图片或 CSV');
-      const text = file && (format === 'csv' || format === 'text') ? await file.text() : v.text;
-      const created = await unwrap(
-        api.POST('/admin/official/projects/{projectId}/imports', {
-          params: { path: { projectId } },
-          body: { kind: v.kind, format, file_name: file?.name, size: file?.size, text, exam_year: v.exam_year, is_recollection: v.is_recollection },
-        }),
-      );
-      if (created.upload_url && file) {
-        await uploadTextbookFile(file, { upload_url: created.upload_url, upload_headers: created.upload_headers ?? {} });
-        await unwrap(api.POST('/admin/official/projects/{projectId}/imports/{fileId}/confirm', { params: { path: { projectId, fileId: created.id } } }));
-      }
-      message.success('已开始解析');
-      setFile(undefined);
-      onClose();
-      void qc.invalidateQueries({ queryKey: ['admin', 'official-import', projectId] });
-    } catch (e) {
-      message.error(e instanceof Error ? e.message : '上传失败');
-    } finally {
-      setBusy(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [progress, setProgress] = useState<string>();
+  const close = () => {
+    setFiles([]);
+    onClose();
+  };
+  // 一个文件一条解析记录，逐个上传；某个文件失败不影响其他文件，最后汇总失败的。
+  const uploadOne = async (v: FormValues, file?: File) => {
+    const format = v.kind === 'table' ? 'csv' : file ? formatOf(file.name) : 'text';
+    if (!format) throw new Error('只支持 PDF、Word（.docx）、图片或 CSV');
+    const text = file && (format === 'csv' || format === 'text') ? await file.text() : v.text;
+    const examYear = v.exam_year ?? (file && files.length > 1 ? yearFromName(file.name) : undefined);
+    const created = await unwrap(
+      api.POST('/admin/official/projects/{projectId}/imports', {
+        params: { path: { projectId } },
+        body: { kind: v.kind, format, file_name: file?.name, size: file?.size, text, exam_year: examYear, is_recollection: v.is_recollection },
+      }),
+    );
+    if (created.upload_url && file) {
+      await uploadTextbookFile(file, { upload_url: created.upload_url, upload_headers: created.upload_headers ?? {} });
+      await unwrap(api.POST('/admin/official/projects/{projectId}/imports/{fileId}/confirm', { params: { path: { projectId, fileId: created.id } } }));
     }
   };
+  const submit = async (v: FormValues) => {
+    const bad = files.filter((f) => v.kind !== 'table' && !formatOf(f.name));
+    if (bad.length) {
+      message.error(`不支持的格式：${bad.map((f) => f.name).join('、')}。只支持 PDF、Word（.docx）、图片或 CSV`);
+      return;
+    }
+    if (!files.length && !v.text?.trim()) {
+      message.error('先选文件，或粘贴文字');
+      return;
+    }
+    const queue: (File | undefined)[] = files.length ? files : [undefined];
+    const failed: string[] = [];
+    for (const [i, file] of queue.entries()) {
+      if (queue.length > 1) setProgress(`上传中 ${i + 1}/${queue.length}`);
+      else setProgress('上传中');
+      try {
+        await uploadOne(v, file);
+      } catch (e) {
+        failed.push(`${file?.name ?? '粘贴的文字'}：${e instanceof Error ? e.message : '上传失败'}`);
+      }
+    }
+    setProgress(undefined);
+    void qc.invalidateQueries({ queryKey: ['admin', 'official-import', projectId] });
+    const ok = queue.length - failed.length;
+    if (!failed.length) {
+      message.success(queue.length > 1 ? `${ok} 个文件已开始解析` : '已开始解析');
+      close();
+      return;
+    }
+    if (ok > 0) close();
+    modal.error({ title: ok > 0 ? `${ok} 个已开始解析，${failed.length} 个上传失败` : '上传失败', content: failed.map((f) => <div key={f}>{f}</div>) });
+  };
+  const multi = files.length > 1;
   return (
-    <Modal open={open} title="上传资料" onCancel={onClose} onOk={() => form.submit()} confirmLoading={busy} destroyOnClose>
-      <Form form={form} layout="vertical" preserve={false} initialValues={{ kind: 'exam' }} onFinish={(v) => void submit(v)}>
+    <Modal open={open} title="上传资料" onCancel={close} onOk={() => form.submit()} confirmLoading={!!progress} okText={progress ?? '确定'} destroyOnClose>
+      <Form form={form} layout="vertical" preserve={false} initialValues={{ kind: 'exam' }} onFinish={(v: FormValues) => void submit(v)}>
         <Form.Item name="kind" label="资料类型">
           <Select options={Object.entries(kindNames).map(([value, label]) => ({ value, label }))} />
         </Form.Item>
         {kind === 'exam' ? (
-          <Space>
-            <Form.Item name="exam_year" label="真题年份（识别不出时用它）"><InputNumber min={1978} max={2100} /></Form.Item>
-            <Form.Item name="is_recollection" valuePropName="checked" label=" "><Checkbox>回忆版</Checkbox></Form.Item>
-          </Space>
+          <>
+            <Space>
+              <Form.Item name="exam_year" label="真题年份（选填）"><InputNumber min={1978} max={2100} /></Form.Item>
+              <Form.Item name="is_recollection" valuePropName="checked" label=" "><Checkbox>回忆版</Checkbox></Form.Item>
+            </Space>
+            <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: -12 }}>
+              一个文件里有多个年份时留空，按文件里「1997年」「2005年硕士研究生入学考试试题」这样的年份标题逐题识别；只有整份都是同一年、文件里又没写年份时才填。
+              {multi ? '选了多个文件时，留空则按文件名里的年份识别（如「2024真题.pdf」）。' : ''}
+            </Typography.Paragraph>
+          </>
         ) : null}
-        <Form.Item label={kind === 'table' ? 'CSV 文件（Excel 另存为 CSV UTF-8）' : '文件（PDF、Word、照片）'}>
-          <Upload beforeUpload={(f) => { setFile(f); return false; }} maxCount={1} onRemove={() => setFile(undefined)} accept={kind === 'table' ? '.csv' : '.pdf,.docx,.jpg,.jpeg,.png,.webp'}>
+        <Form.Item label={kind === 'table' ? 'CSV 文件（Excel 另存为 CSV UTF-8）' : '文件（PDF、Word、照片，可多选）'}>
+          <Upload
+            multiple
+            fileList={files.map((f, i) => ({ uid: `${i}-${f.name}`, name: f.name, status: 'done' as const }))}
+            beforeUpload={(f) => {
+              setFiles((prev) => (prev.some((p) => p.name === f.name && p.size === f.size) ? prev : [...prev, f]));
+              return false;
+            }}
+            onRemove={(u) => setFiles((prev) => prev.filter((f, i) => `${i}-${f.name}` !== u.uid))}
+            accept={kind === 'table' ? '.csv' : '.pdf,.docx,.jpg,.jpeg,.png,.webp'}
+          >
             <Button>选择文件</Button>
           </Upload>
+          {multi ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>已选 {files.length} 个文件，每个文件单独解析、单独核对</Typography.Text> : null}
         </Form.Item>
         {kind === 'table' ? (
           <Alert type="info" message="表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型。题型、分值、题干必填，真题年份必填；缺答案、采分点时由 AI 补全。" />
-        ) : (
+        ) : files.length ? null : (
           <Form.Item name="text" label="或者直接粘贴文字">
             <Input.TextArea rows={6} placeholder="没有文件时可以粘贴真题或讲义原文" />
           </Form.Item>
@@ -172,11 +229,14 @@ function AddFile({ projectId, open, onClose }: { projectId: number; open: boolea
   );
 }
 
+type FormValues = { kind: ImportFile['kind']; text?: string; exam_year?: number; is_recollection?: boolean };
+
 function Review({ projectId, fileId }: { projectId: number; fileId: number }) {
   const qc = useQueryClient();
   const { message } = AntApp.useApp();
   const [current, setCurrent] = useState<number>();
   const [editing, setEditing] = useState(false);
+  const [year, setYear] = useState<number>();
   const detail = useQuery({
     queryKey: ['admin', 'official-import', projectId, fileId],
     queryFn: () => unwrap(api.GET('/admin/official/projects/{projectId}/imports/{fileId}', { params: { path: { projectId, fileId } } })),
@@ -188,13 +248,16 @@ function Review({ projectId, fileId }: { projectId: number; fileId: number }) {
       message.success(v.decision === 'accept' ? '已接受，提交审核' : '已驳回');
       setEditing(false);
       void qc.invalidateQueries({ queryKey: ['admin', 'official-import', projectId] });
-      const items = detail.data?.items ?? [];
-      const next = items.find((i) => i.status === 'pending' && i.id !== v.itemId);
+      const rest = (detail.data?.items ?? []).filter((i) => !year || yearOf(i) === year);
+      const next = rest.find((i) => i.status === 'pending' && i.id !== v.itemId);
       setCurrent(next?.id);
     },
     onError: (e) => message.error(e instanceof ApiError ? e.message : '操作失败'),
   });
-  const items = detail.data?.items ?? [];
+  const all = detail.data?.items ?? [];
+  // 多年真题合集一份就有几百道题，按年份筛着核对
+  const years = [...new Set(all.map(yearOf).filter((y): y is number => y !== undefined))].sort((a, b) => a - b);
+  const items = year ? all.filter((i) => yearOf(i) === year) : all;
   const it = items.find((i) => i.id === current) ?? items.find((i) => i.status === 'pending') ?? items[0];
   const p = (it?.payload ?? {}) as QuestionPayload & Record<string, unknown>;
   const text = detail.data?.text ?? '';
@@ -205,6 +268,16 @@ function Review({ projectId, fileId }: { projectId: number; fileId: number }) {
       <Row gutter={16}>
         <Col span={7}>
           <Card size="small" title={`${detail.data?.file.file_name ?? ''} · ${items.length} 条`} extra={<Typography.Text type="secondary">已核对 {items.filter((i) => i.status !== 'pending').length}</Typography.Text>}>
+            {years.length > 1 ? (
+              <Select
+                allowClear
+                placeholder={`全部年份（${years.length} 年）`}
+                value={year}
+                onChange={(y?: number) => { setYear(y); setCurrent(undefined); setEditing(false); }}
+                options={years.map((y) => ({ value: y, label: `${y} 年 · ${all.filter((i) => yearOf(i) === y).length} 条` }))}
+                style={{ width: '100%', marginBottom: 8 }}
+              />
+            ) : null}
             <List
               size="small"
               dataSource={items}

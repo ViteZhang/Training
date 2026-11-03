@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
+	"golang.org/x/sync/errgroup"
 
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
@@ -54,8 +55,10 @@ func (s *Service) ConfigureImports(d ImportDeps) { s.imports = d }
 
 const (
 	maxImportBytes = 50 << 20
-	maxImportRunes = 400000
-	importPrefix   = "official-imports/"
+	// importAIParallel 是一份资料同时调用模型的请求数，与用户端导入（importer.aiParallel）一致，不至于触发平台限流。
+	importAIParallel = 3
+	maxImportRunes   = 400000
+	importPrefix     = "official-imports/"
 )
 
 // ImportFile 是一份团队上传的资料。
@@ -429,11 +432,22 @@ func (s *Service) parseQuestions(ctx context.Context, f dbq.OfficialImportFile, 
 		ai   bool
 	}
 	var qs []parsed
-	for _, chunk := range importer.Chunk(blocks, 6000, 40) {
-		out, _, err := ai.Structure.Run(ctx, s.d.AI, 0, ai.StructureIn{Subject: proj.SubjectName, Blocks: chunk})
-		if err != nil {
-			return nil, err
-		}
+	// 多年真题合集有几十批、几百道题，各批同时调用模型，才能在任务时限（1 小时）内解析完。
+	chunks := importer.Chunk(blocks, 6000, 40)
+	outs := make([]ai.StructureOut, len(chunks))
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(importAIParallel)
+	for i, chunk := range chunks {
+		g.Go(func() error {
+			out, _, err := ai.Structure.Run(gctx, s.d.AI, 0, ai.StructureIn{Subject: proj.SubjectName, Blocks: chunk})
+			outs[i] = out
+			return err
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	for _, out := range outs {
 		for _, it := range out.Items {
 			if it.Kind != "question" || strings.TrimSpace(it.Stem) == "" {
 				continue
@@ -468,15 +482,24 @@ func (s *Service) parseQuestions(ctx context.Context, f dbq.OfficialImportFile, 
 			qs = append(qs, parsed{p: p, conf: it.Confidence, src: b.Text, page: b.Page})
 		}
 	}
+	fill, fctx := errgroup.WithContext(ctx)
+	fill.SetLimit(importAIParallel)
 	for i := range qs {
-		cite, filled, err := s.fillAnswer(ctx, f.ProjectID, &qs[i].p)
-		if err != nil {
-			// 单题补答案失败不拖垮整份：留给编辑「修改」时补，置信度记低。
-			s.d.Log.WarnContext(ctx, "official import fill answer failed", "file_id", f.ID, "err", err)
-			qs[i].conf = 0
-			continue
-		}
-		qs[i].cite, qs[i].ai = cite, filled
+		fill.Go(func() error {
+			cite, filled, err := s.fillAnswer(fctx, f.ProjectID, &qs[i].p)
+			if err != nil {
+				// 单题补答案失败不拖垮整份：留给编辑「修改」时补，置信度记低。
+				s.d.Log.WarnContext(fctx, "official import fill answer failed", "file_id", f.ID, "err", err)
+				qs[i].conf = 0
+				return nil
+			}
+			qs[i].cite, qs[i].ai = cite, filled
+			return nil
+		})
+	}
+	_ = fill.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, err // 任务超时或被取消：交给重试，不保存一半没补答案的结果
 	}
 	// 归知识点：按现有知识点树（已发布的与草稿里的）给每道题打板块 / 章节 / 知识点。
 	if len(qs) > 0 {
