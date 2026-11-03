@@ -44,7 +44,8 @@ func (h *Handlers) GetKnowledgeTree(c *gin.Context, subjectID gen.SubjectId, p g
 func toNodes(ns []*bank.Node) []gen.KnowledgeNode {
 	out := make([]gen.KnowledgeNode, 0, len(ns))
 	for _, n := range ns {
-		g := gen.KnowledgeNode{Id: int64(n.ID), Level: gen.KnowledgeLevel(n.Level), Name: n.Name, Children: toNodes(n.Children)}
+		g := gen.KnowledgeNode{Id: int64(n.ID), Level: gen.KnowledgeLevel(n.Level), Name: n.Name, Children: toNodes(n.Children),
+			OfficialQuestionCount: ptr(n.OfficialQuestions), MyQuestionCount: ptr(n.MyQuestions)}
 		if n.Level == "point" {
 			st := gen.MasteryState(n.State)
 			g.State, g.ExamCount, g.NeedsReview = &st, &n.ExamCount, &n.NeedsReview

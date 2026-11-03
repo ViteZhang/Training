@@ -990,10 +990,11 @@ func AllDisputesAttributionValues() []DisputesAttribution {
 type DisputesReason string
 
 const (
-	DisputesReasonHitMissed   DisputesReason = "hit_missed"
-	DisputesReasonRubricWrong DisputesReason = "rubric_wrong"
-	DisputesReasonScoreUnfair DisputesReason = "score_unfair"
-	DisputesReasonOther       DisputesReason = "other"
+	DisputesReasonHitMissed      DisputesReason = "hit_missed"
+	DisputesReasonRubricWrong    DisputesReason = "rubric_wrong"
+	DisputesReasonScoreUnfair    DisputesReason = "score_unfair"
+	DisputesReasonOther          DisputesReason = "other"
+	DisputesReasonTeacherDiffers DisputesReason = "teacher_differs"
 )
 
 func (e *DisputesReason) Scan(src interface{}) error {
@@ -1036,7 +1037,8 @@ func (e DisputesReason) Valid() bool {
 	case DisputesReasonHitMissed,
 		DisputesReasonRubricWrong,
 		DisputesReasonScoreUnfair,
-		DisputesReasonOther:
+		DisputesReasonOther,
+		DisputesReasonTeacherDiffers:
 		return true
 	}
 	return false
@@ -1048,6 +1050,7 @@ func AllDisputesReasonValues() []DisputesReason {
 		DisputesReasonRubricWrong,
 		DisputesReasonScoreUnfair,
 		DisputesReasonOther,
+		DisputesReasonTeacherDiffers,
 	}
 }
 
@@ -7367,9 +7370,7 @@ type Dispute struct {
 	ID          uint64
 	OwnerUserID uint64
 	GradingID   uint64
-	// 4.8 四选一
-	Reason DisputesReason
-	Note   sql.NullString
+	Note        sql.NullString
 	// 允许后台查看这道题和答案
 	AllowAccess bool
 	RegradeID   sql.NullInt64
@@ -7381,6 +7382,8 @@ type Dispute struct {
 	HandledBy   sql.NullInt64
 	CreatedAt   time.Time
 	ResolvedAt  sql.NullTime
+	// 4.8；teacher_differs 和我们老师讲的不一样（PRD v3 增补）
+	Reason DisputesReason
 }
 
 // 作文本（5.8）
@@ -8525,6 +8528,16 @@ type Subject struct {
 	// 1.1 选的院校
 	School sql.NullString
 	Major  sql.NullString
+}
+
+// 3.1e 补充资料提示「以后再说」
+type SupplementPromptDismissal struct {
+	OwnerUserID uint64
+	SubjectID   uint64
+	// section:<板块 id> / dispute / wrong_book
+	PromptKey string
+	// 这之前不再提示
+	SnoozeUntil time.Time
 }
 
 // 考后回访（6.14），每人一次
