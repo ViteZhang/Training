@@ -27,13 +27,7 @@ export function pct(v: number) {
   return `${(v * 100).toFixed(1)}%`;
 }
 
-/** ISO 时间 → 2026-10-03 10:05（本地时区）。 */
-export function dt(iso?: string | null) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
+export { dt } from './time';
 
 /** 秒 → 「3 分 20 秒」。 */
 export function dur(seconds: number) {

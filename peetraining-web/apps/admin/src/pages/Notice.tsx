@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { Loadable, PageTitle } from '../components/Page';
 import { ParamsPanel } from './Config';
 import { api, dt, unwrap } from '../lib/api';
+import { pickerToISO } from '../lib/time';
 
 function errMsg(e: unknown) {
   return e instanceof ApiError ? e.message : '操作失败，请重试';
@@ -29,7 +30,7 @@ export function Notice() {
             all: v.target === 'all',
             user_ids: v.target === 'users' ? (v.user_ids ?? '').split(/[,，\s]+/).map(Number).filter((x) => Number.isInteger(x) && x > 0) : undefined,
             with_popup: v.with_popup,
-            scheduled_at: v.scheduled?.toISOString(),
+            scheduled_at: v.scheduled ? pickerToISO(v.scheduled) : undefined,
           },
         }),
       ),
@@ -67,7 +68,7 @@ export function Notice() {
             }
           </Form.Item>
           <Space>
-            <Form.Item label="定时发送（不填立即发）" name="scheduled"><DatePicker showTime /></Form.Item>
+            <Form.Item label="定时发送（北京时间，不填立即发）" name="scheduled"><DatePicker showTime /></Form.Item>
             <Form.Item label=" " name="with_popup" valuePropName="checked"><Checkbox>协议更新时同时弹 0.4b</Checkbox></Form.Item>
           </Space>
           <Typography.Paragraph type="secondary">渠道：消息中心。短信只用于验证码，不发营销短信。</Typography.Paragraph>
