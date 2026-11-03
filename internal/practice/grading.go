@@ -626,7 +626,7 @@ type DisputeInput struct {
 // Dispute 提交复核：重批一次，不扣次数；每次批改只能复核一次。勾选授权时写 content_access_grants（72 小时）。
 func (s *Service) Dispute(ctx context.Context, userID, gradingID uint64, in DisputeInput) (Grading, error) {
 	switch in.Reason {
-	case "hit_missed", "rubric_wrong", "score_unfair", "other":
+	case "hit_missed", "rubric_wrong", "score_unfair", "other", "teacher_differs":
 	default:
 		return Grading{}, apperr.New(apperr.BadRequest, "请选择异议原因")
 	}

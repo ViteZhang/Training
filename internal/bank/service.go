@@ -113,7 +113,9 @@ type Node struct {
 	NeedsReview   bool
 	Official      bool // 官方题库复制过来的（同名合并的仍是用户自己的）
 	IsNew         bool // 官方新版本新增的，标「新」两周（PRD 11.15）
-	Children      []*Node
+	// OfficialQuestions / MyQuestions 是节点下（按主知识点）官方题与我的题数，板块标题显示「官方 18 · 我的 3」（PRD v3 增补 3.1e）。
+	OfficialQuestions, MyQuestions int
+	Children                       []*Node
 }
 
 // Tree 返回知识点树。filter：all / unmastered（未掌握）/ exam（真题考过）/ needs_review（待核对）；
@@ -151,8 +153,18 @@ func (s *Service) Tree(ctx context.Context, userID, subjectID uint64, filter str
 			roots = append(roots, n)
 		}
 	}
+	srcs, err := s.q.KPQuestionSources(ctx, dbq.KPQuestionSourcesParams{BankID: b.BankID, OwnerUserID: owner(userID)})
+	if err != nil {
+		return nil, 0, err
+	}
+	for _, r := range srcs {
+		if n, ok := nodes[r.KpID]; ok {
+			n.OfficialQuestions, n.MyQuestions = int(r.OfficialCount), int(r.MineCount)
+		}
+	}
 	for _, r := range roots {
 		stats(r, p.MasteryState)
+		sumQuestions(r)
 	}
 	keep := func(n *Node) bool {
 		switch filter {
@@ -198,6 +210,16 @@ func stats(n *Node, p rules.MasteryStateParams) []float64 {
 		n.AvgMastery, n.IsWeak = rules.SectionMastery(ms, p)
 	}
 	return ms
+}
+
+// sumQuestions 把官方题与我的题数汇总到板块与章节。
+func sumQuestions(n *Node) (int, int) {
+	for _, c := range n.Children {
+		o, m := sumQuestions(c)
+		n.OfficialQuestions += o
+		n.MyQuestions += m
+	}
+	return n.OfficialQuestions, n.MyQuestions
 }
 
 func prune(nodes []*Node, keep func(*Node) bool) []*Node {

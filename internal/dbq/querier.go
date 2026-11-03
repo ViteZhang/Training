@@ -134,6 +134,7 @@ type Querier interface {
 	CopySplitMastery(ctx context.Context, arg CopySplitMasteryParams) error
 	CorrectWrongBookRate(ctx context.Context, arg CorrectWrongBookRateParams) error
 	CountActiveImportJobs(ctx context.Context, ownerUserID uint64) (int64, error)
+	CountActiveWrongBook(ctx context.Context, arg CountActiveWrongBookParams) (int64, error)
 	CountAttempts(ctx context.Context, arg CountAttemptsParams) (int64, error)
 	CountDisputes(ctx context.Context, arg CountDisputesParams) (int64, error)
 	// 编辑已提交过几次（新编辑前 3 次全量审核）。
@@ -411,6 +412,8 @@ type Querier interface {
 	GrantedMaterial(ctx context.Context, arg GrantedMaterialParams) (GrantedMaterialRow, error)
 	GrantedMaterialPages(ctx context.Context, arg GrantedMaterialPagesParams) ([]GrantedMaterialPagesRow, error)
 	HandleApplicationGroup(ctx context.Context, arg HandleApplicationGroupParams) error
+	HasOfficialSubscription(ctx context.Context, arg HasOfficialSubscriptionParams) (int64, error)
+	HasTeacherDispute(ctx context.Context, arg HasTeacherDisputeParams) (int64, error)
 	HeartbeatTextbookIndex(ctx context.Context, arg HeartbeatTextbookIndexParams) error
 	InWrongBook(ctx context.Context, arg InWrongBookParams) (bool, error)
 	IncCatalogPendingCount(ctx context.Context, id uint64) error
@@ -502,6 +505,9 @@ type Querier interface {
 	InsertUserQuestionCopy(ctx context.Context, arg InsertUserQuestionCopyParams) (int64, error)
 	InsertVoiceTranscription(ctx context.Context, arg InsertVoiceTranscriptionParams) (int64, error)
 	InsertWritingMethod(ctx context.Context, arg InsertWritingMethodParams) (int64, error)
+	// T48 题库「官方 / 我的」与补充资料提示（每条都带 owner_user_id）。
+	// 每个知识点（按主知识点）下官方题与我的题数。
+	KPQuestionSources(ctx context.Context, arg KPQuestionSourcesParams) ([]KPQuestionSourcesRow, error)
 	// 每道题最近一次作答的时间（针对卷避开近 30 天做过的题）。
 	LastAttemptDays(ctx context.Context, ownerUserID uint64) ([]LastAttemptDaysRow, error)
 	LastScoreEstimateBefore(ctx context.Context, arg LastScoreEstimateBeforeParams) (LastScoreEstimateBeforeRow, error)
@@ -682,6 +688,7 @@ type Querier interface {
 	// 还没导入任何资料的专业课（1.8 提示继续导入）。
 	ListSubjectsWithoutContent(ctx context.Context, ownerUserID uint64) ([]uint64, error)
 	ListSubscribers(ctx context.Context, bankID uint64) ([]ListSubscribersRow, error)
+	ListSupplementDismissals(ctx context.Context, arg ListSupplementDismissalsParams) ([]ListSupplementDismissalsRow, error)
 	ListTextbookEditions(ctx context.Context, bookID uint64) ([]TextbookEdition, error)
 	ListTextbookImportPages(ctx context.Context, importID uint64) ([]TextbookImportPage, error)
 	ListTextbookImports(ctx context.Context, revisionID uint64) ([]ListTextbookImportsRow, error)
@@ -764,6 +771,8 @@ type Querier interface {
 	ReadyPaperHandwriting(ctx context.Context, arg ReadyPaperHandwritingParams) error
 	ReadyVoiceTranscription(ctx context.Context, arg ReadyVoiceTranscriptionParams) error
 	ReassignSplitQuestion(ctx context.Context, arg ReassignSplitQuestionParams) (int64, error)
+	// 最近一段时间的作答与题目的主知识点（补充资料提示按板块算得分率）。
+	RecentAttemptsWithKP(ctx context.Context, arg RecentAttemptsWithKPParams) ([]RecentAttemptsWithKPRow, error)
 	// 官方采分点有实质变化时，对应背诵重新进入复习（PRD 11.15）。
 	ReciteReviewAgain(ctx context.Context, arg ReciteReviewAgainParams) error
 	// 知识点在真题中出现的次数（3.1、3.8；回忆版不计入）。
@@ -954,8 +963,10 @@ type Querier interface {
 	UpsertQuestionReport(ctx context.Context, arg UpsertQuestionReportParams) error
 	// ---------- 统计汇总（Worker 每小时写 stats_hourly，7.1 只读它） ----------
 	UpsertStat(ctx context.Context, arg UpsertStatParams) error
+	UpsertSupplementDismissal(ctx context.Context, arg UpsertSupplementDismissalParams) error
 	UpsertWrongBook(ctx context.Context, arg UpsertWrongBookParams) error
 	UseRedeemCode(ctx context.Context, arg UseRedeemCodeParams) (int64, error)
+	UserCreatedAt(ctx context.Context, id uint64) (time.Time, error)
 	// 官方题库上线时通知在 1.1 选了该课的用户。
 	UsersOfCatalogCourse(ctx context.Context, catalogCourseID sql.NullInt64) ([]uint64, error)
 	VoidCodeIfUnused(ctx context.Context, id uint64) (int64, error)

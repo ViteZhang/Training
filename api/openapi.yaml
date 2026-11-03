@@ -2635,7 +2635,7 @@ paths:
               type: object
               required: [reason]
               properties:
-                reason: { type: string, enum: [hit_missed, rubric_wrong, score_unfair, other] }
+                reason: { type: string, enum: [hit_missed, rubric_wrong, score_unfair, other, teacher_differs] }
                 note: { type: string, maxLength: 500 }
       responses:
         "200":
@@ -5585,6 +5585,56 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+  /subjects/{subjectId}/supplement-prompt:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [bank]
+      operationId: getSupplementPrompt
+      summary: 3.1e 补充资料提示（只对已添加官方题库的课；每次最多一条）
+      description: |
+        触发（默认值，7.8 可改）：某板块近 14 天作答 ≥ 5、得分率 < 60% 且官方题 < 5 道；或批改异议原因为「和我们老师讲的不一样」；或错题本达到 30 题。
+        注册当天不提示；「以后再说」后同一条 7 天内不再出现。没有提示时 prompt 为空。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  prompt:
+                    type: object
+                    required: [reason]
+                    properties:
+                      reason: { type: string, enum: [section_gap, dispute, wrong_book] }
+                      section_id: { type: integer, format: int64 }
+                      section_name: { type: string }
+                      official_count: { type: integer, description: 板块下的官方题数 }
+                      attempts: { type: integer }
+                      score_rate: { type: number, description: 0–1 }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /subjects/{subjectId}/supplement-prompt/dismiss:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    post:
+      tags: [bank]
+      operationId: dismissSupplementPrompt
+      summary: 补充资料提示「以后再说」
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, enum: [section_gap, dispute, wrong_book] }
+                section_id: { type: integer, format: int64, description: section_gap 时必填 }
+      responses:
+        "204": { description: 完成 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /official-banks:
     get:
       tags:
@@ -10445,7 +10495,7 @@ components:
       type: object
       required: [reason]
       properties:
-        reason: { type: string, enum: [hit_missed, rubric_wrong, score_unfair, other], description: 我其实答到了某个采分点 / 采分点本身不对 / 分数给得不合理 / 其他 }
+        reason: { type: string, enum: [hit_missed, rubric_wrong, score_unfair, other, teacher_differs], description: 我其实答到了某个采分点 / 采分点本身不对 / 分数给得不合理 / 其他 / 和我们老师讲的不一样（PRD v3 增补） }
         note: { type: string, maxLength: 500 }
         allow_access: { type: boolean, default: false, description: 允许后台查看这道题和我的答案 }
     PendingGradings:
@@ -13848,6 +13898,8 @@ components:
         needs_review: { type: boolean }
         official: { type: boolean, description: 来自官方题库 }
         is_new: { type: boolean, description: 官方题库新版本新增的知识点，标「新」两周 }
+        official_question_count: { type: integer, description: 节点下（按主知识点）的官方题数；板块标题显示「官方 N · 我的 M」（3.1e） }
+        my_question_count: { type: integer, description: 节点下我自己导入的题数 }
         children: { type: array, items: { $ref: "#/components/schemas/KnowledgeNode" } }
     KnowledgeNodeInput:
       type: object
