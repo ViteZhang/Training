@@ -5,6 +5,7 @@ import { Alert, App as AntApp, Button, Card, Descriptions, Drawer, Empty, Form, 
 import { useRef, useState } from 'react';
 import { Loadable } from '../components/Page';
 import { api, dt, unwrap } from '../lib/api';
+import { bjWall, bjWallToISO } from '../lib/time';
 
 type Book = components['schemas']['Textbook'];
 type Edition = components['schemas']['TextbookEdition'];
@@ -84,14 +85,14 @@ export function TextbookIndexes({ path, book, edition, onClose }: { path: Path; 
 export function TextbookAvailability({ book, edition, onClose }: { book: Book; edition: Edition; onClose: () => void }) {
   const [form] = Form.useForm<components['schemas']['TextbookAvailabilityChange']>();
   const requestKey = useRequestKey(); const qc = useQueryClient();
-  const save = useMutation({ mutationFn: (values: components['schemas']['TextbookAvailabilityChange']) => unwrap(api.POST('/admin/textbooks/{bookId}/editions/{editionId}/availability', { params: { path: { bookId: book.id, editionId: edition.id } }, body: { ...values, expected_version: edition.version ?? 1, idempotency_key: requestKey(values), license_expires_at: values.license_expires_at ? new Date(values.license_expires_at).toISOString() : null } })), onSuccess: () => { void qc.invalidateQueries({ queryKey: key }); onClose(); } });
+  const save = useMutation({ mutationFn: (values: components['schemas']['TextbookAvailabilityChange']) => unwrap(api.POST('/admin/textbooks/{bookId}/editions/{editionId}/availability', { params: { path: { bookId: book.id, editionId: edition.id } }, body: { ...values, expected_version: edition.version ?? 1, idempotency_key: requestKey(values), license_expires_at: values.license_expires_at ? bjWallToISO(values.license_expires_at) : null } })), onSuccess: () => { void qc.invalidateQueries({ queryKey: key }); onClose(); } });
   return <Modal open title={`${edition.edition} · 授权与可用性`} onCancel={() => { if (!save.isPending) onClose(); }} onOk={() => form.submit()} okText="确认保存" confirmLoading={save.isPending} maskClosable={false}>
     <Typography.Paragraph type="secondary">下架停止新答案使用；停用历史摘录展示后，APP 的原文摘录不可查看。恢复授权后须重新校验发布。</Typography.Paragraph>
-    <Form form={form} layout="vertical" initialValues={{ withdrawn: edition.status === 'withdrawn', authorized: edition.authorized, license_note: edition.license_note, excerpts_enabled: edition.excerpts_enabled ?? true, license_expires_at: edition.license_expires_at ? localDateTime(edition.license_expires_at) : undefined, summary: '' }} onFinish={(v) => save.mutate(v)}>
+    <Form form={form} layout="vertical" initialValues={{ withdrawn: edition.status === 'withdrawn', authorized: edition.authorized, license_note: edition.license_note, excerpts_enabled: edition.excerpts_enabled ?? true, license_expires_at: edition.license_expires_at ? bjWall(edition.license_expires_at).slice(0, 16) : undefined, summary: '' }} onFinish={(v) => save.mutate(v)}>
       <Form.Item name="withdrawn" label="新检索" rules={[{ required: true }]}><Select options={[{ value: false, label: '保留当前状态（不自动恢复发布）' }, { value: true, label: '下架，停止新检索' }]} /></Form.Item>
       <Form.Item name="authorized" label="授权状态"><Select options={[{ value: true, label: '已获授权' }, { value: false, label: '停用授权' }]} /></Form.Item>
       <Form.Item name="license_note" label="授权说明" rules={[{ required: true, whitespace: true }]}><Input.TextArea maxLength={500} /></Form.Item>
-      <Form.Item name="license_expires_at" label="授权截止时间（本机时间，留空表示未登记）" rules={[{ validator: (_, v: string) => !v || !Number.isNaN(new Date(v).getTime()) ? Promise.resolve() : Promise.reject(new Error('填写有效时间')) }]}><Input type="datetime-local" /></Form.Item>
+      <Form.Item name="license_expires_at" label="授权截止时间（北京时间，留空表示未登记）" rules={[{ validator: (_, v: string) => !v || !Number.isNaN(new Date(v).getTime()) ? Promise.resolve() : Promise.reject(new Error('填写有效时间')) }]}><Input type="datetime-local" /></Form.Item>
       <Form.Item name="excerpts_enabled" label="历史摘录展示"><Select options={[{ value: true, label: '允许查看' }, { value: false, label: '停止展示原文摘录' }]} /></Form.Item>
       <Form.Item name="summary" label="变更原因" rules={[{ required: true, whitespace: true }]}><Input.TextArea maxLength={500} /></Form.Item>
     </Form>
@@ -103,4 +104,3 @@ export function TextbookPublicationHistory({ bookId }: { bookId: number }) {
   return <Card size="small" title="发布与可用性记录"><Loadable loading={q.isPending} error={q.error}><List dataSource={q.data?.items} locale={{ emptyText: '暂无发布记录' }} renderItem={(r) => <List.Item><List.Item.Meta title={r.summary} description={`${dt(r.created_at)} · 操作人 #${r.created_by} · 版次 #${r.edition_id}${r.generation_id ? ` / 索引 #${r.generation_id}` : ''}`} /></List.Item>} /></Loadable></Card>;
 }
 
-function localDateTime(value:string){const date=new Date(value);return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16);}

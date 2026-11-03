@@ -3,6 +3,7 @@ import { Badge, Button, Layout, Menu, Space, Typography, Watermark } from 'antd'
 import { useMemo, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
 import { api, unwrap } from '../lib/api';
+import { dt } from '../lib/time';
 import { visibleMenu, type Role } from '../lib/menu';
 
 const { Sider, Header, Content } = Layout;
@@ -28,7 +29,7 @@ export function AppLayout({ account, children, now = new Date(), onLogout }: App
     refetchInterval: 5 * 60_000,
   });
   const badge = (path: string) => (path === '/applications' ? applySummary.data?.pending ?? 0 : 0);
-  const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const stamp = dt(now);
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider width={220} theme="light" style={{ borderRight: '1px solid #E4DFD4' }}>
