@@ -1,6 +1,8 @@
-import { Button, Layout, Menu, Space, Typography, Watermark } from 'antd';
+import { useQuery } from '@tanstack/react-query';
+import { Badge, Button, Layout, Menu, Space, Typography, Watermark } from 'antd';
 import { useMemo, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
+import { api, unwrap } from '../lib/api';
 import { visibleMenu, type Role } from '../lib/menu';
 
 const { Sider, Header, Content } = Layout;
@@ -17,6 +19,15 @@ export interface AppLayoutProps {
 export function AppLayout({ account, children, now = new Date(), onLogout }: AppLayoutProps) {
   const location = useLocation();
   const groups = useMemo(() => visibleMenu(account.roles), [account.roles]);
+  // 「申请收录」菜单显示待处理数红点（PRD v3 增补「侧栏与推送」）
+  const canApply = groups.some((g) => g.pages.some((p) => p.path === '/applications'));
+  const applySummary = useQuery({
+    queryKey: ['admin', 'applications', 'summary'],
+    queryFn: () => unwrap(api.GET('/admin/course-applications/summary')),
+    enabled: canApply,
+    refetchInterval: 5 * 60_000,
+  });
+  const badge = (path: string) => (path === '/applications' ? applySummary.data?.pending ?? 0 : 0);
   const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -29,7 +40,14 @@ export function AppLayout({ account, children, now = new Date(), onLogout }: App
             key: g.key,
             type: 'group',
             label: g.title,
-            children: g.pages.map((p) => ({ key: p.path, label: <Link to={p.path}>{`${p.code} ${p.title}`}</Link> })),
+            children: g.pages.map((p) => ({
+              key: p.path,
+              label: (
+                <Link to={p.path}>
+                  {`${p.code} ${p.title}`} {badge(p.path) > 0 ? <Badge count={badge(p.path)} size="small" style={{ marginLeft: 6 }} /> : null}
+                </Link>
+              ),
+            })),
           }))}
         />
       </Sider>

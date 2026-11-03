@@ -6,6 +6,8 @@ import { AppLayout } from './components/AppLayout';
 import { api, unwrap } from './lib/api';
 import { menu, type Role } from './lib/menu';
 import { clearSession, useToken } from './lib/session';
+import { Applications } from './pages/Applications';
+import { Catalog } from './pages/Catalog';
 import { ChangePassword } from './pages/ChangePassword';
 import { Codes } from './pages/Codes';
 import { Config } from './pages/Config';
@@ -15,6 +17,7 @@ import { Feedback } from './pages/Feedback';
 import { Login } from './pages/Login';
 import { Notice } from './pages/Notice';
 import { Official } from './pages/Official';
+import { OfficialImport } from './pages/OfficialImport';
 import { Orders } from './pages/Orders';
 import { Overview } from './pages/Overview';
 import { Parse } from './pages/Parse';
@@ -23,6 +26,7 @@ import { Produce } from './pages/Produce';
 import { Release } from './pages/Release';
 import { ReviewQueue } from './pages/Review';
 import { Roles } from './pages/Roles';
+import { Samples } from './pages/Samples';
 import { Textbooks } from './pages/Textbooks';
 import { Users } from './pages/Users';
 
@@ -56,6 +60,11 @@ export function App() {
     '/produce': <Produce />,
     '/review': <ReviewQueue />,
     '/release': <Release />,
+    // 官方题库先行（PRD v3 增补）
+    '/applications': <Applications roles={roles} />,
+    '/official-import': <OfficialImport />,
+    '/samples': <Samples roles={roles} />,
+    '/catalog': <Catalog />,
   };
   const visible = menu.flatMap((g) => g.pages).filter((p) => p.roles.some((r) => roles.includes(r)));
   const home = visible[0]?.path ?? '/overview';

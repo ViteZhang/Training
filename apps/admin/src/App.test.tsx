@@ -72,18 +72,20 @@ describe('后台登录', () => {
 describe('后台壳', () => {
   it('菜单按角色显示六组', () => {
     expect(visibleMenu(['admin']).map((gr) => gr.title)).toEqual(['运营', '质量', '配置', '官方题库', '官方教材库', '系统']);
-    expect(visibleMenu(['content_editor']).flatMap((gr) => gr.pages.map((p) => p.code))).toEqual(['7.12']);
-    expect(visibleMenu(['analyst']).flatMap((gr) => gr.pages.map((p) => p.code))).toEqual(['7.1', '7.10']);
+    expect(visibleMenu(['content_editor']).flatMap((gr) => gr.pages.map((p) => p.code))).toEqual(['7.17', '7.12', '7.18']);
+    expect(visibleMenu(['analyst']).flatMap((gr) => gr.pages.map((p) => p.code))).toEqual(['7.1', '7.16', '7.10']);
   });
 
   it('布局显示账号名与退出', () => {
     let out = false;
     render(
-      <MemoryRouter>
-        <AppLayout account={{ name: '客服小王', roles: ['support'] }} now={new Date(2026, 9, 1, 9, 5)} onLogout={() => (out = true)}>
-          <div>内容</div>
-        </AppLayout>
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <AppLayout account={{ name: '客服小王', roles: ['support'] }} now={new Date(2026, 9, 1, 9, 5)} onLogout={() => (out = true)}>
+            <div>内容</div>
+          </AppLayout>
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
     expect(screen.getByText('客服小王')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /退\s*出/ }));

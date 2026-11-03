@@ -66,10 +66,14 @@ export const colors = {
   /** 正确、命中、已掌握数据 */
   green: '#1F7A4D',
   greenSoft: '#E4F4EB',
+  /** 浅绿底上的深色标题（1.5 隐私承诺卡） */
+  greenDeep: '#134A30',
   /** 部分命中、注意 */
   orange: '#B26A00',
   orangeSoft: '#FDF1DC',
   orangeInk: '#6B4A12',
+  /** 浅橙底上的深色文字（3.1e 补充资料提示） */
+  orangeDeep: '#5C3900',
   orangeLine: '#F3DDB3',
   /** 错误、遗漏、删除 */
   red: '#C23B22',

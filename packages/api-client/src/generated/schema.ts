@@ -3888,6 +3888,297 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/catalog/schools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 1.1 搜索目标院校（院校专业课库）
+         * @description 受 onboarding_route 开关控制，关闭时返回 404（App 回到旧 1.1）。
+         */
+        get: operations["searchCatalogSchools"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/courses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 1.1 按院校列出专业与专业课，标出有没有官方题库
+         * @description 受 onboarding_route 开关控制。official_status：available 有官方题库 / producing 生产中 / none 暂无；
+         *     官方题库开关对当前用户关闭时一律为 none（增补「功能开关」）。有官方题库时带 official 摘要（1.1a）。
+         */
+        get: operations["listCatalogCourses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/onboarding/official-first": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 1.1b 首题：从已添加的官方题库取一道名词解释真题
+         * @description 须先把这个官方题库添加到一门专业课（PUT /official-banks/{bankId}/subscription）。按高频考点优先取一道官方名词解释真题，
+         *     建一组只有这道题的练习（kind = official_first），这组的批改不扣额度、不占体验次数。每个账号只有一组，重复调用返回同一组。
+         *     受 official_bank 开关控制。
+         */
+        post: operations["startOfficialFirst"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trials/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 体验次数（1.1c、1.9 右上角）
+         * @description 体验一道题与通用体验题共用次数（默认每个账号 1 次），以提交批改成功为准，批改失败不计次。
+         */
+        get: operations["getTrialStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trials/recognize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 1.9 识别一道题（粘贴的文字，或拍照后 /handwriting/recognize 识别出的文字）
+         * @description 受 trial 开关控制。supported 为假时（不是名词解释、简答、论述）App 提示更换。不扣额度。
+         */
+        post: operations["recognizeTrial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 开始一次体验（1.9 自己的题 / 1.10 通用体验题或 AI 出题）
+         * @description 自己的题受 trial 开关控制；sample_question_id 受 sample_trial（AI 出题受 ai_live_question）开关控制。
+         *     没填参考答案时由 AI 生成并标「AI 参考答案」。提交前只返回采分点个数（1.9a「AI 已整理出 N 个采分点」）。
+         *     体验次数用完时返回 409（detail.reason = trial_used_up）。不扣任何额度。
+         */
+        post: operations["createTrial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trials/{trialId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 读一次体验（批改后带结果） */
+        get: operations["getTrial"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trials/{trialId}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 1.9a 提交批改（不扣额度）
+         * @description 批改成功才计一次体验；结果标「按 AI 参考答案批改」「仅供参考」，不计入预估分。
+         */
+        post: operations["submitTrial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trials/{trialId}/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 1.9b 加入自建题库，或不保存
+         * @description import_all 加入并导入整套真题（App 进 1.5）；only 只加入这道题（进 2.1）；discard 不保存，题目与作答全部删除（进 2.1c）。
+         *     加入时题目、采分点和这次作答都存进 subject_id 这门课的自建题库，答案来源为「来自你的资料」（填了参考答案）或「AI 参考答案 · 待确认」。
+         */
+        post: operations["saveTrial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sample-questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 1.10 学科通用体验题（已上线的，按学科、方向分组）
+         * @description 受 sample_trial 开关控制。示例题只用于体验和入门练习，不计入预估分。
+         */
+        get: operations["listSampleQuestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sample-questions/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 1.10 未覆盖学科：按专业课和参考教材 AI 现场出一道题（标「AI 出题」）
+         * @description 受 ai_live_question 开关控制。同一门专业课的结果缓存复用；不扣 AI 出题额度。
+         */
+        post: operations["liveSampleQuestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/course-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 我的收录申请与进度
+         * @description 受 course_apply 开关控制。
+         */
+        get: operations["listMyCourseApplications"];
+        put?: never;
+        /**
+         * 1.11 申请收录
+         * @description 受 course_apply 开关控制。院校、专业、专业课名称、考试年份必填（从 1.1 带入），代码选填。
+         *     按「院校 + 专业课名称」归并，有代码时优先按代码；同一用户同一门课只能申请一次，重复提交返回 409（detail.reason = already_applied，带 applicant_count）。
+         *     处理结果（已立项、已联系、暂不收录、官方题库上线）通过消息中心通知。
+         */
+        post: operations["applyCourse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/supplement-prompt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * 3.1e 补充资料提示（只对已添加官方题库的课；每次最多一条）
+         * @description 触发（默认值，7.8 可改）：某板块近 14 天作答 ≥ 5、得分率 < 60% 且官方题 < 5 道；或批改异议原因为「和我们老师讲的不一样」；或错题本达到 30 题。
+         *     注册当天不提示；「以后再说」后同一条 7 天内不再出现。没有提示时 prompt 为空。
+         */
+        get: operations["getSupplementPrompt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subjectId}/supplement-prompt/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 补充资料提示「以后再说」 */
+        post: operations["dismissSupplementPrompt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/official-banks": {
         parameters: {
             query?: never;
@@ -3969,6 +4260,309 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/catalog/courses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 院校专业课库（配置组）
+         * @description 1.1 的院校搜索与专业课列表都来自这里，由运营手工维护，不接外部数据。官方题库状态按立项自动显示。
+         */
+        get: operations["adminListCatalogCourses"];
+        put?: never;
+        /** 新增一门课 */
+        post: operations["adminCreateCatalogCourse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/catalog/courses/{courseId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 修改一门课；hidden 为真时 1.1 不再显示 */
+        put: operations["adminUpdateCatalogCourse"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/catalog/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 待入库：用户在 1.1 手动添加、库里没有的课
+         * @description 按「院校 + 代码（有代码时）或课程名」归并，只有人数，不含用户信息。
+         */
+        get: operations["adminListCatalogPending"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/catalog/pending/{pendingId}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 处理待入库：一键入库 / 合并到已有课程 / 忽略
+         * @description 入库或合并后，当初手动添加这门课的用户关联到库里的课（官方题库上线时能收到通知）。
+         */
+        post: operations["adminResolveCatalogPending"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/samples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 7.18 通用体验题：统计卡与学科方向树 */
+        get: operations["adminSampleOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/samples/directions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 新增学科或方向 */
+        post: operations["adminCreateSampleDirection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/samples/questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 一个方向下的体验题；不传 direction_id 时是「AI 出题缓存」 */
+        get: operations["adminListSampleQuestions"];
+        put?: never;
+        /** 新建题目（手工录入，进待审核） */
+        post: operations["adminCreateSampleQuestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/samples/questions/{sampleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 修改体验题 */
+        put: operations["adminUpdateSampleQuestion"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/samples/questions/{sampleId}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 审核上线 / 下线（AI 出题缓存也在这里抽检下线） */
+        post: operations["adminSetSampleStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/samples/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** AI 批量生成初稿（按方向，全部进待审核） */
+        post: operations["adminGenerateSamples"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/course-applications/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 申请收录计数（7.16 提醒条与统计卡、7.1「新的收录申请」、侧栏红点） */
+        get: operations["adminCourseApplicationSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/course-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 7.16 申请收录：按院校 · 专业 · 专业课汇总
+         * @description 待处理置顶；只显示申请表单信息，不显示用户任何资料内容。
+         */
+        get: operations["adminListCourseApplications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/course-applications/{groupId}/applicants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 申请人列表（昵称、考试年份、申请时间、标记） */
+        get: operations["adminListApplicants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/course-applications/{groupId}/initiate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 立项（生成 7.11 官方题库项目），通知所有申请人 */
+        post: operations["adminInitiateCourseApplication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/course-applications/{groupId}/contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 联系用户：给所有申请人发站内信，状态记为已联系 */
+        post: operations["adminContactApplicants"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/course-applications/{groupId}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 暂不收录（必填原因），通知所有申请人 */
+        post: operations["adminRejectCourseApplication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/seed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 7.2 标记或取消种子用户 */
+        put: operations["setAdminUserSeed"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/official/projects": {
         parameters: {
             query?: never;
@@ -4042,6 +4636,86 @@ export interface paths {
          * @description alignment：new 新增 / supplement 同名同表述（补充来源）/ differ 同名不同表述（选以哪个为准）。
          */
         post: operations["extractOfficialKPs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 7.17 AI 解析导入：项目下的资料（文件卡：解析状态与结果数）
+         * @description 只解析团队上传的资料，与用户端资料完全隔离。内容编辑只能访问分配给自己的项目。
+         */
+        get: operations["adminListOfficialImports"];
+        put?: never;
+        /**
+         * 上传资料并标类型（真题卷 / 参考书目录 / 有授权的讲义），或粘贴文字、表格导入（CSV）
+         * @description format 为 text 或 csv 时直接带 text，马上开始解析；pdf / docx / image 返回 upload_url，客户端直传后调用 confirm。
+         *     表格导入的表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型；
+         *     题型、分值、题干必填，真题年份必填；缺参考答案、采分点时由 AI 补全。
+         */
+        post: operations["adminCreateOfficialImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/imports/{fileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 核对区：原文与解析结果（置信度、采分点合计是否等于分值、引用来源） */
+        get: operations["adminGetOfficialImport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/imports/{fileId}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 文件上传完成，开始解析（解析失败后也用它重新解析） */
+        post: operations["adminConfirmOfficialImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/import-items/{itemId}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 逐条接受（可带修改后的内容）或驳回；接受的生成草稿并提交 7.13 审核
+         * @description 采分点合计不等于分值时不能接受（detail.reason = rubric_sum）。
+         */
+        post: operations["adminReviewOfficialImportItem"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5693,10 +6367,10 @@ export interface components {
         };
         DisputeRequest: {
             /**
-             * @description 我其实答到了某个采分点 / 采分点本身不对 / 分数给得不合理 / 其他
+             * @description 我其实答到了某个采分点 / 采分点本身不对 / 分数给得不合理 / 其他 / 和我们老师讲的不一样（PRD v3 增补）
              * @enum {string}
              */
-            reason: "hit_missed" | "rubric_wrong" | "score_unfair" | "other";
+            reason: "hit_missed" | "rubric_wrong" | "score_unfair" | "other" | "teacher_differs";
             note?: string;
             /**
              * @description 允许后台查看这道题和我的答案
@@ -5719,10 +6393,10 @@ export interface components {
             }[];
         };
         /**
-         * @description 今日训练 / 题型专项 / 自定义 / 错题重做 / 摸底测
+         * @description 今日训练 / 题型专项 / 自定义 / 错题重做 / 摸底测 / 官方题库首题（1.1b，批改不扣额度）
          * @enum {string}
          */
-        PracticeKind: "daily" | "type_drill" | "custom" | "wrong_redo" | "placement";
+        PracticeKind: "daily" | "type_drill" | "custom" | "wrong_redo" | "placement" | "official_first";
         PracticeConfig: {
             /** @description 板块或章节，空表示全部 */
             section_ids?: number[];
@@ -6676,6 +7350,8 @@ export interface components {
             est_high?: number;
         };
         AdminUserDetail: components["schemas"]["AdminUser"] & {
+            /** @description 种子用户（运营标记） */
+            is_seed?: boolean;
             nickname: string;
             failed_materials: number;
             pages: number;
@@ -7864,6 +8540,226 @@ export interface components {
             notify_review_due: boolean;
             notify_task_done: boolean;
         };
+        CatalogCourse: {
+            /** Format: int64 */
+            id: number;
+            school: string;
+            major: string;
+            /** @description 学科，如 哲学、文学 */
+            discipline: string;
+            subject_name: string;
+            subject_code?: string;
+            textbooks: string[];
+            /** @description 适用考试年份；没有表示各年通用 */
+            exam_year?: number;
+            /** @enum {string} */
+            official_status: "available" | "producing" | "none";
+            official?: components["schemas"]["OfficialSummary"];
+        };
+        /** @description 1.1a 官方题库摘要 */
+        OfficialSummary: {
+            /** Format: int64 */
+            bank_id: number;
+            version: string;
+            /** @description 真题年份数 */
+            exam_year_count: number;
+            kp_count: number;
+            /** @description 模拟卷套数 */
+            paper_count: number;
+            question_count: number;
+            /**
+             * Format: int64
+             * @description 已添加到哪门专业课；没添加时没有
+             */
+            added_subject_id?: number;
+        };
+        CatalogCourseInput: {
+            school: string;
+            major: string;
+            discipline?: string;
+            subject_name: string;
+            subject_code?: string;
+            textbooks?: string[];
+            exam_year?: number;
+            hidden?: boolean;
+        };
+        AdminCatalogCourse: components["schemas"]["CatalogCourse"] & {
+            /** @enum {string} */
+            status: "active" | "hidden";
+            /** @description 在 1.1 选了这门课的人数 */
+            chosen_count: number;
+        };
+        TrialUsage: {
+            limit: number;
+            used: number;
+            remaining: number;
+        };
+        Trial: {
+            /** Format: int64 */
+            id: number;
+            /**
+             * @description 自己的题 / 通用体验题 / AI 出题
+             * @enum {string}
+             */
+            kind: "own" | "sample" | "ai_live";
+            /** @enum {string} */
+            qtype: "term" | "short_answer" | "discussion";
+            score: number;
+            stem: string;
+            /**
+             * @description ai 表示按 AI 参考答案批改（标「仅供参考」）
+             * @enum {string}
+             */
+            answer_source: "user" | "ai";
+            /** @description 采分点个数（提交前只给个数） */
+            point_count: number;
+            /** @enum {string} */
+            status: "ready" | "graded" | "saved";
+            /** @description 剩余体验次数 */
+            remaining: number;
+            /** @description 批改后才有 */
+            reference_answer?: string;
+            /** @description 得分，批改后才有 */
+            total?: number;
+            points?: components["schemas"]["GradingPoint"][];
+            suggestions?: string[];
+            structure_ok?: boolean;
+            structure_note?: string;
+            answer_text?: string;
+            /**
+             * Format: int64
+             * @description 加入题库后的题目
+             */
+            question_id?: number;
+        };
+        SampleQuestion: {
+            /** Format: int64 */
+            id: number;
+            /** @enum {string} */
+            qtype: "term" | "short_answer" | "discussion";
+            score: number;
+            stem: string;
+            /** @description 参考教材 */
+            textbook?: string;
+            /** @description AI 现场出题，标「AI 出题」 */
+            ai_generated: boolean;
+        };
+        SampleQuestionInput: {
+            textbook?: string;
+            /** @enum {string} */
+            qtype: "term" | "short_answer" | "discussion";
+            score: number;
+            stem: string;
+            answer: string;
+            /** @description 采分点，合计等于分值 */
+            rubric: components["schemas"]["RubricPointInput"][];
+        };
+        AdminSampleQuestion: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            direction_id?: number;
+            /** @enum {string} */
+            origin: "manual" | "ai_batch" | "ai_live";
+            /** @description AI 出题缓存对应的专业课 */
+            subject_label?: string;
+            textbook?: string;
+            /** @enum {string} */
+            qtype: "term" | "short_answer" | "discussion";
+            score: number;
+            stem: string;
+            answer: string;
+            rubric: components["schemas"]["RubricPointInput"][];
+            /** @enum {string} */
+            status: "pending" | "online" | "offline";
+            /** @description 被体验次数 */
+            try_count: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /**
+         * @description 待处理 / 建议立项 / 已联系 / 已立项 / 暂不收录
+         * @enum {string}
+         */
+        CourseApplicationStatus: "pending" | "suggested" | "contacted" | "initiated" | "rejected";
+        AdminCourseApplicationGroup: {
+            /** Format: int64 */
+            id: number;
+            school: string;
+            major: string;
+            subject_name: string;
+            subject_code?: string;
+            discipline: string;
+            status: components["schemas"]["CourseApplicationStatus"];
+            /** @description 暂不收录的原因 */
+            reason?: string;
+            applicant_count: number;
+            paid_count: number;
+            seed_count: number;
+            /**
+             * Format: date-time
+             * @description 最早待处理时间
+             */
+            pending_since?: string;
+            /** @description 超过 24 小时未处理，标红 */
+            overdue: boolean;
+            /** Format: int64 */
+            project_id?: number;
+            /** Format: date-time */
+            last_applied_at: string;
+        };
+        OfficialImportFile: {
+            /** Format: int64 */
+            id: number;
+            /** @enum {string} */
+            kind: "exam" | "catalog" | "handout" | "table";
+            file_name: string;
+            /** @enum {string} */
+            format: "pdf" | "docx" | "image" | "text" | "csv";
+            /** @enum {string} */
+            status: "uploading" | "parsing" | "parsed" | "failed";
+            fail_reason?: string;
+            question_count: number;
+            kp_count: number;
+            /** @description 已核对条数 */
+            reviewed_count: number;
+            exam_year?: number;
+            /** Format: date-time */
+            created_at: string;
+            /** @description 直传地址（新建文件时） */
+            upload_url?: string;
+            upload_headers?: {
+                [key: string]: string;
+            };
+        };
+        OfficialImportItem: {
+            /** Format: int64 */
+            id: number;
+            /** @enum {string} */
+            item_type: "question" | "knowledge_point";
+            seq: number;
+            /** @description 结构同 7.12 草稿 */
+            payload: {
+                [key: string]: unknown;
+            };
+            citations?: {
+                /** Format: int64 */
+                reference_id?: number;
+                title?: string;
+                heading?: string;
+            }[];
+            /** @description 原文片段（高亮） */
+            source_text?: string;
+            page?: number;
+            /** @enum {string} */
+            confidence: "high" | "medium" | "low";
+            /** @enum {string} */
+            status: "pending" | "accepted" | "rejected";
+            /** Format: int64 */
+            draft_id?: number;
+            /** @description 采分点合计不等于分值（标红） */
+            rubric_mismatch: boolean;
+        };
         SubjectInput: {
             name: string;
             code?: string | null;
@@ -7871,6 +8767,14 @@ export interface components {
             full_score: 100 | 150 | 300;
             /** @description 不设目标传 null */
             target_score?: number | null;
+            /**
+             * Format: int64
+             * @description 1.1 从院校专业课库选的课（新 1.1）
+             */
+            catalog_course_id?: number;
+            /** @description 1.1 手动添加时的院校；库里没有的课进后台「待入库」 */
+            school?: string;
+            major?: string;
         };
         SubjectPatch: {
             textbook_selections?: components["schemas"]["UserTextbookSelection"][];
@@ -7900,6 +8804,11 @@ export interface components {
             is_essay: boolean;
             /** @description 参考教材书名（选填） */
             textbooks?: string[];
+            /** @description 1.1 选的院校 */
+            school?: string;
+            major?: string;
+            /** Format: int64 */
+            catalog_course_id?: number;
             /** Format: int64 */
             bank_id: number;
             question_count: number;
@@ -8291,6 +9200,10 @@ export interface components {
             official?: boolean;
             /** @description 官方题库新版本新增的知识点，标「新」两周 */
             is_new?: boolean;
+            /** @description 节点下（按主知识点）的官方题数；板块标题显示「官方 N · 我的 M」（3.1e） */
+            official_question_count?: number;
+            /** @description 节点下我自己导入的题数 */
+            my_question_count?: number;
             children: components["schemas"]["KnowledgeNode"][];
         };
         KnowledgeNodeInput: {
@@ -12163,7 +13076,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    reason: "hit_missed" | "rubric_wrong" | "score_unfair" | "other";
+                    reason: "hit_missed" | "rubric_wrong" | "score_unfair" | "other" | "teacher_differs";
                     note?: string;
                 };
             };
@@ -14535,6 +15448,489 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    searchCatalogSchools: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            name: string;
+                            course_count: number;
+                        }[];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listCatalogCourses: {
+        parameters: {
+            query: {
+                school: string;
+                exam_year?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["CatalogCourse"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    startOfficialFirst: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    bank_id: number;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeSession"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getTrialStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrialUsage"];
+                };
+            };
+        };
+    };
+    recognizeTrial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description 识别出的题型（可能不是体验支持的三种） */
+                        qtype: string;
+                        score: number;
+                        stem: string;
+                        /** @description 原文带了答案时给出，可作为参考答案 */
+                        answer?: string;
+                        supported: boolean;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createTrial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    sample_question_id?: number;
+                    /** @enum {string} */
+                    input_mode?: "paste" | "photo";
+                    /** @enum {string} */
+                    qtype?: "term" | "short_answer" | "discussion";
+                    score?: number;
+                    stem?: string;
+                    /** @description 选填 */
+                    reference_answer?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trial"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getTrial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trialId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trial"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    submitTrial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trialId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    answer: string;
+                    /** @enum {string} */
+                    mode?: "typed" | "photo";
+                    photo_keys?: string[];
+                    idempotency_key: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trial"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            502: components["responses"]["AIFailed"];
+        };
+    };
+    saveTrial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trialId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    action: "import_all" | "only" | "discard";
+                    /**
+                     * Format: int64
+                     * @description 加入时必填
+                     */
+                    subject_id?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        question_id?: number;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listSampleQuestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** @description 学科 */
+                            name: string;
+                            directions: {
+                                /** Format: int64 */
+                                id: number;
+                                name: string;
+                                questions: components["schemas"]["SampleQuestion"][];
+                            }[];
+                        }[];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    liveSampleQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    subject_id: number;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleQuestion"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            502: components["responses"]["AIFailed"];
+        };
+    };
+    listMyCourseApplications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: int64 */
+                            id: number;
+                            school: string;
+                            major: string;
+                            subject_name: string;
+                            subject_code?: string;
+                            exam_year: number;
+                            status: components["schemas"]["CourseApplicationStatus"];
+                            applicant_count: number;
+                            /** Format: date-time */
+                            created_at: string;
+                        }[];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    applyCourse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    school: string;
+                    major: string;
+                    subject_name: string;
+                    subject_code?: string;
+                    exam_year: number;
+                    /**
+                     * @description 入口：1.1c / 题库页 3.1 / 我的 → 备考设置 6.9
+                     * @enum {string}
+                     */
+                    entry?: "onboarding" | "bank" | "settings";
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description 目前申请这门课的人数（1.11a） */
+                        applicant_count: number;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getSupplementPrompt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        prompt?: {
+                            /** @enum {string} */
+                            reason: "section_gap" | "dispute" | "wrong_book";
+                            /** Format: int64 */
+                            section_id?: number;
+                            section_name?: string;
+                            /** @description 板块下的官方题数 */
+                            official_count?: number;
+                            attempts?: number;
+                            /** @description 0–1 */
+                            score_rate?: number;
+                        };
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    dismissSupplementPrompt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectId: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    reason: "section_gap" | "dispute" | "wrong_book";
+                    /**
+                     * Format: int64
+                     * @description section_gap 时必填
+                     */
+                    section_id?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     listOfficialBanks: {
         parameters: {
             query?: never;
@@ -14656,6 +16052,589 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["BadRequest"];
+        };
+    };
+    adminListCatalogCourses: {
+        parameters: {
+            query?: {
+                /** @description 按院校、课程名或代码搜索 */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminCatalogCourse"][];
+                    };
+                };
+            };
+        };
+    };
+    adminCreateCatalogCourse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogCourseInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        id: number;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    adminUpdateCatalogCourse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                courseId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogCourseInput"];
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    adminListCatalogPending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: int64 */
+                            id: number;
+                            school: string;
+                            major: string;
+                            subject_name: string;
+                            subject_code?: string;
+                            request_count: number;
+                            /** Format: date-time */
+                            first_at: string;
+                            /** Format: date-time */
+                            last_at: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    adminResolveCatalogPending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pendingId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    action: "add" | "merge" | "ignore";
+                    /**
+                     * Format: int64
+                     * @description merge 时必填
+                     */
+                    target_course_id?: number;
+                    course?: components["schemas"]["CatalogCourseInput"];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        course_id?: number;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    adminSampleOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        disciplines: number;
+                        directions: number;
+                        /** @description 体验题数（含待审核） */
+                        questions: number;
+                        pending: number;
+                        /** @description 本周被体验次数 */
+                        week_tries: number;
+                        items: {
+                            /** Format: int64 */
+                            id: number;
+                            discipline: string;
+                            name: string;
+                            question_count: number;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    adminCreateSampleDirection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    discipline: string;
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        id: number;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    adminListSampleQuestions: {
+        parameters: {
+            query?: {
+                direction_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminSampleQuestion"][];
+                    };
+                };
+            };
+        };
+    };
+    adminCreateSampleQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SampleQuestionInput"] & {
+                    /** Format: int64 */
+                    direction_id: number;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        id: number;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    adminUpdateSampleQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sampleId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SampleQuestionInput"];
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    adminSetSampleStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sampleId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    status: "online" | "offline";
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    adminGenerateSamples: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    direction_id: number;
+                    /** @enum {string} */
+                    qtype: "term" | "short_answer" | "discussion";
+                    score: number;
+                    count: number;
+                    textbook?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created: number;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            502: components["responses"]["AIFailed"];
+        };
+    };
+    adminCourseApplicationSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description 待处理（含建议立项）的课数 */
+                        pending: number;
+                        /** @description 达到立项阈值的课数 */
+                        suggested: number;
+                        /** @description 超过 24 小时未处理的课数 */
+                        overdue: number;
+                        /** @description 本周新增申请 */
+                        week_new: number;
+                        /** @description 涉及院校专业数 */
+                        school_majors: number;
+                    };
+                };
+            };
+        };
+    };
+    adminListCourseApplications: {
+        parameters: {
+            query?: {
+                discipline?: string;
+                only_pending?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminCourseApplicationGroup"][];
+                    };
+                };
+            };
+        };
+    };
+    adminListApplicants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            nickname: string;
+                            exam_year: number;
+                            /** @enum {string} */
+                            entry: "onboarding" | "bank" | "settings";
+                            /** Format: date-time */
+                            applied_at: string;
+                            /** @description 付费用户 */
+                            paid: boolean;
+                            /** @description 种子用户 */
+                            seed: boolean;
+                        }[];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    adminInitiateCourseApplication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description 申请里没有代码时必填 */
+                    subject_code?: string;
+                    major?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        project_id: number;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    adminContactApplicants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    message: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    adminRejectCourseApplication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    setAdminUserSeed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    seed: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
         };
     };
     listOfficialProjects: {
@@ -14821,6 +16800,169 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    adminListOfficialImports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["OfficialImportFile"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    adminCreateOfficialImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    kind: "exam" | "catalog" | "handout" | "table";
+                    /** @enum {string} */
+                    format: "pdf" | "docx" | "image" | "text" | "csv";
+                    file_name?: string;
+                    /**
+                     * Format: int64
+                     * @description 文件字节数（上传文件时）
+                     */
+                    size?: number;
+                    /** @description 粘贴的文字或 CSV */
+                    text?: string;
+                    /** @description 真题卷年份（识别不出时用它） */
+                    exam_year?: number;
+                    /** @description 回忆版 */
+                    is_recollection?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialImportFile"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    adminGetOfficialImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+                fileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        file: components["schemas"]["OfficialImportFile"];
+                        /** @description 原文 */
+                        text: string;
+                        items: components["schemas"]["OfficialImportItem"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    adminConfirmOfficialImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+                fileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已开始解析 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    adminReviewOfficialImportItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+                itemId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    decision: "accept" | "reject";
+                    /** @description 修改后的内容，结构同 7.12 草稿 */
+                    payload?: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        draft_id?: number;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     listOfficialReferences: {

@@ -8,7 +8,7 @@ import { Icon, Tag, Text } from '@/components';
 import type { KnowledgeNode } from './api';
 import { MasteryPill } from './MasteryPill';
 
-function PointRow({ n, subjectId, first }: { n: KnowledgeNode; subjectId: number; first?: boolean }) {
+function PointRow({ n, subjectId, first, mixed }: { n: KnowledgeNode; subjectId: number; first?: boolean; mixed?: boolean }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={n.name} onPress={() => router.push({ pathname: '/bank/kp/[id]', params: { id: String(n.id), subjectId: String(subjectId) } })} style={[styles.point, first && styles.noBorder]}>
       <Text variant="body" numberOfLines={1} style={styles.pointName}>
@@ -17,16 +17,18 @@ function PointRow({ n, subjectId, first }: { n: KnowledgeNode; subjectId: number
       {n.needs_review ? <View style={styles.reviewDot} accessibilityLabel="待核对" /> : null}
       <View style={styles.flex} />
       {n.is_new ? <Tag label="新" tone="progress" /> : null}
-      {n.official ? <Tag label="官方" tone="brand" /> : null}
+      {/* 3.1e：添加了官方题库的课，知识点标「官方」或「我的」（PRD v3 增补） */}
+      {n.official ? <Tag label="官方" tone="mastered" /> : mixed ? <Tag label="我的" tone="info" /> : null}
       {n.exam_count ? <Text variant="small">真题 {n.exam_count} 次</Text> : null}
       {n.state ? <MasteryPill state={n.state} /> : null}
     </Pressable>
   );
 }
 
-function Section({ n, initialOpen, subjectId, first }: { n: KnowledgeNode; initialOpen: boolean; subjectId: number; first: boolean }) {
+function Section({ n, initialOpen, subjectId, first, mixed }: { n: KnowledgeNode; initialOpen: boolean; subjectId: number; first: boolean; mixed: boolean }) {
   const [open, setOpen] = useState(initialOpen);
   const desc = [`${n.kp_count ?? 0} 个知识点`];
+  if (mixed) desc.push(`官方 ${n.official_question_count ?? 0} · 我的 ${n.my_question_count ?? 0}`);
   if (n.is_weak) desc.push('短板');
   else if (n.consolidating_count) desc.push(`${n.consolidating_count} 个待巩固`);
   const pct = Math.round(n.avg_mastery ?? 0);
@@ -56,11 +58,11 @@ function Section({ n, initialOpen, subjectId, first }: { n: KnowledgeNode; initi
                   {c.name}
                 </Text>
                 {c.children.map((p, i) => (
-                  <PointRow key={p.id} n={p} subjectId={subjectId} first={i === 0} />
+                  <PointRow key={p.id} n={p} subjectId={subjectId} first={i === 0} mixed={mixed} />
                 ))}
               </View>
             ) : (
-              <PointRow key={c.id} n={c} subjectId={subjectId} />
+              <PointRow key={c.id} n={c} subjectId={subjectId} mixed={mixed} />
             ),
           )
         : null}
@@ -70,11 +72,19 @@ function Section({ n, initialOpen, subjectId, first }: { n: KnowledgeNode; initi
 
 const weakInk = colors.orange;
 
+/** 有官方题的课才区分「官方 / 我的」（3.1e）。 */
+export const hasOfficial = (sections: KnowledgeNode[]) => sections.some((s) => (s.official_question_count ?? 0) > 0 || s.official);
+
 export function KnowledgeTree({ sections, expandAll, subjectId }: { sections: KnowledgeNode[]; expandAll: boolean; subjectId: number }) {
+  const mixed = hasOfficial(sections);
   return (
     <View style={styles.tree}>
       {sections.map((s, i) =>
-        s.level === 'point' ? <PointRow key={s.id} n={s} subjectId={subjectId} first={i === 0} /> : <Section key={s.id} n={s} initialOpen={expandAll} subjectId={subjectId} first={i === 0} />,
+        s.level === 'point' ? (
+          <PointRow key={s.id} n={s} subjectId={subjectId} first={i === 0} mixed={mixed} />
+        ) : (
+          <Section key={s.id} n={s} initialOpen={expandAll} subjectId={subjectId} first={i === 0} mixed={mixed} />
+        ),
       )}
     </View>
   );
