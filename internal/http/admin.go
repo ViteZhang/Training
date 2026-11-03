@@ -191,6 +191,14 @@ func (h *Handlers) GetAdminUser(c *gin.Context, userID int64) {
 	for i, s := range d.Subjects {
 		out.SubjectStats[i] = gen.AdminSubjectStat{Name: s.Name, Code: opt(s.Code), FullScore: s.FullScore, TargetScore: s.TargetScore, EstLow: s.EstLow, EstHigh: s.EstHigh}
 	}
+	if h.deps.Official != nil {
+		seed, err := h.deps.Official.IsSeed(c.Request.Context(), uint64(userID))
+		if err != nil {
+			_ = c.Error(err)
+			return
+		}
+		out.IsSeed = &seed
+	}
 	c.JSON(http.StatusOK, out)
 }
 

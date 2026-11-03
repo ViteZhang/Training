@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/dbtypes"
+	"peetraining-server/internal/params"
 )
 
 // Point 是一个采分点。
@@ -68,6 +70,12 @@ type Deps struct {
 	AI  *ai.Engine
 	Log *slog.Logger
 	Now func() time.Time
+	// Params 读申请收录的阈值（rule_params.official_first）；为空时用默认值。
+	Params *params.Store
+	// OpsWebhook 是运营企业微信群机器人地址（申请收录推送）；为空时只写日志。AdminBaseURL 是推送里的后台链接前缀。
+	OpsWebhook   string
+	AdminBaseURL string
+	HTTP         *http.Client
 }
 
 // Service 是官方题库。
@@ -83,6 +91,9 @@ func New(d Deps) *Service {
 	}
 	if d.Log == nil {
 		d.Log = slog.Default()
+	}
+	if d.HTTP == nil {
+		d.HTTP = &http.Client{Timeout: 5 * time.Second}
 	}
 	return &Service{d: d, q: dbq.New(d.DB), now: d.Now}
 }

@@ -64,6 +64,7 @@ type Querier interface {
 	AdminInsertCodeReturning(ctx context.Context, arg AdminInsertCodeReturningParams) (int64, error)
 	// PRD v3 13.3：客服收款后单个发码，记一笔已支付订单，收入计入 7.3（渠道：企业微信客服）。
 	AdminInsertManualOrder(ctx context.Context, arg AdminInsertManualOrderParams) (int64, error)
+	AdminListApplicationGroups(ctx context.Context, arg AdminListApplicationGroupsParams) ([]AdminListApplicationGroupsRow, error)
 	AdminListBatches(ctx context.Context, arg AdminListBatchesParams) ([]AdminListBatchesRow, error)
 	AdminListCatalogCourses(ctx context.Context, arg AdminListCatalogCoursesParams) ([]AdminListCatalogCoursesRow, error)
 	AdminListDisputes(ctx context.Context, arg AdminListDisputesParams) ([]AdminListDisputesRow, error)
@@ -103,16 +104,23 @@ type Querier interface {
 	// 「按结构写一道」用的题：同题型里最近没做过的。
 	AnyQuestionOfQType(ctx context.Context, arg AnyQuestionOfQTypeParams) (uint64, error)
 	AppendPaperHandwriting(ctx context.Context, arg AppendPaperHandwritingParams) error
+	ApplicantIDs(ctx context.Context, groupID uint64) ([]uint64, error)
+	ApplicationGroupsOfProject(ctx context.Context, arg ApplicationGroupsOfProjectParams) ([]uint64, error)
+	// 付费用户：买过会员（订单或兑换码），赠送的不算。
+	ApplicationStats(ctx context.Context, arg ApplicationStatsParams) (ApplicationStatsRow, error)
 	ApplyTextbookImport(ctx context.Context, arg ApplyTextbookImportParams) error
 	// 手动收款的兑换码被兑换后，订单补上兑换人与会员时段，退款时据此收回会员。
 	AttachManualOrder(ctx context.Context, arg AttachManualOrderParams) error
 	BankCounts(ctx context.Context, arg BankCountsParams) (BankCountsRow, error)
+	// 新申请：人数加 1；暂不收录的课有人再申请时重新进入待处理。
+	BumpApplicationGroup(ctx context.Context, arg BumpApplicationGroupParams) error
 	BumpProjectTextbookVersion(ctx context.Context, id uint64) error
 	BumpQuestionAnswerVersion(ctx context.Context, arg BumpQuestionAnswerVersionParams) error
 	// 每次报错计数；AI 出的题累计 3 次自动下线（PRD 4.3）。SET 从左到右执行，判断时 report_count 已经加过 1。
 	BumpQuestionReport(ctx context.Context, arg BumpQuestionReportParams) error
 	CancelUserDeletion(ctx context.Context, id uint64) (int64, error)
 	CatalogCoursesOfProject(ctx context.Context, id uint64) ([]uint64, error)
+	CatalogDiscipline(ctx context.Context, arg CatalogDisciplineParams) (string, error)
 	ClearExportObject(ctx context.Context, arg ClearExportObjectParams) error
 	CompleteAnswerCandidate(ctx context.Context, arg CompleteAnswerCandidateParams) error
 	// 待批改提交后写入结果。
@@ -272,6 +280,7 @@ type Querier interface {
 	GetAnswerPairing(ctx context.Context, arg GetAnswerPairingParams) (AnswerPairing, error)
 	GetAnswerSnapshot(ctx context.Context, arg GetAnswerSnapshotParams) (AnswerEvidenceSnapshot, error)
 	GetAppVersion(ctx context.Context, platform AppVersionsPlatform) (AppVersion, error)
+	GetApplicationGroup(ctx context.Context, id uint64) (CourseApplicationGroup, error)
 	GetAttemptByKey(ctx context.Context, arg GetAttemptByKeyParams) (Attempt, error)
 	// 资料（T08）。每条查询都带 owner_user_id 归属条件。
 	GetBankForSubject(ctx context.Context, arg GetBankForSubjectParams) (Bank, error)
@@ -389,6 +398,7 @@ type Querier interface {
 	// 邀请研友（T26，PRD 6.8、13.4）。
 	GetUserByInviteCode(ctx context.Context, inviteCode string) (GetUserByInviteCodeRow, error)
 	GetUserByPhone(ctx context.Context, phone string) (User, error)
+	GetUserSeed(ctx context.Context, id uint64) (bool, error)
 	GetVoiceTranscription(ctx context.Context, arg GetVoiceTranscriptionParams) (VoiceTranscription, error)
 	GetWrongBookForUpdate(ctx context.Context, arg GetWrongBookForUpdateParams) (WrongBook, error)
 	// 异议那次批改：题目、采分点快照（来源、识别出的、用户补充后的）、作答原文、逐点结果与分数。
@@ -397,6 +407,7 @@ type Querier interface {
 	// 记 content_access_logs 并通知用户，再用授权所属的用户 ID 读（每条查询都带归属条件）。
 	GrantedMaterial(ctx context.Context, arg GrantedMaterialParams) (GrantedMaterialRow, error)
 	GrantedMaterialPages(ctx context.Context, arg GrantedMaterialPagesParams) ([]GrantedMaterialPagesRow, error)
+	HandleApplicationGroup(ctx context.Context, arg HandleApplicationGroupParams) error
 	HeartbeatTextbookIndex(ctx context.Context, arg HeartbeatTextbookIndexParams) error
 	InWrongBook(ctx context.Context, arg InWrongBookParams) (bool, error)
 	IncCatalogPendingCount(ctx context.Context, id uint64) error
@@ -415,6 +426,7 @@ type Querier interface {
 	InsertComposedPaper(ctx context.Context, arg InsertComposedPaperParams) (int64, error)
 	InsertContentAccessGrant(ctx context.Context, arg InsertContentAccessGrantParams) error
 	InsertContentAccessLog(ctx context.Context, arg InsertContentAccessLogParams) error
+	InsertCourseApplication(ctx context.Context, arg InsertCourseApplicationParams) (int64, error)
 	InsertDispute(ctx context.Context, arg InsertDisputeParams) (int64, error)
 	// 作文（T23，PRD 模块 5、11.13）。每条都带 owner_user_id。
 	InsertEssay(ctx context.Context, arg InsertEssayParams) (int64, error)
@@ -510,6 +522,8 @@ type Querier interface {
 	ListAnswerCandidates(ctx context.Context, arg ListAnswerCandidatesParams) ([]AnswerUpdateCandidate, error)
 	ListAnswerPairings(ctx context.Context, arg ListAnswerPairingsParams) ([]AnswerPairing, error)
 	ListAppVersions(ctx context.Context) ([]AppVersion, error)
+	// 7.16 右侧详情：只有申请表单信息与标记，不含用户任何资料内容。
+	ListApplicants(ctx context.Context, groupID uint64) ([]ListApplicantsRow, error)
 	ListApprovedDrafts(ctx context.Context, projectID uint64) ([]OfficialDraft, error)
 	ListAttemptedSince(ctx context.Context, arg ListAttemptedSinceParams) ([]uint64, error)
 	ListAttemptsSince(ctx context.Context, arg ListAttemptsSinceParams) ([]ListAttemptsSinceRow, error)
@@ -684,6 +698,7 @@ type Querier interface {
 	// 到期复习的错题：没排过复习日的、复习日已到的。
 	ListWrongBookDue(ctx context.Context, arg ListWrongBookDueParams) ([]uint64, error)
 	LockAnswerCandidate(ctx context.Context, arg LockAnswerCandidateParams) (AnswerUpdateCandidate, error)
+	LockApplicationGroupByKey(ctx context.Context, groupKey string) (CourseApplicationGroup, error)
 	LockImportAnswer(ctx context.Context, arg LockImportAnswerParams) (ImportItem, error)
 	LockKPForSplit(ctx context.Context, arg LockKPForSplitParams) (uint64, error)
 	LockLegacyTextbookReference(ctx context.Context, id uint64) (LockLegacyTextbookReferenceRow, error)
@@ -718,6 +733,7 @@ type Querier interface {
 	MoveKPRubric(ctx context.Context, arg MoveKPRubricParams) error
 	// 合并：把来源知识点的题目关联挂到目标知识点（已挂的跳过）。
 	MoveQuestionKPs(ctx context.Context, arg MoveQuestionKPsParams) error
+	MyCourseApplications(ctx context.Context, ownerUserID uint64) ([]MyCourseApplicationsRow, error)
 	NextTextbookRevisionNo(ctx context.Context, editionID uint64) (int64, error)
 	// 高分写法：同题型里有采分点的题，用户确认过的采分点、有资料出处的优先。
 	NormExampleQuestion(ctx context.Context, arg NormExampleQuestionParams) (NormExampleQuestionRow, error)
@@ -790,6 +806,7 @@ type Querier interface {
 	SendReviewDue(ctx context.Context, arg SendReviewDueParams) (int64, error)
 	SetAnswerCandidateProcessing(ctx context.Context, arg SetAnswerCandidateProcessingParams) error
 	SetAnswerCandidateStatus(ctx context.Context, arg SetAnswerCandidateStatusParams) error
+	SetApplicationGroupSuggested(ctx context.Context, id uint64) (int64, error)
 	// 拍手写稿与答题规范（T19）。每条查询都带归属条件。
 	SetAttemptPhotos(ctx context.Context, arg SetAttemptPhotosParams) error
 	SetAttemptReferenceOnly(ctx context.Context, arg SetAttemptReferenceOnlyParams) error
@@ -840,6 +857,7 @@ type Querier interface {
 	SetTrialGraded(ctx context.Context, arg SetTrialGradedParams) (int64, error)
 	SetTrialSaved(ctx context.Context, arg SetTrialSavedParams) error
 	SetUserQuestionStatus(ctx context.Context, arg SetUserQuestionStatusParams) error
+	SetUserSeed(ctx context.Context, arg SetUserSeedParams) (int64, error)
 	StartTextbookIndex(ctx context.Context, arg StartTextbookIndexParams) error
 	// 某天（北京时间，[from, to)）的新增、活跃、作答、解析、付费与收入。
 	StatDay(ctx context.Context, arg StatDayParams) (StatDayRow, error)
@@ -905,6 +923,8 @@ type Querier interface {
 	UpdateUserQuestionCopy(ctx context.Context, arg UpdateUserQuestionCopyParams) error
 	UpsertAIRollout(ctx context.Context, arg UpsertAIRolloutParams) error
 	UpsertAppVersion(ctx context.Context, arg UpsertAppVersionParams) error
+	// T46 申请收录。
+	UpsertApplicationGroup(ctx context.Context, arg UpsertApplicationGroupParams) error
 	UpsertCatalogPending(ctx context.Context, arg UpsertCatalogPendingParams) error
 	UpsertDailyPlan(ctx context.Context, arg UpsertDailyPlanParams) error
 	UpsertDemandMark(ctx context.Context, arg UpsertDemandMarkParams) error

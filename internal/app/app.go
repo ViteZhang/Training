@@ -195,7 +195,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	base.Textbooks.ConfigureEvidence(engine, fl)
 	engine.SetAnswerEvidenceProvider(base.Textbooks)
 	base.AnswerUpdates = answerupdate.New(db, engine, qs, queue)
-	base.Official = official.New(official.Deps{DB: db, AI: engine, Log: log})
+	base.Official = official.New(official.Deps{DB: db, AI: engine, Log: log, Params: ps, OpsWebhook: cfg.OpsWebhookURL, AdminBaseURL: cfg.AdminBaseURL})
 	return base, nil
 }
 
