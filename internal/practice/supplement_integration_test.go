@@ -50,17 +50,14 @@ func TestSupplementPrompt(t *testing.T) {
 	}
 
 	// 近 14 天在这个板块作答 5 次、得分率 20%：提示。
-	rows, err := f.db.Query("SELECT id FROM questions WHERE owner_user_id = ? AND official_question_id IS NOT NULL", uid)
-	if err != nil {
-		t.Fatal(err)
-	}
 	var qids []uint64
-	for rows.Next() {
+	for i := range 3 {
 		var id uint64
-		_ = rows.Scan(&id)
+		if err := f.db.QueryRow("SELECT id FROM questions WHERE owner_user_id = ? AND official_question_id IS NOT NULL ORDER BY id LIMIT 1 OFFSET ?", uid, i).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
 		qids = append(qids, id)
 	}
-	_ = rows.Close()
 	for i := range 5 {
 		if _, err := f.db.Exec("INSERT INTO attempts (owner_user_id, question_id, answer_mode, answer_text, score, full_score, answered_at) VALUES (?, ?, 'typed', 'x', 1, 5, ?)",
 			uid, qids[i%len(qids)], f.clock.AddDate(0, 0, -1)); err != nil {
