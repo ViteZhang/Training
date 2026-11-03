@@ -8,6 +8,7 @@ import { App as AntApp, Button, Form, Input, InputNumber, Modal, Select, Space, 
 import { useState } from 'react';
 import { Loadable, PageTitle } from '../components/Page';
 import { api, unwrap } from '../lib/api';
+import { dt } from '../lib/time';
 
 type Course = Schemas['AdminCatalogCourse'];
 type CourseInput = Schemas['CatalogCourseInput'];
@@ -105,7 +106,7 @@ export function Catalog() {
                     { title: '专业', dataIndex: 'major' },
                     { title: '专业课', render: (_, p) => `${p.subject_code ? `${p.subject_code} ` : ''}${p.subject_name}` },
                     { title: '人数', dataIndex: 'request_count' },
-                    { title: '最近添加', render: (_, p) => new Date(p.last_at).toLocaleString('zh-CN') },
+                    { title: '最近添加', render: (_, p) => dt(p.last_at) },
                     {
                       title: '操作',
                       render: (_, p) => (

@@ -10,6 +10,7 @@ import { Alert, App as AntApp, Button, Card, Col, DatePicker, Descriptions, Form
 import { useState } from 'react';
 import { Loadable, PageTitle } from '../components/Page';
 import { api, downloadCSV, dt, unwrap } from '../lib/api';
+import { bjWallToISO } from '../lib/time';
 import type { Role } from '../lib/menu';
 
 const tierNames: Record<string, string> = { sprint: '冲刺卡', season: '考季卡', monthly: '月卡', gift: '赠送天数' };
@@ -140,10 +141,10 @@ function CreateBatch({ onCreated }: { onCreated: (r: Schemas['AdminBatchCreated'
     <Form
       layout="vertical"
       initialValues={{ tier: 'gift', days: 7, quantity: 100 }}
-      onFinish={(v: { name: string; tier: 'sprint' | 'season' | 'monthly' | 'gift'; days?: number; quantity: number; expires: { toDate: () => Date }; channel?: string }) => {
-        const end = v.expires.toDate();
-        end.setHours(23, 59, 59, 0);
-        create.mutate({ name: v.name, tier: v.tier, days: v.tier === 'gift' ? v.days : undefined, quantity: v.quantity, expires_at: end.toISOString(), channel: v.channel });
+      onFinish={(v: { name: string; tier: 'sprint' | 'season' | 'monthly' | 'gift'; days?: number; quantity: number; expires: { format: (f: string) => string }; channel?: string }) => {
+        // 有效期到所选日期的北京时间 23:59:59
+        const end = bjWallToISO(`${v.expires.format('YYYY-MM-DD')}T23:59:59`);
+        create.mutate({ name: v.name, tier: v.tier, days: v.tier === 'gift' ? v.days : undefined, quantity: v.quantity, expires_at: end, channel: v.channel });
       }}
     >
       <Form.Item label="批次名称" name="name" rules={[{ required: true, message: '请填写批次名称' }]}>
@@ -168,7 +169,7 @@ function CreateBatch({ onCreated }: { onCreated: (r: Schemas['AdminBatchCreated'
       <Form.Item label="数量" name="quantity" rules={[{ required: true, message: '请填写数量' }]}>
         <InputNumber min={1} max={5000} style={{ width: '100%' }} />
       </Form.Item>
-      <Form.Item label="码有效期至" name="expires" rules={[{ required: true, message: '请选择有效期' }]}>
+      <Form.Item label="码有效期至（北京时间当天 23:59）" name="expires" rules={[{ required: true, message: '请选择有效期' }]}>
         <DatePicker style={{ width: '100%' }} />
       </Form.Item>
       <Form.Item label="渠道" name="channel">

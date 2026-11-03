@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { Loadable, PageTitle } from '../components/Page';
 import { ParamEditor } from '../components/ParamEditor';
 import { api, dt, pct, unwrap } from '../lib/api';
+import { isoToPicker, pickerToISO } from '../lib/time';
 
 function errMsg(e: unknown) {
   return e instanceof ApiError ? e.message : '操作失败，请重试';
@@ -343,7 +344,7 @@ function AgreementForm({ agreement, onDone }: { agreement?: Schemas['AdminAgreem
   const { message } = AntApp.useApp();
   const save = useMutation({
     mutationFn: async (v: { kind: 'user' | 'privacy' | 'membership'; version: string; title: string; body: string; change_summary?: string; effective: dayjs.Dayjs }) => {
-      const base = { title: v.title, body: v.body, change_summary: v.change_summary, effective_at: v.effective.toISOString() };
+      const base = { title: v.title, body: v.body, change_summary: v.change_summary, effective_at: pickerToISO(v.effective) };
       return agreement
         ? unwrap(api.PUT('/admin/config/agreements/{agreementId}', { params: { path: { agreementId: agreement.id } }, body: base }))
         : unwrap(api.POST('/admin/config/agreements', { body: { ...base, kind: v.kind, version: v.version } }));
@@ -364,7 +365,7 @@ function AgreementForm({ agreement, onDone }: { agreement?: Schemas['AdminAgreem
           title: agreement?.title,
           body: agreement?.body,
           change_summary: agreement?.change_summary,
-          effective: agreement ? dayjs(agreement.effective_at) : dayjs(),
+          effective: agreement ? isoToPicker(agreement.effective_at) : isoToPicker(new Date().toISOString()),
         }}
         onFinish={save.mutate}
       >
@@ -375,7 +376,7 @@ function AgreementForm({ agreement, onDone }: { agreement?: Schemas['AdminAgreem
           <Form.Item label="版本号" name="version" rules={[{ required: true, message: '如 1.1' }]}>
             <Input disabled={!!agreement} style={{ width: 120 }} />
           </Form.Item>
-          <Form.Item label="生效时间" name="effective" rules={[{ required: true }]}>
+          <Form.Item label="生效时间（北京时间）" name="effective" rules={[{ required: true }]}>
             <DatePicker showTime />
           </Form.Item>
         </Space>
