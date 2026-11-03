@@ -734,6 +734,134 @@ func AllContentAccessGrantsSourceValues() []ContentAccessGrantsSource {
 	}
 }
 
+type CourseApplicationGroupsStatus string
+
+const (
+	CourseApplicationGroupsStatusPending   CourseApplicationGroupsStatus = "pending"
+	CourseApplicationGroupsStatusSuggested CourseApplicationGroupsStatus = "suggested"
+	CourseApplicationGroupsStatusContacted CourseApplicationGroupsStatus = "contacted"
+	CourseApplicationGroupsStatusInitiated CourseApplicationGroupsStatus = "initiated"
+	CourseApplicationGroupsStatusRejected  CourseApplicationGroupsStatus = "rejected"
+)
+
+func (e *CourseApplicationGroupsStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CourseApplicationGroupsStatus(s)
+	case string:
+		*e = CourseApplicationGroupsStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CourseApplicationGroupsStatus: %T", src)
+	}
+	return nil
+}
+
+type NullCourseApplicationGroupsStatus struct {
+	CourseApplicationGroupsStatus CourseApplicationGroupsStatus
+	Valid                         bool // Valid is true if CourseApplicationGroupsStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCourseApplicationGroupsStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.CourseApplicationGroupsStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CourseApplicationGroupsStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCourseApplicationGroupsStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CourseApplicationGroupsStatus), nil
+}
+
+func (e CourseApplicationGroupsStatus) Valid() bool {
+	switch e {
+	case CourseApplicationGroupsStatusPending,
+		CourseApplicationGroupsStatusSuggested,
+		CourseApplicationGroupsStatusContacted,
+		CourseApplicationGroupsStatusInitiated,
+		CourseApplicationGroupsStatusRejected:
+		return true
+	}
+	return false
+}
+
+func AllCourseApplicationGroupsStatusValues() []CourseApplicationGroupsStatus {
+	return []CourseApplicationGroupsStatus{
+		CourseApplicationGroupsStatusPending,
+		CourseApplicationGroupsStatusSuggested,
+		CourseApplicationGroupsStatusContacted,
+		CourseApplicationGroupsStatusInitiated,
+		CourseApplicationGroupsStatusRejected,
+	}
+}
+
+type CourseApplicationsEntry string
+
+const (
+	CourseApplicationsEntryOnboarding CourseApplicationsEntry = "onboarding"
+	CourseApplicationsEntryBank       CourseApplicationsEntry = "bank"
+	CourseApplicationsEntrySettings   CourseApplicationsEntry = "settings"
+)
+
+func (e *CourseApplicationsEntry) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CourseApplicationsEntry(s)
+	case string:
+		*e = CourseApplicationsEntry(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CourseApplicationsEntry: %T", src)
+	}
+	return nil
+}
+
+type NullCourseApplicationsEntry struct {
+	CourseApplicationsEntry CourseApplicationsEntry
+	Valid                   bool // Valid is true if CourseApplicationsEntry is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCourseApplicationsEntry) Scan(value interface{}) error {
+	if value == nil {
+		ns.CourseApplicationsEntry, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CourseApplicationsEntry.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCourseApplicationsEntry) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CourseApplicationsEntry), nil
+}
+
+func (e CourseApplicationsEntry) Valid() bool {
+	switch e {
+	case CourseApplicationsEntryOnboarding,
+		CourseApplicationsEntryBank,
+		CourseApplicationsEntrySettings:
+		return true
+	}
+	return false
+}
+
+func AllCourseApplicationsEntryValues() []CourseApplicationsEntry {
+	return []CourseApplicationsEntry{
+		CourseApplicationsEntryOnboarding,
+		CourseApplicationsEntryBank,
+		CourseApplicationsEntrySettings,
+	}
+}
+
 type DailyPlansStage string
 
 const (
@@ -6806,6 +6934,45 @@ type ContentAccessLog struct {
 	CreatedAt  time.Time
 }
 
+// 申请收录（1.11），同一用户同一门课只能申请一次
+type CourseApplication struct {
+	ID          uint64
+	OwnerUserID uint64
+	GroupID     uint64
+	School      string
+	Major       string
+	SubjectName string
+	SubjectCode sql.NullString
+	ExamYear    uint16
+	// 入口：1.1c / 题库页 / 我的 → 备考设置
+	Entry     CourseApplicationsEntry
+	CreatedAt time.Time
+}
+
+// 申请收录按课归并（7.16）
+type CourseApplicationGroup struct {
+	ID          uint64
+	GroupKey    string
+	School      string
+	Major       string
+	SubjectName string
+	SubjectCode sql.NullString
+	// 从院校专业课库带出，7.16 按学科筛选
+	Discipline string
+	Status     CourseApplicationGroupsStatus
+	// 暂不收录的原因（必填）
+	Reason         sql.NullString
+	ApplicantCount uint32
+	// 最早待处理时间；处理后清空，超过 24 小时标红
+	PendingSince  sql.NullTime
+	LastAppliedAt time.Time
+	// 立项生成的 7.11 官方题库项目
+	ProjectID sql.NullInt64
+	HandledBy sql.NullInt64
+	HandledAt sql.NullTime
+	CreatedAt time.Time
+}
+
 // 每日计划快照（PRD 11.5）
 type DailyPlan struct {
 	OwnerUserID uint64
@@ -8151,6 +8318,8 @@ type User struct {
 	LastActiveAt  sql.NullTime
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	// 种子用户，运营在 7.2 标记
+	IsSeed bool
 }
 
 // 练习按题持久保存语音转写任务

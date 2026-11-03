@@ -64,7 +64,11 @@ type Config struct {
 
 	// AliyunAccessKeyID / Secret 供 OCR、语音、内容安全等阿里云服务共用。
 	// AlertWebhookURL 是告警推送的钉钉或企业微信群机器人地址（含令牌，只放环境变量）；不配时告警只写日志。
-	AlertWebhookURL       string
+	AlertWebhookURL string
+	// OpsWebhookURL 是运营企业微信群机器人地址（申请收录的新申请与「建议立项」推送，PRD v3 增补；含令牌，只放环境变量）；不配时只写日志。
+	OpsWebhookURL string
+	// AdminBaseURL 是管理后台地址，推送里带后台链接。
+	AdminBaseURL          string
 	AliyunAccessKeyID     string
 	AliyunAccessKeySecret string
 }
@@ -297,6 +301,8 @@ func load(getenv func(string) string) (*Config, error) {
 		},
 
 		AlertWebhookURL:       get("ALERT_WEBHOOK_URL", ""),
+		OpsWebhookURL:         get("OPS_WECOM_WEBHOOK_URL", ""),
+		AdminBaseURL:          get("ADMIN_BASE_URL", "https://training.dreamerlab.cn/admin"),
 		AliyunAccessKeyID:     get("ALIYUN_ACCESS_KEY_ID", ""),
 		AliyunAccessKeySecret: get("ALIYUN_ACCESS_KEY_SECRET", ""),
 	}

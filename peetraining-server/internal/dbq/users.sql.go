@@ -242,7 +242,7 @@ func (q *Queries) GetRefreshTokenByID(ctx context.Context, arg GetRefreshTokenBy
 
 const getUserByID = `-- name: GetUserByID :one
 
-SELECT id, phone, nickname, avatar_key, invite_code, status, onboarding_step, deletion_requested_at, deletion_due_at, last_active_at, created_at, updated_at FROM users WHERE id = ?
+SELECT id, phone, nickname, avatar_key, invite_code, status, onboarding_step, deletion_requested_at, deletion_due_at, last_active_at, created_at, updated_at, is_seed FROM users WHERE id = ?
 `
 
 // 用户、刷新令牌、协议、App 版本、会员状态（T06）。
@@ -263,12 +263,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id uint64) (User, error) {
 		&i.LastActiveAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsSeed,
 	)
 	return i, err
 }
 
 const getUserByPhone = `-- name: GetUserByPhone :one
-SELECT id, phone, nickname, avatar_key, invite_code, status, onboarding_step, deletion_requested_at, deletion_due_at, last_active_at, created_at, updated_at FROM users WHERE phone = ?
+SELECT id, phone, nickname, avatar_key, invite_code, status, onboarding_step, deletion_requested_at, deletion_due_at, last_active_at, created_at, updated_at, is_seed FROM users WHERE phone = ?
 `
 
 func (q *Queries) GetUserByPhone(ctx context.Context, phone string) (User, error) {
@@ -287,6 +288,7 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phone string) (User, error
 		&i.LastActiveAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsSeed,
 	)
 	return i, err
 }

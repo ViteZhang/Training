@@ -5519,6 +5519,72 @@ paths:
               schema: { $ref: "#/components/schemas/SampleQuestion" }
         "404": { $ref: "#/components/responses/NotFound" }
         "502": { $ref: "#/components/responses/AIFailed" }
+  /course-applications:
+    get:
+      tags: [profile]
+      operationId: listMyCourseApplications
+      summary: 我的收录申请与进度
+      description: 受 course_apply 开关控制。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, school, major, subject_name, exam_year, status, applicant_count, created_at]
+                      properties:
+                        id: { type: integer, format: int64 }
+                        school: { type: string }
+                        major: { type: string }
+                        subject_name: { type: string }
+                        subject_code: { type: string }
+                        exam_year: { type: integer }
+                        status: { $ref: "#/components/schemas/CourseApplicationStatus" }
+                        applicant_count: { type: integer }
+                        created_at: { type: string, format: date-time }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [profile]
+      operationId: applyCourse
+      summary: 1.11 申请收录
+      description: |
+        受 course_apply 开关控制。院校、专业、专业课名称、考试年份必填（从 1.1 带入），代码选填。
+        按「院校 + 专业课名称」归并，有代码时优先按代码；同一用户同一门课只能申请一次，重复提交返回 409（detail.reason = already_applied，带 applicant_count）。
+        处理结果（已立项、已联系、暂不收录、官方题库上线）通过消息中心通知。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [school, major, subject_name, exam_year]
+              properties:
+                school: { type: string, minLength: 1, maxLength: 64 }
+                major: { type: string, minLength: 1, maxLength: 64 }
+                subject_name: { type: string, minLength: 1, maxLength: 64 }
+                subject_code: { type: string, maxLength: 16 }
+                exam_year: { type: integer, minimum: 2000, maximum: 2100 }
+                entry: { type: string, enum: [onboarding, bank, settings], description: 入口：1.1c / 题库页 3.1 / 我的 → 备考设置 6.9 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [applicant_count]
+                properties:
+                  applicant_count: { type: integer, description: 目前申请这门课的人数（1.11a） }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /official-banks:
     get:
       tags:
@@ -5938,6 +6004,172 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
         "502": { $ref: "#/components/responses/AIFailed" }
+  /admin/course-applications/summary:
+    get:
+      tags: [admin]
+      operationId: adminCourseApplicationSummary
+      summary: 申请收录计数（7.16 提醒条与统计卡、7.1「新的收录申请」、侧栏红点）
+      x-roles: [admin, content_lead, analyst]
+      security: [{ adminAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pending, suggested, overdue, week_new, school_majors]
+                properties:
+                  pending: { type: integer, description: 待处理（含建议立项）的课数 }
+                  suggested: { type: integer, description: 达到立项阈值的课数 }
+                  overdue: { type: integer, description: 超过 24 小时未处理的课数 }
+                  week_new: { type: integer, description: 本周新增申请 }
+                  school_majors: { type: integer, description: 涉及院校专业数 }
+  /admin/course-applications:
+    get:
+      tags: [admin]
+      operationId: adminListCourseApplications
+      summary: 7.16 申请收录：按院校 · 专业 · 专业课汇总
+      description: 待处理置顶；只显示申请表单信息，不显示用户任何资料内容。
+      x-roles: [admin, content_lead, analyst]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: discipline, in: query, required: false, schema: { type: string, maxLength: 16 } }
+        - { name: only_pending, in: query, required: false, schema: { type: boolean } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/AdminCourseApplicationGroup" } }
+  /admin/course-applications/{groupId}/applicants:
+    get:
+      tags: [admin]
+      operationId: adminListApplicants
+      summary: 申请人列表（昵称、考试年份、申请时间、标记）
+      x-roles: [admin, content_lead, analyst]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: groupId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [nickname, exam_year, entry, applied_at, paid, seed]
+                      properties:
+                        nickname: { type: string }
+                        exam_year: { type: integer }
+                        entry: { type: string, enum: [onboarding, bank, settings] }
+                        applied_at: { type: string, format: date-time }
+                        paid: { type: boolean, description: 付费用户 }
+                        seed: { type: boolean, description: 种子用户 }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/course-applications/{groupId}/initiate:
+    post:
+      tags: [admin]
+      operationId: adminInitiateCourseApplication
+      summary: 立项（生成 7.11 官方题库项目），通知所有申请人
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: groupId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject_code: { type: string, maxLength: 16, description: 申请里没有代码时必填 }
+                major: { type: string, maxLength: 64 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, required: [project_id], properties: { project_id: { type: integer, format: int64 } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/course-applications/{groupId}/contact:
+    post:
+      tags: [admin]
+      operationId: adminContactApplicants
+      summary: 联系用户：给所有申请人发站内信，状态记为已联系
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: groupId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        "204": { description: 完成 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/course-applications/{groupId}/reject:
+    post:
+      tags: [admin]
+      operationId: adminRejectCourseApplication
+      summary: 暂不收录（必填原因），通知所有申请人
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: groupId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        "204": { description: 完成 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/users/{userId}/seed:
+    put:
+      tags: [admin]
+      operationId: setAdminUserSeed
+      summary: 7.2 标记或取消种子用户
+      x-roles: [admin, support]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: userId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [seed]
+              properties:
+                seed: { type: boolean }
+      responses:
+        "204": { description: 完成 }
+        "404": { $ref: "#/components/responses/NotFound" }
   /admin/official/projects:
     get:
       tags:
@@ -11152,6 +11384,7 @@ components:
         - subject_stats
         - quota
         properties:
+          is_seed: { type: boolean, description: 种子用户（运营标记） }
           nickname: *id001_4
           failed_materials: *id002_4
           pages: *id002_4
@@ -13001,6 +13234,29 @@ components:
         status: { type: string, enum: [pending, online, offline] }
         try_count: { type: integer, description: 被体验次数 }
         created_at: { type: string, format: date-time }
+    CourseApplicationStatus:
+      type: string
+      description: 待处理 / 建议立项 / 已联系 / 已立项 / 暂不收录
+      enum: [pending, suggested, contacted, initiated, rejected]
+    AdminCourseApplicationGroup:
+      type: object
+      required: [id, school, major, subject_name, discipline, status, applicant_count, paid_count, seed_count, overdue, last_applied_at]
+      properties:
+        id: { type: integer, format: int64 }
+        school: { type: string }
+        major: { type: string }
+        subject_name: { type: string }
+        subject_code: { type: string }
+        discipline: { type: string }
+        status: { $ref: "#/components/schemas/CourseApplicationStatus" }
+        reason: { type: string, description: 暂不收录的原因 }
+        applicant_count: { type: integer }
+        paid_count: { type: integer }
+        seed_count: { type: integer }
+        pending_since: { type: string, format: date-time, description: 最早待处理时间 }
+        overdue: { type: boolean, description: 超过 24 小时未处理，标红 }
+        project_id: { type: integer, format: int64 }
+        last_applied_at: { type: string, format: date-time }
     SubjectInput:
       type: object
       required: [name, full_score]

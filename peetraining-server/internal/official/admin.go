@@ -1006,6 +1006,7 @@ func (s *Service) notifyRelease(ctx context.Context, p Project, version string, 
 			Body: fmt.Sprintf("「%s %s」官方题库已上线，可以在题库页添加，和你自建的题库一起练", p.School, p.SubjectName), Link: notify.Link("official_banks", nil),
 			DedupeKey: sql.NullString{String: "official_launch:" + strconv.FormatUint(p.BankID, 10), Valid: true}, Code: nullStr(p.SubjectCode)})
 		s.notifyLaunchChosen(ctx, p)
+		s.notifyLaunchApplicants(ctx, p)
 	}
 }
 
