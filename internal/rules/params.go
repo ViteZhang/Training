@@ -20,6 +20,28 @@ type Params struct {
 	PaperTime     PaperTimeParams     `json:"paper_time"`
 	AIPaper       AIPaperParams       `json:"ai_paper"`
 	ExamProfile   ExamProfileParams   `json:"exam_profile"`
+	OfficialFirst OfficialFirstParams `json:"official_first"`
+}
+
+// OfficialFirstParams 对应 PRD v3 增补（官方题库先行）的默认值，后台 7.8 可改。
+type OfficialFirstParams struct {
+	// TrialLimit 是每个账号的体验次数：体验一道题与通用体验题共用，以批改成功为准。
+	TrialLimit int `json:"trial_limit"`
+	// ApplySuggestThreshold 是同一门课申请人数达到多少标「建议立项」。
+	ApplySuggestThreshold int `json:"apply_suggest_threshold"`
+	// ApplyOverdueHours 是申请超过多少小时未处理标红、进 7.1「需要处理」。
+	ApplyOverdueHours int                    `json:"apply_overdue_hours"`
+	Supplement        SupplementPromptParams `json:"supplement"`
+}
+
+// SupplementPromptParams 是 3.1e 补充资料提示的触发条件。
+type SupplementPromptParams struct {
+	WindowDays     int     `json:"window_days"`      // 最近多少天的作答
+	MinAttempts    int     `json:"min_attempts"`     // 板块作答至少多少题
+	MaxScoreRate   float64 `json:"max_score_rate"`   // 得分率低于它
+	MaxOfficial    int     `json:"max_official"`     // 板块官方题少于它
+	WrongBookCount int     `json:"wrong_book_count"` // 错题本达到多少题
+	SnoozeDays     int     `json:"snooze_days"`      // 「以后再说」后同一板块多少天不提示
 }
 
 // MasteryParams 对应 PRD 11.1。
@@ -139,6 +161,8 @@ type ExamProfileParams struct {
 // DefaultParams 返回 PRD 第 11 节的初始参数。
 func DefaultParams() Params {
 	return Params{
+		OfficialFirst: OfficialFirstParams{TrialLimit: 1, ApplySuggestThreshold: 3, ApplyOverdueHours: 24,
+			Supplement: SupplementPromptParams{WindowDays: 14, MinAttempts: 5, MaxScoreRate: 0.6, MaxOfficial: 5, WrongBookCount: 30, SnoozeDays: 7}},
 		Mastery: MasteryParams{
 			SelfAssess:        map[SelfAssess]float64{SelfUnknown: 0, SelfVague: 30, SelfMastered: 50},
 			ObjectiveCorrect:  map[Difficulty]float64{Easy: 10, Medium: 15, Hard: 20},
@@ -193,7 +217,7 @@ func ParseParams(rows map[string]json.RawMessage) (Params, error) {
 		"mastery": &p.Mastery, "mastery_state": &p.MasteryState, "review_interval": &p.Review,
 		"stage": &p.Stage, "plan_mix": &p.PlanMix, "plan": &p.Plan, "score_estimate": &p.ScoreEstimate,
 		"loss_diagnosis": &p.LossDiagnosis, "wrong_book": &p.WrongBook, "paper_time": &p.PaperTime,
-		"ai_paper": &p.AIPaper, "exam_profile": &p.ExamProfile,
+		"ai_paper": &p.AIPaper, "exam_profile": &p.ExamProfile, "official_first": &p.OfficialFirst,
 	}
 	for key, raw := range rows {
 		target, ok := targets[key]

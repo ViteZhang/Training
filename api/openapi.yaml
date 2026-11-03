@@ -5317,6 +5317,208 @@ paths:
               schema: { $ref: "#/components/schemas/PracticeSession" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /trials/status:
+    get:
+      tags: [practice]
+      operationId: getTrialStatus
+      summary: 体验次数（1.1c、1.9 右上角）
+      description: 体验一道题与通用体验题共用次数（默认每个账号 1 次），以提交批改成功为准，批改失败不计次。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrialUsage" }
+  /trials/recognize:
+    post:
+      tags: [practice]
+      operationId: recognizeTrial
+      summary: 1.9 识别一道题（粘贴的文字，或拍照后 /handwriting/recognize 识别出的文字）
+      description: 受 trial 开关控制。supported 为假时（不是名词解释、简答、论述）App 提示更换。不扣额度。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 8000 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [qtype, score, stem, supported]
+                properties:
+                  qtype: { type: string, description: 识别出的题型（可能不是体验支持的三种） }
+                  score: { type: number }
+                  stem: { type: string }
+                  answer: { type: string, description: 原文带了答案时给出，可作为参考答案 }
+                  supported: { type: boolean }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /trials:
+    post:
+      tags: [practice]
+      operationId: createTrial
+      summary: 开始一次体验（1.9 自己的题 / 1.10 通用体验题或 AI 出题）
+      description: |
+        自己的题受 trial 开关控制；sample_question_id 受 sample_trial（AI 出题受 ai_live_question）开关控制。
+        没填参考答案时由 AI 生成并标「AI 参考答案」。提交前只返回采分点个数（1.9a「AI 已整理出 N 个采分点」）。
+        体验次数用完时返回 409（detail.reason = trial_used_up）。不扣任何额度。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sample_question_id: { type: integer, format: int64 }
+                input_mode: { type: string, enum: [paste, photo] }
+                qtype: { type: string, enum: [term, short_answer, discussion] }
+                score: { type: number, minimum: 1, maximum: 300 }
+                stem: { type: string, maxLength: 2000 }
+                reference_answer: { type: string, maxLength: 6000, description: 选填 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Trial" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /trials/{trialId}:
+    get:
+      tags: [practice]
+      operationId: getTrial
+      summary: 读一次体验（批改后带结果）
+      parameters:
+        - { name: trialId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Trial" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /trials/{trialId}/submit:
+    post:
+      tags: [practice]
+      operationId: submitTrial
+      summary: 1.9a 提交批改（不扣额度）
+      description: 批改成功才计一次体验；结果标「按 AI 参考答案批改」「仅供参考」，不计入预估分。
+      parameters:
+        - { name: trialId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answer, idempotency_key]
+              properties:
+                answer: { type: string, minLength: 1, maxLength: 10000 }
+                mode: { type: string, enum: [typed, photo] }
+                photo_keys: { type: array, maxItems: 6, items: { type: string } }
+                idempotency_key: { type: string, minLength: 8, maxLength: 64 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Trial" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "502": { $ref: "#/components/responses/AIFailed" }
+  /trials/{trialId}/save:
+    post:
+      tags: [practice]
+      operationId: saveTrial
+      summary: 1.9b 加入自建题库，或不保存
+      description: |
+        import_all 加入并导入整套真题（App 进 1.5）；only 只加入这道题（进 2.1）；discard 不保存，题目与作答全部删除（进 2.1c）。
+        加入时题目、采分点和这次作答都存进 subject_id 这门课的自建题库，答案来源为「来自你的资料」（填了参考答案）或「AI 参考答案 · 待确认」。
+      parameters:
+        - { name: trialId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [import_all, only, discard] }
+                subject_id: { type: integer, format: int64, description: 加入时必填 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { question_id: { type: integer, format: int64 } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sample-questions:
+    get:
+      tags: [practice]
+      operationId: listSampleQuestions
+      summary: 1.10 学科通用体验题（已上线的，按学科、方向分组）
+      description: 受 sample_trial 开关控制。示例题只用于体验和入门练习，不计入预估分。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, directions]
+                      properties:
+                        name: { type: string, description: 学科 }
+                        directions:
+                          type: array
+                          items:
+                            type: object
+                            required: [id, name, questions]
+                            properties:
+                              id: { type: integer, format: int64 }
+                              name: { type: string }
+                              questions: { type: array, items: { $ref: "#/components/schemas/SampleQuestion" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /sample-questions/live:
+    post:
+      tags: [practice]
+      operationId: liveSampleQuestion
+      summary: 1.10 未覆盖学科：按专业课和参考教材 AI 现场出一道题（标「AI 出题」）
+      description: 受 ai_live_question 开关控制。同一门专业课的结果缓存复用；不扣 AI 出题额度。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject_id]
+              properties:
+                subject_id: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SampleQuestion" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/AIFailed" }
   /official-banks:
     get:
       tags:
@@ -5567,6 +5769,175 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+  /admin/samples:
+    get:
+      tags: [admin]
+      operationId: adminSampleOverview
+      summary: 7.18 通用体验题：统计卡与学科方向树
+      x-roles: [admin, content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [disciplines, directions, questions, pending, week_tries, items]
+                properties:
+                  disciplines: { type: integer }
+                  directions: { type: integer }
+                  questions: { type: integer, description: 体验题数（含待审核） }
+                  pending: { type: integer }
+                  week_tries: { type: integer, description: 本周被体验次数 }
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, discipline, name, question_count]
+                      properties:
+                        id: { type: integer, format: int64 }
+                        discipline: { type: string }
+                        name: { type: string }
+                        question_count: { type: integer }
+  /admin/samples/directions:
+    post:
+      tags: [admin]
+      operationId: adminCreateSampleDirection
+      summary: 新增学科或方向
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [discipline, name]
+              properties:
+                discipline: { type: string, minLength: 1, maxLength: 16 }
+                name: { type: string, minLength: 1, maxLength: 32 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, required: [id], properties: { id: { type: integer, format: int64 } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/samples/questions:
+    get:
+      tags: [admin]
+      operationId: adminListSampleQuestions
+      summary: 一个方向下的体验题；不传 direction_id 时是「AI 出题缓存」
+      x-roles: [admin, content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: direction_id, in: query, required: false, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/AdminSampleQuestion" } }
+    post:
+      tags: [admin]
+      operationId: adminCreateSampleQuestion
+      summary: 新建题目（手工录入，进待审核）
+      x-roles: [admin, content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/SampleQuestionInput"
+                - type: object
+                  required: [direction_id]
+                  properties:
+                    direction_id: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, required: [id], properties: { id: { type: integer, format: int64 } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/samples/questions/{sampleId}:
+    put:
+      tags: [admin]
+      operationId: adminUpdateSampleQuestion
+      summary: 修改体验题
+      x-roles: [admin, content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: sampleId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SampleQuestionInput" }
+      responses:
+        "204": { description: 完成 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/samples/questions/{sampleId}/status:
+    post:
+      tags: [admin]
+      operationId: adminSetSampleStatus
+      summary: 审核上线 / 下线（AI 出题缓存也在这里抽检下线）
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: sampleId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [online, offline] }
+      responses:
+        "204": { description: 完成 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/samples/generate:
+    post:
+      tags: [admin]
+      operationId: adminGenerateSamples
+      summary: AI 批量生成初稿（按方向，全部进待审核）
+      x-roles: [admin, content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [direction_id, qtype, score, count]
+              properties:
+                direction_id: { type: integer, format: int64 }
+                qtype: { type: string, enum: [term, short_answer, discussion] }
+                score: { type: number, minimum: 1, maximum: 300 }
+                count: { type: integer, minimum: 1, maximum: 10 }
+                textbook: { type: string, maxLength: 128 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, required: [created], properties: { created: { type: integer } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/AIFailed" }
   /admin/official/projects:
     get:
       tags:
@@ -12560,6 +12931,76 @@ components:
           properties:
             status: { type: string, enum: [active, hidden] }
             chosen_count: { type: integer, description: 在 1.1 选了这门课的人数 }
+    TrialUsage:
+      type: object
+      required: [limit, used, remaining]
+      properties:
+        limit: { type: integer }
+        used: { type: integer }
+        remaining: { type: integer }
+    Trial:
+      type: object
+      required: [id, kind, qtype, score, stem, answer_source, point_count, status, remaining]
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { type: string, enum: [own, sample, ai_live], description: 自己的题 / 通用体验题 / AI 出题 }
+        qtype: { type: string, enum: [term, short_answer, discussion] }
+        score: { type: number }
+        stem: { type: string }
+        answer_source: { type: string, enum: [user, ai], description: ai 表示按 AI 参考答案批改（标「仅供参考」） }
+        point_count: { type: integer, description: 采分点个数（提交前只给个数） }
+        status: { type: string, enum: [ready, graded, saved] }
+        remaining: { type: integer, description: 剩余体验次数 }
+        reference_answer: { type: string, description: 批改后才有 }
+        total: { type: number, description: 得分，批改后才有 }
+        points: { type: array, items: { $ref: "#/components/schemas/GradingPoint" } }
+        suggestions: { type: array, items: { type: string } }
+        structure_ok: { type: boolean }
+        structure_note: { type: string }
+        answer_text: { type: string }
+        question_id: { type: integer, format: int64, description: 加入题库后的题目 }
+    SampleQuestion:
+      type: object
+      required: [id, qtype, score, stem, ai_generated]
+      properties:
+        id: { type: integer, format: int64 }
+        qtype: { type: string, enum: [term, short_answer, discussion] }
+        score: { type: number }
+        stem: { type: string }
+        textbook: { type: string, description: 参考教材 }
+        ai_generated: { type: boolean, description: AI 现场出题，标「AI 出题」 }
+    SampleQuestionInput:
+      type: object
+      required: [qtype, score, stem, answer, rubric]
+      properties:
+        textbook: { type: string, maxLength: 128 }
+        qtype: { type: string, enum: [term, short_answer, discussion] }
+        score: { type: number, minimum: 1, maximum: 300 }
+        stem: { type: string, minLength: 1, maxLength: 2000 }
+        answer: { type: string, minLength: 1, maxLength: 6000 }
+        rubric:
+          type: array
+          minItems: 1
+          maxItems: 20
+          description: 采分点，合计等于分值
+          items: { $ref: "#/components/schemas/RubricPointInput" }
+    AdminSampleQuestion:
+      type: object
+      required: [id, origin, qtype, score, stem, answer, rubric, status, try_count, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        direction_id: { type: integer, format: int64 }
+        origin: { type: string, enum: [manual, ai_batch, ai_live] }
+        subject_label: { type: string, description: AI 出题缓存对应的专业课 }
+        textbook: { type: string }
+        qtype: { type: string, enum: [term, short_answer, discussion] }
+        score: { type: number }
+        stem: { type: string }
+        answer: { type: string }
+        rubric: { type: array, items: { $ref: "#/components/schemas/RubricPointInput" } }
+        status: { type: string, enum: [pending, online, offline] }
+        try_count: { type: integer, description: 被体验次数 }
+        created_at: { type: string, format: date-time }
     SubjectInput:
       type: object
       required: [name, full_score]
