@@ -554,6 +554,128 @@ func AllBanksSourceValues() []BanksSource {
 	}
 }
 
+type CatalogCoursesStatus string
+
+const (
+	CatalogCoursesStatusActive CatalogCoursesStatus = "active"
+	CatalogCoursesStatusHidden CatalogCoursesStatus = "hidden"
+)
+
+func (e *CatalogCoursesStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CatalogCoursesStatus(s)
+	case string:
+		*e = CatalogCoursesStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CatalogCoursesStatus: %T", src)
+	}
+	return nil
+}
+
+type NullCatalogCoursesStatus struct {
+	CatalogCoursesStatus CatalogCoursesStatus
+	Valid                bool // Valid is true if CatalogCoursesStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCatalogCoursesStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.CatalogCoursesStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CatalogCoursesStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCatalogCoursesStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CatalogCoursesStatus), nil
+}
+
+func (e CatalogCoursesStatus) Valid() bool {
+	switch e {
+	case CatalogCoursesStatusActive,
+		CatalogCoursesStatusHidden:
+		return true
+	}
+	return false
+}
+
+func AllCatalogCoursesStatusValues() []CatalogCoursesStatus {
+	return []CatalogCoursesStatus{
+		CatalogCoursesStatusActive,
+		CatalogCoursesStatusHidden,
+	}
+}
+
+type CatalogPendingCoursesStatus string
+
+const (
+	CatalogPendingCoursesStatusPending CatalogPendingCoursesStatus = "pending"
+	CatalogPendingCoursesStatusAdded   CatalogPendingCoursesStatus = "added"
+	CatalogPendingCoursesStatusMerged  CatalogPendingCoursesStatus = "merged"
+	CatalogPendingCoursesStatusIgnored CatalogPendingCoursesStatus = "ignored"
+)
+
+func (e *CatalogPendingCoursesStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CatalogPendingCoursesStatus(s)
+	case string:
+		*e = CatalogPendingCoursesStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CatalogPendingCoursesStatus: %T", src)
+	}
+	return nil
+}
+
+type NullCatalogPendingCoursesStatus struct {
+	CatalogPendingCoursesStatus CatalogPendingCoursesStatus
+	Valid                       bool // Valid is true if CatalogPendingCoursesStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCatalogPendingCoursesStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.CatalogPendingCoursesStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CatalogPendingCoursesStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCatalogPendingCoursesStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CatalogPendingCoursesStatus), nil
+}
+
+func (e CatalogPendingCoursesStatus) Valid() bool {
+	switch e {
+	case CatalogPendingCoursesStatusPending,
+		CatalogPendingCoursesStatusAdded,
+		CatalogPendingCoursesStatusMerged,
+		CatalogPendingCoursesStatusIgnored:
+		return true
+	}
+	return false
+}
+
+func AllCatalogPendingCoursesStatusValues() []CatalogPendingCoursesStatus {
+	return []CatalogPendingCoursesStatus{
+		CatalogPendingCoursesStatusPending,
+		CatalogPendingCoursesStatusAdded,
+		CatalogPendingCoursesStatusMerged,
+		CatalogPendingCoursesStatusIgnored,
+	}
+}
+
 type ContentAccessGrantsSource string
 
 const (
@@ -609,6 +731,134 @@ func AllContentAccessGrantsSourceValues() []ContentAccessGrantsSource {
 	return []ContentAccessGrantsSource{
 		ContentAccessGrantsSourceDispute,
 		ContentAccessGrantsSourceFeedback,
+	}
+}
+
+type CourseApplicationGroupsStatus string
+
+const (
+	CourseApplicationGroupsStatusPending   CourseApplicationGroupsStatus = "pending"
+	CourseApplicationGroupsStatusSuggested CourseApplicationGroupsStatus = "suggested"
+	CourseApplicationGroupsStatusContacted CourseApplicationGroupsStatus = "contacted"
+	CourseApplicationGroupsStatusInitiated CourseApplicationGroupsStatus = "initiated"
+	CourseApplicationGroupsStatusRejected  CourseApplicationGroupsStatus = "rejected"
+)
+
+func (e *CourseApplicationGroupsStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CourseApplicationGroupsStatus(s)
+	case string:
+		*e = CourseApplicationGroupsStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CourseApplicationGroupsStatus: %T", src)
+	}
+	return nil
+}
+
+type NullCourseApplicationGroupsStatus struct {
+	CourseApplicationGroupsStatus CourseApplicationGroupsStatus
+	Valid                         bool // Valid is true if CourseApplicationGroupsStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCourseApplicationGroupsStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.CourseApplicationGroupsStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CourseApplicationGroupsStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCourseApplicationGroupsStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CourseApplicationGroupsStatus), nil
+}
+
+func (e CourseApplicationGroupsStatus) Valid() bool {
+	switch e {
+	case CourseApplicationGroupsStatusPending,
+		CourseApplicationGroupsStatusSuggested,
+		CourseApplicationGroupsStatusContacted,
+		CourseApplicationGroupsStatusInitiated,
+		CourseApplicationGroupsStatusRejected:
+		return true
+	}
+	return false
+}
+
+func AllCourseApplicationGroupsStatusValues() []CourseApplicationGroupsStatus {
+	return []CourseApplicationGroupsStatus{
+		CourseApplicationGroupsStatusPending,
+		CourseApplicationGroupsStatusSuggested,
+		CourseApplicationGroupsStatusContacted,
+		CourseApplicationGroupsStatusInitiated,
+		CourseApplicationGroupsStatusRejected,
+	}
+}
+
+type CourseApplicationsEntry string
+
+const (
+	CourseApplicationsEntryOnboarding CourseApplicationsEntry = "onboarding"
+	CourseApplicationsEntryBank       CourseApplicationsEntry = "bank"
+	CourseApplicationsEntrySettings   CourseApplicationsEntry = "settings"
+)
+
+func (e *CourseApplicationsEntry) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CourseApplicationsEntry(s)
+	case string:
+		*e = CourseApplicationsEntry(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CourseApplicationsEntry: %T", src)
+	}
+	return nil
+}
+
+type NullCourseApplicationsEntry struct {
+	CourseApplicationsEntry CourseApplicationsEntry
+	Valid                   bool // Valid is true if CourseApplicationsEntry is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCourseApplicationsEntry) Scan(value interface{}) error {
+	if value == nil {
+		ns.CourseApplicationsEntry, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CourseApplicationsEntry.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCourseApplicationsEntry) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CourseApplicationsEntry), nil
+}
+
+func (e CourseApplicationsEntry) Valid() bool {
+	switch e {
+	case CourseApplicationsEntryOnboarding,
+		CourseApplicationsEntryBank,
+		CourseApplicationsEntrySettings:
+		return true
+	}
+	return false
+}
+
+func AllCourseApplicationsEntryValues() []CourseApplicationsEntry {
+	return []CourseApplicationsEntry{
+		CourseApplicationsEntryOnboarding,
+		CourseApplicationsEntryBank,
+		CourseApplicationsEntrySettings,
 	}
 }
 
@@ -740,10 +990,11 @@ func AllDisputesAttributionValues() []DisputesAttribution {
 type DisputesReason string
 
 const (
-	DisputesReasonHitMissed   DisputesReason = "hit_missed"
-	DisputesReasonRubricWrong DisputesReason = "rubric_wrong"
-	DisputesReasonScoreUnfair DisputesReason = "score_unfair"
-	DisputesReasonOther       DisputesReason = "other"
+	DisputesReasonHitMissed      DisputesReason = "hit_missed"
+	DisputesReasonRubricWrong    DisputesReason = "rubric_wrong"
+	DisputesReasonScoreUnfair    DisputesReason = "score_unfair"
+	DisputesReasonOther          DisputesReason = "other"
+	DisputesReasonTeacherDiffers DisputesReason = "teacher_differs"
 )
 
 func (e *DisputesReason) Scan(src interface{}) error {
@@ -786,7 +1037,8 @@ func (e DisputesReason) Valid() bool {
 	case DisputesReasonHitMissed,
 		DisputesReasonRubricWrong,
 		DisputesReasonScoreUnfair,
-		DisputesReasonOther:
+		DisputesReasonOther,
+		DisputesReasonTeacherDiffers:
 		return true
 	}
 	return false
@@ -798,6 +1050,7 @@ func AllDisputesReasonValues() []DisputesReason {
 		DisputesReasonRubricWrong,
 		DisputesReasonScoreUnfair,
 		DisputesReasonOther,
+		DisputesReasonTeacherDiffers,
 	}
 }
 
@@ -3162,6 +3415,381 @@ func AllOfficialDraftsStatusValues() []OfficialDraftsStatus {
 	}
 }
 
+type OfficialImportFilesFormat string
+
+const (
+	OfficialImportFilesFormatPdf   OfficialImportFilesFormat = "pdf"
+	OfficialImportFilesFormatDocx  OfficialImportFilesFormat = "docx"
+	OfficialImportFilesFormatImage OfficialImportFilesFormat = "image"
+	OfficialImportFilesFormatText  OfficialImportFilesFormat = "text"
+	OfficialImportFilesFormatCsv   OfficialImportFilesFormat = "csv"
+)
+
+func (e *OfficialImportFilesFormat) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialImportFilesFormat(s)
+	case string:
+		*e = OfficialImportFilesFormat(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialImportFilesFormat: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialImportFilesFormat struct {
+	OfficialImportFilesFormat OfficialImportFilesFormat
+	Valid                     bool // Valid is true if OfficialImportFilesFormat is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialImportFilesFormat) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialImportFilesFormat, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialImportFilesFormat.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialImportFilesFormat) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialImportFilesFormat), nil
+}
+
+func (e OfficialImportFilesFormat) Valid() bool {
+	switch e {
+	case OfficialImportFilesFormatPdf,
+		OfficialImportFilesFormatDocx,
+		OfficialImportFilesFormatImage,
+		OfficialImportFilesFormatText,
+		OfficialImportFilesFormatCsv:
+		return true
+	}
+	return false
+}
+
+func AllOfficialImportFilesFormatValues() []OfficialImportFilesFormat {
+	return []OfficialImportFilesFormat{
+		OfficialImportFilesFormatPdf,
+		OfficialImportFilesFormatDocx,
+		OfficialImportFilesFormatImage,
+		OfficialImportFilesFormatText,
+		OfficialImportFilesFormatCsv,
+	}
+}
+
+type OfficialImportFilesKind string
+
+const (
+	OfficialImportFilesKindExam    OfficialImportFilesKind = "exam"
+	OfficialImportFilesKindCatalog OfficialImportFilesKind = "catalog"
+	OfficialImportFilesKindHandout OfficialImportFilesKind = "handout"
+	OfficialImportFilesKindTable   OfficialImportFilesKind = "table"
+)
+
+func (e *OfficialImportFilesKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialImportFilesKind(s)
+	case string:
+		*e = OfficialImportFilesKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialImportFilesKind: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialImportFilesKind struct {
+	OfficialImportFilesKind OfficialImportFilesKind
+	Valid                   bool // Valid is true if OfficialImportFilesKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialImportFilesKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialImportFilesKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialImportFilesKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialImportFilesKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialImportFilesKind), nil
+}
+
+func (e OfficialImportFilesKind) Valid() bool {
+	switch e {
+	case OfficialImportFilesKindExam,
+		OfficialImportFilesKindCatalog,
+		OfficialImportFilesKindHandout,
+		OfficialImportFilesKindTable:
+		return true
+	}
+	return false
+}
+
+func AllOfficialImportFilesKindValues() []OfficialImportFilesKind {
+	return []OfficialImportFilesKind{
+		OfficialImportFilesKindExam,
+		OfficialImportFilesKindCatalog,
+		OfficialImportFilesKindHandout,
+		OfficialImportFilesKindTable,
+	}
+}
+
+type OfficialImportFilesStatus string
+
+const (
+	OfficialImportFilesStatusUploading OfficialImportFilesStatus = "uploading"
+	OfficialImportFilesStatusParsing   OfficialImportFilesStatus = "parsing"
+	OfficialImportFilesStatusParsed    OfficialImportFilesStatus = "parsed"
+	OfficialImportFilesStatusFailed    OfficialImportFilesStatus = "failed"
+)
+
+func (e *OfficialImportFilesStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialImportFilesStatus(s)
+	case string:
+		*e = OfficialImportFilesStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialImportFilesStatus: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialImportFilesStatus struct {
+	OfficialImportFilesStatus OfficialImportFilesStatus
+	Valid                     bool // Valid is true if OfficialImportFilesStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialImportFilesStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialImportFilesStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialImportFilesStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialImportFilesStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialImportFilesStatus), nil
+}
+
+func (e OfficialImportFilesStatus) Valid() bool {
+	switch e {
+	case OfficialImportFilesStatusUploading,
+		OfficialImportFilesStatusParsing,
+		OfficialImportFilesStatusParsed,
+		OfficialImportFilesStatusFailed:
+		return true
+	}
+	return false
+}
+
+func AllOfficialImportFilesStatusValues() []OfficialImportFilesStatus {
+	return []OfficialImportFilesStatus{
+		OfficialImportFilesStatusUploading,
+		OfficialImportFilesStatusParsing,
+		OfficialImportFilesStatusParsed,
+		OfficialImportFilesStatusFailed,
+	}
+}
+
+type OfficialImportItemsConfidence string
+
+const (
+	OfficialImportItemsConfidenceHigh   OfficialImportItemsConfidence = "high"
+	OfficialImportItemsConfidenceMedium OfficialImportItemsConfidence = "medium"
+	OfficialImportItemsConfidenceLow    OfficialImportItemsConfidence = "low"
+)
+
+func (e *OfficialImportItemsConfidence) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialImportItemsConfidence(s)
+	case string:
+		*e = OfficialImportItemsConfidence(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialImportItemsConfidence: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialImportItemsConfidence struct {
+	OfficialImportItemsConfidence OfficialImportItemsConfidence
+	Valid                         bool // Valid is true if OfficialImportItemsConfidence is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialImportItemsConfidence) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialImportItemsConfidence, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialImportItemsConfidence.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialImportItemsConfidence) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialImportItemsConfidence), nil
+}
+
+func (e OfficialImportItemsConfidence) Valid() bool {
+	switch e {
+	case OfficialImportItemsConfidenceHigh,
+		OfficialImportItemsConfidenceMedium,
+		OfficialImportItemsConfidenceLow:
+		return true
+	}
+	return false
+}
+
+func AllOfficialImportItemsConfidenceValues() []OfficialImportItemsConfidence {
+	return []OfficialImportItemsConfidence{
+		OfficialImportItemsConfidenceHigh,
+		OfficialImportItemsConfidenceMedium,
+		OfficialImportItemsConfidenceLow,
+	}
+}
+
+type OfficialImportItemsItemType string
+
+const (
+	OfficialImportItemsItemTypeQuestion       OfficialImportItemsItemType = "question"
+	OfficialImportItemsItemTypeKnowledgePoint OfficialImportItemsItemType = "knowledge_point"
+)
+
+func (e *OfficialImportItemsItemType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialImportItemsItemType(s)
+	case string:
+		*e = OfficialImportItemsItemType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialImportItemsItemType: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialImportItemsItemType struct {
+	OfficialImportItemsItemType OfficialImportItemsItemType
+	Valid                       bool // Valid is true if OfficialImportItemsItemType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialImportItemsItemType) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialImportItemsItemType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialImportItemsItemType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialImportItemsItemType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialImportItemsItemType), nil
+}
+
+func (e OfficialImportItemsItemType) Valid() bool {
+	switch e {
+	case OfficialImportItemsItemTypeQuestion,
+		OfficialImportItemsItemTypeKnowledgePoint:
+		return true
+	}
+	return false
+}
+
+func AllOfficialImportItemsItemTypeValues() []OfficialImportItemsItemType {
+	return []OfficialImportItemsItemType{
+		OfficialImportItemsItemTypeQuestion,
+		OfficialImportItemsItemTypeKnowledgePoint,
+	}
+}
+
+type OfficialImportItemsStatus string
+
+const (
+	OfficialImportItemsStatusPending  OfficialImportItemsStatus = "pending"
+	OfficialImportItemsStatusAccepted OfficialImportItemsStatus = "accepted"
+	OfficialImportItemsStatusRejected OfficialImportItemsStatus = "rejected"
+)
+
+func (e *OfficialImportItemsStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialImportItemsStatus(s)
+	case string:
+		*e = OfficialImportItemsStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialImportItemsStatus: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialImportItemsStatus struct {
+	OfficialImportItemsStatus OfficialImportItemsStatus
+	Valid                     bool // Valid is true if OfficialImportItemsStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialImportItemsStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialImportItemsStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialImportItemsStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialImportItemsStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialImportItemsStatus), nil
+}
+
+func (e OfficialImportItemsStatus) Valid() bool {
+	switch e {
+	case OfficialImportItemsStatusPending,
+		OfficialImportItemsStatusAccepted,
+		OfficialImportItemsStatusRejected:
+		return true
+	}
+	return false
+}
+
+func AllOfficialImportItemsStatusValues() []OfficialImportItemsStatus {
+	return []OfficialImportItemsStatus{
+		OfficialImportItemsStatusPending,
+		OfficialImportItemsStatusAccepted,
+		OfficialImportItemsStatusRejected,
+	}
+}
+
 type OfficialProjectsStage string
 
 const (
@@ -3738,14 +4366,15 @@ func AllPapersKindValues() []PapersKind {
 type PracticeSessionsKind string
 
 const (
-	PracticeSessionsKindDaily     PracticeSessionsKind = "daily"
-	PracticeSessionsKindTypeDrill PracticeSessionsKind = "type_drill"
-	PracticeSessionsKindCustom    PracticeSessionsKind = "custom"
-	PracticeSessionsKindWrongRedo PracticeSessionsKind = "wrong_redo"
-	PracticeSessionsKindPlacement PracticeSessionsKind = "placement"
-	PracticeSessionsKindHighFreq  PracticeSessionsKind = "high_freq"
-	PracticeSessionsKindRecite    PracticeSessionsKind = "recite"
-	PracticeSessionsKindSingle    PracticeSessionsKind = "single"
+	PracticeSessionsKindDaily         PracticeSessionsKind = "daily"
+	PracticeSessionsKindTypeDrill     PracticeSessionsKind = "type_drill"
+	PracticeSessionsKindCustom        PracticeSessionsKind = "custom"
+	PracticeSessionsKindWrongRedo     PracticeSessionsKind = "wrong_redo"
+	PracticeSessionsKindPlacement     PracticeSessionsKind = "placement"
+	PracticeSessionsKindHighFreq      PracticeSessionsKind = "high_freq"
+	PracticeSessionsKindRecite        PracticeSessionsKind = "recite"
+	PracticeSessionsKindSingle        PracticeSessionsKind = "single"
+	PracticeSessionsKindOfficialFirst PracticeSessionsKind = "official_first"
 )
 
 func (e *PracticeSessionsKind) Scan(src interface{}) error {
@@ -3792,7 +4421,8 @@ func (e PracticeSessionsKind) Valid() bool {
 		PracticeSessionsKindPlacement,
 		PracticeSessionsKindHighFreq,
 		PracticeSessionsKindRecite,
-		PracticeSessionsKindSingle:
+		PracticeSessionsKindSingle,
+		PracticeSessionsKindOfficialFirst:
 		return true
 	}
 	return false
@@ -3808,6 +4438,7 @@ func AllPracticeSessionsKindValues() []PracticeSessionsKind {
 		PracticeSessionsKindHighFreq,
 		PracticeSessionsKindRecite,
 		PracticeSessionsKindSingle,
+		PracticeSessionsKindOfficialFirst,
 	}
 }
 
@@ -5155,6 +5786,189 @@ func AllRubricPointsOriginValues() []RubricPointsOrigin {
 	}
 }
 
+type SampleQuestionsOrigin string
+
+const (
+	SampleQuestionsOriginManual  SampleQuestionsOrigin = "manual"
+	SampleQuestionsOriginAiBatch SampleQuestionsOrigin = "ai_batch"
+	SampleQuestionsOriginAiLive  SampleQuestionsOrigin = "ai_live"
+)
+
+func (e *SampleQuestionsOrigin) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SampleQuestionsOrigin(s)
+	case string:
+		*e = SampleQuestionsOrigin(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SampleQuestionsOrigin: %T", src)
+	}
+	return nil
+}
+
+type NullSampleQuestionsOrigin struct {
+	SampleQuestionsOrigin SampleQuestionsOrigin
+	Valid                 bool // Valid is true if SampleQuestionsOrigin is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSampleQuestionsOrigin) Scan(value interface{}) error {
+	if value == nil {
+		ns.SampleQuestionsOrigin, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SampleQuestionsOrigin.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSampleQuestionsOrigin) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SampleQuestionsOrigin), nil
+}
+
+func (e SampleQuestionsOrigin) Valid() bool {
+	switch e {
+	case SampleQuestionsOriginManual,
+		SampleQuestionsOriginAiBatch,
+		SampleQuestionsOriginAiLive:
+		return true
+	}
+	return false
+}
+
+func AllSampleQuestionsOriginValues() []SampleQuestionsOrigin {
+	return []SampleQuestionsOrigin{
+		SampleQuestionsOriginManual,
+		SampleQuestionsOriginAiBatch,
+		SampleQuestionsOriginAiLive,
+	}
+}
+
+type SampleQuestionsQtype string
+
+const (
+	SampleQuestionsQtypeTerm        SampleQuestionsQtype = "term"
+	SampleQuestionsQtypeShortAnswer SampleQuestionsQtype = "short_answer"
+	SampleQuestionsQtypeDiscussion  SampleQuestionsQtype = "discussion"
+)
+
+func (e *SampleQuestionsQtype) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SampleQuestionsQtype(s)
+	case string:
+		*e = SampleQuestionsQtype(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SampleQuestionsQtype: %T", src)
+	}
+	return nil
+}
+
+type NullSampleQuestionsQtype struct {
+	SampleQuestionsQtype SampleQuestionsQtype
+	Valid                bool // Valid is true if SampleQuestionsQtype is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSampleQuestionsQtype) Scan(value interface{}) error {
+	if value == nil {
+		ns.SampleQuestionsQtype, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SampleQuestionsQtype.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSampleQuestionsQtype) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SampleQuestionsQtype), nil
+}
+
+func (e SampleQuestionsQtype) Valid() bool {
+	switch e {
+	case SampleQuestionsQtypeTerm,
+		SampleQuestionsQtypeShortAnswer,
+		SampleQuestionsQtypeDiscussion:
+		return true
+	}
+	return false
+}
+
+func AllSampleQuestionsQtypeValues() []SampleQuestionsQtype {
+	return []SampleQuestionsQtype{
+		SampleQuestionsQtypeTerm,
+		SampleQuestionsQtypeShortAnswer,
+		SampleQuestionsQtypeDiscussion,
+	}
+}
+
+type SampleQuestionsStatus string
+
+const (
+	SampleQuestionsStatusPending SampleQuestionsStatus = "pending"
+	SampleQuestionsStatusOnline  SampleQuestionsStatus = "online"
+	SampleQuestionsStatusOffline SampleQuestionsStatus = "offline"
+)
+
+func (e *SampleQuestionsStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SampleQuestionsStatus(s)
+	case string:
+		*e = SampleQuestionsStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SampleQuestionsStatus: %T", src)
+	}
+	return nil
+}
+
+type NullSampleQuestionsStatus struct {
+	SampleQuestionsStatus SampleQuestionsStatus
+	Valid                 bool // Valid is true if SampleQuestionsStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSampleQuestionsStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.SampleQuestionsStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SampleQuestionsStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSampleQuestionsStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SampleQuestionsStatus), nil
+}
+
+func (e SampleQuestionsStatus) Valid() bool {
+	switch e {
+	case SampleQuestionsStatusPending,
+		SampleQuestionsStatusOnline,
+		SampleQuestionsStatusOffline:
+		return true
+	}
+	return false
+}
+
+func AllSampleQuestionsStatusValues() []SampleQuestionsStatus {
+	return []SampleQuestionsStatus{
+		SampleQuestionsStatusPending,
+		SampleQuestionsStatusOnline,
+		SampleQuestionsStatusOffline,
+	}
+}
+
 type StudyProfilesPendingStage string
 
 const (
@@ -5463,6 +6277,366 @@ func AllSurveyResponsesRetestResultValues() []SurveyResponsesRetestResult {
 		SurveyResponsesRetestResultIn,
 		SurveyResponsesRetestResultOut,
 		SurveyResponsesRetestResultUnknown,
+	}
+}
+
+type TrialsAnswerMode string
+
+const (
+	TrialsAnswerModeTyped TrialsAnswerMode = "typed"
+	TrialsAnswerModePhoto TrialsAnswerMode = "photo"
+)
+
+func (e *TrialsAnswerMode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TrialsAnswerMode(s)
+	case string:
+		*e = TrialsAnswerMode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TrialsAnswerMode: %T", src)
+	}
+	return nil
+}
+
+type NullTrialsAnswerMode struct {
+	TrialsAnswerMode TrialsAnswerMode
+	Valid            bool // Valid is true if TrialsAnswerMode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTrialsAnswerMode) Scan(value interface{}) error {
+	if value == nil {
+		ns.TrialsAnswerMode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TrialsAnswerMode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTrialsAnswerMode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TrialsAnswerMode), nil
+}
+
+func (e TrialsAnswerMode) Valid() bool {
+	switch e {
+	case TrialsAnswerModeTyped,
+		TrialsAnswerModePhoto:
+		return true
+	}
+	return false
+}
+
+func AllTrialsAnswerModeValues() []TrialsAnswerMode {
+	return []TrialsAnswerMode{
+		TrialsAnswerModeTyped,
+		TrialsAnswerModePhoto,
+	}
+}
+
+type TrialsAnswerSource string
+
+const (
+	TrialsAnswerSourceUser TrialsAnswerSource = "user"
+	TrialsAnswerSourceAi   TrialsAnswerSource = "ai"
+)
+
+func (e *TrialsAnswerSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TrialsAnswerSource(s)
+	case string:
+		*e = TrialsAnswerSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TrialsAnswerSource: %T", src)
+	}
+	return nil
+}
+
+type NullTrialsAnswerSource struct {
+	TrialsAnswerSource TrialsAnswerSource
+	Valid              bool // Valid is true if TrialsAnswerSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTrialsAnswerSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.TrialsAnswerSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TrialsAnswerSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTrialsAnswerSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TrialsAnswerSource), nil
+}
+
+func (e TrialsAnswerSource) Valid() bool {
+	switch e {
+	case TrialsAnswerSourceUser,
+		TrialsAnswerSourceAi:
+		return true
+	}
+	return false
+}
+
+func AllTrialsAnswerSourceValues() []TrialsAnswerSource {
+	return []TrialsAnswerSource{
+		TrialsAnswerSourceUser,
+		TrialsAnswerSourceAi,
+	}
+}
+
+type TrialsInputMode string
+
+const (
+	TrialsInputModePaste  TrialsInputMode = "paste"
+	TrialsInputModePhoto  TrialsInputMode = "photo"
+	TrialsInputModeSample TrialsInputMode = "sample"
+)
+
+func (e *TrialsInputMode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TrialsInputMode(s)
+	case string:
+		*e = TrialsInputMode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TrialsInputMode: %T", src)
+	}
+	return nil
+}
+
+type NullTrialsInputMode struct {
+	TrialsInputMode TrialsInputMode
+	Valid           bool // Valid is true if TrialsInputMode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTrialsInputMode) Scan(value interface{}) error {
+	if value == nil {
+		ns.TrialsInputMode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TrialsInputMode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTrialsInputMode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TrialsInputMode), nil
+}
+
+func (e TrialsInputMode) Valid() bool {
+	switch e {
+	case TrialsInputModePaste,
+		TrialsInputModePhoto,
+		TrialsInputModeSample:
+		return true
+	}
+	return false
+}
+
+func AllTrialsInputModeValues() []TrialsInputMode {
+	return []TrialsInputMode{
+		TrialsInputModePaste,
+		TrialsInputModePhoto,
+		TrialsInputModeSample,
+	}
+}
+
+type TrialsKind string
+
+const (
+	TrialsKindOwn    TrialsKind = "own"
+	TrialsKindSample TrialsKind = "sample"
+	TrialsKindAiLive TrialsKind = "ai_live"
+)
+
+func (e *TrialsKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TrialsKind(s)
+	case string:
+		*e = TrialsKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TrialsKind: %T", src)
+	}
+	return nil
+}
+
+type NullTrialsKind struct {
+	TrialsKind TrialsKind
+	Valid      bool // Valid is true if TrialsKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTrialsKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.TrialsKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TrialsKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTrialsKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TrialsKind), nil
+}
+
+func (e TrialsKind) Valid() bool {
+	switch e {
+	case TrialsKindOwn,
+		TrialsKindSample,
+		TrialsKindAiLive:
+		return true
+	}
+	return false
+}
+
+func AllTrialsKindValues() []TrialsKind {
+	return []TrialsKind{
+		TrialsKindOwn,
+		TrialsKindSample,
+		TrialsKindAiLive,
+	}
+}
+
+type TrialsQtype string
+
+const (
+	TrialsQtypeTerm        TrialsQtype = "term"
+	TrialsQtypeShortAnswer TrialsQtype = "short_answer"
+	TrialsQtypeDiscussion  TrialsQtype = "discussion"
+)
+
+func (e *TrialsQtype) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TrialsQtype(s)
+	case string:
+		*e = TrialsQtype(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TrialsQtype: %T", src)
+	}
+	return nil
+}
+
+type NullTrialsQtype struct {
+	TrialsQtype TrialsQtype
+	Valid       bool // Valid is true if TrialsQtype is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTrialsQtype) Scan(value interface{}) error {
+	if value == nil {
+		ns.TrialsQtype, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TrialsQtype.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTrialsQtype) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TrialsQtype), nil
+}
+
+func (e TrialsQtype) Valid() bool {
+	switch e {
+	case TrialsQtypeTerm,
+		TrialsQtypeShortAnswer,
+		TrialsQtypeDiscussion:
+		return true
+	}
+	return false
+}
+
+func AllTrialsQtypeValues() []TrialsQtype {
+	return []TrialsQtype{
+		TrialsQtypeTerm,
+		TrialsQtypeShortAnswer,
+		TrialsQtypeDiscussion,
+	}
+}
+
+type TrialsStatus string
+
+const (
+	TrialsStatusReady  TrialsStatus = "ready"
+	TrialsStatusGraded TrialsStatus = "graded"
+	TrialsStatusSaved  TrialsStatus = "saved"
+)
+
+func (e *TrialsStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TrialsStatus(s)
+	case string:
+		*e = TrialsStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TrialsStatus: %T", src)
+	}
+	return nil
+}
+
+type NullTrialsStatus struct {
+	TrialsStatus TrialsStatus
+	Valid        bool // Valid is true if TrialsStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTrialsStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.TrialsStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TrialsStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTrialsStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TrialsStatus), nil
+}
+
+func (e TrialsStatus) Valid() bool {
+	switch e {
+	case TrialsStatusReady,
+		TrialsStatusGraded,
+		TrialsStatusSaved:
+		return true
+	}
+	return false
+}
+
+func AllTrialsStatusValues() []TrialsStatus {
+	return []TrialsStatus{
+		TrialsStatusReady,
+		TrialsStatusGraded,
+		TrialsStatusSaved,
 	}
 }
 
@@ -6067,6 +7241,52 @@ type BankSubscription struct {
 	AddedAt            time.Time
 }
 
+// 院校专业课库（后台配置组维护）
+type CatalogCourse struct {
+	ID uint64
+	// 院校全称
+	School string
+	Major  string
+	// 学科，如 哲学、文学；1.10、7.16 按它筛选
+	Discipline  string
+	SubjectName string
+	// 专业课代码，选填
+	SubjectCode sql.NullString
+	// 参考书目，字符串数组
+	Textbooks dbtypes.NullJSON
+	// 适用考试年份；为空表示各年通用
+	ExamYear  sql.NullInt16
+	Status    CatalogCoursesStatus
+	CreatedBy sql.NullInt64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// 用户在 1.1 手动添加、待运营入库的课程
+type CatalogPendingCourse struct {
+	ID uint64
+	// 院校 + 代码（有代码时）或院校 + 课程名
+	GroupKey     string
+	School       string
+	Major        string
+	SubjectName  string
+	SubjectCode  sql.NullString
+	RequestCount uint32
+	Status       CatalogPendingCoursesStatus
+	// 入库或合并到的课程
+	CatalogCourseID sql.NullInt64
+	HandledBy       sql.NullInt64
+	HandledAt       sql.NullTime
+	FirstAt         time.Time
+	LastAt          time.Time
+}
+
+// 待入库课程的去重计数（同一用户只算一次）
+type CatalogPendingUser struct {
+	PendingID uint64
+	UserID    uint64
+}
+
 // 用户授权后台查看内容（PRD 10.1）
 type ContentAccessGrant struct {
 	ID       uint64
@@ -6092,6 +7312,45 @@ type ContentAccessLog struct {
 	CreatedAt  time.Time
 }
 
+// 申请收录（1.11），同一用户同一门课只能申请一次
+type CourseApplication struct {
+	ID          uint64
+	OwnerUserID uint64
+	GroupID     uint64
+	School      string
+	Major       string
+	SubjectName string
+	SubjectCode sql.NullString
+	ExamYear    uint16
+	// 入口：1.1c / 题库页 / 我的 → 备考设置
+	Entry     CourseApplicationsEntry
+	CreatedAt time.Time
+}
+
+// 申请收录按课归并（7.16）
+type CourseApplicationGroup struct {
+	ID          uint64
+	GroupKey    string
+	School      string
+	Major       string
+	SubjectName string
+	SubjectCode sql.NullString
+	// 从院校专业课库带出，7.16 按学科筛选
+	Discipline string
+	Status     CourseApplicationGroupsStatus
+	// 暂不收录的原因（必填）
+	Reason         sql.NullString
+	ApplicantCount uint32
+	// 最早待处理时间；处理后清空，超过 24 小时标红
+	PendingSince  sql.NullTime
+	LastAppliedAt time.Time
+	// 立项生成的 7.11 官方题库项目
+	ProjectID sql.NullInt64
+	HandledBy sql.NullInt64
+	HandledAt sql.NullTime
+	CreatedAt time.Time
+}
+
 // 每日计划快照（PRD 11.5）
 type DailyPlan struct {
 	OwnerUserID uint64
@@ -6111,9 +7370,7 @@ type Dispute struct {
 	ID          uint64
 	OwnerUserID uint64
 	GradingID   uint64
-	// 4.8 四选一
-	Reason DisputesReason
-	Note   sql.NullString
+	Note        sql.NullString
 	// 允许后台查看这道题和答案
 	AllowAccess bool
 	RegradeID   sql.NullInt64
@@ -6125,6 +7382,8 @@ type Dispute struct {
 	HandledBy   sql.NullInt64
 	CreatedAt   time.Time
 	ResolvedAt  sql.NullTime
+	// 4.8；teacher_differs 和我们老师讲的不一样（PRD v3 增补）
+	Reason DisputesReason
 }
 
 // 作文本（5.8）
@@ -6636,6 +7895,53 @@ type OfficialDraft struct {
 	RejectReason sql.NullString
 }
 
+// 7.17 团队上传的资料
+type OfficialImportFile struct {
+	ID        uint64
+	ProjectID uint64
+	// 真题卷 / 参考书目录 / 有授权的讲义 / 表格导入
+	Kind     OfficialImportFilesKind
+	FileName string
+	Format   OfficialImportFilesFormat
+	// OSS 私有桶对象键（official-imports/ 前缀，与用户资料分开）
+	ObjectKey sql.NullString
+	SizeBytes uint64
+	// 粘贴的文字或表格；文件解析后的全文（核对区中间栏的原文）
+	Content sql.NullString
+	// 真题卷年份（识别不出时用它）
+	ExamYear sql.NullInt16
+	// 回忆版真题
+	IsRecollection bool
+	Status         OfficialImportFilesStatus
+	FailReason     sql.NullString
+	QuestionCount  uint32
+	KpCount        uint32
+	CreatedBy      sql.NullInt64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// 7.17 解析结果，逐条接受 / 修改 / 驳回
+type OfficialImportItem struct {
+	ID        uint64
+	FileID    uint64
+	ProjectID uint64
+	ItemType  OfficialImportItemsItemType
+	Seq       uint32
+	// 与 7.12 草稿同结构（QuestionPayload / KPPayload）
+	Payload json.RawMessage
+	// 参考答案引用的官方参考素材
+	Citations dbtypes.NullJSON
+	// 原文片段，核对区高亮
+	SourceText sql.NullString
+	Page       uint32
+	Confidence OfficialImportItemsConfidence
+	Status     OfficialImportItemsStatus
+	DraftID    sql.NullInt64
+	ReviewedBy sql.NullInt64
+	ReviewedAt sql.NullTime
+}
+
 // 官方题库立项（7.11）
 type OfficialProject struct {
 	ID          uint64
@@ -6838,7 +8144,6 @@ type PracticeSession struct {
 	ID          uint64
 	OwnerUserID uint64
 	SubjectID   sql.NullInt64
-	Kind        PracticeSessionsKind
 	Title       string
 	// 自定义练习条件等
 	Config dbtypes.NullJSON
@@ -6851,6 +8156,7 @@ type PracticeSession struct {
 	Summary    dbtypes.NullJSON
 	StartedAt  time.Time
 	FinishedAt sql.NullTime
+	Kind       PracticeSessionsKind
 }
 
 // 题目
@@ -7092,6 +8398,47 @@ type RuleParamHistory struct {
 	CreatedAt time.Time
 }
 
+// 通用体验题的学科与方向（7.18）
+type SampleDirection struct {
+	ID uint64
+	// 学科，如 哲学、文学
+	Discipline string
+	// 方向，如 西方哲学、古代文学
+	Name      string
+	SortOrder uint16
+	CreatedAt time.Time
+}
+
+// 通用体验题与 AI 出题缓存（团队内容，不含用户资料）
+type SampleQuestion struct {
+	ID uint64
+	// 已覆盖学科的方向；AI 现场出题为空
+	DirectionID sql.NullInt64
+	// 手工录入 / AI 批量初稿 / 未覆盖学科的 AI 现场出题
+	Origin SampleQuestionsOrigin
+	// AI 现场出题按专业课缓存复用的键
+	CacheKey sql.NullString
+	// AI 现场出题对应的专业课名
+	SubjectLabel string
+	// 参考教材
+	Textbook string
+	Qtype    SampleQuestionsQtype
+	Score    string
+	Stem     string
+	Answer   string
+	// 采分点 [{content, score, keywords}]，合计等于分值
+	Rubric json.RawMessage
+	// 审核通过后才在 1.10 显示；AI 现场出题直接可用，可抽检下线
+	Status SampleQuestionsStatus
+	// 被体验次数（提交批改成功才计）
+	TryCount   uint32
+	CreatedBy  sql.NullInt64
+	ReviewedBy sql.NullInt64
+	ReviewedAt sql.NullTime
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
 // 预估分历史（PRD 11.6）；最新一条为当前值，按周取趋势
 type ScoreEstimate struct {
 	ID          uint64
@@ -7176,6 +8523,21 @@ type Subject struct {
 	// 参考教材书名列表，如 ["童庆炳《文学理论教程》"]
 	Textbooks          dbtypes.NullJSON
 	TextbookSelections dbtypes.NullJSON
+	// 1.1 从院校专业课库选的课；官方题库上线时通知选了该课的用户
+	CatalogCourseID sql.NullInt64
+	// 1.1 选的院校
+	School sql.NullString
+	Major  sql.NullString
+}
+
+// 3.1e 补充资料提示「以后再说」
+type SupplementPromptDismissal struct {
+	OwnerUserID uint64
+	SubjectID   uint64
+	// section:<板块 id> / dispute / wrong_book
+	PromptKey string
+	// 这之前不再提示
+	SnoozeUntil time.Time
 }
 
 // 考后回访（6.14），每人一次
@@ -7335,6 +8697,43 @@ type TextbookRevision struct {
 	ReadyGenerationID sql.NullInt64
 }
 
+// 体验一道题（1.9–1.10），不消耗任何额度
+type Trial struct {
+	ID          uint64
+	OwnerUserID uint64
+	// 自己的题 / 通用体验题 / AI 现场出题
+	Kind             TrialsKind
+	SampleQuestionID sql.NullInt64
+	InputMode        TrialsInputMode
+	Qtype            TrialsQtype
+	Score            string
+	Stem             string
+	ReferenceAnswer  string
+	// user 用户填了参考答案；ai AI 参考答案（标「仅供参考」）
+	AnswerSource TrialsAnswerSource
+	Rubric       json.RawMessage
+	AnswerMode   NullTrialsAnswerMode
+	// 作答原文；不得写入日志
+	AnswerText sql.NullString
+	PhotoKeys  dbtypes.NullJSON
+	// 逐采分点结果、建议
+	Result          dbtypes.NullJSON
+	Total           sql.NullString
+	Status          TrialsStatus
+	SavedQuestionID sql.NullInt64
+	IdempotencyKey  sql.NullString
+	GradedAt        sql.NullTime
+	CreatedAt       time.Time
+}
+
+// 体验次数（体验一道题与通用体验题共用）
+type TrialUsage struct {
+	OwnerUserID uint64
+	// 批改成功的体验次数
+	Used          uint32
+	FirstGradedAt sql.NullTime
+}
+
 // App 用户
 type User struct {
 	ID uint64
@@ -7354,6 +8753,8 @@ type User struct {
 	LastActiveAt  sql.NullTime
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	// 种子用户，运营在 7.2 标记
+	IsSeed bool
 }
 
 // 练习按题持久保存语音转写任务

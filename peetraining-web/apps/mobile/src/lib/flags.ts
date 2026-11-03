@@ -3,7 +3,10 @@ import { api, unwrap } from './api';
 import { getJSON, setJSON } from './storage';
 
 /** 功能开关名（PRD 3.4，默认关闭）。 */
-export type FlagKey = 'online_payment' | 'official_bank' | 'oral_recite' | 'voice_answer' | 'scanned_pdf' | 'invite';
+export type FlagKey =
+  | 'online_payment' | 'official_bank' | 'oral_recite' | 'voice_answer' | 'scanned_pdf' | 'invite'
+  // 官方题库先行（PRD v3 增补）
+  | 'onboarding_route' | 'trial' | 'sample_trial' | 'ai_live_question' | 'course_apply';
 
 const CACHE_KEY = 'feature_flags';
 

@@ -42,23 +42,29 @@ export const menu: MenuGroup[] = [
     pages: [
       { code: '7.8', title: 'AI 与额度', path: '/config', roles: ['admin'] },
       { code: '7.9', title: '消息与公告', path: '/notice', roles: ['admin'] },
+      // PRD v3 增补「院校专业课库」：1.1 的院校搜索与专业课列表来源
+      { code: '7.8b', title: '院校专业课库', path: '/catalog', roles: ['admin', 'content_lead'] },
     ],
   },
   {
     key: 'official',
     title: '官方题库',
+    // PRD v3 增补：分组顺序为 申请收录、需求洞察、官方题库、AI 解析导入、内容生产、审核队列、版本发布、通用体验题
     pages: [
+      { code: '7.16', title: '申请收录', path: '/applications', roles: ['admin', 'content_lead', 'analyst'] },
       { code: '7.10', title: '需求洞察', path: '/demand', roles: ['admin', 'content_lead', 'analyst'] },
       { code: '7.11', title: '官方题库', path: '/official', roles: ['admin', 'content_lead'] },
+      { code: '7.17', title: 'AI 解析导入', path: '/official-import', roles: ['admin', 'content_lead', 'content_editor'] },
       { code: '7.12', title: '内容生产', path: '/produce', roles: ['admin', 'content_lead', 'content_editor'] },
       { code: '7.13', title: '审核队列', path: '/review', roles: ['admin', 'content_lead'] },
       { code: '7.14', title: '版本发布', path: '/release', roles: ['admin', 'content_lead'] },
+      { code: '7.18', title: '通用体验题', path: '/samples', roles: ['admin', 'content_lead', 'content_editor'] },
     ],
   },
   {
     key: 'textbook',
     title: '官方教材库',
-    pages: [{ code: '7.16', title: '官方教材库', path: '/textbooks', roles: ['admin', 'content_lead'] }],
+    pages: [{ code: '7.19', title: '官方教材库', path: '/textbooks', roles: ['admin', 'content_lead'] }],
   },
   {
     key: 'system',

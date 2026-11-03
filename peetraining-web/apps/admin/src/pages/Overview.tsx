@@ -2,6 +2,7 @@
 // 每日作答题数；热门专业课（按代码聚合）；「需要处理」提醒。只读 Worker 每小时汇总的聚合表。
 import { useQuery } from '@tanstack/react-query';
 import { Alert, Card, Col, List, Progress, Row, Statistic, Table, Typography } from 'antd';
+import { Link } from 'react-router';
 import { Loadable, PageTitle, PrivacyNote } from '../components/Page';
 import { api, dt, pct, unwrap, yuan } from '../lib/api';
 
@@ -10,6 +11,7 @@ const modeNames: Record<string, string> = { question: '题目类', reference: '�
 
 export function Overview() {
   const q = useQuery({ queryKey: ['admin', 'overview'], queryFn: () => unwrap(api.GET('/admin/overview')) });
+  const apply = useQuery({ queryKey: ['admin', 'applications', 'summary'], queryFn: () => unwrap(api.GET('/admin/course-applications/summary')) });
   const o = q.data;
   const reg = o?.funnel.find((f) => f.name === 'registered')?.value ?? 0;
   const modeTotal = o?.import_modes.reduce((s, m) => s + m.value, 0) ?? 0;
@@ -23,6 +25,16 @@ export function Overview() {
             {o.alerts.map((a) => (
               <Alert key={a} type="warning" showIcon message={a} style={{ marginBottom: 12 }} />
             ))}
+            {/* 「需要处理」：新的收录申请（PRD v3 增补 7.1），点进 7.16 */}
+            {apply.data && apply.data.pending > 0 ? (
+              <Alert
+                type={apply.data.overdue > 0 ? 'warning' : 'info'}
+                showIcon
+                style={{ marginBottom: 12 }}
+                message={`新的收录申请：待处理 ${apply.data.pending} 门课${apply.data.overdue > 0 ? `，其中 ${apply.data.overdue} 门超过 24 小时` : ''}`}
+                action={<Link to="/applications">去处理</Link>}
+              />
+            ) : null}
             <Row gutter={16}>
               <Col span={6}>
                 <Card><Statistic title="注册用户" value={o.users_total} suffix={<Typography.Text type="secondary"> 本周 +{o.week_new_users}</Typography.Text>} /></Card>
@@ -83,7 +95,7 @@ export function Overview() {
                 ]}
               />
             </Card>
-            {o.alerts.length === 0 ? (
+            {o.alerts.length === 0 && !apply.data?.pending ? (
               <Card title="需要处理" style={{ marginTop: 16 }}>
                 <List dataSource={['暂无需要处理的事项']} renderItem={(t) => <List.Item>{t}</List.Item>} />
               </Card>

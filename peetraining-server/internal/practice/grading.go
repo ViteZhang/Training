@@ -367,11 +367,17 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 		}
 		return s.Grading(ctx, userID, uint64(gid))
 	}
+	// 1.1b 官方题库首题的批改不扣额度、不占体验次数（PRD v3 增补「体验与额度」）。
+	free := Kind(row.Kind) == KindOfficialFirst
 	// 今日次数用完：答案保存为待批改（4.9），不调模型。
-	if left, err := s.quota.Remaining(ctx, userID, quota.Grading); err != nil {
-		return Grading{}, err
-	} else if left != nil && *left <= 0 {
-		return queue()
+	if !free {
+		left, err := s.quota.Remaining(ctx, userID, quota.Grading)
+		if err != nil {
+			return Grading{}, err
+		}
+		if left != nil && *left <= 0 {
+			return queue()
+		}
 	}
 	kpM, kpName, err := s.primaryKP(ctx, s.q, userID, qr.ID)
 	if err != nil {
@@ -405,9 +411,12 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 			return err
 		}
 		extra := gradingExtra{Items: out.Suggestions, StructureOK: out.StructureOK, StructureNote: out.StructureNote, KPs: eff.KPs, WrongBook: eff.WrongBook}
-		gid, err = s.insertDone(ctx, q, userID, uint64(aid), dbq.GradingsTriggerReasonSubmit, 0, snap, snapJSON, out, loss, extra, meta, true, in.Key)
+		gid, err = s.insertDone(ctx, q, userID, uint64(aid), dbq.GradingsTriggerReasonSubmit, 0, snap, snapJSON, out, loss, extra, meta, !free, in.Key)
 		if err != nil {
 			return err
+		}
+		if free {
+			return advance(q)
 		}
 		if err := s.quota.Consume(ctx, q, quota.Charge{UserID: userID, Type: quota.Grading, Amount: 1, Ref: quota.Ref{Type: "grading", ID: uint64(gid)},
 			Key: quota.KeyFor("grading", uint64(gid))}); err != nil {
@@ -617,7 +626,7 @@ type DisputeInput struct {
 // Dispute 提交复核：重批一次，不扣次数；每次批改只能复核一次。勾选授权时写 content_access_grants（72 小时）。
 func (s *Service) Dispute(ctx context.Context, userID, gradingID uint64, in DisputeInput) (Grading, error) {
 	switch in.Reason {
-	case "hit_missed", "rubric_wrong", "score_unfair", "other":
+	case "hit_missed", "rubric_wrong", "score_unfair", "other", "teacher_differs":
 	default:
 		return Grading{}, apperr.New(apperr.BadRequest, "请选择异议原因")
 	}

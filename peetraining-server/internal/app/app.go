@@ -195,7 +195,8 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	base.Textbooks.ConfigureEvidence(engine, fl)
 	engine.SetAnswerEvidenceProvider(base.Textbooks)
 	base.AnswerUpdates = answerupdate.New(db, engine, qs, queue)
-	base.Official = official.New(official.Deps{DB: db, AI: engine, Log: log})
+	base.Official = official.New(official.Deps{DB: db, AI: engine, Log: log, Params: ps, OpsWebhook: cfg.OpsWebhookURL, AdminBaseURL: cfg.AdminBaseURL})
+	base.Official.ConfigureImports(official.ImportDeps{OSS: clients.OSS, OCR: clients.OCR, PDF: clients.PDF, Queue: queue, NewTask: jobs.NewOfficialImportTask})
 	return base, nil
 }
 
@@ -333,7 +334,7 @@ func NewWorker(b *Base) (*Worker, error) {
 	if err := jobs.RegisterSchedules(scheduler); err != nil {
 		return nil, fmt.Errorf("注册定时任务：%w", err)
 	}
-	h := &jobs.Handlers{AnswerCandidates: b.AnswerUpdates, Textbooks: b.Textbooks, Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice, Voice: b.Practice, Essay: b.Essay, Export: b.Export, Notify: b.Notify, Stats: b.Admin,
+	h := &jobs.Handlers{AnswerCandidates: b.AnswerUpdates, Textbooks: b.Textbooks, Logger: b.Logger, Auth: b.Auth, Material: b.Material, Permanent: material.IsPermanent, Import: b.Importer, Plan: b.Plan, Paper: b.Practice, Voice: b.Practice, Essay: b.Essay, Export: b.Export, Notify: b.Notify, Stats: b.Admin, Official: b.Official,
 		Monitor: monitor.New(monitor.Deps{DB: b.DB, Redis: b.Redis, Queues: asynq.NewInspector(opt), Names: []string{jobs.QueueCritical, jobs.QueueDefault, jobs.QueueLow},
 			Cost: b.Admin, Log: b.Logger, Webhook: b.Config.AlertWebhookURL})}
 	return &Worker{server: server, scheduler: scheduler, mux: h.Mux()}, nil

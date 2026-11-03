@@ -475,3 +475,87 @@ func (s *Service) withTx(ctx context.Context, fn func(q *dbq.Queries) error) err
 }
 
 var cst = time.FixedZone("Asia/Shanghai", 8*3600)
+
+// KindOfficialFirst 是 1.1b 官方题库首题：从刚添加的官方题库取一道名词解释真题，批改不扣额度（PRD v3 增补）。
+const KindOfficialFirst Kind = "official_first"
+
+// CreateOfficialFirst 建 1.1b 的首题练习：用户须已把这个官方题库添加到某门专业课；
+// 按真题里出现次数最多的知识点优先，取一道没做过的官方名词解释真题。每个账号只建一次，再次调用返回同一组。
+func (s *Service) CreateOfficialFirst(ctx context.Context, userID, bankID uint64) (Session, error) {
+	if id, err := s.q.FindOfficialFirstSession(ctx, userID); err == nil {
+		return s.Get(ctx, userID, id)
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return Session{}, err
+	}
+	subs, err := s.q.ListMySubscriptions(ctx, userID)
+	if err != nil {
+		return Session{}, err
+	}
+	var subjectID uint64
+	for _, sb := range subs {
+		if sb.BankID == bankID {
+			subjectID = sb.SubjectID
+		}
+	}
+	if subjectID == 0 {
+		return Session{}, apperr.NotFoundErr()
+	}
+	b, err := s.subject(ctx, userID, subjectID)
+	if err != nil {
+		return Session{}, err
+	}
+	items, _, err := s.pool(ctx, userID, b)
+	if err != nil {
+		return Session{}, err
+	}
+	id := pickOfficialFirst(items)
+	if id == 0 {
+		return Session{}, apperr.New(apperr.BadRequest, "这个官方题库还没有名词解释真题")
+	}
+	idsJSON, _ := json.Marshal([]uint64{id})
+	sid, err := s.q.InsertPracticeSession(ctx, dbq.InsertPracticeSessionParams{OwnerUserID: userID, SubjectID: sql.NullInt64{Int64: int64(b.SubjectID), Valid: true},
+		Kind: dbq.PracticeSessionsKind(KindOfficialFirst), Title: "官方真题 · 首题", Config: []byte("{}"), QuestionIds: idsJSON, StartedAt: s.now().UTC()})
+	if err != nil {
+		return Session{}, err
+	}
+	return s.Get(ctx, userID, uint64(sid))
+}
+
+// pickOfficialFirst 从官方名词解释题里挑首题：主知识点在真题里出现得越多越优先（高频考点），同频取较近年份，再取较小 id 保证稳定。
+func pickOfficialFirst(items []poolItem) uint64 {
+	freq := map[int64]int{}
+	for _, it := range items {
+		if it.Source == dbq.QuestionsSourceOfficial && it.ExamYear.Valid && it.PrimaryKp != 0 {
+			freq[it.PrimaryKp]++
+		}
+	}
+	var best *poolItem
+	better := func(a, b *poolItem) bool {
+		if (a.AttemptCount == 0) != (b.AttemptCount == 0) {
+			return a.AttemptCount == 0
+		}
+		if a.ExamYear.Valid != b.ExamYear.Valid {
+			return a.ExamYear.Valid
+		}
+		if fa, fb := freq[a.PrimaryKp], freq[b.PrimaryKp]; fa != fb {
+			return fa > fb
+		}
+		if a.ExamYear.Int16 != b.ExamYear.Int16 {
+			return a.ExamYear.Int16 > b.ExamYear.Int16
+		}
+		return a.ID < b.ID
+	}
+	for i := range items {
+		it := &items[i]
+		if it.Source != dbq.QuestionsSourceOfficial || it.Qtype != dbq.QuestionsQtypeTerm {
+			continue
+		}
+		if best == nil || better(it, best) {
+			best = it
+		}
+	}
+	if best == nil {
+		return 0
+	}
+	return best.ID
+}

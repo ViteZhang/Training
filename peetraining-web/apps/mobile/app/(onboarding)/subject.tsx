@@ -14,8 +14,16 @@ import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { useUpgradeActions } from '@/features/membership/purchase';
 import { ExamYearSelect } from '@/features/profile/ExamYearSelect';
+import { RouteSubject } from '@/features/official/RouteSubject';
+import { useFeatureFlag } from '@/lib/flags';
 
+/** 引导分流（onboarding_route）打开时用新 1.1（选院校和专业课），关闭时回到旧 1.1（PRD v3 增补「功能开关」）。 */
 export default function SubjectStep() {
+  const route = useFeatureFlag('onboarding_route');
+  return route ? <RouteSubject /> : <LegacySubjectStep />;
+}
+
+function LegacySubjectStep() {
   const qc = useQueryClient();
   const years = useQuery({ queryKey: ['exam-years'], queryFn: () => unwrap(api.GET('/exam-years')) });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => unwrap(api.GET('/subjects')) });

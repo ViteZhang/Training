@@ -1,4 +1,4 @@
-// 7.16 官方教材库：独立教材身份、出版版本和原文修订，设计稿 B01/B02/B04。
+// 7.19 官方教材库（原编号 7.16，官方题库先行增补占用了 7.16）：独立教材身份、出版版本和原文修订，设计稿 B01/B02/B04。
 import { ApiError, type components } from '@training/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, App as AntApp, Button, Card, Checkbox, Descriptions, Drawer, Empty, Form, Input, InputNumber, List, Modal, Select, Space, Table, Tag, Typography } from 'antd';
@@ -28,7 +28,7 @@ export function Textbooks() {
   const [creating, setCreating] = useState(false);
   const q = useQuery({ queryKey: [...catalogKey, 'list', filters], queryFn: () => unwrap(api.GET('/admin/textbooks', { params: { query: filters } })) });
   return <>
-    <PageTitle code="7.16" title="官方教材库" extra={<Button type="primary" onClick={() => setCreating(true)}>新建教材</Button>} />
+    <PageTitle code="7.19" title="官方教材库" extra={<Button type="primary" onClick={() => setCreating(true)}>新建教材</Button>} />
     <Typography.Paragraph type="secondary">统一维护教材与讲义原文，可跨专业课、跨官方题库项目复用。</Typography.Paragraph>
     <TextbookRetrievalStatus /><Space wrap style={{ marginBottom: 20 }}>
       <Input.Search aria-label="搜索教材" placeholder="搜索书名、作者、别名" value={search} onChange={(e) => setSearch(e.target.value)} onSearch={(q) => setFilters((f) => ({ ...f, q, page: 1 }))} allowClear style={{ width: 300 }} />

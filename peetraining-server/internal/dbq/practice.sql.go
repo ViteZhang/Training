@@ -187,7 +187,7 @@ func (q *Queries) GetKPMasteryForUpdate(ctx context.Context, arg GetKPMasteryFor
 }
 
 const getPracticeSession = `-- name: GetPracticeSession :one
-SELECT id, owner_user_id, subject_id, kind, title, config, question_ids, cursor_index, status, summary, started_at, finished_at FROM practice_sessions WHERE id = ? AND owner_user_id = ?
+SELECT id, owner_user_id, subject_id, title, config, question_ids, cursor_index, status, summary, started_at, finished_at, kind FROM practice_sessions WHERE id = ? AND owner_user_id = ?
 `
 
 type GetPracticeSessionParams struct {
@@ -202,7 +202,6 @@ func (q *Queries) GetPracticeSession(ctx context.Context, arg GetPracticeSession
 		&i.ID,
 		&i.OwnerUserID,
 		&i.SubjectID,
-		&i.Kind,
 		&i.Title,
 		&i.Config,
 		&i.QuestionIds,
@@ -211,12 +210,13 @@ func (q *Queries) GetPracticeSession(ctx context.Context, arg GetPracticeSession
 		&i.Summary,
 		&i.StartedAt,
 		&i.FinishedAt,
+		&i.Kind,
 	)
 	return i, err
 }
 
 const getPracticeSessionForUpdate = `-- name: GetPracticeSessionForUpdate :one
-SELECT id, owner_user_id, subject_id, kind, title, config, question_ids, cursor_index, status, summary, started_at, finished_at FROM practice_sessions WHERE id = ? AND owner_user_id = ? FOR UPDATE
+SELECT id, owner_user_id, subject_id, title, config, question_ids, cursor_index, status, summary, started_at, finished_at, kind FROM practice_sessions WHERE id = ? AND owner_user_id = ? FOR UPDATE
 `
 
 type GetPracticeSessionForUpdateParams struct {
@@ -231,7 +231,6 @@ func (q *Queries) GetPracticeSessionForUpdate(ctx context.Context, arg GetPracti
 		&i.ID,
 		&i.OwnerUserID,
 		&i.SubjectID,
-		&i.Kind,
 		&i.Title,
 		&i.Config,
 		&i.QuestionIds,
@@ -240,6 +239,7 @@ func (q *Queries) GetPracticeSessionForUpdate(ctx context.Context, arg GetPracti
 		&i.Summary,
 		&i.StartedAt,
 		&i.FinishedAt,
+		&i.Kind,
 	)
 	return i, err
 }
@@ -375,7 +375,7 @@ func (q *Queries) InsertPracticeSession(ctx context.Context, arg InsertPracticeS
 }
 
 const latestInProgressSession = `-- name: LatestInProgressSession :one
-SELECT id, owner_user_id, subject_id, kind, title, config, question_ids, cursor_index, status, summary, started_at, finished_at FROM practice_sessions
+SELECT id, owner_user_id, subject_id, title, config, question_ids, cursor_index, status, summary, started_at, finished_at, kind FROM practice_sessions
 WHERE owner_user_id = ? AND subject_id = ? AND status = 'in_progress'
 ORDER BY started_at DESC, id DESC LIMIT 1
 `
@@ -392,7 +392,6 @@ func (q *Queries) LatestInProgressSession(ctx context.Context, arg LatestInProgr
 		&i.ID,
 		&i.OwnerUserID,
 		&i.SubjectID,
-		&i.Kind,
 		&i.Title,
 		&i.Config,
 		&i.QuestionIds,
@@ -401,6 +400,7 @@ func (q *Queries) LatestInProgressSession(ctx context.Context, arg LatestInProgr
 		&i.Summary,
 		&i.StartedAt,
 		&i.FinishedAt,
+		&i.Kind,
 	)
 	return i, err
 }
