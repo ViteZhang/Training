@@ -80,9 +80,10 @@ type Deps struct {
 
 // Service 是官方题库。
 type Service struct {
-	d   Deps
-	q   *dbq.Queries
-	now func() time.Time
+	d       Deps
+	imports ImportDeps
+	q       *dbq.Queries
+	now     func() time.Time
 }
 
 func New(d Deps) *Service {

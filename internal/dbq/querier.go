@@ -195,6 +195,7 @@ type Querier interface {
 	// 重跑取文本时删掉多出来的旧页（这次页数变少）。
 	DeleteMaterialPagesAfter(ctx context.Context, arg DeleteMaterialPagesAfterParams) error
 	DeleteOfficialDraft(ctx context.Context, arg DeleteOfficialDraftParams) (int64, error)
+	DeleteOfficialImportItems(ctx context.Context, fileID uint64) error
 	DeleteOfficialKP(ctx context.Context, arg DeleteOfficialKPParams) error
 	DeleteOfficialKPRubric(ctx context.Context, kpID sql.NullInt64) error
 	DeleteOfficialQuestionKPs(ctx context.Context, questionID uint64) error
@@ -334,6 +335,8 @@ type Querier interface {
 	GetOfficialAnswerCandidate(ctx context.Context, arg GetOfficialAnswerCandidateParams) (string, error)
 	GetOfficialAnswerCandidateByBank(ctx context.Context, arg GetOfficialAnswerCandidateByBankParams) (string, error)
 	GetOfficialDraft(ctx context.Context, id uint64) (OfficialDraft, error)
+	GetOfficialImportFile(ctx context.Context, id uint64) (OfficialImportFile, error)
+	GetOfficialImportItem(ctx context.Context, id uint64) (OfficialImportItem, error)
 	GetOfficialProject(ctx context.Context, id uint64) (OfficialProject, error)
 	GetOfficialProjectByBank(ctx context.Context, bankID sql.NullInt64) (OfficialProject, error)
 	GetOfficialProjectStage(ctx context.Context, id uint64) (GetOfficialProjectStageRow, error)
@@ -457,6 +460,9 @@ type Querier interface {
 	InsertOfficialBank(ctx context.Context, arg InsertOfficialBankParams) (int64, error)
 	// ---------- 草稿与审核（7.12、7.13） ----------
 	InsertOfficialDraft(ctx context.Context, arg InsertOfficialDraftParams) (int64, error)
+	// T47 后台 AI 解析导入（团队资料，与用户资料分表）。
+	InsertOfficialImportFile(ctx context.Context, arg InsertOfficialImportFileParams) (int64, error)
+	InsertOfficialImportItem(ctx context.Context, arg InsertOfficialImportItemParams) error
 	InsertOfficialKP(ctx context.Context, arg InsertOfficialKPParams) (int64, error)
 	InsertOfficialProject(ctx context.Context, arg InsertOfficialProjectParams) (int64, error)
 	InsertOfficialQuestion(ctx context.Context, arg InsertOfficialQuestionParams) (int64, error)
@@ -608,6 +614,8 @@ type Querier interface {
 	ListMyInvites(ctx context.Context, inviterID uint64) ([]ListMyInvitesRow, error)
 	ListMySubscriptions(ctx context.Context, ownerUserID uint64) ([]ListMySubscriptionsRow, error)
 	ListOfficialDrafts(ctx context.Context, arg ListOfficialDraftsParams) ([]OfficialDraft, error)
+	ListOfficialImportFiles(ctx context.Context, projectID uint64) ([]ListOfficialImportFilesRow, error)
+	ListOfficialImportItems(ctx context.Context, fileID uint64) ([]OfficialImportItem, error)
 	// ---------- 官方内容 ----------
 	ListOfficialKPs(ctx context.Context, bankID uint64) ([]ListOfficialKPsRow, error)
 	ListOfficialProjects(ctx context.Context) ([]ListOfficialProjectsRow, error)
@@ -660,6 +668,7 @@ type Querier interface {
 	ListScoreEstimates(ctx context.Context, arg ListScoreEstimatesParams) ([]ListScoreEstimatesRow, error)
 	ListSessionAttempts(ctx context.Context, arg ListSessionAttemptsParams) ([]ListSessionAttemptsRow, error)
 	ListSessionRecites(ctx context.Context, arg ListSessionRecitesParams) ([]ListSessionRecitesRow, error)
+	ListStaleOfficialImports(ctx context.Context, updatedAt time.Time) ([]uint64, error)
 	ListStats(ctx context.Context, arg ListStatsParams) ([]ListStatsRow, error)
 	ListStemsByCacheKey(ctx context.Context, cacheKey sql.NullString) ([]string, error)
 	// 作文本与作文训练首页：一门课的全部作文，新的在前。
@@ -780,6 +789,7 @@ type Querier interface {
 	ResolveCatalogPending(ctx context.Context, arg ResolveCatalogPendingParams) error
 	ResumePaperSession(ctx context.Context, arg ResumePaperSessionParams) error
 	RetryTextbookIndex(ctx context.Context, arg RetryTextbookIndexParams) error
+	ReviewOfficialImportItem(ctx context.Context, arg ReviewOfficialImportItemParams) (int64, error)
 	RevokeAllUserTokens(ctx context.Context, arg RevokeAllUserTokensParams) error
 	RevokeDeviceTokens(ctx context.Context, arg RevokeDeviceTokensParams) (int64, error)
 	RevokeMembership(ctx context.Context, arg RevokeMembershipParams) error
@@ -825,6 +835,8 @@ type Querier interface {
 	SetMaterialObjectKey(ctx context.Context, arg SetMaterialObjectKeyParams) error
 	SetOfficialDraftPayload(ctx context.Context, arg SetOfficialDraftPayloadParams) error
 	SetOfficialDraftStatus(ctx context.Context, arg SetOfficialDraftStatusParams) error
+	SetOfficialImportParsed(ctx context.Context, arg SetOfficialImportParsedParams) error
+	SetOfficialImportStatus(ctx context.Context, arg SetOfficialImportStatusParams) error
 	SetOfficialProjectStage(ctx context.Context, arg SetOfficialProjectStageParams) error
 	SetOfficialQuestionStatus(ctx context.Context, arg SetOfficialQuestionStatusParams) error
 	SetPaperItemAttempt(ctx context.Context, arg SetPaperItemAttemptParams) error

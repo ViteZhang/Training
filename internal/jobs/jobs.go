@@ -134,6 +134,8 @@ type Handlers struct {
 	Notify  Notifier
 	Stats   StatsAggregator
 	Monitor Monitor
+	// Official 是 7.17 后台 AI 解析导入（T47）。
+	Official OfficialImporter
 }
 
 // Monitor 每 5 分钟检查接口错误率、队列积压、AI 失败率与成本（monitor.Checker 实现）。
@@ -293,6 +295,13 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 			return err
 		}
 		return h.Textbooks.RecoverIndexes(ctx)
+	})
+	mux.HandleFunc(TypeOfficialImport, h.handleOfficialImport)
+	mux.HandleFunc(TypeOfficialImportRecover, func(ctx context.Context, _ *asynq.Task) error {
+		if h.Official == nil {
+			return nil
+		}
+		return h.Official.RecoverImports(ctx)
 	})
 	mux.HandleFunc(TypePurgeAccounts, h.handlePurgeAccounts)
 	mux.HandleFunc(TypeExtract, h.handleExtract)
@@ -504,6 +513,7 @@ var Schedules = []Schedule{
 	// 监控告警（T32）。
 	{Cron: "*/5 * * * *", Type: TypeMonitor},
 	{Cron: "*/2 * * * *", Type: TypeTextbookRecover},
+	{Cron: "*/15 * * * *", Type: TypeOfficialImportRecover},
 }
 
 // RegisterSchedules 注册定时任务。调度器全局只启一个，跑在 Worker 里。

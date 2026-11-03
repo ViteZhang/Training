@@ -6385,6 +6385,130 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+  /admin/official/projects/{projectId}/imports:
+    get:
+      tags: [admin]
+      operationId: adminListOfficialImports
+      summary: 7.17 AI 解析导入：项目下的资料（文件卡：解析状态与结果数）
+      description: 只解析团队上传的资料，与用户端资料完全隔离。内容编辑只能访问分配给自己的项目。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/OfficialImportFile" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [admin]
+      operationId: adminCreateOfficialImport
+      summary: 上传资料并标类型（真题卷 / 参考书目录 / 有授权的讲义），或粘贴文字、表格导入（CSV）
+      description: |
+        format 为 text 或 csv 时直接带 text，马上开始解析；pdf / docx / image 返回 upload_url，客户端直传后调用 confirm。
+        表格导入的表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型；
+        题型、分值、题干必填，真题年份必填；缺参考答案、采分点时由 AI 补全。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, format]
+              properties:
+                kind: { type: string, enum: [exam, catalog, handout, table] }
+                format: { type: string, enum: [pdf, docx, image, text, csv] }
+                file_name: { type: string, maxLength: 255 }
+                size: { type: integer, format: int64, description: 文件字节数（上传文件时） }
+                text: { type: string, maxLength: 1200000, description: 粘贴的文字或 CSV }
+                exam_year: { type: integer, description: 真题卷年份（识别不出时用它） }
+                is_recollection: { type: boolean, description: 回忆版 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfficialImportFile" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/official/projects/{projectId}/imports/{fileId}:
+    get:
+      tags: [admin]
+      operationId: adminGetOfficialImport
+      summary: 核对区：原文与解析结果（置信度、采分点合计是否等于分值、引用来源）
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: fileId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [file, text, items]
+                properties:
+                  file: { $ref: "#/components/schemas/OfficialImportFile" }
+                  text: { type: string, description: 原文 }
+                  items: { type: array, items: { $ref: "#/components/schemas/OfficialImportItem" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/official/projects/{projectId}/imports/{fileId}/confirm:
+    post:
+      tags: [admin]
+      operationId: adminConfirmOfficialImport
+      summary: 文件上传完成，开始解析（解析失败后也用它重新解析）
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: fileId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "204": { description: 已开始解析 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/official/projects/{projectId}/import-items/{itemId}/review:
+    post:
+      tags: [admin]
+      operationId: adminReviewOfficialImportItem
+      summary: 逐条接受（可带修改后的内容）或驳回；接受的生成草稿并提交 7.13 审核
+      description: 采分点合计不等于分值时不能接受（detail.reason = rubric_sum）。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: itemId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [accept, reject] }
+                payload: { type: object, additionalProperties: true, description: 修改后的内容，结构同 7.12 草稿 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { draft_id: { type: integer, format: int64 } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /admin/official/projects/{projectId}/references:
     get:
       tags:
@@ -13257,6 +13381,45 @@ components:
         overdue: { type: boolean, description: 超过 24 小时未处理，标红 }
         project_id: { type: integer, format: int64 }
         last_applied_at: { type: string, format: date-time }
+    OfficialImportFile:
+      type: object
+      required: [id, kind, file_name, format, status, question_count, kp_count, reviewed_count, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { type: string, enum: [exam, catalog, handout, table] }
+        file_name: { type: string }
+        format: { type: string, enum: [pdf, docx, image, text, csv] }
+        status: { type: string, enum: [uploading, parsing, parsed, failed] }
+        fail_reason: { type: string }
+        question_count: { type: integer }
+        kp_count: { type: integer }
+        reviewed_count: { type: integer, description: 已核对条数 }
+        exam_year: { type: integer }
+        created_at: { type: string, format: date-time }
+        upload_url: { type: string, description: 直传地址（新建文件时） }
+        upload_headers: { type: object, additionalProperties: { type: string } }
+    OfficialImportItem:
+      type: object
+      required: [id, item_type, seq, payload, confidence, status, rubric_mismatch]
+      properties:
+        id: { type: integer, format: int64 }
+        item_type: { type: string, enum: [question, knowledge_point] }
+        seq: { type: integer }
+        payload: { type: object, additionalProperties: true, description: 结构同 7.12 草稿 }
+        citations:
+          type: array
+          items:
+            type: object
+            properties:
+              reference_id: { type: integer, format: int64 }
+              title: { type: string }
+              heading: { type: string }
+        source_text: { type: string, description: 原文片段（高亮） }
+        page: { type: integer }
+        confidence: { type: string, enum: [high, medium, low] }
+        status: { type: string, enum: [pending, accepted, rejected] }
+        draft_id: { type: integer, format: int64 }
+        rubric_mismatch: { type: boolean, description: 采分点合计不等于分值（标红） }
     SubjectInput:
       type: object
       required: [name, full_score]
