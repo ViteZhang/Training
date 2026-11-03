@@ -24,6 +24,9 @@
 3. 合并后在 main 上再执行一次 `status`、`pull`，然后 `scripts/sync-codeup.sh push server` / `push web`
    - 推完 server 后流水线自动运行（云效 main 推送触发）：`scripts/yunxiao-flow.sh runs` 找到这次的运行编号，再 `scripts/yunxiao-flow.sh wait <编号>` 等到构建、部署都成功；需要重新发布时用 `scripts/yunxiao-flow.sh run`
 4. 推到云效 server 的 main 会发布到生产：推送前先跟用户确认；有新的数据库迁移时，提醒用户按 peetraining-server/docs/runbook.md 先在生产库执行迁移
+   - 给用户生产迁移时，直接给出可以在 ECS 上粘贴执行的完整 SQL：先 `SET NAMES utf8mb4;`，再按编号从小到大放每个迁移文件 `-- +goose Up` 部分的全文，每个文件后面紧跟 `INSERT INTO goose_db_version (version_id, is_applied) VALUES (N, 1);`；
+     连同进入 MySQL 的命令（`docker exec -it dreamer-mysql mysql -uroot -p --default-character-set=utf8mb4 training`）、执行前查版本号与执行后核对的 SQL 一起给。
+     不要让用户在本机仓库里生成 SQL、scp 文件或跑脚本；给之前先在 testcontainers 上验证这份 SQL 能从上一个版本执行到最新
 
 不要做的事：
 - 不要强推云效或 GitHub 的 main；脚本提示「两边都有新提交」时先 pull 合并
