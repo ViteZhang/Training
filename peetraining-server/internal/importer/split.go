@@ -27,9 +27,11 @@ var (
 	// 汉字题号的整行：「一、简述孔子的“为政以德”思想。(25分)」，标题太长 reSectionHead 匹配不上时也要认出来。
 	reCNNumbered = regexp.MustCompile(`^\s*([一二三四五六七八九十]{1,3})\s*[、.．]\s*(\S.*)$`)
 	// 「【中西哲学史】」：一张卷子里分科目的大部分标题。
-	rePartHead   = regexp.MustCompile(`^[【\[]\s*([^】\]]{1,20}?)\s*[】\]]$`)
-	reYearTitle  = regexp.MustCompile(`((?:19|20)\d{2})\s*年`)
-	reYearLead   = regexp.MustCompile(`^((?:19|20)\d{2})\s*\S`) // 「2024 北师大 808 中国语言文学真题」：年份在行首、没有「年」字
+	rePartHead  = regexp.MustCompile(`^[【\[]\s*([^】\]]{1,20}?)\s*[】\]]$`)
+	reYearTitle = regexp.MustCompile(`((?:19|20)\d{2})\s*年`)
+	reYearLead  = regexp.MustCompile(`^((?:19|20)\d{2})\s*\S`) // 「2024 北师大 808 中国语言文学真题」：年份在行首、没有「年」字
+	// 多年真题合集里每年开头常只写一行「1997年」或「2003年（回忆版）」，整行只有年份时也是年份标题。
+	reYearOnly   = regexp.MustCompile(`^((?:19|20)\d{2})\s*年?\s*(?:[（(][^）)]{0,10}[）)])?\s*[:：]?$`)
 	reQNoDot     = regexp.MustCompile(`^\s*(\d{1,3})\s*[.．、]\s*\S`)
 	reQNoParen   = regexp.MustCompile(`^\s*[（(]\s*(\d{1,3})\s*[)）]\s*\S`)
 	reAnswerHead = regexp.MustCompile(`^\s*[【\[]?\s*(?:参考)?答案(?:与解析|及解析|解析)?\s*[】\]]?\s*[:：]?\s*$`)
@@ -253,12 +255,15 @@ func Split(pages []Page) []ai.Block {
 				}
 				continue
 			}
-			m := reYearTitle.FindStringSubmatch(trim)
+			m := reYearOnly.FindStringSubmatch(trim)
+			yearOnly := m != nil
+			if m == nil {
+				m = reYearTitle.FindStringSubmatch(trim)
+			}
 			if m == nil {
 				m = reYearLead.FindStringSubmatch(trim)
 			}
-			if m != nil && len([]rune(trim)) <= 60 &&
-				(strings.Contains(trim, "真题") || strings.Contains(trim, "试题") || strings.Contains(trim, "试卷") || strings.Contains(trim, "考研")) {
+			if m != nil && len([]rune(trim)) <= 60 && (yearOnly || isExamTitle(trim)) {
 				flush()
 				closeSection(p.No)
 				year, _ = strconv.Atoi(m[1])
@@ -395,4 +400,14 @@ func Chunk(blocks []ai.Block, maxChars, maxBlocks int) [][]ai.Block {
 		out = append(out, cur)
 	}
 	return out
+}
+
+// isExamTitle 判断带年份的短行是不是一张卷子的标题：「2005年四川大学硕士研究生入学考试试题」「2024年中国哲学史考研真题」。
+func isExamTitle(line string) bool {
+	for _, k := range []string{"真题", "试题", "试卷", "考研", "入学考试", "研究生"} {
+		if strings.Contains(line, k) {
+			return true
+		}
+	}
+	return false
 }

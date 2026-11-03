@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -382,5 +383,38 @@ func TestQuestionLikeAndCNNumber(t *testing.T) {
 		if got := cnNumber(in); got != want {
 			t.Errorf("cnNumber(%q) = %q", in, got)
 		}
+	}
+}
+
+// 多年真题合集：一个文件里按年份分段，年份标题有只写年份的、带「回忆版」的、写成「硕士研究生入学考试试题」的。
+func TestSplitMultiYearCollection(t *testing.T) {
+	pages := []Page{{No: 1, Text: `四川大学中国哲学史真题（1997—2026）
+1997年
+一、名词解释（每题 5 分）
+1. 仁
+2. 道
+2003年（回忆版）
+一、简答题
+1. 简述孟子的性善论。
+2005年四川大学硕士研究生入学考试试题
+一、论述题
+1. 论述朱熹的理气论。
+1949年以后的研究
+2. 评述冯友兰的新理学。
+2026
+一、名词解释
+1. 心学`}}
+	got := Split(pages)
+	years := make([]int, len(got))
+	for i, b := range got {
+		years[i] = b.Year
+	}
+	want := []int{1997, 1997, 2003, 2005, 2005, 2026}
+	if !slices.Equal(years, want) {
+		t.Fatalf("年份 %v，want %v：%+v", years, want, got)
+	}
+	// 「1949年以后的研究」是正文，不是年份标题，不能把 2005 年的题切到 1949 年
+	if !strings.Contains(got[3].Text, "1949年以后的研究") {
+		t.Errorf("正文里的年份被当成标题：%q", got[3].Text)
 	}
 }
