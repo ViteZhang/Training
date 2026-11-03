@@ -405,10 +405,12 @@ const reasons: { key: Schemas['DisputeRequest']['reason']; text: string }[] = [
   { key: 'hit_missed', text: '我其实答到了某个采分点' },
   { key: 'rubric_wrong', text: '采分点本身不对' },
   { key: 'score_unfair', text: '分数给得不合理' },
+  // PRD v3 增补：选这一项的异议会触发 3.1e 补充资料提示
+  { key: 'teacher_differs', text: '和我们老师讲的不一样' },
   { key: 'other', text: '其他' },
 ];
 
-/** 4.8 批改异议：四选一；「采分点本身不对」引导去改采分点，改完按新采分点重批；其余提交复核重批一次，不扣次数。 */
+/** 4.8 批改异议：五选一；「采分点本身不对」引导去改采分点，改完按新采分点重批；其余提交复核重批一次，不扣次数。 */
 export function DisputeSheet({ g, visible, onClose, onDone }: { g: GradingResult; visible: boolean; onClose: () => void; onDone: (r: GradingResult) => void }) {
   const [reason, setReason] = useState<Schemas['DisputeRequest']['reason']>();
   const [note, setNote] = useState('');

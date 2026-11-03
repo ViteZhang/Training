@@ -10,7 +10,8 @@ import { EssayKnowledgeBase } from '@/features/bank/EssayKB';
 import { MaterialList } from '@/features/bank/MaterialList';
 import { QuestionList } from '@/features/bank/QuestionList';
 import { ParseQuotaBar } from '@/features/bank/QuotaBar';
-import { KnowledgeTree } from '@/features/bank/Tree';
+import { hasOfficial, KnowledgeTree } from '@/features/bank/Tree';
+import { SupplementCard } from '@/features/official/SupplementCard';
 import { Segments } from '@/features/import/ui';
 import { api, unwrap } from '@/lib/api';
 import { useFeatureFlag } from '@/lib/flags';
@@ -20,6 +21,7 @@ type TreeFilter = 'all' | 'unmastered' | 'exam' | 'needs_review';
 
 function KnowledgeTab({ subjectId, missing, onMissing }: { subjectId: number; missing: number; onMissing: () => void }) {
   const [filter, setFilter] = useState<TreeFilter>('all');
+  const officialOn = useFeatureFlag('official_bank');
   const tree = useQuery({
     queryKey: ['bank', subjectId, 'tree', filter],
     queryFn: () => unwrap(api.GET('/subjects/{subjectId}/knowledge-tree', { params: { path: { subjectId }, query: { filter } } })),
@@ -29,6 +31,7 @@ function KnowledgeTab({ subjectId, missing, onMissing }: { subjectId: number; mi
   const data = tree.data!;
   return (
     <View style={styles.gap}>
+      {officialOn ? <SupplementCard subjectId={subjectId} /> : null}
       <Segments<TreeFilter>
         value={filter}
         onChange={setFilter}
@@ -55,7 +58,14 @@ function KnowledgeTab({ subjectId, missing, onMissing }: { subjectId: number; mi
       {data.sections.length === 0 ? (
         <EmptyState title={filter === 'all' ? '还没有知识点' : '这一类没有知识点'} desc={filter === 'all' ? '导入讲义、笔记或真题后，AI 会整理成知识点' : undefined} />
       ) : (
-        <KnowledgeTree sections={data.sections} expandAll={filter !== 'all'} subjectId={subjectId} />
+        <>
+          <KnowledgeTree sections={data.sections} expandAll={filter !== 'all'} subjectId={subjectId} />
+          {hasOfficial(data.sections) ? (
+            <View style={styles.note}>
+              <Text variant="small">官方题标「官方」，你自己导入的标「我的」，两边互不覆盖。同名知识点会提示你合并。</Text>
+            </View>
+          ) : null}
+        </>
       )}
       <Text variant="small" color={semantic.textSecondary}>
         板块和章节由 AI 按你资料的目录整理，可以在知识点里调整归属
@@ -90,6 +100,7 @@ export default function BankTab() {
   const subject = list.find((s) => s.id === picked) ?? list[0];
   const overview = useOverview(subject?.id);
   const official = useFeatureFlag('official_bank');
+  const applyOn = useFeatureFlag('course_apply');
 
   if (subjects.isLoading) return <Screen edges={['top']}><Loading rows={6} /></Screen>;
   if (subjects.isError) return <Screen edges={['top']}><ErrorState error={subjects.error} onRetry={() => void subjects.refetch()} /></Screen>;
@@ -127,6 +138,14 @@ export default function BankTab() {
               添加官方题库
             </Text>
             <Text variant="caption">和自建的一起练</Text>
+          </Pressable>
+        ) : null}
+        {applyOn && !subject.is_essay && o && !o.has_official ? (
+          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/apply', params: { entry: 'bank', subjectId: String(subject.id) } })} style={styles.official}>
+            <Text variant="bodyStrong" style={styles.flex}>
+              申请收录这门课
+            </Text>
+            <Text variant="caption">还没有官方题库</Text>
           </Pressable>
         ) : null}
         {list.length > 1 ? (
@@ -193,6 +212,7 @@ const styles = StyleSheet.create({
   chipGreen: { backgroundColor: semantic.masteredSoft },
   chipInk: { backgroundColor: semantic.primary },
   search: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 16, borderRadius: radius.lg, backgroundColor: semantic.fill },
+  note: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.md, backgroundColor: semantic.fill },
   official: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.lg, backgroundColor: semantic.primarySoft },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.peachSoft },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.orange },

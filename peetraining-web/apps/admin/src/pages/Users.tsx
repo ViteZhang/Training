@@ -3,7 +3,7 @@
 import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { App as AntApp, Button, Descriptions, Drawer, Form, Input, InputNumber, Modal, Popconfirm, Segmented, Space, Table, Tag, Timeline, Typography } from 'antd';
+import { App as AntApp, Button, Descriptions, Drawer, Form, Input, InputNumber, Modal, Popconfirm, Segmented, Space, Switch, Table, Tag, Timeline, Typography } from 'antd';
 import { useState } from 'react';
 import { Loadable, PageTitle, PrivacyNote } from '../components/Page';
 import { api, dt, unwrap } from '../lib/api';
@@ -107,6 +107,14 @@ function UserDrawer({ id, roles, onClose }: { id: number; roles: Role[]; onClose
               <Descriptions.Item label="本周批改">{u.week_gradings} 次</Descriptions.Item>
               <Descriptions.Item label="会员">{u.is_member ? `${tierNames[u.member_tier ?? ''] ?? '会员'} · 至 ${dt(u.member_until)}` : '免费版'}</Descriptions.Item>
               <Descriptions.Item label="邀请">邀请 {u.invited} 人 · 获得 {u.invite_days} 天</Descriptions.Item>
+              {/* 种子用户由运营标记（PRD v3 增补）：7.16 申请人标注「种子」 */}
+              <Descriptions.Item label="种子用户">
+                <Switch
+                  checked={!!u.is_seed}
+                  loading={act.isPending}
+                  onChange={(seed) => act.mutate(() => unwrap(api.PUT('/admin/users/{userId}/seed', { params: { path: { userId: u.id } }, body: { seed } })))}
+                />
+              </Descriptions.Item>
               {isAdmin ? (
                 <Descriptions.Item label="完整手机号">
                   {phone ?? (
