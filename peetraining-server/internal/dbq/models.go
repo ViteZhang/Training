@@ -3412,6 +3412,381 @@ func AllOfficialDraftsStatusValues() []OfficialDraftsStatus {
 	}
 }
 
+type OfficialImportFilesFormat string
+
+const (
+	OfficialImportFilesFormatPdf   OfficialImportFilesFormat = "pdf"
+	OfficialImportFilesFormatDocx  OfficialImportFilesFormat = "docx"
+	OfficialImportFilesFormatImage OfficialImportFilesFormat = "image"
+	OfficialImportFilesFormatText  OfficialImportFilesFormat = "text"
+	OfficialImportFilesFormatCsv   OfficialImportFilesFormat = "csv"
+)
+
+func (e *OfficialImportFilesFormat) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialImportFilesFormat(s)
+	case string:
+		*e = OfficialImportFilesFormat(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialImportFilesFormat: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialImportFilesFormat struct {
+	OfficialImportFilesFormat OfficialImportFilesFormat
+	Valid                     bool // Valid is true if OfficialImportFilesFormat is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialImportFilesFormat) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialImportFilesFormat, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialImportFilesFormat.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialImportFilesFormat) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialImportFilesFormat), nil
+}
+
+func (e OfficialImportFilesFormat) Valid() bool {
+	switch e {
+	case OfficialImportFilesFormatPdf,
+		OfficialImportFilesFormatDocx,
+		OfficialImportFilesFormatImage,
+		OfficialImportFilesFormatText,
+		OfficialImportFilesFormatCsv:
+		return true
+	}
+	return false
+}
+
+func AllOfficialImportFilesFormatValues() []OfficialImportFilesFormat {
+	return []OfficialImportFilesFormat{
+		OfficialImportFilesFormatPdf,
+		OfficialImportFilesFormatDocx,
+		OfficialImportFilesFormatImage,
+		OfficialImportFilesFormatText,
+		OfficialImportFilesFormatCsv,
+	}
+}
+
+type OfficialImportFilesKind string
+
+const (
+	OfficialImportFilesKindExam    OfficialImportFilesKind = "exam"
+	OfficialImportFilesKindCatalog OfficialImportFilesKind = "catalog"
+	OfficialImportFilesKindHandout OfficialImportFilesKind = "handout"
+	OfficialImportFilesKindTable   OfficialImportFilesKind = "table"
+)
+
+func (e *OfficialImportFilesKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialImportFilesKind(s)
+	case string:
+		*e = OfficialImportFilesKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialImportFilesKind: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialImportFilesKind struct {
+	OfficialImportFilesKind OfficialImportFilesKind
+	Valid                   bool // Valid is true if OfficialImportFilesKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialImportFilesKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialImportFilesKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialImportFilesKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialImportFilesKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialImportFilesKind), nil
+}
+
+func (e OfficialImportFilesKind) Valid() bool {
+	switch e {
+	case OfficialImportFilesKindExam,
+		OfficialImportFilesKindCatalog,
+		OfficialImportFilesKindHandout,
+		OfficialImportFilesKindTable:
+		return true
+	}
+	return false
+}
+
+func AllOfficialImportFilesKindValues() []OfficialImportFilesKind {
+	return []OfficialImportFilesKind{
+		OfficialImportFilesKindExam,
+		OfficialImportFilesKindCatalog,
+		OfficialImportFilesKindHandout,
+		OfficialImportFilesKindTable,
+	}
+}
+
+type OfficialImportFilesStatus string
+
+const (
+	OfficialImportFilesStatusUploading OfficialImportFilesStatus = "uploading"
+	OfficialImportFilesStatusParsing   OfficialImportFilesStatus = "parsing"
+	OfficialImportFilesStatusParsed    OfficialImportFilesStatus = "parsed"
+	OfficialImportFilesStatusFailed    OfficialImportFilesStatus = "failed"
+)
+
+func (e *OfficialImportFilesStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialImportFilesStatus(s)
+	case string:
+		*e = OfficialImportFilesStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialImportFilesStatus: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialImportFilesStatus struct {
+	OfficialImportFilesStatus OfficialImportFilesStatus
+	Valid                     bool // Valid is true if OfficialImportFilesStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialImportFilesStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialImportFilesStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialImportFilesStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialImportFilesStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialImportFilesStatus), nil
+}
+
+func (e OfficialImportFilesStatus) Valid() bool {
+	switch e {
+	case OfficialImportFilesStatusUploading,
+		OfficialImportFilesStatusParsing,
+		OfficialImportFilesStatusParsed,
+		OfficialImportFilesStatusFailed:
+		return true
+	}
+	return false
+}
+
+func AllOfficialImportFilesStatusValues() []OfficialImportFilesStatus {
+	return []OfficialImportFilesStatus{
+		OfficialImportFilesStatusUploading,
+		OfficialImportFilesStatusParsing,
+		OfficialImportFilesStatusParsed,
+		OfficialImportFilesStatusFailed,
+	}
+}
+
+type OfficialImportItemsConfidence string
+
+const (
+	OfficialImportItemsConfidenceHigh   OfficialImportItemsConfidence = "high"
+	OfficialImportItemsConfidenceMedium OfficialImportItemsConfidence = "medium"
+	OfficialImportItemsConfidenceLow    OfficialImportItemsConfidence = "low"
+)
+
+func (e *OfficialImportItemsConfidence) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialImportItemsConfidence(s)
+	case string:
+		*e = OfficialImportItemsConfidence(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialImportItemsConfidence: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialImportItemsConfidence struct {
+	OfficialImportItemsConfidence OfficialImportItemsConfidence
+	Valid                         bool // Valid is true if OfficialImportItemsConfidence is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialImportItemsConfidence) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialImportItemsConfidence, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialImportItemsConfidence.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialImportItemsConfidence) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialImportItemsConfidence), nil
+}
+
+func (e OfficialImportItemsConfidence) Valid() bool {
+	switch e {
+	case OfficialImportItemsConfidenceHigh,
+		OfficialImportItemsConfidenceMedium,
+		OfficialImportItemsConfidenceLow:
+		return true
+	}
+	return false
+}
+
+func AllOfficialImportItemsConfidenceValues() []OfficialImportItemsConfidence {
+	return []OfficialImportItemsConfidence{
+		OfficialImportItemsConfidenceHigh,
+		OfficialImportItemsConfidenceMedium,
+		OfficialImportItemsConfidenceLow,
+	}
+}
+
+type OfficialImportItemsItemType string
+
+const (
+	OfficialImportItemsItemTypeQuestion       OfficialImportItemsItemType = "question"
+	OfficialImportItemsItemTypeKnowledgePoint OfficialImportItemsItemType = "knowledge_point"
+)
+
+func (e *OfficialImportItemsItemType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialImportItemsItemType(s)
+	case string:
+		*e = OfficialImportItemsItemType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialImportItemsItemType: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialImportItemsItemType struct {
+	OfficialImportItemsItemType OfficialImportItemsItemType
+	Valid                       bool // Valid is true if OfficialImportItemsItemType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialImportItemsItemType) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialImportItemsItemType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialImportItemsItemType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialImportItemsItemType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialImportItemsItemType), nil
+}
+
+func (e OfficialImportItemsItemType) Valid() bool {
+	switch e {
+	case OfficialImportItemsItemTypeQuestion,
+		OfficialImportItemsItemTypeKnowledgePoint:
+		return true
+	}
+	return false
+}
+
+func AllOfficialImportItemsItemTypeValues() []OfficialImportItemsItemType {
+	return []OfficialImportItemsItemType{
+		OfficialImportItemsItemTypeQuestion,
+		OfficialImportItemsItemTypeKnowledgePoint,
+	}
+}
+
+type OfficialImportItemsStatus string
+
+const (
+	OfficialImportItemsStatusPending  OfficialImportItemsStatus = "pending"
+	OfficialImportItemsStatusAccepted OfficialImportItemsStatus = "accepted"
+	OfficialImportItemsStatusRejected OfficialImportItemsStatus = "rejected"
+)
+
+func (e *OfficialImportItemsStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialImportItemsStatus(s)
+	case string:
+		*e = OfficialImportItemsStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialImportItemsStatus: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialImportItemsStatus struct {
+	OfficialImportItemsStatus OfficialImportItemsStatus
+	Valid                     bool // Valid is true if OfficialImportItemsStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialImportItemsStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialImportItemsStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialImportItemsStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialImportItemsStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialImportItemsStatus), nil
+}
+
+func (e OfficialImportItemsStatus) Valid() bool {
+	switch e {
+	case OfficialImportItemsStatusPending,
+		OfficialImportItemsStatusAccepted,
+		OfficialImportItemsStatusRejected:
+		return true
+	}
+	return false
+}
+
+func AllOfficialImportItemsStatusValues() []OfficialImportItemsStatus {
+	return []OfficialImportItemsStatus{
+		OfficialImportItemsStatusPending,
+		OfficialImportItemsStatusAccepted,
+		OfficialImportItemsStatusRejected,
+	}
+}
+
 type OfficialProjectsStage string
 
 const (
@@ -7515,6 +7890,53 @@ type OfficialDraft struct {
 	UpdatedAt    time.Time
 	SubmittedAt  sql.NullTime
 	RejectReason sql.NullString
+}
+
+// 7.17 团队上传的资料
+type OfficialImportFile struct {
+	ID        uint64
+	ProjectID uint64
+	// 真题卷 / 参考书目录 / 有授权的讲义 / 表格导入
+	Kind     OfficialImportFilesKind
+	FileName string
+	Format   OfficialImportFilesFormat
+	// OSS 私有桶对象键（official-imports/ 前缀，与用户资料分开）
+	ObjectKey sql.NullString
+	SizeBytes uint64
+	// 粘贴的文字或表格；文件解析后的全文（核对区中间栏的原文）
+	Content sql.NullString
+	// 真题卷年份（识别不出时用它）
+	ExamYear sql.NullInt16
+	// 回忆版真题
+	IsRecollection bool
+	Status         OfficialImportFilesStatus
+	FailReason     sql.NullString
+	QuestionCount  uint32
+	KpCount        uint32
+	CreatedBy      sql.NullInt64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// 7.17 解析结果，逐条接受 / 修改 / 驳回
+type OfficialImportItem struct {
+	ID        uint64
+	FileID    uint64
+	ProjectID uint64
+	ItemType  OfficialImportItemsItemType
+	Seq       uint32
+	// 与 7.12 草稿同结构（QuestionPayload / KPPayload）
+	Payload json.RawMessage
+	// 参考答案引用的官方参考素材
+	Citations dbtypes.NullJSON
+	// 原文片段，核对区高亮
+	SourceText sql.NullString
+	Page       uint32
+	Confidence OfficialImportItemsConfidence
+	Status     OfficialImportItemsStatus
+	DraftID    sql.NullInt64
+	ReviewedBy sql.NullInt64
+	ReviewedAt sql.NullTime
 }
 
 // 官方题库立项（7.11）
