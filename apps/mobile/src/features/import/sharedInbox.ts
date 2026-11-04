@@ -17,9 +17,17 @@ const publish = (next: SharedFile[]) => { files = next; setJSON(KEY, files); lis
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 export function useSharedInbox() { return useSyncExternalStore(subscribe, () => files, () => files); }
 export const sharedInbox = () => files;
+let pendingReceives: Promise<void> = Promise.resolve();
 
 /** 先复制出微信/系统的临时授权 URI，再等待登录、选择课程；不会因跳转而丢失。 */
-export async function receiveSharedFiles(payloads: ResolvedSharePayload[], preserveReceipts = false) {
+export function receiveSharedFiles(payloads: ResolvedSharePayload[], preserveReceipts = false) {
+  // 原生分享、深链和回到前台可能同时到达；异步复制期间也必须保持去重和数量检查串行。
+  const result = pendingReceives.then(() => saveSharedFiles(payloads, preserveReceipts));
+  pendingReceives = result.then(() => {}, () => {});
+  return result;
+}
+
+async function saveSharedFiles(payloads: ResolvedSharePayload[], preserveReceipts: boolean) {
   const errors: string[] = [];
   for (const payload of payloads) {
     // Android 解析器的缓存文件名可能重复；优先复制原始授权 URI，防止同名文件覆盖或误去重。
@@ -29,6 +37,7 @@ export async function receiveSharedFiles(payloads: ResolvedSharePayload[], prese
       continue;
     }
     if ((preserveReceipts && received.has(uri)) || files.some((file) => file.sourceUri === uri)) continue;
+    let target: File | undefined;
     try {
       const source = new File(uri);
       const name = (payload.originalName ?? decodeURIComponent(uri.split('/').pop() ?? '文件')).replace(/[\\/]/g, '_');
@@ -40,15 +49,19 @@ export async function receiveSharedFiles(payloads: ResolvedSharePayload[], prese
       const key = Crypto.randomUUID();
       const directory = new Directory(Paths.document, 'shared-imports');
       directory.create({ intermediates: true, idempotent: true });
-      const target = new File(directory, `${key}-${name}`);
-      source.copy(target);
+      target = new File(directory, `${key}-${name}`);
+      await source.copy(target);
       const actualSize = target.size;
       const actualError = !actualSize ? '文件为空或未下载完成' : checkLimits(files, [{ name, format, size: actualSize }]);
-      if (actualError) { target.delete(); throw new Error(actualError); }
+      if (actualError) throw new Error(actualError);
       publish([...files, { key, sharedKey: key, sourceUri: uri, name, format, size: actualSize, uri: target.uri, mimeType: payload.contentMimeType ?? payload.mimeType, status: 'pending', progress: 0 }]);
       // 部分成功时原生载荷仍需重试；已导入并从列表移除的文件也不能再次回灌。
       if (preserveReceipts) { received.add(uri); setJSON(RECEIPTS, [...received]); }
-    } catch (error) { errors.push(error instanceof Error ? error.message : '文件保存失败，请重新分享'); }
+    } catch (error) {
+      // 复制失败可能留下半个文件；不存在的副本无需删除，清理错误不能遮住原始错误。
+      try { if (target?.exists) target.delete(); } catch { /* 保留原始导入错误。 */ }
+      errors.push(error instanceof Error ? error.message : '文件保存失败，请重新分享');
+    }
   }
   return errors;
 }

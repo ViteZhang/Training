@@ -16,7 +16,10 @@ export type EventName =
   | 'grade_result' | 'grade_dispute' | 'grade_recheck' | 'rubric_edit' | 'question_report'
   | 'quota_block' | 'member_page_view' | 'getcode_view' | 'getcode_copy_id' | 'getcode_save_qr' | 'pay_success' | 'redeem' | 'invite_success' | 'export'
   | 'answer_status_import' | 'answer_match_done' | 'answer_file_import' | 'ai_answer_generate' | 'ai_answer_confirm' | 'ai_answer_edit'
-  | 'survey_submit' | 'official_bank_add';
+  | 'survey_submit' | 'official_bank_add'
+  // 官方题库先行（PRD v3 增补「埋点与指标」）：只记行为和数量
+  | 'onboarding_route' | 'official_add' | 'first_grade_done' | 'trial_start' | 'trial_submit' | 'trial_save' | 'apply_submit'
+  | 'supplement_prompt' | 'upload_step' | 'upload_exit_reason';
 
 type Props = Record<string, string | number | boolean | undefined>;
 interface Queued {

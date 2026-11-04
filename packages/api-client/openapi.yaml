@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 考研Training API
-  version: 0.19.0
+  version: 0.20.0
   description: |
     考研Training 后端接口契约。契约先行：改接口先改本文件，再执行 make gen。
 
@@ -998,6 +998,25 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /knowledge-points/{kpId}/split-questions:
+    parameters:
+      - $ref: "#/components/parameters/KpId"
+    get:
+      tags: [bank]
+      operationId: listSplitQuestions
+      summary: 拆分前获取全部关联题目（含非主关联与历史题，不截断）
+      responses:
+        "200":
+          description: 需要逐题分配的全部题目
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/QuestionBrief" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /knowledge-points/{kpId}/split:
     parameters:
       - $ref: "#/components/parameters/KpId"
@@ -1005,6 +1024,7 @@ paths:
       tags: [bank]
       operationId: splitKnowledgePoint
       summary: 拆分为多个知识点（3.5）
+      description: 每道关联题目必须且只能分配到一个新知识点；继承原掌握度与复习安排。旧版缺少分配时返回400，保留原数据。
       requestBody:
         required: true
         content:
@@ -1022,6 +1042,11 @@ paths:
                     properties:
                       name: { type: string, maxLength: 128 }
                       original_text: { type: string }
+                      question_ids:
+                        type: array
+                        uniqueItems: true
+                        description: 分配给此知识点的原关联题目，所有分组必须完整且互斥
+                        items: { type: integer, format: int64, minimum: 1 }
       responses:
         "200":
           description: 拆分出的知识点
@@ -1099,6 +1124,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/QuestionPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
     post:
       tags: [bank]
@@ -2609,7 +2635,7 @@ paths:
               type: object
               required: [reason]
               properties:
-                reason: { type: string, enum: [hit_missed, rubric_wrong, score_unfair, other] }
+                reason: { type: string, enum: [hit_missed, rubric_wrong, score_unfair, other, teacher_differs] }
                 note: { type: string, maxLength: 500 }
       responses:
         "200":
@@ -5217,6 +5243,398 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /catalog/schools:
+    get:
+      tags: [profile]
+      operationId: searchCatalogSchools
+      summary: 1.1 搜索目标院校（院校专业课库）
+      description: 受 onboarding_route 开关控制，关闭时返回 404（App 回到旧 1.1）。
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, course_count]
+                      properties:
+                        name: { type: string }
+                        course_count: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /catalog/courses:
+    get:
+      tags: [profile]
+      operationId: listCatalogCourses
+      summary: 1.1 按院校列出专业与专业课，标出有没有官方题库
+      description: |
+        受 onboarding_route 开关控制。official_status：available 有官方题库 / producing 生产中 / none 暂无；
+        官方题库开关对当前用户关闭时一律为 none（增补「功能开关」）。有官方题库时带 official 摘要（1.1a）。
+      parameters:
+        - { name: school, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
+        - { name: exam_year, in: query, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/CatalogCourse" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /onboarding/official-first:
+    post:
+      tags: [practice]
+      operationId: startOfficialFirst
+      summary: 1.1b 首题：从已添加的官方题库取一道名词解释真题
+      description: |
+        须先把这个官方题库添加到一门专业课（PUT /official-banks/{bankId}/subscription）。按高频考点优先取一道官方名词解释真题，
+        建一组只有这道题的练习（kind = official_first），这组的批改不扣额度、不占体验次数。每个账号只有一组，重复调用返回同一组。
+        受 official_bank 开关控制。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bank_id]
+              properties:
+                bank_id: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PracticeSession" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /trials/status:
+    get:
+      tags: [practice]
+      operationId: getTrialStatus
+      summary: 体验次数（1.1c、1.9 右上角）
+      description: 体验一道题与通用体验题共用次数（默认每个账号 1 次），以提交批改成功为准，批改失败不计次。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrialUsage" }
+  /trials/recognize:
+    post:
+      tags: [practice]
+      operationId: recognizeTrial
+      summary: 1.9 识别一道题（粘贴的文字，或拍照后 /handwriting/recognize 识别出的文字）
+      description: 受 trial 开关控制。supported 为假时（不是名词解释、简答、论述）App 提示更换。不扣额度。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 8000 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [qtype, score, stem, supported]
+                properties:
+                  qtype: { type: string, description: 识别出的题型（可能不是体验支持的三种） }
+                  score: { type: number }
+                  stem: { type: string }
+                  answer: { type: string, description: 原文带了答案时给出，可作为参考答案 }
+                  supported: { type: boolean }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /trials:
+    post:
+      tags: [practice]
+      operationId: createTrial
+      summary: 开始一次体验（1.9 自己的题 / 1.10 通用体验题或 AI 出题）
+      description: |
+        自己的题受 trial 开关控制；sample_question_id 受 sample_trial（AI 出题受 ai_live_question）开关控制。
+        没填参考答案时由 AI 生成并标「AI 参考答案」。提交前只返回采分点个数（1.9a「AI 已整理出 N 个采分点」）。
+        体验次数用完时返回 409（detail.reason = trial_used_up）。不扣任何额度。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sample_question_id: { type: integer, format: int64 }
+                input_mode: { type: string, enum: [paste, photo] }
+                qtype: { type: string, enum: [term, short_answer, discussion] }
+                score: { type: number, minimum: 1, maximum: 300 }
+                stem: { type: string, maxLength: 2000 }
+                reference_answer: { type: string, maxLength: 6000, description: 选填 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Trial" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /trials/{trialId}:
+    get:
+      tags: [practice]
+      operationId: getTrial
+      summary: 读一次体验（批改后带结果）
+      parameters:
+        - { name: trialId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Trial" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /trials/{trialId}/submit:
+    post:
+      tags: [practice]
+      operationId: submitTrial
+      summary: 1.9a 提交批改（不扣额度）
+      description: 批改成功才计一次体验；结果标「按 AI 参考答案批改」「仅供参考」，不计入预估分。
+      parameters:
+        - { name: trialId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answer, idempotency_key]
+              properties:
+                answer: { type: string, minLength: 1, maxLength: 10000 }
+                mode: { type: string, enum: [typed, photo] }
+                photo_keys: { type: array, maxItems: 6, items: { type: string } }
+                idempotency_key: { type: string, minLength: 8, maxLength: 64 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Trial" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "502": { $ref: "#/components/responses/AIFailed" }
+  /trials/{trialId}/save:
+    post:
+      tags: [practice]
+      operationId: saveTrial
+      summary: 1.9b 加入自建题库，或不保存
+      description: |
+        import_all 加入并导入整套真题（App 进 1.5）；only 只加入这道题（进 2.1）；discard 不保存，题目与作答全部删除（进 2.1c）。
+        加入时题目、采分点和这次作答都存进 subject_id 这门课的自建题库，答案来源为「来自你的资料」（填了参考答案）或「AI 参考答案 · 待确认」。
+      parameters:
+        - { name: trialId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [import_all, only, discard] }
+                subject_id: { type: integer, format: int64, description: 加入时必填 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { question_id: { type: integer, format: int64 } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sample-questions:
+    get:
+      tags: [practice]
+      operationId: listSampleQuestions
+      summary: 1.10 学科通用体验题（已上线的，按学科、方向分组）
+      description: 受 sample_trial 开关控制。示例题只用于体验和入门练习，不计入预估分。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, directions]
+                      properties:
+                        name: { type: string, description: 学科 }
+                        directions:
+                          type: array
+                          items:
+                            type: object
+                            required: [id, name, questions]
+                            properties:
+                              id: { type: integer, format: int64 }
+                              name: { type: string }
+                              questions: { type: array, items: { $ref: "#/components/schemas/SampleQuestion" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /sample-questions/live:
+    post:
+      tags: [practice]
+      operationId: liveSampleQuestion
+      summary: 1.10 未覆盖学科：按专业课和参考教材 AI 现场出一道题（标「AI 出题」）
+      description: 受 ai_live_question 开关控制。同一门专业课的结果缓存复用；不扣 AI 出题额度。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject_id]
+              properties:
+                subject_id: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SampleQuestion" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/AIFailed" }
+  /course-applications:
+    get:
+      tags: [profile]
+      operationId: listMyCourseApplications
+      summary: 我的收录申请与进度
+      description: 受 course_apply 开关控制。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, school, major, subject_name, exam_year, status, applicant_count, created_at]
+                      properties:
+                        id: { type: integer, format: int64 }
+                        school: { type: string }
+                        major: { type: string }
+                        subject_name: { type: string }
+                        subject_code: { type: string }
+                        exam_year: { type: integer }
+                        status: { $ref: "#/components/schemas/CourseApplicationStatus" }
+                        applicant_count: { type: integer }
+                        created_at: { type: string, format: date-time }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [profile]
+      operationId: applyCourse
+      summary: 1.11 申请收录
+      description: |
+        受 course_apply 开关控制。院校、专业、专业课名称、考试年份必填（从 1.1 带入），代码选填。
+        按「院校 + 专业课名称」归并，有代码时优先按代码；同一用户同一门课只能申请一次，重复提交返回 409（detail.reason = already_applied，带 applicant_count）。
+        处理结果（已立项、已联系、暂不收录、官方题库上线）通过消息中心通知。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [school, major, subject_name, exam_year]
+              properties:
+                school: { type: string, minLength: 1, maxLength: 64 }
+                major: { type: string, minLength: 1, maxLength: 64 }
+                subject_name: { type: string, minLength: 1, maxLength: 64 }
+                subject_code: { type: string, maxLength: 16 }
+                exam_year: { type: integer, minimum: 2000, maximum: 2100 }
+                entry: { type: string, enum: [onboarding, bank, settings], description: 入口：1.1c / 题库页 3.1 / 我的 → 备考设置 6.9 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [applicant_count]
+                properties:
+                  applicant_count: { type: integer, description: 目前申请这门课的人数（1.11a） }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /subjects/{subjectId}/supplement-prompt:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    get:
+      tags: [bank]
+      operationId: getSupplementPrompt
+      summary: 3.1e 补充资料提示（只对已添加官方题库的课；每次最多一条）
+      description: |
+        触发（默认值，7.8 可改）：某板块近 14 天作答 ≥ 5、得分率 < 60% 且官方题 < 5 道；或批改异议原因为「和我们老师讲的不一样」；或错题本达到 30 题。
+        注册当天不提示；「以后再说」后同一条 7 天内不再出现。没有提示时 prompt 为空。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  prompt:
+                    type: object
+                    required: [reason]
+                    properties:
+                      reason: { type: string, enum: [section_gap, dispute, wrong_book] }
+                      section_id: { type: integer, format: int64 }
+                      section_name: { type: string }
+                      official_count: { type: integer, description: 板块下的官方题数 }
+                      attempts: { type: integer }
+                      score_rate: { type: number, description: 0–1 }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /subjects/{subjectId}/supplement-prompt/dismiss:
+    parameters:
+      - $ref: "#/components/parameters/SubjectId"
+    post:
+      tags: [bank]
+      operationId: dismissSupplementPrompt
+      summary: 补充资料提示「以后再说」
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, enum: [section_gap, dispute, wrong_book] }
+                section_id: { type: integer, format: int64, description: section_gap 时必填 }
+      responses:
+        "204": { description: 完成 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /official-banks:
     get:
       tags:
@@ -5348,6 +5766,460 @@ paths:
           description: 完成
         '400':
           $ref: '#/components/responses/BadRequest'
+  /admin/catalog/courses:
+    get:
+      tags: [admin]
+      operationId: adminListCatalogCourses
+      summary: 院校专业课库（配置组）
+      description: 1.1 的院校搜索与专业课列表都来自这里，由运营手工维护，不接外部数据。官方题库状态按立项自动显示。
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: q, in: query, required: false, schema: { type: string, maxLength: 64 }, description: 按院校、课程名或代码搜索 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/AdminCatalogCourse" } }
+    post:
+      tags: [admin]
+      operationId: adminCreateCatalogCourse
+      summary: 新增一门课
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CatalogCourseInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, required: [id], properties: { id: { type: integer, format: int64 } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/catalog/courses/{courseId}:
+    put:
+      tags: [admin]
+      operationId: adminUpdateCatalogCourse
+      summary: 修改一门课；hidden 为真时 1.1 不再显示
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: courseId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CatalogCourseInput" }
+      responses:
+        "204": { description: 完成 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/catalog/pending:
+    get:
+      tags: [admin]
+      operationId: adminListCatalogPending
+      summary: 待入库：用户在 1.1 手动添加、库里没有的课
+      description: 按「院校 + 代码（有代码时）或课程名」归并，只有人数，不含用户信息。
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, school, major, subject_name, request_count, first_at, last_at]
+                      properties:
+                        id: { type: integer, format: int64 }
+                        school: { type: string }
+                        major: { type: string }
+                        subject_name: { type: string }
+                        subject_code: { type: string }
+                        request_count: { type: integer }
+                        first_at: { type: string, format: date-time }
+                        last_at: { type: string, format: date-time }
+  /admin/catalog/pending/{pendingId}/resolve:
+    post:
+      tags: [admin]
+      operationId: adminResolveCatalogPending
+      summary: 处理待入库：一键入库 / 合并到已有课程 / 忽略
+      description: 入库或合并后，当初手动添加这门课的用户关联到库里的课（官方题库上线时能收到通知）。
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: pendingId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [add, merge, ignore] }
+                target_course_id: { type: integer, format: int64, description: merge 时必填 }
+                course: { $ref: "#/components/schemas/CatalogCourseInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { course_id: { type: integer, format: int64 } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/samples:
+    get:
+      tags: [admin]
+      operationId: adminSampleOverview
+      summary: 7.18 通用体验题：统计卡与学科方向树
+      x-roles: [admin, content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [disciplines, directions, questions, pending, week_tries, items]
+                properties:
+                  disciplines: { type: integer }
+                  directions: { type: integer }
+                  questions: { type: integer, description: 体验题数（含待审核） }
+                  pending: { type: integer }
+                  week_tries: { type: integer, description: 本周被体验次数 }
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, discipline, name, question_count]
+                      properties:
+                        id: { type: integer, format: int64 }
+                        discipline: { type: string }
+                        name: { type: string }
+                        question_count: { type: integer }
+  /admin/samples/directions:
+    post:
+      tags: [admin]
+      operationId: adminCreateSampleDirection
+      summary: 新增学科或方向
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [discipline, name]
+              properties:
+                discipline: { type: string, minLength: 1, maxLength: 16 }
+                name: { type: string, minLength: 1, maxLength: 32 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, required: [id], properties: { id: { type: integer, format: int64 } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/samples/questions:
+    get:
+      tags: [admin]
+      operationId: adminListSampleQuestions
+      summary: 一个方向下的体验题；不传 direction_id 时是「AI 出题缓存」
+      x-roles: [admin, content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: direction_id, in: query, required: false, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/AdminSampleQuestion" } }
+    post:
+      tags: [admin]
+      operationId: adminCreateSampleQuestion
+      summary: 新建题目（手工录入，进待审核）
+      x-roles: [admin, content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/SampleQuestionInput"
+                - type: object
+                  required: [direction_id]
+                  properties:
+                    direction_id: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, required: [id], properties: { id: { type: integer, format: int64 } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/samples/questions/{sampleId}:
+    put:
+      tags: [admin]
+      operationId: adminUpdateSampleQuestion
+      summary: 修改体验题
+      x-roles: [admin, content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: sampleId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SampleQuestionInput" }
+      responses:
+        "204": { description: 完成 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/samples/questions/{sampleId}/status:
+    post:
+      tags: [admin]
+      operationId: adminSetSampleStatus
+      summary: 审核上线 / 下线（AI 出题缓存也在这里抽检下线）
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: sampleId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [online, offline] }
+      responses:
+        "204": { description: 完成 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/samples/generate:
+    post:
+      tags: [admin]
+      operationId: adminGenerateSamples
+      summary: AI 批量生成初稿（按方向，全部进待审核）
+      x-roles: [admin, content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [direction_id, qtype, score, count]
+              properties:
+                direction_id: { type: integer, format: int64 }
+                qtype: { type: string, enum: [term, short_answer, discussion] }
+                score: { type: number, minimum: 1, maximum: 300 }
+                count: { type: integer, minimum: 1, maximum: 10 }
+                textbook: { type: string, maxLength: 128 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, required: [created], properties: { created: { type: integer } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/AIFailed" }
+  /admin/course-applications/summary:
+    get:
+      tags: [admin]
+      operationId: adminCourseApplicationSummary
+      summary: 申请收录计数（7.16 提醒条与统计卡、7.1「新的收录申请」、侧栏红点）
+      x-roles: [admin, content_lead, analyst]
+      security: [{ adminAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pending, suggested, overdue, week_new, school_majors]
+                properties:
+                  pending: { type: integer, description: 待处理（含建议立项）的课数 }
+                  suggested: { type: integer, description: 达到立项阈值的课数 }
+                  overdue: { type: integer, description: 超过 24 小时未处理的课数 }
+                  week_new: { type: integer, description: 本周新增申请 }
+                  school_majors: { type: integer, description: 涉及院校专业数 }
+  /admin/course-applications:
+    get:
+      tags: [admin]
+      operationId: adminListCourseApplications
+      summary: 7.16 申请收录：按院校 · 专业 · 专业课汇总
+      description: 待处理置顶；只显示申请表单信息，不显示用户任何资料内容。
+      x-roles: [admin, content_lead, analyst]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: discipline, in: query, required: false, schema: { type: string, maxLength: 16 } }
+        - { name: only_pending, in: query, required: false, schema: { type: boolean } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/AdminCourseApplicationGroup" } }
+  /admin/course-applications/{groupId}/applicants:
+    get:
+      tags: [admin]
+      operationId: adminListApplicants
+      summary: 申请人列表（昵称、考试年份、申请时间、标记）
+      x-roles: [admin, content_lead, analyst]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: groupId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [nickname, exam_year, entry, applied_at, paid, seed]
+                      properties:
+                        nickname: { type: string }
+                        exam_year: { type: integer }
+                        entry: { type: string, enum: [onboarding, bank, settings] }
+                        applied_at: { type: string, format: date-time }
+                        paid: { type: boolean, description: 付费用户 }
+                        seed: { type: boolean, description: 种子用户 }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/course-applications/{groupId}/initiate:
+    post:
+      tags: [admin]
+      operationId: adminInitiateCourseApplication
+      summary: 立项（生成 7.11 官方题库项目），通知所有申请人
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: groupId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject_code: { type: string, maxLength: 16, description: 申请里没有代码时必填 }
+                major: { type: string, maxLength: 64 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, required: [project_id], properties: { project_id: { type: integer, format: int64 } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/course-applications/{groupId}/contact:
+    post:
+      tags: [admin]
+      operationId: adminContactApplicants
+      summary: 联系用户：给所有申请人发站内信，状态记为已联系
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: groupId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        "204": { description: 完成 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/course-applications/{groupId}/reject:
+    post:
+      tags: [admin]
+      operationId: adminRejectCourseApplication
+      summary: 暂不收录（必填原因），通知所有申请人
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: groupId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        "204": { description: 完成 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/users/{userId}/seed:
+    put:
+      tags: [admin]
+      operationId: setAdminUserSeed
+      summary: 7.2 标记或取消种子用户
+      x-roles: [admin, support]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: userId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [seed]
+              properties:
+                seed: { type: boolean }
+      responses:
+        "204": { description: 完成 }
+        "404": { $ref: "#/components/responses/NotFound" }
   /admin/official/projects:
     get:
       tags:
@@ -5563,6 +6435,130 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+  /admin/official/projects/{projectId}/imports:
+    get:
+      tags: [admin]
+      operationId: adminListOfficialImports
+      summary: 7.17 AI 解析导入：项目下的资料（文件卡：解析状态与结果数）
+      description: 只解析团队上传的资料，与用户端资料完全隔离。内容编辑只能访问分配给自己的项目。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/OfficialImportFile" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [admin]
+      operationId: adminCreateOfficialImport
+      summary: 上传资料并标类型（真题卷 / 参考书目录 / 有授权的讲义），或粘贴文字、表格导入（CSV）
+      description: |
+        format 为 text 或 csv 时直接带 text，马上开始解析；pdf / docx / image 返回 upload_url，客户端直传后调用 confirm。
+        表格导入的表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型；
+        题型、分值、题干必填，真题年份必填；缺参考答案、采分点时由 AI 补全。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, format]
+              properties:
+                kind: { type: string, enum: [exam, catalog, handout, table] }
+                format: { type: string, enum: [pdf, docx, image, text, csv] }
+                file_name: { type: string, maxLength: 255 }
+                size: { type: integer, format: int64, description: 文件字节数（上传文件时） }
+                text: { type: string, maxLength: 1200000, description: 粘贴的文字或 CSV }
+                exam_year: { type: integer, description: 真题卷年份（识别不出时用它） }
+                is_recollection: { type: boolean, description: 回忆版 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfficialImportFile" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/official/projects/{projectId}/imports/{fileId}:
+    get:
+      tags: [admin]
+      operationId: adminGetOfficialImport
+      summary: 核对区：原文与解析结果（置信度、采分点合计是否等于分值、引用来源）
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: fileId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [file, text, items]
+                properties:
+                  file: { $ref: "#/components/schemas/OfficialImportFile" }
+                  text: { type: string, description: 原文 }
+                  items: { type: array, items: { $ref: "#/components/schemas/OfficialImportItem" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/official/projects/{projectId}/imports/{fileId}/confirm:
+    post:
+      tags: [admin]
+      operationId: adminConfirmOfficialImport
+      summary: 文件上传完成，开始解析（解析失败后也用它重新解析）
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: fileId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "204": { description: 已开始解析 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/official/projects/{projectId}/import-items/{itemId}/review:
+    post:
+      tags: [admin]
+      operationId: adminReviewOfficialImportItem
+      summary: 逐条接受（可带修改后的内容）或驳回；接受的生成草稿并提交 7.13 审核
+      description: 采分点合计不等于分值时不能接受（detail.reason = rubric_sum）。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: itemId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [accept, reject] }
+                payload: { type: object, additionalProperties: true, description: 修改后的内容，结构同 7.12 草稿 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { draft_id: { type: integer, format: int64 } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /admin/official/projects/{projectId}/references:
     get:
       tags:
@@ -6128,6 +7124,1710 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /admin/textbooks:
+    get:
+      tags:
+      - admin
+      operationId: listTextbooks
+      summary: 7.16 独立官方教材库
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: q
+        in: query
+        schema:
+          type: string
+          maxLength: 128
+      - name: kind
+        in: query
+        schema:
+          type: string
+          maxLength: 128
+      - name: discipline
+        in: query
+        schema:
+          type: string
+          maxLength: 128
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          default: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - total
+                - page
+                - page_size
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Textbook'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  page_size:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+      - admin
+      operationId: createTextbook
+      summary: 创建独立教材及初始出版版本
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookCreate'
+  /admin/textbooks/{bookId}:
+    get:
+      tags:
+      - admin
+      operationId: getTextbook
+      summary: 教材详情
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+      - admin
+      operationId: updateTextbook
+      summary: 修改教材身份（乐观锁）
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookUpdate'
+  /admin/textbooks/{bookId}/editions:
+    post:
+      tags:
+      - admin
+      operationId: createTextbookEdition
+      summary: 新增出版版本
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookEditionCreate'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions:
+    post:
+      tags:
+      - admin
+      operationId: createTextbookRevision
+      summary: 创建草稿修订
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookRevision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookRevisionCreate'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}:
+    put:
+      tags:
+      - admin
+      operationId: saveTextbookRevision
+      summary: 保存校对原文并使索引失效
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookRevision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookRevisionSave'
+    get:
+      tags:
+      - admin
+      operationId: getTextbookRevision
+      summary: 读取指定修订原文
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookRevision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 版本变化或重复创建冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/textbook-import-settings:
+    get:
+      tags:
+      - admin
+      operationId: getTextbookImportSettings
+      summary: 教材导入限制
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImportSettings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports:
+    get:
+      tags:
+      - admin
+      operationId: listTextbookImports
+      summary: 导入任务列表
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TextbookImport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+      - admin
+      operationId: createTextbookImport
+      summary: 申请私有文件直传
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImportUpload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookImportCreate'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}:
+    get:
+      tags:
+      - admin
+      operationId: getTextbookImport
+      summary: 导入进度
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/commit:
+    post:
+      tags:
+      - admin
+      operationId: commitTextbookImport
+      summary: 确认上传并排队
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - idempotency_key
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/retry:
+    post:
+      tags:
+      - admin
+      operationId: retryTextbookImport
+      summary: 重试失败任务
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - idempotency_key
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/apply:
+    post:
+      tags:
+      - admin
+      operationId: applyTextbookImport
+      summary: 明确采用识别结果写入草稿
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookRevision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookImportApply'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/pages/{pageNo}:
+    get:
+      tags:
+      - admin
+      operationId: getTextbookImportPage
+      summary: 读取指定页识别原文和私有页图
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: pageNo
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImportPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/imports/{importId}/upload:
+    post:
+      tags:
+      - admin
+      operationId: renewTextbookImportUpload
+      summary: 恢复未完成的原件上传
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookImportUpload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/textbook-retrieval-settings:
+    get:
+      tags:
+      - admin
+      operationId: getTextbookRetrievalSettings
+      summary: 教材嵌入及向量配置状态（不返回凭证）
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookRetrievalSettings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/indexes:
+    get:
+      tags:
+      - admin
+      operationId: listTextbookIndexes
+      summary: 索引代次与真实进度
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TextbookIndex'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema: &id001_t40_2
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: revisionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+    post:
+      tags:
+      - admin
+      operationId: buildTextbookIndex
+      summary: 为校对修订构建新索引代次
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookIndex'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: editionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: revisionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotency_key: &id002_t40_2
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+                expected_version: *id001_t40_2
+              required:
+              - idempotency_key
+              - expected_version
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/search:
+    post:
+      tags:
+      - admin
+      operationId: searchTextbookRevision
+      summary: 显式试检索就绪草稿或已发布修订；仅官方原文
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookSearchResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: editionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: revisionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  minLength: 1
+                  maxLength: 1800
+                generation_id: *id001_t40_2
+              required:
+              - query
+              - generation_id
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/publish:
+    post:
+      tags:
+      - admin
+      operationId: publishTextbookRevision
+      summary: 服务端校验并原子发布修订及代次
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: editionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: revisionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotency_key: *id002_t40_2
+                expected_version: *id001_t40_2
+                expected_edition_version: *id001_t40_2
+                generation_id: *id001_t40_2
+                summary:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+              required:
+              - idempotency_key
+              - expected_version
+              - expected_edition_version
+              - generation_id
+              - summary
+  /admin/textbooks/{bookId}/editions/{editionId}/availability:
+    post:
+      tags:
+      - admin
+      operationId: setTextbookEditionAvailability
+      summary: 下架、停用授权及历史摘录展示控制
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: editionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextbookAvailabilityChange'
+  /admin/textbooks/{bookId}/editions/{editionId}/default:
+    post:
+      tags:
+      - admin
+      operationId: setTextbookDefaultEdition
+      summary: 设置明确的默认已发布版本
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Textbook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      - name: editionId
+        in: path
+        required: true
+        schema: *id001_t40_2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotency_key: *id002_t40_2
+                expected_book_version: *id001_t40_2
+                expected_edition_version: *id001_t40_2
+                enabled:
+                  type: boolean
+              required:
+              - idempotency_key
+              - expected_book_version
+              - expected_edition_version
+              - enabled
+  /admin/textbooks/{bookId}/publications:
+    get:
+      tags:
+      - admin
+      operationId: listTextbookPublications
+      summary: 教材发布与可用性审计记录
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TextbookPublication'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          description: 请求失败
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema: *id001_t40_2
+  /admin/textbooks/{bookId}/editions/{editionId}/revisions/{revisionId}/indexes/{generationId}/retry:
+    post:
+      tags:
+      - admin
+      operationId: retryTextbookIndex
+      summary: 继续失败的索引代次，复用已完成片段
+      x-roles:
+      - admin
+      - content_lead
+      security:
+      - adminAuth: []
+      parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: editionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: revisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: generationId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - idempotency_key
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextbookIndex'
+  /gradings/{gradingId}/answer-evidence:
+    get:
+      tags: [bank]
+      operationId: getGradingAnswerEvidence
+      parameters:
+      - {name: gradingId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      responses:
+        '200':
+          description: 本人记录对应的不可变来源
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [snapshot]
+                properties:
+                  snapshot:
+                    allOf: [{$ref: '#/components/schemas/AnswerEvidenceSnapshot'}]
+                    nullable: true
+        '404': {$ref: '#/components/responses/NotFound'}
+  /import-items/{itemId}/answer-evidence:
+    get:
+      tags: [bank]
+      operationId: getImportAnswerEvidence
+      parameters:
+      - {name: itemId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      responses:
+        '200':
+          description: 本人记录对应的不可变来源
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [snapshot]
+                properties:
+                  snapshot:
+                    allOf: [{$ref: '#/components/schemas/AnswerEvidenceSnapshot'}]
+                    nullable: true
+        '404': {$ref: '#/components/responses/NotFound'}
+  /subjects/{subjectId}/textbook-matches:
+    post:
+      tags: [profile]
+      operationId: matchSubjectTextbooks
+      summary: 解析本人教材书名，仅返回明确匹配的公开元数据，未匹配静默
+      parameters:
+      - {name: subjectId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                titles: {type: array, maxItems: 5, items: {type: string, minLength: 1, maxLength: 64}}
+      responses:
+        '200':
+          description: 明确匹配的教材；可为空，不影响书名保存
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/UserTextbookMatch'}}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /admin/official/projects/{projectId}/textbooks:
+    get:
+      tags: [admin]
+      x-roles: [content_lead, content_editor]
+      security: [{adminAuth: []}]
+      operationId: listProjectTextbooks
+      parameters:
+      - {name: projectId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      responses:
+        '200':
+          description: 关联的明确出版版本
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, version]
+                properties:
+                  version: {type: integer, format: int64, minimum: 1}
+                  items: {type: array, items: {$ref: '#/components/schemas/UserTextbookMatch'}}
+    put:
+      tags: [admin]
+      x-roles: [content_lead]
+      security: [{adminAuth: []}]
+      operationId: setProjectTextbooks
+      parameters:
+      - {name: projectId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [edition_ids, idempotency_key, expected_version]
+              properties:
+                expected_version: {type: integer, format: int64, minimum: 1}
+                edition_ids: {type: array, maxItems: 20, uniqueItems: true, items: {type: integer, format: int64, minimum: 1}}
+                idempotency_key: {type: string, minLength: 8, maxLength: 128}
+      responses:
+        '200':
+          description: 关联成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, version]
+                properties:
+                  version: {type: integer, format: int64, minimum: 1}
+                  items: {type: array, items: {$ref: '#/components/schemas/UserTextbookMatch'}}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /questions/{questionId}/answer-candidates:
+    post:
+      tags:
+      - bank
+      operationId: createAnswerUpdateCandidate
+      summary: 主动更新答案：异步成功候选扣一次，采用不再扣
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerUpdateCandidate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+              required:
+              - idempotency_key
+    get:
+      tags:
+      - bank
+      operationId: listAnswerUpdateCandidates
+      summary: 恢复并查看本人答案更新候选
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AnswerUpdateCandidate'
+                required:
+                - items
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /questions/{questionId}/answer-candidates/{candidateId}:
+    get:
+      tags:
+      - bank
+      operationId: getAnswerUpdateCandidate
+      summary: 本人候选详情和可用出处
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: candidateId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerUpdateCandidate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /questions/{questionId}/answer-candidates/{candidateId}/adopt:
+    post:
+      tags:
+      - bank
+      operationId: adoptAnswerUpdateCandidate
+      summary: 采用候选（不重复扣次）
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: candidateId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerUpdateCandidate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+              required:
+              - idempotency_key
+  /questions/{questionId}/answer-candidates/{candidateId}/discard:
+    post:
+      tags:
+      - bank
+      operationId: discardAnswerUpdateCandidate
+      summary: 放弃已成功候选（不退次）
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: candidateId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerUpdateCandidate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idempotency_key:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+              required:
+              - idempotency_key
+  /questions/{questionId}/answer-evidence:
+    get:
+      tags:
+      - bank
+      operationId: getQuestionAnswerEvidence
+      summary: 答案的不可变实际引用依据
+      parameters:
+      - name: questionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  snapshot:
+                    $ref: '#/components/schemas/AnswerEvidenceSnapshot'
+                    nullable: true
+                required:
+                - snapshot
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
 components:
   securitySchemes:
     bearerAuth:
@@ -6249,6 +8949,1091 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    UserTextbookSelection:
+      type: object
+      description: 同一书名可锁定多个版次（如套书的上下卷），每册一条
+      required: [input, edition_id]
+      properties:
+        input: {type: string, minLength: 1, maxLength: 64}
+        edition_id: {type: integer, format: int64, minimum: 1}
+    UserTextbookMatch:
+      type: object
+      required: [input, book_id, edition_id, title, author, edition, method, catalog_version, available]
+      properties:
+        input: {type: string}
+        book_id: {type: integer, format: int64}
+        edition_id: {type: integer, format: int64}
+        title: {type: string}
+        author: {type: string}
+        edition: {type: string}
+        method: {type: string, enum: [auto, explicit]}
+        catalog_version: {type: string}
+        available: {type: boolean}
+    AnswerEvidenceSource:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum:
+          - official_textbook
+          - personal_material
+        title:
+          type: string
+        author:
+          type: string
+        edition:
+          type: string
+        book_id:
+          type: integer
+          format: int64
+          minimum: 1
+        edition_id:
+          type: integer
+          format: int64
+          minimum: 1
+        revision_id:
+          type: integer
+          format: int64
+          minimum: 1
+        generation_id:
+          type: integer
+          format: int64
+          minimum: 1
+        ordinal:
+          type: integer
+        heading:
+          type: string
+        source_page:
+          type: integer
+        printed_page:
+          type: string
+        quote:
+          type: string
+        claim:
+          type: string
+        unavailable:
+          type: boolean
+        material_id:
+          type: integer
+          format: int64
+          minimum: 1
+        page:
+          type: integer
+      required:
+      - id
+      - kind
+      - title
+      - quote
+      - claim
+    AnswerEvidenceSnapshot:
+      type: object
+      properties:
+        version:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
+        model:
+          type: string
+        prompt_version:
+          type: string
+        coverage:
+          type: string
+          enum:
+          - none
+          - partial
+          - sufficient
+        uses_general_knowledge:
+          type: boolean
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnswerEvidenceSource'
+      required:
+      - version
+      - generated_at
+      - model
+      - prompt_version
+      - coverage
+      - uses_general_knowledge
+      - sources
+    AnswerUpdateCandidate:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        question_id:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          type: string
+          enum:
+          - queued
+          - processing
+          - failed
+          - ready
+          - adopted
+          - discarded
+        answer:
+          type: string
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/RubricPointInput'
+        snapshot:
+          $ref: '#/components/schemas/AnswerEvidenceSnapshot'
+        failure_message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - question_id
+      - status
+      - failure_message
+      - created_at
+      - updated_at
+    TextbookRetrievalSettings:
+      type: object
+      properties:
+        embedding_enabled:
+          type: boolean
+        embedding_provider:
+          type: string
+          maxLength: 16
+        embedding_model:
+          type: string
+          maxLength: 128
+        embedding_dimensions:
+          type: integer
+        profile_id:
+          type: string
+          maxLength: 64
+        vector_configured:
+          type: boolean
+        production:
+          type: boolean
+        parameters:
+          $ref: '#/components/schemas/TextbookRetrievalParameters'
+      required:
+      - embedding_enabled
+      - embedding_provider
+      - embedding_model
+      - embedding_dimensions
+      - profile_id
+      - vector_configured
+      - production
+      - parameters
+    TextbookRetrievalParameters:
+      type: object
+      properties:
+        version:
+          type: string
+          maxLength: 32
+        chunk_runes:
+          type: integer
+          minimum: 200
+          maximum: 1500
+        overlap_runes:
+          type: integer
+          minimum: 0
+          maximum: 300
+        recall_k:
+          type: integer
+          minimum: 1
+          maximum: 50
+        result_k:
+          type: integer
+          minimum: 1
+          maximum: 20
+        context_runes:
+          type: integer
+          minimum: 1000
+          maximum: 16000
+      required:
+      - version
+      - chunk_runes
+      - overlap_runes
+      - recall_k
+      - result_k
+      - context_runes
+    TextbookIndex:
+      type: object
+      properties:
+        id: &id001_t40_3
+          type: integer
+          format: int64
+          minimum: 1
+        revision_id: *id001_t40_3
+        source_version: *id001_t40_3
+        content_hash:
+          type: string
+          maxLength: 64
+        profile_id:
+          type: string
+          maxLength: 64
+        model:
+          type: string
+          maxLength: 128
+        dimensions:
+          type: integer
+        status:
+          type: string
+          enum:
+          - queued
+          - processing
+          - failed
+          - ready
+          - stale
+        chunk_count:
+          type: integer
+        completed_chunks:
+          type: integer
+        failure_message:
+          type: string
+          maxLength: 255
+        created_at: &id002_t40_3
+          type: string
+          format: date-time
+        updated_at: *id002_t40_3
+        parameters:
+          $ref: '#/components/schemas/TextbookRetrievalParameters'
+      required:
+      - id
+      - revision_id
+      - source_version
+      - content_hash
+      - profile_id
+      - model
+      - dimensions
+      - status
+      - chunk_count
+      - completed_chunks
+      - failure_message
+      - created_at
+      - updated_at
+      - parameters
+    TextbookSearchResult:
+      type: object
+      properties:
+        generation_id: *id001_t40_3
+        profile_id:
+          type: string
+          maxLength: 64
+        fusion:
+          type: string
+          enum:
+          - rrf-v1
+        hits:
+          type: array
+          items:
+            $ref: '#/components/schemas/TextbookSearchHit'
+        notice:
+          type: string
+          maxLength: 500
+      required:
+      - generation_id
+      - profile_id
+      - fusion
+      - hits
+      - notice
+    TextbookSearchHit:
+      type: object
+      properties:
+        ordinal:
+          type: integer
+        section_no:
+          type: integer
+        start_rune:
+          type: integer
+        end_rune:
+          type: integer
+        heading:
+          type: string
+          maxLength: 512
+        text:
+          type: string
+          maxLength: 1500
+        text_hash:
+          type: string
+          maxLength: 64
+        source_page:
+          type: integer
+        printed_page:
+          type: string
+          maxLength: 32
+        fulltext_rank:
+          type: integer
+        vector_rank:
+          type: integer
+        fusion_score:
+          type: number
+      required:
+      - ordinal
+      - section_no
+      - start_rune
+      - end_rune
+      - heading
+      - text
+      - text_hash
+      - fulltext_rank
+      - vector_rank
+      - fusion_score
+    TextbookAvailabilityChange:
+      type: object
+      properties:
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 128
+        expected_version: *id001_t40_3
+        withdrawn:
+          type: boolean
+        authorized:
+          type: boolean
+        license_note:
+          type: string
+          minLength: 1
+          maxLength: 500
+        license_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        excerpts_enabled:
+          type: boolean
+        summary:
+          type: string
+          minLength: 1
+          maxLength: 500
+      required:
+      - idempotency_key
+      - expected_version
+      - withdrawn
+      - authorized
+      - license_note
+      - license_expires_at
+      - excerpts_enabled
+      - summary
+    TextbookPublication:
+      type: object
+      properties:
+        id: *id001_t40_3
+        edition_id: *id001_t40_3
+        revision_id: *id001_t40_3
+        generation_id: *id001_t40_3
+        action:
+          type: string
+          maxLength: 24
+        summary:
+          type: string
+          maxLength: 500
+        created_by: *id001_t40_3
+        created_at: *id002_t40_3
+      required:
+      - id
+      - edition_id
+      - action
+      - summary
+      - created_by
+      - created_at
+    TextbookMetadata:
+      type: object
+      required:
+      - title
+      - author
+      - kind
+      - discipline
+      - aliases
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 128
+        author:
+          type: string
+          minLength: 1
+          maxLength: 128
+        kind:
+          type: string
+          enum:
+          - textbook
+          - handout
+        discipline:
+          type: string
+          minLength: 1
+          maxLength: 128
+        aliases:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+        series:
+          type: string
+          maxLength: 128
+          description: 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册
+    TextbookEditionInput:
+      type: object
+      required:
+      - edition
+      - license_note
+      - authorized
+      properties:
+        edition:
+          type: string
+          minLength: 1
+          maxLength: 64
+        publisher:
+          type: string
+          maxLength: 128
+        publication_year:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+        isbn:
+          type: string
+          maxLength: 32
+        license_note:
+          type: string
+          minLength: 1
+          maxLength: 500
+        authorized:
+          type: boolean
+        scope_note:
+          type: string
+          maxLength: 255
+    TextbookRevisionSection:
+      type: object
+      required:
+      - heading
+      - text
+      properties:
+        source_import_id:
+          type: integer
+          format: int64
+          minimum: 1
+        needs_review:
+          type: boolean
+        heading:
+          type: string
+          maxLength: 512
+        text:
+          type: string
+          minLength: 1
+          maxLength: 100000
+        source_page:
+          type: integer
+          minimum: 1
+        printed_page:
+          type: string
+          maxLength: 32
+    TextbookRevision:
+      type: object
+      required:
+      - id
+      - edition_id
+      - revision_no
+      - version
+      - status
+      - content_hash
+      - sections
+      - index_status
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        edition_id:
+          type: integer
+          format: int64
+          minimum: 1
+        revision_no:
+          type: integer
+          format: int64
+          minimum: 1
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          type: string
+          enum:
+          - draft
+          - reviewed
+          - published
+        content_hash:
+          type: string
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/TextbookRevisionSection'
+        index_status:
+          type: string
+          enum:
+          - missing
+          - stale
+          - ready
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        ready_generation_id:
+          type: integer
+          format: int64
+          minimum: 1
+    TextbookEdition:
+      type: object
+      required:
+      - id
+      - book_id
+      - edition
+      - publisher
+      - isbn
+      - license_note
+      - authorized
+      - scope_note
+      - status
+      - revisions
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        book_id:
+          type: integer
+          format: int64
+          minimum: 1
+        edition:
+          type: string
+          minLength: 1
+          maxLength: 64
+        publisher:
+          type: string
+          maxLength: 128
+        publication_year:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+        isbn:
+          type: string
+          maxLength: 32
+        license_note:
+          type: string
+          minLength: 1
+          maxLength: 500
+        authorized:
+          type: boolean
+        scope_note:
+          type: string
+          maxLength: 255
+        status:
+          type: string
+          enum:
+          - unpublished
+          - published
+          - withdrawn
+        current_revision_id:
+          type: integer
+          format: int64
+          minimum: 1
+        revisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TextbookRevisionSummary'
+        version: &id001_t40_4
+          type: integer
+          format: int64
+          minimum: 1
+        current_generation_id: *id001_t40_4
+        license_expires_at:
+          type: string
+          format: date-time
+        excerpts_enabled:
+          type: boolean
+    Textbook:
+      type: object
+      required:
+      - id
+      - title
+      - author
+      - kind
+      - discipline
+      - aliases
+      - series
+      - version
+      - editions
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        title:
+          type: string
+          minLength: 1
+          maxLength: 128
+        author:
+          type: string
+          minLength: 1
+          maxLength: 128
+        kind:
+          type: string
+          enum:
+          - textbook
+          - handout
+        discipline:
+          type: string
+          minLength: 1
+          maxLength: 128
+        aliases:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+        series:
+          type: string
+          maxLength: 128
+          description: 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        editions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TextbookEdition'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        default_edition_id:
+          type: integer
+          format: int64
+          minimum: 1
+    TextbookCreate:
+      type: object
+      required:
+      - title
+      - author
+      - kind
+      - discipline
+      - aliases
+      - initial_edition
+      - idempotency_key
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 128
+        author:
+          type: string
+          minLength: 1
+          maxLength: 128
+        kind:
+          type: string
+          enum:
+          - textbook
+          - handout
+        discipline:
+          type: string
+          minLength: 1
+          maxLength: 128
+        aliases:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+        series:
+          type: string
+          maxLength: 128
+          description: 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册
+        initial_edition:
+          $ref: '#/components/schemas/TextbookEditionInput'
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 128
+    TextbookUpdate:
+      type: object
+      required:
+      - title
+      - author
+      - kind
+      - discipline
+      - aliases
+      - expected_version
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 128
+        author:
+          type: string
+          minLength: 1
+          maxLength: 128
+        kind:
+          type: string
+          enum:
+          - textbook
+          - handout
+        discipline:
+          type: string
+          minLength: 1
+          maxLength: 128
+        aliases:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+        series:
+          type: string
+          maxLength: 128
+          description: 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+        edition_scopes:
+          type: array
+          description: 按出版版本更新使用范围；省略时保留原值，空字符串清空范围。与教材信息在同一事务保存。
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/TextbookEditionScopeUpdate'
+    TextbookEditionScopeUpdate:
+      type: object
+      required:
+      - edition_id
+      - expected_version
+      - scope_note
+      properties:
+        edition_id:
+          type: integer
+          format: int64
+          minimum: 1
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+        scope_note:
+          type: string
+          maxLength: 255
+    TextbookEditionCreate:
+      type: object
+      required:
+      - edition
+      - license_note
+      - authorized
+      - idempotency_key
+      properties:
+        edition:
+          type: string
+          minLength: 1
+          maxLength: 64
+        publisher:
+          type: string
+          maxLength: 128
+        publication_year:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+        isbn:
+          type: string
+          maxLength: 32
+        license_note:
+          type: string
+          minLength: 1
+          maxLength: 500
+        authorized:
+          type: boolean
+        scope_note:
+          type: string
+          maxLength: 255
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 128
+    TextbookRevisionCreate:
+      type: object
+      required:
+      - idempotency_key
+      properties:
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 128
+    TextbookRevisionSave:
+      type: object
+      required:
+      - expected_version
+      - sections
+      - mark_reviewed
+      properties:
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+        sections:
+          type: array
+          minItems: 1
+          maxItems: 5000
+          items:
+            $ref: '#/components/schemas/TextbookRevisionSection'
+        mark_reviewed:
+          type: boolean
+    TextbookRevisionSummary:
+      type: object
+      required:
+      - id
+      - edition_id
+      - revision_no
+      - version
+      - status
+      - content_hash
+      - index_status
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        edition_id:
+          type: integer
+          format: int64
+          minimum: 1
+        revision_no:
+          type: integer
+          format: int64
+          minimum: 1
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          type: string
+          enum:
+          - draft
+          - reviewed
+          - published
+        content_hash:
+          type: string
+        index_status:
+          type: string
+          enum:
+          - missing
+          - stale
+          - ready
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        ready_generation_id:
+          type: integer
+          format: int64
+          minimum: 1
+    TextbookImportSettings:
+      type: object
+      required:
+      - max_concurrent_imports
+      - max_file_mb
+      - max_pages
+      - max_imports_per_revision
+      - max_daily_pdf_pages
+      properties:
+        max_concurrent_imports:
+          type: integer
+          minimum: 1
+          maximum: 4
+        max_file_mb:
+          type: integer
+          minimum: 1
+        max_pages:
+          type: integer
+          minimum: 1
+        max_imports_per_revision:
+          type: integer
+          minimum: 1
+        max_daily_pdf_pages:
+          type: integer
+          minimum: 1
+    TextbookImportCreate:
+      type: object
+      required:
+      - file_name
+      - format
+      - size
+      - sha256
+      - idempotency_key
+      properties:
+        file_name:
+          type: string
+          maxLength: 255
+        format:
+          type: string
+          enum:
+          - pdf
+          - docx
+          - md
+          - txt
+        size:
+          type: integer
+          format: int64
+          minimum: 1
+        sha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 128
+    TextbookImport:
+      type: object
+      required:
+      - can_reupload
+      - id
+      - revision_id
+      - file_name
+      - format
+      - status
+      - page_count
+      - completed_pages
+      - uncertain_pages
+      - attempt
+      - created_at
+      - updated_at
+      properties:
+        can_reupload:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        revision_id:
+          type: integer
+          format: int64
+          minimum: 1
+        file_name:
+          type: string
+        format:
+          type: string
+        status:
+          type: string
+          enum:
+          - uploading
+          - queued
+          - processing
+          - ready
+          - failed
+          - applied
+        page_count:
+          type: integer
+        completed_pages:
+          type: integer
+        uncertain_pages:
+          type: integer
+        attempt:
+          type: integer
+        failure_message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TextbookImportUpload:
+      type: object
+      required:
+      - job
+      - upload_url
+      - upload_headers
+      - expires_at
+      properties:
+        job:
+          $ref: '#/components/schemas/TextbookImport'
+        upload_url:
+          type: string
+        upload_headers:
+          type: object
+          additionalProperties:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+    TextbookImportPage:
+      type: object
+      required:
+      - page_no
+      - blank
+      - blocks
+      properties:
+        page_no:
+          type: integer
+          minimum: 1
+        blank:
+          type: boolean
+        printed_page:
+          type: string
+          maxLength: 32
+        image_url:
+          type: string
+        blocks:
+          type: array
+          items:
+            type: object
+            required:
+            - heading
+            - text
+            - uncertain
+            properties:
+              heading:
+                type: string
+                maxLength: 512
+              text:
+                type: string
+                maxLength: 100000
+              uncertain:
+                type: boolean
+    TextbookImportApply:
+      type: object
+      required:
+      - expected_version
+      - mode
+      properties:
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+        mode:
+          type: string
+          enum:
+          - append
+          - replace
     PaperKind:
       type: string
       description: 真题卷 / AI 标准卷 / AI 针对卷
@@ -6710,7 +10495,7 @@ components:
       type: object
       required: [reason]
       properties:
-        reason: { type: string, enum: [hit_missed, rubric_wrong, score_unfair, other], description: 我其实答到了某个采分点 / 采分点本身不对 / 分数给得不合理 / 其他 }
+        reason: { type: string, enum: [hit_missed, rubric_wrong, score_unfair, other, teacher_differs], description: 我其实答到了某个采分点 / 采分点本身不对 / 分数给得不合理 / 其他 / 和我们老师讲的不一样（PRD v3 增补） }
         note: { type: string, maxLength: 500 }
         allow_access: { type: boolean, default: false, description: 允许后台查看这道题和我的答案 }
     PendingGradings:
@@ -6731,8 +10516,8 @@ components:
               saved_at: { type: string, format: date-time }
     PracticeKind:
       type: string
-      description: 今日训练 / 题型专项 / 自定义 / 错题重做 / 摸底测
-      enum: [daily, type_drill, custom, wrong_redo, placement]
+      description: 今日训练 / 题型专项 / 自定义 / 错题重做 / 摸底测 / 官方题库首题（1.1b，批改不扣额度）
+      enum: [daily, type_drill, custom, wrong_redo, placement, official_first]
     PracticeConfig:
       type: object
       properties:
@@ -7773,6 +11558,7 @@ components:
         - subject_stats
         - quota
         properties:
+          is_seed: { type: boolean, description: 种子用户（运营标记） }
           nickname: *id001_4
           failed_materials: *id002_4
           pages: *id002_4
@@ -8717,6 +12503,8 @@ components:
       - points
       - citations
       properties:
+        snapshot_id: {type: integer, format: int64, minimum: 1}
+        snapshot: {$ref: '#/components/schemas/AnswerEvidenceSnapshot'}
         answer:
           type: string
         points:
@@ -9504,6 +13292,184 @@ components:
         notify_review_due: { type: boolean }
         notify_task_done: { type: boolean }
 
+    CatalogCourse:
+      type: object
+      required: [id, school, major, discipline, subject_name, textbooks, official_status]
+      properties:
+        id: { type: integer, format: int64 }
+        school: { type: string }
+        major: { type: string }
+        discipline: { type: string, description: 学科，如 哲学、文学 }
+        subject_name: { type: string }
+        subject_code: { type: string }
+        textbooks: { type: array, items: { type: string } }
+        exam_year: { type: integer, description: 适用考试年份；没有表示各年通用 }
+        official_status: { type: string, enum: [available, producing, none] }
+        official: { $ref: "#/components/schemas/OfficialSummary" }
+    OfficialSummary:
+      type: object
+      description: 1.1a 官方题库摘要
+      required: [bank_id, version, exam_year_count, kp_count, paper_count, question_count]
+      properties:
+        bank_id: { type: integer, format: int64 }
+        version: { type: string }
+        exam_year_count: { type: integer, description: 真题年份数 }
+        kp_count: { type: integer }
+        paper_count: { type: integer, description: 模拟卷套数 }
+        question_count: { type: integer }
+        added_subject_id: { type: integer, format: int64, description: 已添加到哪门专业课；没添加时没有 }
+    CatalogCourseInput:
+      type: object
+      required: [school, major, subject_name]
+      properties:
+        school: { type: string, minLength: 1, maxLength: 64 }
+        major: { type: string, minLength: 1, maxLength: 64 }
+        discipline: { type: string, maxLength: 16 }
+        subject_name: { type: string, minLength: 1, maxLength: 64 }
+        subject_code: { type: string, maxLength: 16 }
+        textbooks: { type: array, maxItems: 10, items: { type: string, maxLength: 128 } }
+        exam_year: { type: integer }
+        hidden: { type: boolean }
+    AdminCatalogCourse:
+      allOf:
+        - $ref: "#/components/schemas/CatalogCourse"
+        - type: object
+          required: [status, chosen_count]
+          properties:
+            status: { type: string, enum: [active, hidden] }
+            chosen_count: { type: integer, description: 在 1.1 选了这门课的人数 }
+    TrialUsage:
+      type: object
+      required: [limit, used, remaining]
+      properties:
+        limit: { type: integer }
+        used: { type: integer }
+        remaining: { type: integer }
+    Trial:
+      type: object
+      required: [id, kind, qtype, score, stem, answer_source, point_count, status, remaining]
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { type: string, enum: [own, sample, ai_live], description: 自己的题 / 通用体验题 / AI 出题 }
+        qtype: { type: string, enum: [term, short_answer, discussion] }
+        score: { type: number }
+        stem: { type: string }
+        answer_source: { type: string, enum: [user, ai], description: ai 表示按 AI 参考答案批改（标「仅供参考」） }
+        point_count: { type: integer, description: 采分点个数（提交前只给个数） }
+        status: { type: string, enum: [ready, graded, saved] }
+        remaining: { type: integer, description: 剩余体验次数 }
+        reference_answer: { type: string, description: 批改后才有 }
+        total: { type: number, description: 得分，批改后才有 }
+        points: { type: array, items: { $ref: "#/components/schemas/GradingPoint" } }
+        suggestions: { type: array, items: { type: string } }
+        structure_ok: { type: boolean }
+        structure_note: { type: string }
+        answer_text: { type: string }
+        question_id: { type: integer, format: int64, description: 加入题库后的题目 }
+    SampleQuestion:
+      type: object
+      required: [id, qtype, score, stem, ai_generated]
+      properties:
+        id: { type: integer, format: int64 }
+        qtype: { type: string, enum: [term, short_answer, discussion] }
+        score: { type: number }
+        stem: { type: string }
+        textbook: { type: string, description: 参考教材 }
+        ai_generated: { type: boolean, description: AI 现场出题，标「AI 出题」 }
+    SampleQuestionInput:
+      type: object
+      required: [qtype, score, stem, answer, rubric]
+      properties:
+        textbook: { type: string, maxLength: 128 }
+        qtype: { type: string, enum: [term, short_answer, discussion] }
+        score: { type: number, minimum: 1, maximum: 300 }
+        stem: { type: string, minLength: 1, maxLength: 2000 }
+        answer: { type: string, minLength: 1, maxLength: 6000 }
+        rubric:
+          type: array
+          minItems: 1
+          maxItems: 20
+          description: 采分点，合计等于分值
+          items: { $ref: "#/components/schemas/RubricPointInput" }
+    AdminSampleQuestion:
+      type: object
+      required: [id, origin, qtype, score, stem, answer, rubric, status, try_count, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        direction_id: { type: integer, format: int64 }
+        origin: { type: string, enum: [manual, ai_batch, ai_live] }
+        subject_label: { type: string, description: AI 出题缓存对应的专业课 }
+        textbook: { type: string }
+        qtype: { type: string, enum: [term, short_answer, discussion] }
+        score: { type: number }
+        stem: { type: string }
+        answer: { type: string }
+        rubric: { type: array, items: { $ref: "#/components/schemas/RubricPointInput" } }
+        status: { type: string, enum: [pending, online, offline] }
+        try_count: { type: integer, description: 被体验次数 }
+        created_at: { type: string, format: date-time }
+    CourseApplicationStatus:
+      type: string
+      description: 待处理 / 建议立项 / 已联系 / 已立项 / 暂不收录
+      enum: [pending, suggested, contacted, initiated, rejected]
+    AdminCourseApplicationGroup:
+      type: object
+      required: [id, school, major, subject_name, discipline, status, applicant_count, paid_count, seed_count, overdue, last_applied_at]
+      properties:
+        id: { type: integer, format: int64 }
+        school: { type: string }
+        major: { type: string }
+        subject_name: { type: string }
+        subject_code: { type: string }
+        discipline: { type: string }
+        status: { $ref: "#/components/schemas/CourseApplicationStatus" }
+        reason: { type: string, description: 暂不收录的原因 }
+        applicant_count: { type: integer }
+        paid_count: { type: integer }
+        seed_count: { type: integer }
+        pending_since: { type: string, format: date-time, description: 最早待处理时间 }
+        overdue: { type: boolean, description: 超过 24 小时未处理，标红 }
+        project_id: { type: integer, format: int64 }
+        last_applied_at: { type: string, format: date-time }
+    OfficialImportFile:
+      type: object
+      required: [id, kind, file_name, format, status, question_count, kp_count, reviewed_count, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { type: string, enum: [exam, catalog, handout, table] }
+        file_name: { type: string }
+        format: { type: string, enum: [pdf, docx, image, text, csv] }
+        status: { type: string, enum: [uploading, parsing, parsed, failed] }
+        fail_reason: { type: string }
+        question_count: { type: integer }
+        kp_count: { type: integer }
+        reviewed_count: { type: integer, description: 已核对条数 }
+        exam_year: { type: integer }
+        created_at: { type: string, format: date-time }
+        upload_url: { type: string, description: 直传地址（新建文件时） }
+        upload_headers: { type: object, additionalProperties: { type: string } }
+    OfficialImportItem:
+      type: object
+      required: [id, item_type, seq, payload, confidence, status, rubric_mismatch]
+      properties:
+        id: { type: integer, format: int64 }
+        item_type: { type: string, enum: [question, knowledge_point] }
+        seq: { type: integer }
+        payload: { type: object, additionalProperties: true, description: 结构同 7.12 草稿 }
+        citations:
+          type: array
+          items:
+            type: object
+            properties:
+              reference_id: { type: integer, format: int64 }
+              title: { type: string }
+              heading: { type: string }
+        source_text: { type: string, description: 原文片段（高亮） }
+        page: { type: integer }
+        confidence: { type: string, enum: [high, medium, low] }
+        status: { type: string, enum: [pending, accepted, rejected] }
+        draft_id: { type: integer, format: int64 }
+        rubric_mismatch: { type: boolean, description: 采分点合计不等于分值（标红） }
     SubjectInput:
       type: object
       required: [name, full_score]
@@ -9512,9 +13478,13 @@ components:
         code: { type: string, maxLength: 16, nullable: true }
         full_score: { type: integer, enum: [100, 150, 300] }
         target_score: { type: integer, minimum: 0, nullable: true, description: 不设目标传 null }
+        catalog_course_id: { type: integer, format: int64, description: 1.1 从院校专业课库选的课（新 1.1） }
+        school: { type: string, maxLength: 64, description: 1.1 手动添加时的院校；库里没有的课进后台「待入库」 }
+        major: { type: string, maxLength: 64 }
     SubjectPatch:
       type: object
       properties:
+        textbook_selections: {type: array, maxItems: 5, items: {$ref: '#/components/schemas/UserTextbookSelection'}}
         my_majors: { type: string, maxLength: 255, nullable: true, description: 报考方向，多个用顿号分隔；空表示不区分 }
         name: { type: string, minLength: 1, maxLength: 64 }
         code: { type: string, maxLength: 16, nullable: true }
@@ -9530,6 +13500,7 @@ components:
       type: object
       required: [id, name, full_score, is_essay, bank_id, question_count, kp_count, material_count]
       properties:
+        textbook_selections: {type: array, items: {$ref: '#/components/schemas/UserTextbookSelection'}}
         my_majors: { type: string, description: 报考方向（导入按专业分组的真题时默认只保留匹配的组） }
         id: { type: integer, format: int64 }
         name: { type: string }
@@ -9538,6 +13509,9 @@ components:
         target_score: { type: integer }
         is_essay: { type: boolean, description: 作文课（如 908），题库页显示为 3.10 }
         textbooks: { type: array, items: { type: string }, description: 参考教材书名（选填） }
+        school: { type: string, description: 1.1 选的院校 }
+        major: { type: string }
+        catalog_course_id: { type: integer, format: int64 }
         bank_id: { type: integer, format: int64 }
         question_count: { type: integer }
         kp_count: { type: integer }
@@ -9924,6 +13898,8 @@ components:
         needs_review: { type: boolean }
         official: { type: boolean, description: 来自官方题库 }
         is_new: { type: boolean, description: 官方题库新版本新增的知识点，标「新」两周 }
+        official_question_count: { type: integer, description: 节点下（按主知识点）的官方题数；板块标题显示「官方 N · 我的 M」（3.1e） }
+        my_question_count: { type: integer, description: 节点下我自己导入的题数 }
         children: { type: array, items: { $ref: "#/components/schemas/KnowledgeNode" } }
     KnowledgeNodeInput:
       type: object

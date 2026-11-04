@@ -2,15 +2,15 @@
 // 参考教材（选填，每门专业课可填多本）：资料里缺答案时，AI 会尽量按这本教材的表述给参考答案，之后在 6.9 修改。
 import { colors, radius, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, ErrorState, Loading, Screen, Tag, Text, toast } from '@/components';
 import { setStep, stageInfo, stages, type StageKey } from '@/features/onboarding/api';
-import { loadDraft } from '@/features/onboarding/draft';
+import { loadDraft, saveDraft } from '@/features/onboarding/draft';
 import { Chips, Footer, OptionCard, StepHeader } from '@/features/onboarding/ui';
 import { useSubjects } from '@/features/mine/api';
-import { saveTextbooks, TextbookList, textbooksOf, type TextbookMap } from '@/features/profile/textbooks';
+import { saveTextbooks, TextbookList, textbooksOf, type TextbookMap, type TextbookSelectionMap } from '@/features/profile/textbooks';
 import { api, unwrap } from '@/lib/api';
 
 export default function SetupStep() {
@@ -26,6 +26,7 @@ export default function SetupStep() {
   // 没改过时用服务端已存的教材（中途退出再回来不丢）。
   const [edited, setBooks] = useState<TextbookMap | null>(null);
   const books = edited ?? textbooksOf(subjectList);
+  const [selections, setSelections] = useState<TextbookSelectionMap>({});
 
   const next = async () => {
     if (!year || !chosen) return;
@@ -36,14 +37,26 @@ export default function SetupStep() {
           body: { exam_year: year.exam_year, stage: chosen, daily_minutes: minutes, target_school_major: draft.targetSchoolMajor ?? null },
         }),
       );
-      await saveTextbooks(subjectList, books);
-      await setStep('1.4');
-      router.push('/(onboarding)/import');
+      await saveTextbooks(subjectList, books, selections);
+      await finish();
     } catch {
       toast('保存失败，请重试');
     } finally {
       setBusy(false);
     }
+  };
+
+  // 新引导（PRD v3 增补）：首次批改后才到这一步，走完去批改结果页选的地方；旧引导去 1.4 导入。
+  const finish = async () => {
+    if (draft.after) {
+      const to = draft.after;
+      saveDraft({ after: undefined });
+      await setStep('done');
+      router.replace(to as Href);
+      return;
+    }
+    await setStep('1.4');
+    router.push('/(onboarding)/import');
   };
 
   if (years.isLoading) return <Screen><Loading rows={6} /></Screen>;
@@ -99,12 +112,13 @@ export default function SetupStep() {
               </Text>
               <Text variant="small">选填</Text>
             </View>
-            <TextbookList subjects={subjectList} value={books} onChange={setBooks} />
+            <TextbookList subjects={subjectList} value={books} onChange={setBooks} selections={selections} onSelectionsChange={setSelections} />
           </>
         ) : null}
       </ScrollView>
       <Footer>
         <Button title="下一步" loading={busy} disabled={!chosen} onPress={() => void next()} />
+        {draft.after ? <Button title="先跳过" kind="text" onPress={() => void finish()} /> : null}
       </Footer>
     </Screen>
   );

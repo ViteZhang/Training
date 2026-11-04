@@ -28,11 +28,11 @@
 
 | 页面 | 文件 |
 | --- | --- |
-| 1.1 你考哪门专业课（可交互） | pages/m1_subject.dc.html |
+| 1.1 选院校和专业课（可交互 · 按官方题库分流；onboarding_route 关闭时沿用旧 1.1 实现） | pages/m1_subject.dc.html |
 | 1.2 设定目标分（可交互） | pages/m1_target.dc.html |
 | 1.3 备考安排（可交互） | pages/m1_setup.dc.html |
 | 1.4 选择导入方式（可交互） | pages/m1_import.dc.html |
-| 1.5 选择文件 | pages/m1_upload.dc.html |
+| 1.5 选择文件 · 隐私承诺前置 | pages/m1_upload.dc.html |
 | 1.5b 粘贴文字导入 | pages/m1_paste.dc.html |
 | 1.6 AI 解析中 · 设学习提醒 | pages/m1_parsing.dc.html |
 | 1.6b 部分文件识别失败 | pages/m1_parse_fail.dc.html |
@@ -159,3 +159,24 @@
 | 7.13 审核队列 | pages/a7_review.dc.html |
 | 7.14 版本发布 | pages/a7_release.dc.html |
 | 7.15 后台账号与权限 | pages/a7_roles.dc.html |
+
+## 8-官方题库（新增，PRD v3 增补 2026-11-02）
+
+| 页面 | 文件 |
+| --- | --- |
+| 1.1a 匹配到官方题库 | pages/n_official_found.dc.html |
+| 1.1b 首题 · 做一道官方真题 | pages/n_official_first.dc.html |
+| 1.1c 暂无官方题库 · 三个选择 | pages/n_no_official.dc.html |
+| 1.9 体验一道题 · 输入题目 | pages/n_try_input.dc.html |
+| 1.9a 体验一道题 · 作答 | pages/n_try_answer.dc.html |
+| 1.9b 体验结果 · 询问是否加入自建题库 | pages/n_try_result.dc.html |
+| 1.10 学科通用体验题（可交互） | pages/n_sample.dc.html |
+| 1.11 申请收录 | pages/n_apply.dc.html |
+| 1.11a 申请收录成功 | pages/n_apply_done.dc.html |
+| 3.1e 题库 · 官方 + 补充资料提示 | pages/n_bank_official.dc.html |
+| 7.16 后台 · 申请收录 | pages/n_admin_apply.dc.html |
+| 7.17 后台 · AI 解析导入 | pages/n_admin_import.dc.html |
+| 7.18 后台 · 通用体验题 | pages/n_admin_sample.dc.html |
+
+后台「院校专业课库」（配置组，编号 7.8b）没有单独设计稿，按 7.x 后台通用样式实现。官方教材库原编号 7.16 与增补冲突，改为 7.19。
+

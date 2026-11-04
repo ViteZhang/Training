@@ -6,12 +6,14 @@ import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
 import { layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { BottomSheet, Button, Card, Icon, ListCard, NavBar, ConfirmDialog, ErrorState, Loading, QuotaSheet, Screen, Tag, Text, toast } from '@/components';
 import { stageInfo, stages } from '@/features/onboarding/api';
 import { Chips, OptionCard, Stepper } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
+import { useFeatureFlag } from '@/lib/flags';
 import { useUpgradeActions } from '@/features/membership/purchase';
 import { TextbookSheet, textbookSummary } from '@/features/profile/textbooks';
 
@@ -19,6 +21,7 @@ type Profile = Schemas['StudyProfile'];
 
 export default function PrepSettings() {
   const qc = useQueryClient();
+  const applyOn = useFeatureFlag('course_apply');
   const profile = useQuery({ queryKey: ['profile'], queryFn: () => unwrap(api.GET('/profile')) });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => unwrap(api.GET('/subjects')) });
   const years = useQuery({ queryKey: ['exam-years'], queryFn: () => unwrap(api.GET('/exam-years')) });
@@ -102,6 +105,18 @@ export default function PrepSettings() {
             <Icon name="edit" size={16} color={semantic.textSecondary} />
           </Card>
         </Pressable>
+
+        {applyOn ? (
+          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/apply', params: { entry: 'settings' } })}>
+            <Card style={styles.row}>
+              <View style={styles.flex}>
+                <Text variant="bodyStrong">申请收录官方题库</Text>
+                <Text variant="caption">你的专业课还没有官方题库时，申请的人越多越早收录</Text>
+              </View>
+              <Icon name="chevron" size={16} color={semantic.textSecondary} />
+            </Card>
+          </Pressable>
+        ) : null}
 
         {(subjects.data?.items.length ?? 0) > 0 ? (
           <>

@@ -1,6 +1,7 @@
 // 1.5 选择文件：文件（Word、PDF、Excel）、相册、拍照、粘贴文字；可多选、显示上传进度、可移除；
 // 使用权声明默认勾选，取消勾选不能开始；解析额度不足在开始前提示（PRD 1.5、11.12）。
 import { WeChatImportGuide } from '@/features/import/WeChatImportGuide';
+import { PrivacyCard, WeChatSteps } from '@/features/import/PrivacyCard';
 import { removeSharedFiles } from '@/features/import/sharedInbox';
 import { ApiError } from '@training/api-client';
 import { radius, semantic, spacing } from '@training/ui-tokens';
@@ -168,7 +169,7 @@ export default function FilesScreen() {
             onBack={() => router.back()}
           />
         )}
-        <WeChatImportGuide pickFile={() => void pickDocs()} />
+        <PrivacyCard />
         <View style={styles.grid}>
           {sources.map((s) => (
             <Pressable key={s.key} accessibilityRole="button" accessibilityLabel={s.title} onPress={s.onPress} style={styles.source} disabled={busy}>
@@ -186,6 +187,9 @@ export default function FilesScreen() {
             </Pressable>
           ))}
         </View>
+        <WeChatSteps />
+        <WeChatImportGuide pickFile={() => void pickDocs()} />
+        <Text variant="small">先传一页试试也可以，建好后还能继续追加</Text>
 
         <View style={styles.listHead}>
           <Text variant="caption" color={semantic.textPrimary} style={styles.medium}>

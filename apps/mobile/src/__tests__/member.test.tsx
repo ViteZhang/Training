@@ -80,7 +80,7 @@ const center = (over: object = {}) => ({
   ...over,
 });
 const contact = (over: object = {}) => ({
-  name: '考研Training 客服', wecom_id: 'kaoyan-training', qr_url: 'https://oss.example/qr.png', reply_time: '工作日 9:00–21:00 回复',
+  name: '考研Training 客服', wecom_id: 'kaoyan-training', qr_url: 'https://oss.example/qr.png', reply_time: '每天 9:00–22:00',
   note: '暂未开放在线支付，加客服企业微信获取兑换码', ...over,
 });
 const order = (over: object = {}) => ({
@@ -132,7 +132,7 @@ describe('6.5 会员中心', () => {
     mockLaunch.mockResolvedValue({ ok: true });
     const r = await wrap(<MemberCenter />);
     expect(await screen.findByText('立即开通 · ¥169')).toBeTruthy();
-    expect(screen.getByText('有效期至 2026 年 11 月 2 日 · 灵活试用')).toBeTruthy();
+    expect(screen.getByText('有效期至 2026 年 11 月 2 日 · 30 天，按需续')).toBeTruthy();
     expect(screen.queryByText('微信支付')).toBeNull();
     await fireEvent.press(screen.getByLabelText('月卡 ¥29.9'));
     expect(screen.getByText('立即开通 · ¥29.9')).toBeTruthy();
@@ -214,10 +214,10 @@ describe('6.6 支付结果', () => {
 describe('6.5a 获取兑换码', () => {
   it('客服二维码、名称与 ID；复制 ID、保存二维码；三步说明列出档位与价格；去兑换 → 6.7', async () => {
     const r = await wrap(<GetCodeSheet />);
-    expect(await screen.findByText('加客服企业微信，获取兑换码')).toBeTruthy();
+    expect(await screen.findByText('加客服微信，领取兑换码')).toBeTruthy();
     expect(screen.getByText('考研Training 客服')).toBeTruthy();
-    expect(screen.getByText('ID: kaoyan-training')).toBeTruthy();
-    expect(screen.getByText('工作日 9:00–21:00 回复')).toBeTruthy();
+    expect(screen.getByText('企业微信 ID：kaoyan-training')).toBeTruthy();
+    expect(screen.getByText('每天 9:00–22:00')).toBeTruthy();
     expect(await screen.findByText('冲刺卡 ¥59 · 考季卡 ¥169 · 月卡 ¥29.9')).toBeTruthy();
     expect(screen.getByLabelText('客服企业微信二维码')).toBeTruthy();
     await fireEvent.press(screen.getByText('复制 ID'));
@@ -228,6 +228,17 @@ describe('6.5a 获取兑换码', () => {
     await waitFor(() => expect(mockSaveAsset).toHaveBeenCalledWith('file:///cache/kefu-qrcode.png'));
     await fireEvent.press(screen.getByText('我已有兑换码，去兑换'));
     expect(mockReplace).toHaveBeenCalledWith('/mine/redeem');
+    await r.unmount();
+  });
+
+  it('没配企业微信 ID：只显示二维码，不显示 ID 和复制按钮', async () => {
+    mockResponses['GET /purchase-entry'] = () => ({ status: 200, data: { enabled: true, contact: contact({ wecom_id: '' }) } });
+    const r = await wrap(<GetCodeSheet />);
+    expect(await screen.findByText('加客服微信，领取兑换码')).toBeTruthy();
+    expect(screen.getByLabelText('客服企业微信二维码')).toBeTruthy();
+    expect(screen.getByText('保存二维码')).toBeTruthy();
+    expect(screen.queryByText(/企业微信 ID/)).toBeNull();
+    expect(screen.queryByText('复制 ID')).toBeNull();
     await r.unmount();
   });
 

@@ -1,4 +1,5 @@
 // 主观题：4.4 作答（打字、语音与拍照入口、草稿、字数、剩余次数、限时）、4.6 批改中、4.7 批改结果、4.8 异议。
+import { RecordAnswerEvidence } from '@/features/answers/Evidence';
 import type { Schemas } from '@training/api-client';
 import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -321,9 +322,10 @@ export function GradingResultView({
         <View>
           <Button title={showRef ? '收起参考答案' : '参考答案'} kind="secondary" onPress={() => setShowRef(!showRef)} />
           {showRef ? (
-            <Text variant="caption" color={colors.ink} style={styles.refText}>
-              {g.reference_answer}
-            </Text>
+            <View>
+              <Text variant="caption" color={colors.ink} style={styles.refText}>{g.reference_answer}</Text>
+              <RecordAnswerEvidence kind="grading" id={g.grading_id} />
+            </View>
           ) : null}
         </View>
       ) : null}
@@ -403,10 +405,12 @@ const reasons: { key: Schemas['DisputeRequest']['reason']; text: string }[] = [
   { key: 'hit_missed', text: '我其实答到了某个采分点' },
   { key: 'rubric_wrong', text: '采分点本身不对' },
   { key: 'score_unfair', text: '分数给得不合理' },
+  // PRD v3 增补：选这一项的异议会触发 3.1e 补充资料提示
+  { key: 'teacher_differs', text: '和我们老师讲的不一样' },
   { key: 'other', text: '其他' },
 ];
 
-/** 4.8 批改异议：四选一；「采分点本身不对」引导去改采分点，改完按新采分点重批；其余提交复核重批一次，不扣次数。 */
+/** 4.8 批改异议：五选一；「采分点本身不对」引导去改采分点，改完按新采分点重批；其余提交复核重批一次，不扣次数。 */
 export function DisputeSheet({ g, visible, onClose, onDone }: { g: GradingResult; visible: boolean; onClose: () => void; onDone: (r: GradingResult) => void }) {
   const [reason, setReason] = useState<Schemas['DisputeRequest']['reason']>();
   const [note, setNote] = useState('');
