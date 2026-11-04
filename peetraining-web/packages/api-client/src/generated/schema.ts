@@ -4659,7 +4659,8 @@ export interface paths {
          * 上传资料并标类型（真题卷 / 参考书目录 / 有授权的讲义），或粘贴文字、表格导入（CSV）
          * @description format 为 text 或 csv 时直接带 text，马上开始解析；pdf / docx / image 返回 upload_url，客户端直传后调用 confirm。
          *     表格导入的表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型；
-         *     题型、分值、题干必填，真题年份必填；缺参考答案、采分点时由 AI 补全。
+         *     题型、分值、题干必填，真题年份必填。
+         *     auto_answer 为 true 时解析过程中缺参考答案、采分点的题由 AI 补全；默认不补，解析后由编辑逐题「生成答案 / 提取采分点」或整份「一键补全」（T49）。
          */
         post: operations["adminCreateOfficialImport"];
         delete?: never;
@@ -4702,6 +4703,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/official/projects/{projectId}/imports/{fileId}/fill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 一键补全：这份资料里还没核对、缺答案或采分点的题都补上（T49）
+         * @description 在后台排队执行，进度见 OfficialImportFile.fill；单题失败不影响其余，原因记在条目的 fill_error 上。
+         *     缺答案的 AI 生成参考答案（主观题连同采分点，优先引用项目关联的官方教材，payload.answer_ai = true）；有答案缺采分点的从答案提采分点。
+         *     主观题没有分值时参考同项目同题型最常见的分值（payload.score_inferred = true）。
+         */
+        post: operations["adminFillOfficialImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/import-items/{itemId}/fill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 生成答案 / 提取采分点：给一道还没核对的题补上（T49）
+         * @description 缺答案的 AI 生成参考答案（主观题连同采分点，客观题只要答案），标 payload.answer_ai，带引用（书名、章节、原文、页码）；
+         *     有答案缺采分点的从答案提采分点。主观题没有分值时参考同项目同题型最常见的分值（payload.score_inferred），
+         *     同题型一道有分值的都没有时返回 400（detail.reason = score_missing），请先「修改」填分值。
+         *     生成失败返回 400 / 502（AI_FAILED），原因同时记在条目的 fill_error 上。
+         */
+        post: operations["adminFillOfficialImportItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/official/projects/{projectId}/import-items/{itemId}/review": {
         parameters: {
             query?: never;
@@ -4713,7 +4759,7 @@ export interface paths {
         put?: never;
         /**
          * 逐条接受（可带修改后的内容）或驳回；接受的生成草稿并提交 7.13 审核
-         * @description 采分点合计不等于分值时不能接受（detail.reason = rubric_sum）。
+         * @description 主观题还没有采分点时不能接受（detail.reason = needs_fill）；采分点合计不等于分值时不能接受（detail.reason = rubric_sum）。
          */
         post: operations["adminReviewOfficialImportItem"];
         delete?: never;
@@ -6360,7 +6406,7 @@ export interface components {
             /** @description 采分点在这次批改之后改过，可以按新采分点重批 */
             rubric_changed?: boolean;
             answer_tier?: components["schemas"]["AnswerTier"];
-            /** @description 按 AI 参考答案批改（4.7b）：分数仅供参考、不计入预估分；确认答案后，之后的批改会计入 */
+            /** @description 这次作答不计入预估分（11 月 4 日以前按 AI 参考答案批改的）。11 月 4 日起按 AI 参考答案批改照常计入，不再返回（T49） */
             reference_only?: boolean;
             /** @description 题目的 AI 参考答案已经被确认（4.7b 不再显示「这份参考答案对吗？」） */
             answer_confirmed?: boolean;
@@ -8731,6 +8777,17 @@ export interface components {
             upload_headers?: {
                 [key: string]: string;
             };
+            /** @description 上传时勾选了「缺答案时由 AI 生成」 */
+            auto_answer?: boolean;
+            /** @description 一键补全的进度（T49） */
+            fill?: {
+                /** @enum {string} */
+                status: "idle" | "running";
+                total: number;
+                /** @description 已处理的题数（含失败） */
+                done: number;
+                failed: number;
+            };
         };
         OfficialImportItem: {
             /** Format: int64 */
@@ -8738,15 +8795,30 @@ export interface components {
             /** @enum {string} */
             item_type: "question" | "knowledge_point";
             seq: number;
-            /** @description 结构同 7.12 草稿 */
+            /**
+             * @description 结构同 7.12 草稿。题目另有：answer_ai（参考答案由 AI 生成，发布后用户端显示「AI 参考答案」，照常计入预估分）、
+             *     score_inferred（原文没有分值，参考同项目同题型的给分填上，请核对）。
+             */
             payload: {
                 [key: string]: unknown;
             };
             citations?: {
                 /** Format: int64 */
                 reference_id?: number;
+                /** @description 书名或资料名 */
                 title?: string;
+                /** @description 章节 */
                 heading?: string;
+                /** @description official_textbook 官方教材 */
+                kind?: string;
+                /** @description 引用的原文段落 */
+                quote?: string;
+                /** @description 这段原文支撑答案里的哪个观点 */
+                claim?: string;
+                /** @description 资料页码 */
+                page?: number;
+                /** @description 教材印刷页码 */
+                printed_page?: string;
             }[];
             /** @description 原文片段（高亮） */
             source_text?: string;
@@ -8759,6 +8831,10 @@ export interface components {
             draft_id?: number;
             /** @description 采分点合计不等于分值（标红） */
             rubric_mismatch: boolean;
+            /** @description 还缺答案或采分点（可以「生成答案 / 提取采分点」） */
+            needs_fill?: boolean;
+            /** @description 上次补全失败的原因 */
+            fill_error?: string;
         };
         SubjectInput: {
             name: string;
@@ -9003,8 +9079,8 @@ export interface components {
          */
         ReviewReason: "low_confidence" | "missing_answer" | "rubric_unconfirmed" | "rubric_sum_mismatch" | "duplicate" | "answer_matched";
         /**
-         * @description 参考答案的来源档位（PRD 11.16）：来自你的资料 / 你已确认 / AI 参考答案（待确认）/ AI 出题自带的答案 / 缺答案。
-         *     只有 material、confirmed、ai_question 计入预估分；ai 可以批改，结果标「仅供参考」。
+         * @description 参考答案的来源档位（PRD 11.16）：来自你的资料 / 你已确认 / AI 参考答案 / AI 出题自带的答案 / 缺答案。
+         *     除 missing 外都计入预估分（11 月 4 日起 ai 也计入，T49）；ai 包括做到时 AI 生成的，和官方题库由 AI 生成、经编辑审核的，可以确认或修改。
          * @enum {string}
          */
         AnswerTier: "material" | "confirmed" | "ai" | "ai_question" | "missing";
@@ -9410,7 +9486,7 @@ export interface components {
             question_count: number;
             kp_count: number;
             needs_review_count: number;
-            /** @description 缺答案的题数（3.1 提醒条「N 题缺答案」，含只有 AI 参考答案、还没确认的） */
+            /** @description 缺答案的题数（3.1 提醒条「N 题缺答案」，含只有 AI 参考答案、还没确认的；官方题库经编辑审核的 AI 参考答案不算） */
             missing_answer_count?: number;
             material_count: number;
             paper_count?: number;
@@ -16855,6 +16931,8 @@ export interface operations {
                     exam_year?: number;
                     /** @description 回忆版 */
                     is_recollection?: boolean;
+                    /** @description 缺答案时由 AI 生成（解析时就补全答案与采分点；默认 false） */
+                    auto_answer?: boolean;
                 };
             };
         };
@@ -16919,6 +16997,58 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    adminFillOfficialImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+                fileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已开始补全 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialImportFile"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    adminFillOfficialImportItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+                itemId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 补好的条目 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialImportItem"];
+                };
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];

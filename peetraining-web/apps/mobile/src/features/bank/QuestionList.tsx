@@ -164,7 +164,7 @@ export function QuestionList({ subjectId, kpId, status, answer: initialAnswer }:
       {answer === 'missing' || answer === 'ai' ? (
         <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/import/answers', params: { subject: String(subjectId) } })} style={styles.answerTip}>
           <Text variant="small" color={colors.blueInk} style={styles.flex}>
-            {answer === 'missing' ? '这些题做到时由 AI 给参考答案；有答案文件的话，补充进来更准' : 'AI 参考答案在你确认前不计入预估分；有答案文件的话，补充进来更准'}
+            {answer === 'missing' ? '这些题做到时由 AI 给参考答案；有答案文件的话，补充进来更准' : '这些题用的是 AI 参考答案；有答案文件的话，补充进来更准'}
           </Text>
           <Text variant="small" color={colors.blueInk} style={styles.medium}>
             补充答案文件 ›

@@ -264,7 +264,7 @@ export default function ConfirmScreen() {
                   </View>
                 ) : null}
                 <Text variant="small" color={colors.blueMuted}>
-                  AI 参考答案在你确认前不计入预估分
+                  AI 参考答案标「AI 生成」，可以随时确认或修改
                 </Text>
               </View>
             ) : null}
