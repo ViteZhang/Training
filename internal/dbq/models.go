@@ -3415,6 +3415,64 @@ func AllOfficialDraftsStatusValues() []OfficialDraftsStatus {
 	}
 }
 
+type OfficialImportFilesFillStatus string
+
+const (
+	OfficialImportFilesFillStatusIdle    OfficialImportFilesFillStatus = "idle"
+	OfficialImportFilesFillStatusRunning OfficialImportFilesFillStatus = "running"
+)
+
+func (e *OfficialImportFilesFillStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OfficialImportFilesFillStatus(s)
+	case string:
+		*e = OfficialImportFilesFillStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OfficialImportFilesFillStatus: %T", src)
+	}
+	return nil
+}
+
+type NullOfficialImportFilesFillStatus struct {
+	OfficialImportFilesFillStatus OfficialImportFilesFillStatus
+	Valid                         bool // Valid is true if OfficialImportFilesFillStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOfficialImportFilesFillStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.OfficialImportFilesFillStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OfficialImportFilesFillStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOfficialImportFilesFillStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OfficialImportFilesFillStatus), nil
+}
+
+func (e OfficialImportFilesFillStatus) Valid() bool {
+	switch e {
+	case OfficialImportFilesFillStatusIdle,
+		OfficialImportFilesFillStatusRunning:
+		return true
+	}
+	return false
+}
+
+func AllOfficialImportFilesFillStatusValues() []OfficialImportFilesFillStatus {
+	return []OfficialImportFilesFillStatus{
+		OfficialImportFilesFillStatusIdle,
+		OfficialImportFilesFillStatusRunning,
+	}
+}
+
 type OfficialImportFilesFormat string
 
 const (
@@ -7919,6 +7977,16 @@ type OfficialImportFile struct {
 	CreatedBy      sql.NullInt64
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	// 解析时缺答案、采分点的题由 AI 补全
+	AutoAnswer bool
+	// 一键补全答案的状态
+	FillStatus OfficialImportFilesFillStatus
+	// 这次一键补全要处理的题数
+	FillTotal uint32
+	// 已处理的题数（含失败）
+	FillDone uint32
+	// 补全失败的题数
+	FillFailed uint32
 }
 
 // 7.17 解析结果，逐条接受 / 修改 / 驳回
@@ -7940,6 +8008,8 @@ type OfficialImportItem struct {
 	DraftID    sql.NullInt64
 	ReviewedBy sql.NullInt64
 	ReviewedAt sql.NullTime
+	// 最近一次补答案、采分点失败的原因
+	FillError sql.NullString
 }
 
 // 官方题库立项（7.11）

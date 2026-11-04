@@ -622,7 +622,8 @@ func (c content) payloadOf(entityType string, id uint64) json.RawMessage {
 		if x.ID != id {
 			continue
 		}
-		p := QuestionPayload{AnswerSnapshotID: uint64(x.AnswerSnapshotID.Int64), QType: string(x.Qtype), Stem: x.Stem, Answer: x.Answer.String, Analysis: x.Analysis.String, Rubric: pts(c.qRubric[x.ID]), KPNames: []string{}}
+		p := QuestionPayload{AnswerSnapshotID: uint64(x.AnswerSnapshotID.Int64), QType: string(x.Qtype), Stem: x.Stem, Answer: x.Answer.String, Analysis: x.Analysis.String, Rubric: pts(c.qRubric[x.ID]), KPNames: []string{},
+			AnswerAI: x.AnswerOrigin.Valid && x.AnswerOrigin.QuestionsAnswerOrigin == dbq.QuestionsAnswerOriginAiGenerated}
 		_ = json.Unmarshal(x.Options, &p.Options)
 		if x.Score.Valid {
 			v, _ := strconv.ParseFloat(x.Score.String, 64)
@@ -1177,13 +1178,13 @@ func (s *Service) apply(ctx context.Context, q *dbq.Queries, bankID uint64, enti
 	id := entityID
 	if changeType == "add" {
 		nid, err := q.InsertOfficialQuestion(ctx, dbq.InsertOfficialQuestionParams{BankID: bankID, Qtype: dbq.QuestionsQtype(p.QType), Stem: p.Stem, Options: opts,
-			Answer: nullStr(p.Answer), Analysis: nullStr(p.Analysis), Score: scoreStr(p.Score), ExamYear: year, ContentHash: importer.ContentHash(p.Stem)})
+			Answer: nullStr(p.Answer), AnswerOrigin: answerOrigin(p), Analysis: nullStr(p.Analysis), Score: scoreStr(p.Score), ExamYear: year, ContentHash: importer.ContentHash(p.Stem)})
 		if err != nil {
 			return 0, err
 		}
 		id = uint64(nid)
 	} else {
-		if err := q.UpdateOfficialQuestion(ctx, dbq.UpdateOfficialQuestionParams{Qtype: dbq.QuestionsQtype(p.QType), Stem: p.Stem, Options: opts, Answer: nullStr(p.Answer),
+		if err := q.UpdateOfficialQuestion(ctx, dbq.UpdateOfficialQuestionParams{Qtype: dbq.QuestionsQtype(p.QType), Stem: p.Stem, Options: opts, Answer: nullStr(p.Answer), AnswerOrigin: answerOrigin(p),
 			Analysis: nullStr(p.Analysis), Score: scoreStr(p.Score), ExamYear: year, ContentHash: importer.ContentHash(p.Stem), ID: id, BankID: bankID}); err != nil {
 			return 0, err
 		}

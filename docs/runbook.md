@@ -525,3 +525,8 @@ go run ./cmd/check-textbook-pdf -pdf /absolute/path/to/authorized.pdf -out /priv
 上线节奏（增补「功能开关与上线节奏」）：新开关默认全部关闭，先在 7.8 只对自己和种子用户打开。官方题库开关仍是 official_bank；
 onboarding_route 要等院校专业课库录完再开；sample_trial 要等 7.18 至少一个方向有审核通过的题；ai_live_question 要在种子用户中抽检通过后再开。
 
+## 7.17 解析后补答案（2026-11-04，T49，迁移 00042）
+
+发布 server 前在生产库执行迁移 00042：official_import_files 加 auto_answer 与一键补全进度（fill_status、fill_total、fill_done、fill_failed），official_import_items 加 fill_error。
+Worker 新增任务类型 official:import_fill（一键补全，低优先级队列）；api 与 worker 要一起发布。上线后 AI 参考答案照常计入预估分，以前的作答不追溯。
+

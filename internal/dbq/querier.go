@@ -7,6 +7,7 @@ package dbq
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"peetraining-server/internal/dbtypes"
@@ -262,6 +263,7 @@ type Querier interface {
 	FindOfficialFirstSession(ctx context.Context, ownerUserID uint64) (uint64, error)
 	FinishEssayGrading(ctx context.Context, arg FinishEssayGradingParams) error
 	FinishExportJob(ctx context.Context, arg FinishExportJobParams) error
+	FinishOfficialImportFill(ctx context.Context, id uint64) error
 	FinishPaperGrading(ctx context.Context, arg FinishPaperGradingParams) error
 	FinishPracticeSession(ctx context.Context, arg FinishPracticeSessionParams) error
 	GetAIAnswerReports(ctx context.Context, arg GetAIAnswerReportsParams) (uint16, error)
@@ -468,6 +470,7 @@ type Querier interface {
 	InsertOfficialImportItem(ctx context.Context, arg InsertOfficialImportItemParams) error
 	InsertOfficialKP(ctx context.Context, arg InsertOfficialKPParams) (int64, error)
 	InsertOfficialProject(ctx context.Context, arg InsertOfficialProjectParams) (int64, error)
+	// answer_origin：official 团队给的答案；ai_generated 由 AI 生成、经编辑审核（用户端显示「AI 参考答案」，T49）。
 	InsertOfficialQuestion(ctx context.Context, arg InsertOfficialQuestionParams) (int64, error)
 	InsertOfficialQuestionKP(ctx context.Context, arg InsertOfficialQuestionKPParams) error
 	InsertOfficialReferenceSegment(ctx context.Context, arg InsertOfficialReferenceSegmentParams) error
@@ -646,6 +649,10 @@ type Querier interface {
 	// 练习、作答、错题本（T17）。每条查询都带归属条件。
 	// 选题池：题库里在用的题、主知识点、错题本状态。
 	ListPracticePool(ctx context.Context, arg ListPracticePoolParams) ([]ListPracticePoolRow, error)
+	// 同一项目里题目草稿，给缺分值的题参考同题型的默认给分。
+	ListProjectDraftQuestionPayloads(ctx context.Context, projectID uint64) ([]json.RawMessage, error)
+	// 同一项目里各资料解析出的题目，给缺分值的题参考同题型的默认给分。
+	ListProjectImportQuestionPayloads(ctx context.Context, projectID uint64) ([]json.RawMessage, error)
 	ListProjectTextbooks(ctx context.Context, projectID uint64) ([]ListProjectTextbooksRow, error)
 	// ---------- 用户添加官方题库（11.15） ----------
 	ListPublishedOfficialBanks(ctx context.Context) ([]ListPublishedOfficialBanksRow, error)
@@ -674,6 +681,7 @@ type Querier interface {
 	ListScoreEstimates(ctx context.Context, arg ListScoreEstimatesParams) ([]ListScoreEstimatesRow, error)
 	ListSessionAttempts(ctx context.Context, arg ListSessionAttemptsParams) ([]ListSessionAttemptsRow, error)
 	ListSessionRecites(ctx context.Context, arg ListSessionRecitesParams) ([]ListSessionRecitesRow, error)
+	ListStaleOfficialImportFills(ctx context.Context, updatedAt time.Time) ([]uint64, error)
 	ListStaleOfficialImports(ctx context.Context, updatedAt time.Time) ([]uint64, error)
 	ListStats(ctx context.Context, arg ListStatsParams) ([]ListStatsRow, error)
 	ListStemsByCacheKey(ctx context.Context, cacheKey sql.NullString) ([]string, error)
@@ -844,6 +852,7 @@ type Querier interface {
 	SetMaterialObjectKey(ctx context.Context, arg SetMaterialObjectKeyParams) error
 	SetOfficialDraftPayload(ctx context.Context, arg SetOfficialDraftPayloadParams) error
 	SetOfficialDraftStatus(ctx context.Context, arg SetOfficialDraftStatusParams) error
+	SetOfficialImportFillProgress(ctx context.Context, arg SetOfficialImportFillProgressParams) error
 	SetOfficialImportParsed(ctx context.Context, arg SetOfficialImportParsedParams) error
 	SetOfficialImportStatus(ctx context.Context, arg SetOfficialImportStatusParams) error
 	SetOfficialProjectStage(ctx context.Context, arg SetOfficialProjectStageParams) error
@@ -879,6 +888,8 @@ type Querier interface {
 	SetTrialSaved(ctx context.Context, arg SetTrialSavedParams) error
 	SetUserQuestionStatus(ctx context.Context, arg SetUserQuestionStatusParams) error
 	SetUserSeed(ctx context.Context, arg SetUserSeedParams) (int64, error)
+	// 开始一键补全；已经在补全的不重复开始。
+	StartOfficialImportFill(ctx context.Context, arg StartOfficialImportFillParams) (int64, error)
 	StartTextbookIndex(ctx context.Context, arg StartTextbookIndexParams) error
 	// 某天（北京时间，[from, to)）的新增、活跃、作答、解析、付费与收入。
 	StatDay(ctx context.Context, arg StatDayParams) (StatDayRow, error)
@@ -920,6 +931,9 @@ type Querier interface {
 	UpdateMaterialStatus(ctx context.Context, arg UpdateMaterialStatusParams) error
 	// 草稿和被退回的可以改；改完回到草稿。
 	UpdateOfficialDraft(ctx context.Context, arg UpdateOfficialDraftParams) (int64, error)
+	// T49 解析后补答案与采分点（单题、整份一键补全）。
+	// 补全结果写回条目；只改还没核对的条目。
+	UpdateOfficialImportItemFill(ctx context.Context, arg UpdateOfficialImportItemFillParams) (int64, error)
 	UpdateOfficialKP(ctx context.Context, arg UpdateOfficialKPParams) error
 	UpdateOfficialProject(ctx context.Context, arg UpdateOfficialProjectParams) error
 	UpdateOfficialQuestion(ctx context.Context, arg UpdateOfficialQuestionParams) error

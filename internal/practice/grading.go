@@ -39,12 +39,9 @@ type rubricSnap struct {
 	MaterialID       uint64          `json:"material_id,omitempty"`
 	FileName         string          `json:"file_name,omitempty"`
 	Page             int             `json:"page,omitempty"`
-	// AnswerTier 是批改时参考答案的档位（PRD v3 11.16）：ai 表示按 AI 参考答案批改，结果仅供参考、不计入预估分（4.7b）。
+	// AnswerTier 是批改时参考答案的档位（PRD v3 11.16）：ai 表示按 AI 参考答案批改（4.7b），11 月 4 日起照常计入预估分（T49）。
 	AnswerTier string `json:"answer_tier,omitempty"`
 }
-
-// ReferenceOnly 表示这次批改按 AI 参考答案（待确认），不计入预估分。
-func (r rubricSnap) ReferenceOnly() bool { return r.AnswerTier == string(rules.AnswerAI) }
 
 // PointResult 是一个采分点的批改结果。
 type PointResult struct {
@@ -91,6 +88,8 @@ type Grading struct {
 	RubricChanged             bool
 	// AnswerConfirmed 是按 AI 参考答案批改之后，用户已经确认（或改过）了这道题的答案（4.7b 不再问「这份参考答案对吗？」）。
 	AnswerConfirmed bool
+	// ReferenceOnly 是这次作答不计入预估分（11 月 4 日以前按 AI 参考答案批改的，或体验题）。
+	ReferenceOnly bool
 }
 
 // SubjectiveInput 是一次主观题作答。
@@ -351,9 +350,6 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 			if err := s.annotate(ctx, q, userID, uint64(aid), in); err != nil {
 				return err
 			}
-			if err := markReference(ctx, q, userID, uint64(aid), snap.AnswerTier); err != nil {
-				return err
-			}
 			gid, err = q.InsertGrading(ctx, dbq.InsertGradingParams{OwnerUserID: userID, AttemptID: uint64(aid), TriggerReason: dbq.GradingsTriggerReasonSubmit,
 				Status: dbq.GradingsStatusQueuedQuota, RubricVersion: sql.NullInt32{Int32: int32(snap.Version), Valid: true}, RubricSnapshot: snapJSON,
 				FullScore: fmtScore(snap.FullScore), IdempotencyKey: sql.NullString{String: in.Key, Valid: true}})
@@ -401,9 +397,6 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 			return err
 		}
 		if err := s.annotate(ctx, q, userID, uint64(aid), in); err != nil {
-			return err
-		}
-		if err := markReference(ctx, q, userID, uint64(aid), snap.AnswerTier); err != nil {
 			return err
 		}
 		eff, err := Apply(ctx, q, p, userID, qr.ID, Outcome{Graded: true, ScoreRate: total / snap.FullScore, LossType: mainLoss}, rules.DayOf(now))
@@ -486,7 +479,7 @@ func (s *Service) Grading(ctx context.Context, userID, id uint64) (Grading, erro
 		return Grading{}, err
 	}
 	out := Grading{ID: g.ID, AttemptID: g.AttemptID, QuestionID: g.QuestionID, Status: string(g.Status), AnswerText: g.AnswerText.String,
-		Trigger: string(g.TriggerReason), QuotaCharged: g.QuotaCharged, Points: []PointResult{}, Loss: []LossItem{}}
+		Trigger: string(g.TriggerReason), QuotaCharged: g.QuotaCharged, Points: []PointResult{}, Loss: []LossItem{}, ReferenceOnly: g.ReferenceOnly}
 	if g.ParentGradingID.Valid {
 		out.ParentID = uint64(g.ParentGradingID.Int64)
 	}
@@ -787,7 +780,8 @@ func (s *Service) ensureAnswer(ctx context.Context, userID uint64, qr dbq.GetQue
 	return s.q.GetQuestionFull(ctx, dbq.GetQuestionFullParams{ID: qr.ID, OwnerUserID: owner(userID)})
 }
 
-// markReference 把按 AI 参考答案判分的作答标为不计入预估分（PRD v3 11.6）。
+// markReference 把体验题按 AI 参考答案判分的作答标为不计入预估分（体验结果仅供参考）。
+// 刷题、整卷里按 AI 参考答案批改的作答从 11 月 4 日起照常计入预估分（T49），不再调用它；之前标过的不追溯。
 func markReference(ctx context.Context, q *dbq.Queries, userID, attemptID uint64, tier string) error {
 	if tier != string(rules.AnswerAI) {
 		return nil

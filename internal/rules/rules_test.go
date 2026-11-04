@@ -785,7 +785,7 @@ func TestEstimateEssay(t *testing.T) {
 	}
 }
 
-// PRD v3 11.16：答案三档来源；AI 出题的变式题与原题同样计分。
+// PRD v3 11.16：答案三档来源；AI 出题的变式题与原题同样计分；11 月 4 日起 AI 参考答案（含官方题库 AI 生成的）也计入预估分（T49）。
 func TestAnswerTier(t *testing.T) {
 	cases := []struct {
 		answer, origin, source string
@@ -798,7 +798,8 @@ func TestAnswerTier(t *testing.T) {
 		{"答案", "official", "official", AnswerMaterial, true},
 		{"答案", "", "exercise", AnswerMaterial, true},
 		{"答案", "user_confirmed", "exam", AnswerConfirmed, true},
-		{"答案", "ai_generated", "exam", AnswerAI, false},
+		{"答案", "ai_generated", "exam", AnswerAI, true},
+		{"答案", "ai_generated", "official", AnswerAI, true},
 		{"答案", "ai_generated", "ai_generated", AnswerAIQuestion, true},
 	}
 	for _, c := range cases {
