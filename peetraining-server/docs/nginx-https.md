@@ -47,7 +47,56 @@ training.dreamerlab.cn.key
 
 使用 Docker 内置 DNS `127.0.0.11` 动态解析 `training-api`，API 每次重新部署后无需为容器 IP 变化重启 Nginx。配置中的证书路径均为容器内路径。
 
-## 4. 检查网络、校验配置并生效
+## 4. 发布 Android APK 下载
+
+仓库配置额外提供 `https://training.dreamerlab.cn/downloads/training.apk` 下载地址。ECS 上 APK 文件应位于 `/opt/dreamer/appApk/training.apk`。该精确路径由 Nginx 直接返回静态文件，不会转发给 API；其他路径仍按原配置转发到 API。下载响应使用 Android APK MIME 类型和附件头，并禁用缓存，替换 APK 后用户可立即下载新版。
+
+先检查现有 Nginx 容器的挂载与 Compose 来源，确认 Nginx 的 Compose 文件位置及服务名：
+
+```bash
+docker inspect dreamer-nginx --format '{{range .Mounts}}{{printf "%s -> %s\\n" .Source .Destination}}{{end}}'
+docker inspect dreamer-nginx --format 'compose={{index .Config.Labels "com.docker.compose.project.config_files"}} working_dir={{index .Config.Labels "com.docker.compose.project.working_dir"}} service={{index .Config.Labels "com.docker.compose.service"}}'
+```
+
+确认 ECS 上 APK 文件存在并设置 Nginx 可读取的目录权限：
+
+```bash
+sudo ls -l /opt/dreamer/appApk/training.apk
+sudo chmod 0755 /opt/dreamer/appApk
+sudo chmod 0644 /opt/dreamer/appApk/training.apk
+```
+
+在**管理现有 `dreamer-nginx` 的 Compose 文件**中，给 Nginx 服务的 `volumes:` 追加以下一项，保留已有配置和证书挂载：
+
+```yaml
+      - /opt/dreamer/appApk:/usr/share/nginx/html/downloads:ro
+```
+
+如果需要从本地重新上传 APK，可将本地构建产物上传并保存为 `training.apk`（将 `服务器 SSH 用户` 换成你实际使用的账号）：
+
+```bash
+scp /Users/a1/Documents/workspace/myself/peetraining-web/apps/mobile/build/training-preview.apk 服务器SSH用户@154.9.254.163:/tmp/training.apk
+ssh 服务器SSH用户@154.9.254.163 'sudo install -m 0644 /tmp/training.apk /opt/dreamer/appApk/training.apk && rm -f /tmp/training.apk'
+```
+
+把 `deploy/nginx/training.conf` 中的 APK `location` 加到现有 `training.dreamerlab.cn` 的 HTTPS `server {}` 内，放在 `location /` 之前。配置文件若通过 bind mount 挂载，修改宿主机映射的源文件。先验证配置，再从前面 `docker inspect` 输出的 Compose 目录执行重建/启动命令，将 `nginx服务名` 替换成实际服务名：
+
+```bash
+docker exec dreamer-nginx nginx -t
+cd <管理 dreamer-nginx 的 Compose 文件所在目录>
+docker compose up -d nginx服务名
+docker exec dreamer-nginx nginx -t && docker exec dreamer-nginx nginx -s reload
+```
+
+验证 Nginx 能返回下载头和 APK 内容长度：
+
+```bash
+curl -I https://training.dreamerlab.cn/downloads/training.apk
+```
+
+应返回 `200`、`Content-Type: application/vnd.android.package-archive`、`Content-Disposition: attachment; filename="training.apk"` 和约 70 MB 的 `Content-Length`。404 时检查宿主机文件名、挂载路径和目录/文件读取权限。APK 二进制不要放在容器可写层，否则容器重建后会丢失。
+
+## 5. 检查网络、校验配置并生效
 
 ```bash
 docker network inspect dreamer-net --format '{{range .Containers}}{{println .Name}}{{end}}'
@@ -63,7 +112,7 @@ docker exec dreamer-nginx nginx -t && docker exec dreamer-nginx nginx -s reload
 
 只在 `nginx -t` 成功时 reload，复用现有网关，不重新占用 80/443。若提示证书文件不存在，检查挂载目录和文件名；若报 `key values mismatch`，需使用同一次签发下载的配对证书和私钥。
 
-## 5. 验证
+## 6. 验证
 
 ```bash
 # HTTP 应返回 301，并跳转到同域名 HTTPS。
