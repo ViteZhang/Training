@@ -10,6 +10,7 @@
 - web 从 2026-11-04 起改用同事建的 `master-zhangzhao` 分支（带连字符）：云效 web 上的改动只合并到这个分支，不再合并或推送到云效 web 的 main
 - GitHub 一侧不变：所有改动照旧开 PR 合并到 GitHub 的 main
 - 分支对应关系写在 `scripts/sync-codeup.sh` 的 `branch_of` 里，要改分支就改那里
+- 管理后台已从 web 拆到云效单独的 `peetraining-admin` 仓库（分支 master），不在本仓库里，也不在三端同步范围内
 
 各目录的开发规范见各自的 CLAUDE.md。
 
