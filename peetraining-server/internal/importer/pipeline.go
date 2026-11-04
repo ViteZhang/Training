@@ -21,12 +21,17 @@ import (
 
 // 每批交给模型的字数：结构化按块分批，知识点按页分批。
 // 模型要把题目、知识点原文逐字带回来，输出字数与输入相当；批太大时一次生成要好几分钟，容易超时、也容易超出输出上限。
+// 线上实测（DeepSeek）：40 块一批时模型只回约 30 条，且 JSON 完整、校验不会报错，题库会静默少一截；
+// 20 块一批时能稳定回全。这里按 20 块、2000 字收口，并保留补漏与规则兜底，换模型也不会再静默丢题。
 const (
-	structureChunkChars  = 4000
-	structureChunkBlocks = 40
+	structureChunkChars  = 2000
+	structureChunkBlocks = 20
 	kpChunkChars         = 3000
 	tagBatch             = 30
 )
+
+// structurePasses 是结构化补漏的轮数：首轮按 20 块一批，模型漏掉的块再补一轮，仍漏的交给规则兜底。
+const structurePasses = 2
 
 // aiParallel 是同一份资料同时调用模型的批数：几百页的资料也能在任务时限内整理完，又不至于触发平台限流。
 const aiParallel = 3
@@ -241,39 +246,123 @@ func (s *Service) structureQuestions(ctx context.Context, job dbq.GetImportJobRo
 	for i, p := range pages {
 		in[i] = Page{No: int(p.PageNo), Text: p.Text}
 	}
-	n, failed := 0, 0
-	chunks := Chunk(Split(in), structureChunkChars, structureChunkBlocks)
-	type result struct {
-		out  ai.StructureOut
-		meta ai.Meta
-	}
-	results, errs, err := runBatches(ctx, len(chunks), func(ctx context.Context, i int) (result, error) {
-		out, meta, err := ai.Structure.Run(ctx, s.ai, job.OwnerUserID, ai.StructureIn{Subject: job.SubjectName, Blocks: chunks[i]})
-		return result{out, meta}, err
+	blocks := Split(in)
+	items, err := structureAll(ctx, blocks, func(ctx context.Context, bs []ai.Block) ([]ai.QItem, error) {
+		return s.structureBatch(ctx, job, bs)
 	})
 	if err != nil {
 		return 0, 0, err
 	}
-	blocks := map[int]ai.Block{}
-	for _, c := range chunks {
-		for _, b := range c {
-			blocks[b.ID] = b
+	// 按块顺序整理；某块模型一条都没出时用规则原文兜底，确认页与原文顺序一致。
+	ordered, failed := assembleStructured(blocks, items)
+	byID := make(map[int]ai.Block, len(blocks))
+	for _, b := range blocks {
+		byID[b.ID] = b
+	}
+	for _, it := range ordered {
+		if err := s.saveStructured(ctx, job, materialID, questionSource, it, byID[it.Block]); err != nil {
+			return 0, 0, err
 		}
 	}
-	for i, r := range results {
-		if errs[i] != nil {
-			failed++
-			continue
+	return len(ordered), failed, nil
+}
+
+// structureAll 按 structureChunkBlocks 分批结构化；模型整批漏掉某些块时，对缺口再补一轮。
+// 模型返回合法 JSON 但少回几条时不会报错，只能靠这里的逐块覆盖检查发现；仍漏的块交给 assembleStructured 用规则兜底。
+func structureAll(ctx context.Context, blocks []ai.Block, batch func(context.Context, []ai.Block) ([]ai.QItem, error)) ([]ai.QItem, error) {
+	var items []ai.QItem
+	pending := blocks
+	for pass := 0; pass < structurePasses && len(pending) > 0; pass++ {
+		chunks := Chunk(pending, structureChunkChars, structureChunkBlocks)
+		outs, _, err := runBatches(ctx, len(chunks), func(ctx context.Context, i int) ([]ai.QItem, error) {
+			return batch(ctx, chunks[i])
+		})
+		if err != nil {
+			return nil, err
 		}
-		s.notePrompt(ctx, job, ai.Structure.Name, r.meta)
-		for _, it := range append(r.out.Items, ruleFallback(r.out.Dropped, blocks)...) {
-			if err := s.saveStructured(ctx, job, materialID, questionSource, it, blocks[it.Block]); err != nil {
-				return n, failed, err
+		for _, out := range outs {
+			items = append(items, out...)
+		}
+		got := make(map[int]bool, len(items))
+		for _, it := range items {
+			got[it.Block] = true
+		}
+		var missing []ai.Block
+		for _, b := range blocks {
+			if !got[b.ID] {
+				missing = append(missing, b)
 			}
-			n++ // 题目与「只有答案」的条目都算识别出的内容（答案文件里只有答案）
 		}
+		pending = missing
 	}
-	return n, failed, nil
+	return items, nil
+}
+
+// assembleStructured 按原文块顺序整理条目；某块一条都没出时用规则原文兜底（置信度压到待确认以下），
+// 规则也拆不开的整页块计入 failed。
+func assembleStructured(blocks []ai.Block, items []ai.QItem) ([]ai.QItem, int) {
+	byBlock := make(map[int][]ai.QItem, len(blocks))
+	for _, it := range items {
+		byBlock[it.Block] = append(byBlock[it.Block], it)
+	}
+	ordered := make([]ai.QItem, 0, len(items))
+	failed := 0
+	for _, b := range blocks {
+		its := byBlock[b.ID]
+		if len(its) == 0 {
+			it, ok := ai.RuleItem(b)
+			if !ok {
+				failed++ // 整页块规则拆不开，只能算没能识别
+				continue
+			}
+			it.Confidence = min(it.Confidence, fallbackConfidence)
+			its = []ai.QItem{it}
+		}
+		ordered = append(ordered, its...)
+	}
+	return ordered, failed
+}
+
+// structureBatch 结构化一批块：模型给整批的输出不合格（题干改写、条目缺失）时拆半重试，见 structureEach。
+func (s *Service) structureBatch(ctx context.Context, job dbq.GetImportJobRow, blocks []ai.Block) ([]ai.QItem, error) {
+	return structureEach(ctx, blocks, func(ctx context.Context, bs []ai.Block) ([]ai.QItem, error) {
+		out, meta, err := ai.Structure.Run(ctx, s.ai, job.OwnerUserID, ai.StructureIn{Subject: job.SubjectName, Blocks: bs})
+		if err != nil {
+			return nil, err
+		}
+		s.notePrompt(ctx, job, ai.Structure.Name, meta)
+		byID := map[int]ai.Block{}
+		for _, b := range bs {
+			byID[b.ID] = b
+		}
+		return append(out.Items, ruleFallback(out.Dropped, byID)...), nil
+	})
+}
+
+// structureEach 把块交给 call 结构化；整批被判不合格（AIFailed）时拆成两半各自重试，
+// 逐层定位到具体哪一块，不让一条写坏就丢掉整批几十道题。单块仍不合格就跳过这块，
+// 由调用方的覆盖检查与规则兜底接住；平台错误（非 AIFailed）原样返回，由任务整体重试。
+func structureEach(ctx context.Context, blocks []ai.Block, call func(ctx context.Context, blocks []ai.Block) ([]ai.QItem, error)) ([]ai.QItem, error) {
+	items, err := call(ctx, blocks)
+	if err == nil {
+		return items, nil
+	}
+	if !apperr.IsKind(err, apperr.AIFailed) {
+		return nil, err
+	}
+	if len(blocks) == 1 {
+		return nil, nil
+	}
+	mid := len(blocks) / 2
+	left, err := structureEach(ctx, blocks[:mid], call)
+	if err != nil {
+		return nil, err
+	}
+	right, err := structureEach(ctx, blocks[mid:], call)
+	if err != nil {
+		return nil, err
+	}
+	return append(left, right...), nil
 }
 
 // fallbackConfidence 低于 LowConfidence：用原文兜底的题都进「待确认」，由用户核对题型与题干。
