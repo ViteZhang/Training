@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 三端同步：GitHub 本仓库（peetraining-server/、peetraining-web/ 两个目录）⇄ 云效两个仓库。
+# 与云效同步：会话工作副本（peetraining-server/、peetraining-web/ 两个目录）⇄ 云效两个仓库。不再同步 GitHub。
 #
 # 两个目录与云效仓库用 git subtree 关联（历史已接上），所以同步都是普通的合并与快进推送，不需要强推。
 #
@@ -23,6 +23,10 @@ set -euo pipefail
 : "${CODEUP_TOKEN:?需要设置 CODEUP_TOKEN}"
 
 cd "$(git rev-parse --show-toplevel)"
+# 会话里的仓库常是浅克隆，subtree 需要完整历史才能判断谁领先
+if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
+  git fetch -q --unshallow origin || true
+fi
 export GIT_TERMINAL_PROMPT=0
 # 凭证助手在运行时读环境变量，令牌不会出现在命令行、URL 或 git 配置里。
 HELPER='!f(){ test "$1" = get && { echo username="$CODEUP_USERNAME"; echo password="$CODEUP_TOKEN"; }; }; f'
@@ -53,16 +57,32 @@ status() {
 }
 
 pull() {
-  local side=$1 prefix
+  local side=$1 prefix remote split
   prefix=$(prefix_of "$side")
   fetch "$side"
-  if git merge-base --is-ancestor "$(ref_of "$side")" "$(git subtree split -q --prefix="$prefix" HEAD)"; then
+  remote=$(git rev-parse "$(ref_of "$side")")
+  split=$(git subtree split -q --prefix="$prefix" HEAD)
+  if git merge-base --is-ancestor "$remote" "$split"; then
     echo "$side：云效没有新提交"
     return
   fi
-  git subtree merge -q --prefix="$prefix" "$(ref_of "$side")" \
-    -m "同步云效 peetraining-$side 到 $prefix/（云效 $(branch_of "$side") $(git rev-parse --short "$(ref_of "$side")")）"
-  echo "$side：已合并云效的新提交"
+  if git subtree merge -q --prefix="$prefix" "$remote" \
+    -m "同步云效 peetraining-$side 到 $prefix/（云效 $(branch_of "$side") ${remote:0:7}）"; then
+    echo "$side：已合并云效的新提交"
+    return
+  fi
+  # 冲突时：如果云效已包含当前分支在该目录的全部提交（云效严格领先），冲突只是 subtree 合并基点较旧造成的，
+  # 该目录直接取云效的内容完成这次合并（仍是合并提交，历史不断）；否则停下来人工解决。
+  if git merge-base --is-ancestor "$split" "$remote"; then
+    git rm -rqf -- "$prefix"
+    rm -rf -- "$prefix"
+    git read-tree --prefix="$prefix/" -u "$remote"
+    git commit -q --no-edit
+    echo "$side：云效领先，冲突处已取云效版本，合并完成"
+  else
+    echo "$side：两边都改了同一处，合并冲突需要人工解决（git status 查看），解决后 git commit" >&2
+    exit 1
+  fi
 }
 
 push() {
