@@ -103,6 +103,88 @@ func TestChunk(t *testing.T) {
 	}
 }
 
+// 整批不合格时拆半重试，不能因为一条写坏丢掉整批几十道题。
+func TestStructureEachSplitsFailedBatch(t *testing.T) {
+	var blocks []ai.Block
+	for i := 1; i <= 8; i++ {
+		blocks = append(blocks, ai.Block{ID: i, Text: "题"})
+	}
+	calls := 0
+	call := func(_ context.Context, bs []ai.Block) ([]ai.QItem, error) {
+		calls++
+		if len(bs) > 2 {
+			return nil, apperr.New(apperr.AIFailed, "第 3 条题干不在原文里")
+		}
+		var out []ai.QItem
+		for _, b := range bs {
+			out = append(out, ai.QItem{Block: b.ID})
+		}
+		return out, nil
+	}
+	items, err := structureEach(context.Background(), blocks, call)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 8 {
+		t.Fatalf("应拆到能过为止，一块都不丢：%d 条", len(items))
+	}
+	for i, it := range items {
+		if it.Block != i+1 {
+			t.Fatalf("拆半重试后应保持原文顺序：%+v", items)
+		}
+	}
+	// 8 失败 → 4+4 失败 → 2+2+2+2 成功，共 1+2+4 次调用
+	if calls != 7 {
+		t.Errorf("调用次数 %d，期望 7", calls)
+	}
+}
+
+// 只有坏块被跳过，其余块照常返回（坏块由覆盖检查补请求、再不行用规则兜底）。
+func TestStructureEachIsolatesBadBlock(t *testing.T) {
+	var blocks []ai.Block
+	for i := 1; i <= 5; i++ {
+		blocks = append(blocks, ai.Block{ID: i})
+	}
+	call := func(_ context.Context, bs []ai.Block) ([]ai.QItem, error) {
+		for _, b := range bs {
+			if b.ID == 3 {
+				return nil, apperr.New(apperr.AIFailed, "第 3 条不合格")
+			}
+		}
+		var out []ai.QItem
+		for _, b := range bs {
+			out = append(out, ai.QItem{Block: b.ID})
+		}
+		return out, nil
+	}
+	items, err := structureEach(context.Background(), blocks, call)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 4 {
+		t.Fatalf("只跳过坏块：%d 条", len(items))
+	}
+	for _, it := range items {
+		if it.Block == 3 {
+			t.Fatal("坏块不该产出条目")
+		}
+	}
+}
+
+func TestStructureEachPropagatesPlatformError(t *testing.T) {
+	calls := 0
+	call := func(_ context.Context, _ []ai.Block) ([]ai.QItem, error) {
+		calls++
+		return nil, apperr.New(apperr.TooManyRequests, "请求太频繁")
+	}
+	if _, err := structureEach(context.Background(), []ai.Block{{ID: 1}, {ID: 2}}, call); err == nil {
+		t.Fatal("平台错误应返回给任务整体重试")
+	}
+	if calls != 1 {
+		t.Errorf("平台错误不该拆批重试：调用了 %d 次", calls)
+	}
+}
+
 // 模型输出没过校验的块用规则原文兜底，置信度压到待确认以下；整页块规则拆不开，不兜底。
 func TestRuleFallback(t *testing.T) {
 	blocks := map[int]ai.Block{
