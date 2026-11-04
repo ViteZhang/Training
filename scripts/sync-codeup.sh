@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 与云效同步：会话工作副本（peetraining-server/、peetraining-web/ 两个目录）⇄ 云效两个仓库。不再同步 GitHub。
+# 三端同步：GitHub 本仓库（peetraining-server/、peetraining-web/ 两个目录）⇄ 云效两个仓库，以云效为准。
 #
 # 两个目录与云效仓库用 git subtree 关联（历史已接上），所以同步都是普通的合并与快进推送，不需要强推。
 #
