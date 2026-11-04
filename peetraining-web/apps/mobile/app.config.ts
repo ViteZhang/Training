@@ -16,7 +16,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: variant === 'production' ? baseName : `${baseName}${variant === 'preview' ? ' 内测' : ' 开发'}`,
   slug: 'peetraining',
   scheme: 'peetraining',
-  version: '0.1.3',
+  version: '0.1.5',
   updates: { url: 'https://u.expo.dev/3f07ec04-8c0e-474c-abb8-fa5b89eb596d' },
   runtimeVersion: { policy: 'appVersion' },
   orientation: 'portrait',
@@ -36,7 +36,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: variant === 'production' ? appId : `${appId}.${variant}`,
-    versionCode: 4,
+    versionCode: 5,
     adaptiveIcon: {
       backgroundColor: '#231F55',
       foregroundImage: './assets/android-icon-foreground.png',

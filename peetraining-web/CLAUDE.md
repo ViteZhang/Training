@@ -5,7 +5,7 @@
 - 底部导航四个 Tab：今日、题库、训练、我的
 - App 显示名「考研Training」，包名 cn.dreamerlab.training，都从配置读取，不写死
 
-本仓库包含 App（Expo）与管理后台（React）。后端在 peetraining-server 仓库（Go），两边只通过它的 api/openapi.yaml 对接。
+本仓库只包含 App（Expo）。管理后台在 `peetraining-admin` 仓库；后端在 peetraining-server 仓库（Go），两边只通过它的 api/openapi.yaml 对接。
 
 ## 依据文档（冲突时从上到下取）
 
@@ -21,7 +21,6 @@
 
 - pnpm 工作区
 - apps/mobile：Expo SDK 57 + TypeScript + Expo Router；TanStack Query + Zustand；MMKV 本地存储；development build，不依赖 Expo Go
-- apps/admin：React + Vite + TypeScript + React Router + TanStack Query + Ant Design
 - packages/api-client：由 openapi.yaml 生成的类型与请求函数，禁止手改
 - packages/ui-tokens：颜色、字号、间距、圆角；页面颜色取自设计稿，品牌色（brand）取自 docs/design/vi/
 
@@ -43,7 +42,6 @@
 - pnpm gen:api：按 API_SPEC_REF 指定的标签，从 peetraining-server 拉取 openapi.yaml 并重新生成 packages/api-client
 - pnpm mock：用 openapi.yaml 起 mock 服务，后端接口没合并时先用它开发
 - pnpm --filter mobile start / android / ios
-- pnpm --filter admin dev
 - pnpm typecheck / lint / test
 
 ## 必须遵守
@@ -59,20 +57,18 @@
 9. AI 生成的内容（答案、采分点、题目、解读、批改）在界面上按设计稿标注来源
 10. 客户端不放任何密钥；不依赖 Google 服务（FCM、Google Fonts、Google 语音识别）
 11. 文案用简体中文，以设计稿和 PRD 为准；对外文案不承诺分数
-12. 管理后台的权限只影响界面，安全由后端保证；后台页面带「账号名 + 时间」水印；手机号默认脱敏
-13. 新增依赖要在提交说明里写明理由，只用主流、活跃维护的库
+12. 新增依赖要在提交说明里写明理由，只用主流、活跃维护的库
 
 ## 目录约定
 
 - apps/mobile/app/：路由。(auth) 模块 0；(onboarding) 模块 1；(tabs) 今日、题库、训练、我的；训练、整卷、背诵、作文等二级页面按模块分组
 - apps/mobile/src/：components、features（按模块）、lib（请求、存储、埋点、功能开关）
-- apps/admin/src/：pages（按页面编号 7.x）、components、lib
 - 页面文件头部注释写明页面编号，如「// 4.7 批改结果」
 
 ## 环境与发布
 
-- 只有一个生产环境：API 为 https://training.dreamerlab.cn/api/v1，管理后台 https://training.dreamerlab.cn/admin/
-- 管理后台：云效流水线构建后同步到应用机 Nginx 的 /admin/ 目录
+- 只有一个生产环境：API 为 https://training.dreamerlab.cn/api/v1；管理后台在 peetraining-admin 仓库，地址 https://training.dreamerlab.cn/admin/
+- 管理后台：peetraining-admin 仓库 Docker 构建，应用机 docker compose 部署，宿主机 Nginx 反代 /admin/
 - App：EAS Build 三个配置 development / preview（内测）/ production；安卓内测包放 OSS，iOS 走 TestFlight
 
 ## 约定

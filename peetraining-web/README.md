@@ -1,14 +1,13 @@
 # peetraining-web
 
-考研Training 的 App（Expo）与管理后台（React）。项目背景、规矩与文档优先级见 [CLAUDE.md](CLAUDE.md)；页面与规则见 docs/。
+考研Training 的 App（Expo）。管理后台已拆到独立仓库 `peetraining-admin`；项目背景、规矩与文档优先级见 [CLAUDE.md](CLAUDE.md)，页面与规则见 docs/。
 
 ## 目录
 
 ```
 apps/mobile          Expo SDK 57 + Expo Router（app/ 是路由，src/ 是组件与工具）
-apps/admin           Vite + React + React Router + Ant Design，部署在 /admin/
 packages/api-client  由 openapi.yaml 生成的类型（src/generated，禁止手改）+ 统一的请求处理
-packages/ui-tokens   颜色、字号、间距、圆角，取自 VI v1.0
+packages/ui-tokens   颜色、字号、间距、圆角，取自设计稿
 scripts/             gen-api（拉契约并生成客户端）、subset-fonts（标题字体子集）、gen-icons（App 图标）
 ```
 
@@ -20,7 +19,6 @@ scripts/             gen-api（拉契约并生成客户端）、subset-fonts（�
 pnpm install
 pnpm gen:api                 # 同步接口契约（见下）
 pnpm mock                    # 用契约起 mock 服务（:4010），后端没合并时先用它
-pnpm --filter admin dev      # 管理后台 http://localhost:5173/admin/，/api 代理到 :8080（VITE_API_PROXY 可改）
 pnpm typecheck && pnpm lint && pnpm test
 ```
 
@@ -74,5 +72,5 @@ iOS 需要 Apple 开发者账号（公司主体），在 eas.json 里填 `ascApp
 真机调试：iPhone 插线后 `npx expo run:ios --device`；安卓打开 USB 调试后 `npx expo run:android --device`；
 或装 development 配置打出的包后 `pnpm --filter mobile start` 连接本机开发服务器。
 
-管理后台：合并到 main 后由云效流水线执行 `scripts/deploy-admin.sh`（构建后同步到应用机 `/opt/training/admin`），
-也可以本机执行 `scripts/deploy-admin.sh <应用机 SSH 地址>`。
+管理后台在独立仓库 `peetraining-admin`：Docker 构建后由应用机 `docker compose` 部署，
+宿主机 Nginx 挂在 `https://training.dreamerlab.cn/admin/`。
