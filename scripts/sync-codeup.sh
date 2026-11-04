@@ -5,7 +5,9 @@
 #
 #   scripts/sync-codeup.sh status          看两边是否一致、谁领先
 #   scripts/sync-codeup.sh pull            把云效的新提交合并进当前分支（先做这一步再开发）
-#   scripts/sync-codeup.sh push server|web 把当前分支的目录推到云效 main（只快进，不强推）
+#   scripts/sync-codeup.sh push server|web 把当前分支的目录推到云效对应分支（只快进，不强推）
+#
+# 云效分支：server 用 main，web 用 master-zhangzhao（web 不再同步云效 main）。GitHub 一侧照旧合并到 main。
 #
 # 注意：推到云效 peetraining-server 的 main 会触发流水线发布到生产；推送前要确认，
 #       有新迁移时先按 runbook 在生产库执行迁移。
@@ -28,17 +30,19 @@ g() { git -c credential.helper= -c credential.helper="$HELPER" "$@"; }
 
 url_of() { echo "${CODEUP_ORG_URL%/}/peetraining-$1.git"; }
 prefix_of() { echo "peetraining-$1"; }
+branch_of() { case "$1" in server) echo main ;; web) echo master-zhangzhao ;; esac; }
+ref_of() { echo "refs/remotes/codeup-$1/$(branch_of "$1")"; }
 
-fetch() { g fetch -q "$(url_of "$1")" "main:refs/remotes/codeup-$1/main"; }
+fetch() { g fetch -q "$(url_of "$1")" "$(branch_of "$1"):$(ref_of "$1")"; }
 
 status() {
   local side=$1 prefix remote split
   prefix=$(prefix_of "$side")
   fetch "$side"
-  remote=$(git rev-parse "refs/remotes/codeup-$side/main")
+  remote=$(git rev-parse "$(ref_of "$side")")
   split=$(git subtree split -q --prefix="$prefix" HEAD)
   if [ "$split" = "$remote" ]; then
-    echo "$side：一致（云效 main ${remote:0:7}）"
+    echo "$side：一致（云效 $(branch_of "$side") ${remote:0:7}）"
   elif git merge-base --is-ancestor "$remote" "$split"; then
     echo "$side：当前分支领先云效 $(git rev-list --count "$remote..$split") 个提交，可以 push"
   elif git merge-base --is-ancestor "$split" "$remote"; then
@@ -52,12 +56,12 @@ pull() {
   local side=$1 prefix
   prefix=$(prefix_of "$side")
   fetch "$side"
-  if git merge-base --is-ancestor "refs/remotes/codeup-$side/main" "$(git subtree split -q --prefix="$prefix" HEAD)"; then
+  if git merge-base --is-ancestor "$(ref_of "$side")" "$(git subtree split -q --prefix="$prefix" HEAD)"; then
     echo "$side：云效没有新提交"
     return
   fi
-  git subtree merge -q --prefix="$prefix" "refs/remotes/codeup-$side/main" \
-    -m "同步云效 peetraining-$side 到 $prefix/（云效 main $(git rev-parse --short "refs/remotes/codeup-$side/main")）"
+  git subtree merge -q --prefix="$prefix" "$(ref_of "$side")" \
+    -m "同步云效 peetraining-$side 到 $prefix/（云效 $(branch_of "$side") $(git rev-parse --short "$(ref_of "$side")")）"
   echo "$side：已合并云效的新提交"
 }
 
@@ -65,7 +69,7 @@ push() {
   local side=$1 prefix remote split
   prefix=$(prefix_of "$side")
   fetch "$side"
-  remote=$(git rev-parse "refs/remotes/codeup-$side/main")
+  remote=$(git rev-parse "$(ref_of "$side")")
   split=$(git subtree split -q --prefix="$prefix" HEAD)
   if [ "$split" = "$remote" ]; then
     echo "$side：云效已是最新，不需要推送"
@@ -75,9 +79,9 @@ push() {
     echo "$side：云效有当前分支没有的提交，先执行 pull，不要强推" >&2
     exit 1
   fi
-  echo "$side：将推送到云效 main 的提交："
+  echo "$side：将推送到云效 $(branch_of "$side") 的提交："
   git log --oneline "$remote..$split"
-  g push "$(url_of "$side")" "$split:refs/heads/main"
+  g push "$(url_of "$side")" "$split:refs/heads/$(branch_of "$side")"
 }
 
 case "${1:-}" in
@@ -89,5 +93,5 @@ case "${1:-}" in
       *) echo "用法：$0 push server|web" >&2; exit 2 ;;
     esac
     ;;
-  *) sed -n '2,17p' "$0"; exit 2 ;;
+  *) sed -n '2,19p' "$0"; exit 2 ;;
 esac

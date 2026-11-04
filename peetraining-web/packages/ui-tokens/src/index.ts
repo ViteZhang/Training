@@ -1,6 +1,6 @@
 /**
  * 视觉 token。页面颜色一比一取自设计稿（docs/design/）；VI（docs/design/vi/）只管 Logo、启动页、App 图标与字体。
- * App 与管理后台共用；颜色、字号、字体只从这里取，不在页面里写死。
+ * App 使用；管理后台在 peetraining-admin 仓库有同源副本。颜色、字号、字体只从这里取，不在页面里写死。
  */
 
 /**

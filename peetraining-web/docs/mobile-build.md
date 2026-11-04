@@ -1,6 +1,6 @@
 # Android / iOS 本地开发与打包
 
-项目位置：`/Users/a1/Documents/workspace/myself/peetraining-web`，移动端目录为 `apps/mobile`，管理后台 `apps/admin` 不参与手机 App 打包。项目使用 Expo + React Native，包含 MMKV 等原生模块，需要 development build，不能用 Expo Go。
+项目位置：`/Users/a1/Documents/workspace/myself/peetraining-web`，移动端目录为 `apps/mobile`。管理后台已拆到独立仓库 `peetraining-admin`，不参与手机 App 打包。项目使用 Expo + React Native，包含 MMKV 等原生模块，需要 development build，不能用 Expo Go。
 
 ## 1. 官方下载
 

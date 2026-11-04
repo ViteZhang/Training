@@ -7,7 +7,7 @@
 | 层 | 选型 | 运行在 |
 | --- | --- | --- |
 | 移动端 | Expo SDK 57 + TypeScript + Expo Router，development build | EAS 打包 |
-| 管理后台 | React + Vite + TypeScript + React Router + Ant Design | 应用机 Nginx，training.dreamerlab.cn/admin/ |
+| 管理后台 | React + Vite + TypeScript + React Router + Ant Design（独立仓库 peetraining-admin） | 应用机 Docker · 宿主机 Nginx，training.dreamerlab.cn/admin/ |
 | 接口契约 | OpenAPI 3，契约先行，后端仓库维护 | — |
 | API 服务 | Go 1.27 + Gin | ECS · Docker Compose |
 | 后台任务 | Go Worker + Asynq（Redis 队列与定时） | ECS · Docker Compose |
@@ -26,7 +26,7 @@
 ## 架构
 
 - App 和管理后台只调用 Go API；数据库、存储、模型和第三方服务都在 API 后面，客户端不持有任何云服务密钥
-- 应用机（4 核 16G）：nginx（HTTPS、反向代理、托管后台网页）、api、worker、asynqmon（仅内网）
+- 应用机（4 核 16G）：nginx（HTTPS、反向代理）、admin 容器、api、worker、asynqmon（仅内网）
 - 数据库机：mysql、redis，安全组只放行应用机内网访问；MySQL 数据放独立数据盘，开自动快照和云盘加密
 - 对外只有一个域名 training.dreamerlab.cn：App 调 /api/v1/，后台接口 /api/v1/admin/，后台网页 /admin/
 - 耗时工作（资料解析、整卷批改、作文批改、导出、统计汇总）由 API 写入 Asynq 队列，Worker 执行；单题批改（≤ 8 秒）和 AI 解读（≤ 5 秒）由 API 直接调用模型
@@ -37,7 +37,8 @@
 | 仓库 | 内容 |
 | --- | --- |
 | peetraining-server | cmd/api、cmd/worker、cmd/eval；internal 按业务域分包；api/openapi.yaml；db/migrations 与 db/queries；deploy/；evals/ |
-| peetraining-web | pnpm 工作区：apps/mobile、apps/admin、packages/api-client（生成）、packages/ui-tokens |
+| peetraining-web | App：pnpm 工作区 apps/mobile、packages/api-client（生成）、packages/ui-tokens |
+| peetraining-admin | 管理后台：独立 React + Vite 项目，内置 api-client 与 ui-tokens；Docker + Nginx |
 
 接口流程（契约先行）：
 
@@ -52,7 +53,7 @@
 
 - 只有本地和生产两套环境。本地用 docker compose 起 MySQL 与 Redis，短信、AI、OCR、支付默认 mock
 - 生产：training.dreamerlab.cn，内测即生产。补位规矩：每次发布前备份数据库；迁移只加不删，删除字段分两次发布；新功能先用功能开关对自己的账号打开；内测用户 50 人以内
-- 发布流程：跑测试 → 构建镜像并打版本号 → 推送 ACR → 备份数据库 → 应用机执行迁移 → docker compose pull 与 up；回滚把镜像版本号改回上一个；后台网页由流水线构建后同步到 Nginx 目录
+- 发布流程：跑测试 → 构建镜像并打版本号 → 推送 ACR → 备份数据库 → 应用机执行迁移 → docker compose pull 与 up；回滚把镜像版本号改回上一个；后台网页由 peetraining-admin 流水线构建镜像，应用机 docker compose 更新
 - 备份：MySQL 每日全量备份并持续上传 binlog 到 OSS，保留 30 天；云盘每日快照；每月用备份在本地做一次恢复演练
 
 ## 交接要求
