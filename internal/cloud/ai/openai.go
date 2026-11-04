@@ -51,6 +51,9 @@ func NewOpenAI(baseURL, apiKey string) *OpenAI {
 // ErrRateLimited 表示平台限流或暂时不可用，调用方可以稍后重试。
 var ErrRateLimited = errors.New("ai: 平台限流或暂时不可用")
 
+// ErrInsufficientBalance 表示平台余额不足（HTTP 402）。这不是瞬时错误，继续重试只会空打请求。
+var ErrInsufficientBalance = errors.New("ai: 余额不足，请充值后再试")
+
 // ErrIdleTimeout 表示模型长时间没有输出任何内容。
 var ErrIdleTimeout = errors.New("ai: 模型长时间没有输出")
 
@@ -233,6 +236,14 @@ func (c *OpenAI) wrapErr(ctx context.Context, err error) error {
 
 func parseWhole(status int, raw []byte) (Response, error) {
 	var out chatResponse
+	_ = json.Unmarshal(raw, &out)
+	if status == http.StatusPaymentRequired {
+		msg := ""
+		if out.Error != nil {
+			msg = out.Error.Message
+		}
+		return Response{}, fmt.Errorf("%w：%s", ErrInsufficientBalance, msg)
+	}
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return Response{}, fmt.Errorf("ai: 返回不是 JSON（HTTP %d）", status)
 	}

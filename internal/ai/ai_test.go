@@ -246,3 +246,37 @@ func TestText(t *testing.T) {
 		t.Error("Subjective")
 	}
 }
+
+type fixedErrClient struct{ err error }
+
+func (c fixedErrClient) Complete(context.Context, cloudai.Request) (cloudai.Response, error) {
+	return cloudai.Response{}, c.err
+}
+
+type countingClient struct{ calls int }
+
+func (c *countingClient) Complete(context.Context, cloudai.Request) (cloudai.Response, error) {
+	c.calls++
+	return cloudai.Response{Content: `{"items":[]}`}, nil
+}
+
+// 主用平台余额不足时应切备用平台；没有备用才把错误交给调用方停批。
+func TestRunFallsBackOnInsufficientBalance(t *testing.T) {
+	fallback := &countingClient{}
+	e := NewEngine(Config{Client: fixedErrClient{err: cloudai.ErrInsufficientBalance}, Queries: &fakeQ{},
+		Fallback: &Fallback{Client: fallback, Models: Models{Strong: "fb", Cheap: "fb"}}})
+	if _, _, err := Structure.Run(context.Background(), e, 1, sampleBlocks()); err != nil {
+		t.Fatalf("应切备用平台成功：%v", err)
+	}
+	if fallback.calls != 1 {
+		t.Fatalf("备用平台应调用 1 次，实际 %d 次", fallback.calls)
+	}
+}
+
+func TestRunReturnsInsufficientBalanceWithoutFallback(t *testing.T) {
+	e := NewEngine(Config{Client: fixedErrClient{err: cloudai.ErrInsufficientBalance}, Queries: &fakeQ{}})
+	_, _, err := Structure.Run(context.Background(), e, 1, sampleBlocks())
+	if !errors.Is(err, cloudai.ErrInsufficientBalance) {
+		t.Fatalf("没有备用平台时应返回余额不足：%v", err)
+	}
+}
