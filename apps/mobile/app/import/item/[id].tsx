@@ -128,7 +128,7 @@ function QuestionEditor({ item, onSaved }: { item: ImportItem; onSaved: (it: Imp
           <TextInput accessibilityLabel="参考答案" value={q.answer} onChangeText={(v) => setQ({ ...q, answer: v })} multiline style={styles.input} maxFontSizeMultiplier={layout.maxFontScale} />
         ) : (
           <Card style={styles.missing}>
-            <Text variant="caption">原文和你的其他资料里都没找到答案。可以自己填、补充答案文件，或让 AI 生成（标「AI 参考答案 · 待确认」，计入今天的 AI 出题次数，确认前不计入预估分）</Text>
+            <Text variant="caption">原文和你的其他资料里都没找到答案。可以自己填、补充答案文件，或让 AI 生成（标「AI 参考答案」，计入今天的 AI 出题次数）</Text>
             <TextInput accessibilityLabel="参考答案" placeholder="填写参考答案" value={q.answer ?? ''} onChangeText={(v) => setQ({ ...q, answer: v })} multiline style={styles.input} maxFontSizeMultiplier={layout.maxFontScale} />
             <View style={styles.actions}>
               <Button
