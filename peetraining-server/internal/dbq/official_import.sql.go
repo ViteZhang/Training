@@ -23,8 +23,17 @@ func (q *Queries) DeleteOfficialImportItems(ctx context.Context, fileID uint64) 
 	return err
 }
 
+const finishOfficialImportFill = `-- name: FinishOfficialImportFill :exec
+UPDATE official_import_files SET fill_status = 'idle' WHERE id = ?
+`
+
+func (q *Queries) FinishOfficialImportFill(ctx context.Context, id uint64) error {
+	_, err := q.db.ExecContext(ctx, finishOfficialImportFill, id)
+	return err
+}
+
 const getOfficialImportFile = `-- name: GetOfficialImportFile :one
-SELECT id, project_id, kind, file_name, format, object_key, size_bytes, content, exam_year, is_recollection, status, fail_reason, question_count, kp_count, created_by, created_at, updated_at FROM official_import_files WHERE id = ?
+SELECT id, project_id, kind, file_name, format, object_key, size_bytes, content, exam_year, is_recollection, status, fail_reason, question_count, kp_count, created_by, created_at, updated_at, auto_answer, fill_status, fill_total, fill_done, fill_failed FROM official_import_files WHERE id = ?
 `
 
 func (q *Queries) GetOfficialImportFile(ctx context.Context, id uint64) (OfficialImportFile, error) {
@@ -48,12 +57,17 @@ func (q *Queries) GetOfficialImportFile(ctx context.Context, id uint64) (Officia
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AutoAnswer,
+		&i.FillStatus,
+		&i.FillTotal,
+		&i.FillDone,
+		&i.FillFailed,
 	)
 	return i, err
 }
 
 const getOfficialImportItem = `-- name: GetOfficialImportItem :one
-SELECT id, file_id, project_id, item_type, seq, payload, citations, source_text, page, confidence, status, draft_id, reviewed_by, reviewed_at FROM official_import_items WHERE id = ?
+SELECT id, file_id, project_id, item_type, seq, payload, citations, source_text, page, confidence, status, draft_id, reviewed_by, reviewed_at, fill_error FROM official_import_items WHERE id = ?
 `
 
 func (q *Queries) GetOfficialImportItem(ctx context.Context, id uint64) (OfficialImportItem, error) {
@@ -74,14 +88,15 @@ func (q *Queries) GetOfficialImportItem(ctx context.Context, id uint64) (Officia
 		&i.DraftID,
 		&i.ReviewedBy,
 		&i.ReviewedAt,
+		&i.FillError,
 	)
 	return i, err
 }
 
 const insertOfficialImportFile = `-- name: InsertOfficialImportFile :execlastid
 
-INSERT INTO official_import_files (project_id, kind, file_name, format, object_key, size_bytes, content, exam_year, is_recollection, status, created_by)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO official_import_files (project_id, kind, file_name, format, object_key, size_bytes, content, exam_year, is_recollection, auto_answer, status, created_by)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertOfficialImportFileParams struct {
@@ -94,6 +109,7 @@ type InsertOfficialImportFileParams struct {
 	Content        sql.NullString
 	ExamYear       sql.NullInt16
 	IsRecollection bool
+	AutoAnswer     bool
 	Status         OfficialImportFilesStatus
 	CreatedBy      sql.NullInt64
 }
@@ -110,6 +126,7 @@ func (q *Queries) InsertOfficialImportFile(ctx context.Context, arg InsertOffici
 		arg.Content,
 		arg.ExamYear,
 		arg.IsRecollection,
+		arg.AutoAnswer,
 		arg.Status,
 		arg.CreatedBy,
 	)
@@ -120,8 +137,8 @@ func (q *Queries) InsertOfficialImportFile(ctx context.Context, arg InsertOffici
 }
 
 const insertOfficialImportItem = `-- name: InsertOfficialImportItem :exec
-INSERT INTO official_import_items (file_id, project_id, item_type, seq, payload, citations, source_text, page, confidence)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO official_import_items (file_id, project_id, item_type, seq, payload, citations, source_text, page, confidence, fill_error)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertOfficialImportItemParams struct {
@@ -134,6 +151,7 @@ type InsertOfficialImportItemParams struct {
 	SourceText sql.NullString
 	Page       uint32
 	Confidence OfficialImportItemsConfidence
+	FillError  sql.NullString
 }
 
 func (q *Queries) InsertOfficialImportItem(ctx context.Context, arg InsertOfficialImportItemParams) error {
@@ -147,12 +165,14 @@ func (q *Queries) InsertOfficialImportItem(ctx context.Context, arg InsertOffici
 		arg.SourceText,
 		arg.Page,
 		arg.Confidence,
+		arg.FillError,
 	)
 	return err
 }
 
 const listOfficialImportFiles = `-- name: ListOfficialImportFiles :many
 SELECT f.id, f.project_id, f.kind, f.file_name, f.format, f.status, f.fail_reason, f.question_count, f.kp_count, f.exam_year, f.created_at,
+  f.auto_answer, f.fill_status, f.fill_total, f.fill_done, f.fill_failed,
   (SELECT COUNT(*) FROM official_import_items i WHERE i.file_id = f.id AND i.status <> 'pending') AS reviewed_count
 FROM official_import_files f WHERE f.project_id = ? ORDER BY f.id DESC
 `
@@ -169,6 +189,11 @@ type ListOfficialImportFilesRow struct {
 	KpCount       uint32
 	ExamYear      sql.NullInt16
 	CreatedAt     time.Time
+	AutoAnswer    bool
+	FillStatus    OfficialImportFilesFillStatus
+	FillTotal     uint32
+	FillDone      uint32
+	FillFailed    uint32
 	ReviewedCount int64
 }
 
@@ -193,6 +218,11 @@ func (q *Queries) ListOfficialImportFiles(ctx context.Context, projectID uint64)
 			&i.KpCount,
 			&i.ExamYear,
 			&i.CreatedAt,
+			&i.AutoAnswer,
+			&i.FillStatus,
+			&i.FillTotal,
+			&i.FillDone,
+			&i.FillFailed,
 			&i.ReviewedCount,
 		); err != nil {
 			return nil, err
@@ -209,7 +239,7 @@ func (q *Queries) ListOfficialImportFiles(ctx context.Context, projectID uint64)
 }
 
 const listOfficialImportItems = `-- name: ListOfficialImportItems :many
-SELECT id, file_id, project_id, item_type, seq, payload, citations, source_text, page, confidence, status, draft_id, reviewed_by, reviewed_at FROM official_import_items WHERE file_id = ? ORDER BY seq, id
+SELECT id, file_id, project_id, item_type, seq, payload, citations, source_text, page, confidence, status, draft_id, reviewed_by, reviewed_at, fill_error FROM official_import_items WHERE file_id = ? ORDER BY seq, id
 `
 
 func (q *Queries) ListOfficialImportItems(ctx context.Context, fileID uint64) ([]OfficialImportItem, error) {
@@ -236,10 +266,94 @@ func (q *Queries) ListOfficialImportItems(ctx context.Context, fileID uint64) ([
 			&i.DraftID,
 			&i.ReviewedBy,
 			&i.ReviewedAt,
+			&i.FillError,
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectDraftQuestionPayloads = `-- name: ListProjectDraftQuestionPayloads :many
+SELECT payload FROM official_drafts WHERE project_id = ? AND entity_type = 'question' AND change_type <> 'offline' AND status <> 'rejected'
+`
+
+// 同一项目里题目草稿，给缺分值的题参考同题型的默认给分。
+func (q *Queries) ListProjectDraftQuestionPayloads(ctx context.Context, projectID uint64) ([]json.RawMessage, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectDraftQuestionPayloads, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []json.RawMessage{}
+	for rows.Next() {
+		var payload json.RawMessage
+		if err := rows.Scan(&payload); err != nil {
+			return nil, err
+		}
+		items = append(items, payload)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectImportQuestionPayloads = `-- name: ListProjectImportQuestionPayloads :many
+SELECT payload FROM official_import_items WHERE project_id = ? AND item_type = 'question' AND status <> 'rejected'
+`
+
+// 同一项目里各资料解析出的题目，给缺分值的题参考同题型的默认给分。
+func (q *Queries) ListProjectImportQuestionPayloads(ctx context.Context, projectID uint64) ([]json.RawMessage, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectImportQuestionPayloads, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []json.RawMessage{}
+	for rows.Next() {
+		var payload json.RawMessage
+		if err := rows.Scan(&payload); err != nil {
+			return nil, err
+		}
+		items = append(items, payload)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStaleOfficialImportFills = `-- name: ListStaleOfficialImportFills :many
+SELECT id FROM official_import_files WHERE fill_status = 'running' AND updated_at < ?
+`
+
+func (q *Queries) ListStaleOfficialImportFills(ctx context.Context, updatedAt time.Time) ([]uint64, error) {
+	rows, err := q.db.QueryContext(ctx, listStaleOfficialImportFills, updatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uint64{}
+	for rows.Next() {
+		var id uint64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -305,6 +419,21 @@ func (q *Queries) ReviewOfficialImportItem(ctx context.Context, arg ReviewOffici
 	return result.RowsAffected()
 }
 
+const setOfficialImportFillProgress = `-- name: SetOfficialImportFillProgress :exec
+UPDATE official_import_files SET fill_done = ?, fill_failed = ? WHERE id = ?
+`
+
+type SetOfficialImportFillProgressParams struct {
+	FillDone   uint32
+	FillFailed uint32
+	ID         uint64
+}
+
+func (q *Queries) SetOfficialImportFillProgress(ctx context.Context, arg SetOfficialImportFillProgressParams) error {
+	_, err := q.db.ExecContext(ctx, setOfficialImportFillProgress, arg.FillDone, arg.FillFailed, arg.ID)
+	return err
+}
+
 const setOfficialImportParsed = `-- name: SetOfficialImportParsed :exec
 UPDATE official_import_files SET status = 'parsed', fail_reason = NULL, content = ?, question_count = ?, kp_count = ? WHERE id = ?
 `
@@ -339,4 +468,52 @@ type SetOfficialImportStatusParams struct {
 func (q *Queries) SetOfficialImportStatus(ctx context.Context, arg SetOfficialImportStatusParams) error {
 	_, err := q.db.ExecContext(ctx, setOfficialImportStatus, arg.Status, arg.FailReason, arg.ID)
 	return err
+}
+
+const startOfficialImportFill = `-- name: StartOfficialImportFill :execrows
+UPDATE official_import_files SET fill_status = 'running', fill_total = ?, fill_done = 0, fill_failed = 0
+WHERE id = ? AND status = 'parsed' AND fill_status = 'idle'
+`
+
+type StartOfficialImportFillParams struct {
+	FillTotal uint32
+	ID        uint64
+}
+
+// 开始一键补全；已经在补全的不重复开始。
+func (q *Queries) StartOfficialImportFill(ctx context.Context, arg StartOfficialImportFillParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, startOfficialImportFill, arg.FillTotal, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateOfficialImportItemFill = `-- name: UpdateOfficialImportItemFill :execrows
+
+UPDATE official_import_items SET payload = ?, citations = ?, confidence = ?, fill_error = ? WHERE id = ? AND status = 'pending'
+`
+
+type UpdateOfficialImportItemFillParams struct {
+	Payload    json.RawMessage
+	Citations  dbtypes.NullJSON
+	Confidence OfficialImportItemsConfidence
+	FillError  sql.NullString
+	ID         uint64
+}
+
+// T49 解析后补答案与采分点（单题、整份一键补全）。
+// 补全结果写回条目；只改还没核对的条目。
+func (q *Queries) UpdateOfficialImportItemFill(ctx context.Context, arg UpdateOfficialImportItemFillParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateOfficialImportItemFill,
+		arg.Payload,
+		arg.Citations,
+		arg.Confidence,
+		arg.FillError,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

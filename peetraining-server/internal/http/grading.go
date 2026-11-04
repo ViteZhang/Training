@@ -22,13 +22,16 @@ func toGenGrading(g practice.Grading, reference string) gen.GradingResult {
 	if g.Extra.WrongBook != "" {
 		out.WrongBook = gen.GradingResultWrongBook(g.Extra.WrongBook)
 	}
-	// 按 AI 参考答案批改（4.7b）：分数仅供参考、不计入预估分；AnswerConfirmed 表示题目的答案之后已经被确认。
+	// 按 AI 参考答案批改（4.7b）：AnswerConfirmed 表示题目的答案之后已经被确认。
+	// 11 月 4 日起这类批改照常计入预估分（T49）；reference_only 只给以前标过不计入的作答。
 	if g.Rubric.AnswerTier != "" {
 		out.AnswerTier = ptr(gen.AnswerTier(g.Rubric.AnswerTier))
 	}
 	if g.Rubric.AnswerTier == string(rules.AnswerAI) {
-		out.ReferenceOnly = ptr(true)
 		out.AnswerConfirmed = ptr(g.AnswerConfirmed)
+	}
+	if g.ReferenceOnly {
+		out.ReferenceOnly = ptr(true)
 	}
 	if g.Score != nil {
 		out.Score = ptr(float32(*g.Score))

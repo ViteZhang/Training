@@ -62,6 +62,18 @@ type QuestionPayload struct {
 	ExamYear         *int        `json:"exam_year,omitempty"`
 	KPNames          []string    `json:"kp_names"`
 	Rubric           []Point     `json:"rubric"`
+	// AnswerAI 表示参考答案由 AI 生成（T49）：经编辑审核发布后，用户端显示「AI 参考答案」，照常计入预估分。
+	AnswerAI bool `json:"answer_ai,omitempty"`
+	// ScoreInferred 表示分值是补答案时参考同项目同题型的给分填上的（原文没有分值），请编辑核对。
+	ScoreInferred bool `json:"score_inferred,omitempty"`
+}
+
+// answerOrigin 是官方题的答案来源：AI 生成的记 ai_generated，其余是团队给的 official。
+func answerOrigin(p QuestionPayload) dbq.NullQuestionsAnswerOrigin {
+	if p.AnswerAI && strings.TrimSpace(p.Answer) != "" {
+		return dbq.NullQuestionsAnswerOrigin{QuestionsAnswerOrigin: dbq.QuestionsAnswerOriginAiGenerated, Valid: true}
+	}
+	return dbq.NullQuestionsAnswerOrigin{QuestionsAnswerOrigin: dbq.QuestionsAnswerOriginOfficial, Valid: true}
 }
 
 // Deps 是创建服务的依赖。
@@ -188,7 +200,15 @@ func (c content) kpHash(k dbq.ListOfficialKPsRow) string {
 }
 
 func (c content) questionHash(x dbq.ListOfficialQuestionsRow) string {
-	return hashOf(string(x.Qtype), x.Stem, x.Answer.String, rubricText(contents(c.qRubric[x.ID])))
+	return questionHashOf(string(x.Qtype), x.Stem, x.Answer.String, rubricText(contents(c.qRubric[x.ID])), x.AnswerOrigin)
+}
+
+// questionHashOf 是题目内容的哈希。答案是 AI 生成的才多算一项，团队给的答案哈希与以前一致，已同步的副本不会因此被判为有变化。
+func questionHashOf(qtype, stem, answer, rubric string, origin dbq.NullQuestionsAnswerOrigin) string {
+	if origin.Valid && origin.QuestionsAnswerOrigin == dbq.QuestionsAnswerOriginAiGenerated {
+		return hashOf(qtype, stem, answer, rubric, "ai_generated")
+	}
+	return hashOf(qtype, stem, answer, rubric)
 }
 
 // isDuplicate 判断唯一键冲突（MySQL 1062）。

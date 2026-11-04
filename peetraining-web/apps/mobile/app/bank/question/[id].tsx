@@ -1,7 +1,7 @@
 // 3.3 题目详情：题型、分值、来源；所属知识点；参考答案、答案来源与出处（可查看原文）；「补充 / 修改答案」；采分点与状态；
 // 我的每次作答（日期、得分、遗漏的采分点、失分类型）；「再练这道题」；右上角编辑（题干、答案、分值、采分点，合计须等于分值）、删除。
-// 3.3b（PRD 11.16）：答案是 AI 参考答案时，顶部说明「你的资料里没有这道题的答案……确认前不计入预估分」并给「补充答案文件」；
-// 答案与采分点标「AI 参考答案 · 待确认」「AI 生成」；显示按这份答案批改过的次数与分数；底部「我来改」「答案没问题，确认」。
+// 3.3b（PRD 11.16）：答案是 AI 参考答案时，顶部说明这是 AI 生成的答案（11 月 4 日起照常计入预估分，T49）并给「补充答案文件」；
+// 答案与采分点标「AI 参考答案」「AI 生成」；显示以前按这份答案批改、当时不计入的次数与分数；底部「我来改」「答案没问题，确认」。
 import { ApiError, type Schemas } from '@training/api-client';
 import { colors, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQueryClient } from '@tanstack/react-query';
@@ -107,7 +107,7 @@ export default function QuestionScreen() {
       void qc.invalidateQueries({ queryKey: ['bank'] });
       void qc.invalidateQueries({ queryKey: evidenceKey('question', q.id) });
       track('ai_answer_confirm');
-      toast('已确认，之后的批改会计入预估分');
+      toast('已确认，答案来源变为「你已确认」');
     } catch (e) {
       toast(e instanceof ApiError ? e.message : '没确认成功，请重试');
     } finally {
@@ -175,13 +175,13 @@ export default function QuestionScreen() {
             {ai ? (
               <View style={styles.aiNote}>
                 <Text variant="caption" color={colors.blueInk} style={styles.lh2}>
-                  下面是 AI 生成的参考答案，确认前不计入预估分。
+                  下面是 AI 生成的参考答案，可以查看引用的教材段落；核对后确认，或改成你的答案。
 
                 </Text>
                 <Button title="补充答案文件 ›" kind="text" size="sm" color={colors.blueInk} style={styles.link} onPress={openAnswerFile} />
               </View>
             ) : null}
-            <InfoCard label="参考答案" style={ai ? styles.aiCard : undefined} right={ai ? <Tag label="AI 参考答案 · 待确认" tone="ai" /> : tierNames[tier]}>
+            <InfoCard label="参考答案" style={ai ? styles.aiCard : undefined} right={ai ? <Tag label="AI 参考答案" tone="ai" /> : tierNames[tier]}>
               <Text variant="body" style={styles.lh}>
                 {q.answer ?? '这道题还没有答案。做到时 AI 会给参考答案；也可以补充答案文件，或点「补充 / 修改答案」自己填'}
               </Text>
@@ -229,8 +229,8 @@ export default function QuestionScreen() {
             ) : null}
             {ai && q.reference_gradings && q.reference_gradings.count > 0 ? (
               <Text variant="small">
-                按这份答案批改过 {q.reference_gradings.count} 次
-                {q.reference_gradings.last_score !== undefined ? ` · 最近 ${q.reference_gradings.last_score} / ${q.reference_gradings.last_full_score ?? q.score ?? ''} 分` : ''}（不计入预估分）
+                以前按这份答案批改过 {q.reference_gradings.count} 次
+                {q.reference_gradings.last_score !== undefined ? ` · 最近 ${q.reference_gradings.last_score} / ${q.reference_gradings.last_full_score ?? q.score ?? ''} 分` : ''}（当时不计入预估分）
               </Text>
             ) : null}
             <Text variant="caption" color={semantic.textPrimary} style={styles.medium}>

@@ -197,7 +197,15 @@ func (u userContent) kpUnmodified(k dbq.ListUserKPCopiesRow) bool {
 }
 
 func (u userContent) questionUnmodified(x dbq.ListUserQuestionCopiesRow) bool {
-	return x.OfficialHash.Valid && hashOf(string(x.Qtype), x.Stem, x.Answer.String, rubricText(u.qRubric[x.ID])) == x.OfficialHash.String
+	return x.OfficialHash.Valid && questionHashOf(string(x.Qtype), x.Stem, x.Answer.String, rubricText(u.qRubric[x.ID]), x.AnswerOrigin) == x.OfficialHash.String
+}
+
+// copyOrigin 是用户副本的答案来源：官方题的答案由 AI 生成的，副本也记 ai_generated，用户端显示「AI 参考答案」（T49）；其余记 official。
+func copyOrigin(o dbq.NullQuestionsAnswerOrigin) dbq.NullQuestionsAnswerOrigin {
+	if o.Valid && o.QuestionsAnswerOrigin == dbq.QuestionsAnswerOriginAiGenerated {
+		return o
+	}
+	return dbq.NullQuestionsAnswerOrigin{QuestionsAnswerOrigin: dbq.QuestionsAnswerOriginOfficial, Valid: true}
 }
 
 // SyncResult 是一次对账的结果。
@@ -340,7 +348,7 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 			oh := oc.questionHash(o)
 			if !ok {
 				id, err := q.InsertUserQuestionCopy(ctx, dbq.InsertUserQuestionCopyParams{OwnerUserID: owner, BankID: ub.ID, Qtype: o.Qtype, Stem: o.Stem, Options: o.Options,
-					Answer: o.Answer, Analysis: o.Analysis, Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem),
+					Answer: o.Answer, AnswerOrigin: copyOrigin(o.AnswerOrigin), Analysis: o.Analysis, Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem),
 					OfficialQuestionID: sql.NullInt64{Int64: int64(o.ID), Valid: true}, OfficialHash: nullStr(oh)})
 				if err != nil {
 					return err
@@ -364,7 +372,7 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 				res.Skipped++
 				continue
 			}
-			if err := q.UpdateUserQuestionCopy(ctx, dbq.UpdateUserQuestionCopyParams{Qtype: o.Qtype, Stem: o.Stem, Options: o.Options, Answer: o.Answer, Analysis: o.Analysis,
+			if err := q.UpdateUserQuestionCopy(ctx, dbq.UpdateUserQuestionCopyParams{Qtype: o.Qtype, Stem: o.Stem, Options: o.Options, Answer: o.Answer, AnswerOrigin: copyOrigin(o.AnswerOrigin), Analysis: o.Analysis,
 				Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem), OfficialHash: nullStr(oh), ID: u.ID, OwnerUserID: owner}); err != nil {
 				return err
 			}

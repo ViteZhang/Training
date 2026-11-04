@@ -210,19 +210,19 @@ describe('待批改', () => {
 describe('4.4 / 4.7b 按 AI 参考答案批改', () => {
   const aiSession = (tier: string) => ({ ...session, questions: [{ ...termQ, answer_tier: tier }] });
 
-  it('4.4 标明按 AI 参考答案批改；4.7b 说明不计入预估分，可确认答案', async () => {
+  it('4.4 标明按 AI 参考答案批改；4.7b 照常计入预估分（T49），可确认答案', async () => {
     mockResponses['GET /practice-sessions/{sessionId}'] = () => ({ status: 200, data: aiSession('ai') });
     mockResponses['POST /practice-sessions/{sessionId}/gradings'] = () => ({
       status: 200,
-      data: grading({ rubric_source: 'ai_generated', answer_tier: 'ai', reference_only: true, answer_confirmed: false }),
+      data: grading({ rubric_source: 'ai_generated', answer_tier: 'ai', answer_confirmed: false }),
     });
     mockResponses['POST /questions/{questionId}/answer/confirm'] = () => ({ status: 200, data: { ...termQ, answer_tier: 'confirmed' } });
     await wrap(<PracticeRunner />);
-    expect(await screen.findByText(/这道题按 AI 参考答案批改，仅供参考/)).toBeTruthy();
+    expect(await screen.findByText(/这道题按 AI 参考答案批改/)).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('你的答案'), answer);
     await fireEvent.press(screen.getByText('提交批改'));
-    expect(await screen.findByText('AI 参考答案 · 待确认')).toBeTruthy();
-    expect(screen.getByText(/不计入预估分/)).toBeTruthy();
+    expect((await screen.findAllByText('AI 参考答案')).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/不计入预估分/)).toBeNull();
     expect(screen.getByText('这份参考答案对吗？')).toBeTruthy();
     await fireEvent.press(screen.getByText('我来改'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/bank/question/[id]', params: { id: '201', edit: '1' } });
@@ -253,6 +253,18 @@ describe('4.4 / 4.7b 按 AI 参考答案批改', () => {
     await fireEvent.press(screen.getByText('提交批改'));
     expect(await screen.findByText('/ 5 分')).toBeTruthy();
     expect(screen.queryByText('这份参考答案对吗？')).toBeNull();
-    expect(screen.queryByText('AI 参考答案 · 待确认')).toBeNull();
+    expect(screen.queryByText('AI 参考答案')).toBeNull();
+  });
+
+  it('11 月 4 日以前标了不计入的批改：仍说明不计入预估分', async () => {
+    mockResponses['POST /practice-sessions/{sessionId}/gradings'] = () => ({
+      status: 200,
+      data: grading({ rubric_source: 'ai_generated', answer_tier: 'ai', reference_only: true, answer_confirmed: true }),
+    });
+    await wrap(<PracticeRunner />);
+    await fireEvent.changeText(await screen.findByLabelText('你的答案'), answer);
+    await fireEvent.press(screen.getByText('提交批改'));
+    expect(await screen.findByText(/当时规则下/)).toBeTruthy();
+    expect(screen.queryByText('这份参考答案对吗？')).toBeNull();
   });
 });

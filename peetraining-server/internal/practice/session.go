@@ -327,11 +327,6 @@ func (s *Service) Submit(ctx context.Context, userID, sessionID uint64, in Attem
 		}
 		res.AttemptID, res.Answer, res.Analysis = uint64(aid), qr.Answer.String, qr.Analysis.String
 		res.AnswerTier = string(answerTier(qr))
-		if objective && !in.Revealed {
-			if err := markReference(ctx, q, userID, uint64(aid), res.AnswerTier); err != nil {
-				return err
-			}
-		}
 		if res.Effect, err = Apply(ctx, q, p, userID, qr.ID, o, rules.DayOf(at)); err != nil {
 			return err
 		}

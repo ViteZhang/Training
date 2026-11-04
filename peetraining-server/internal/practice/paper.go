@@ -965,9 +965,6 @@ func (s *Service) judgePaperObjective(ctx context.Context, q *dbq.Queries, p rul
 	if err := q.SetPaperItemAttempt(ctx, dbq.SetPaperItemAttemptParams{AttemptID: sql.NullInt64{Int64: aid, Valid: true}, PaperSessionID: sessionID, Seq: it.Seq, OwnerUserID: userID}); err != nil {
 		return err
 	}
-	if err := markReference(ctx, q, userID, uint64(aid), string(answerTier(qr))); err != nil {
-		return err
-	}
 	_, err = Apply(ctx, q, p, userID, qr.ID, Outcome{Objective: true, Correct: correct}, rules.DayOf(at))
 	return err
 }
@@ -1129,9 +1126,6 @@ func (s *Service) GradePaper(ctx context.Context, userID, sessionID uint64) erro
 				AnswerMode: dbq.AttemptsAnswerModeTyped, AnswerText: sql.NullString{String: answer, Valid: true}, Score: fmtScore(out.Total()), FullScore: fmtScore(snap.FullScore),
 				DurationSeconds: it.TimeSpentSeconds, Timed: mock, AnsweredAt: at})
 			if err != nil {
-				return err
-			}
-			if err := markReference(ctx, q, userID, uint64(aid), snap.AnswerTier); err != nil {
 				return err
 			}
 			eff, err := Apply(ctx, q, p, userID, qr.ID, Outcome{Graded: true, ScoreRate: out.Total() / snap.FullScore, LossType: mainLoss}, rules.DayOf(at))

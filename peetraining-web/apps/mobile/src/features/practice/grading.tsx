@@ -140,10 +140,10 @@ export function SubjectiveInput({
   );
 }
 
-/** 4.4 的批改依据（PRD v3 4.4、11.16）：AI 参考答案或还没有答案时说明仅供参考。 */
+/** 4.4 的批改依据（PRD v3 4.4、11.16）：AI 参考答案或还没有答案时说明（11 月 4 日起照常计入预估分，T49）。 */
 export function gradingBasis(q: PracticeQuestion) {
-  if (q.answer_tier === 'ai') return '这道题按 AI 参考答案批改，仅供参考';
-  if (q.answer_tier === 'missing') return '这道题还没有答案，提交时 AI 先生成参考答案再批改，仅供参考';
+  if (q.answer_tier === 'ai') return '这道题按 AI 参考答案批改';
+  if (q.answer_tier === 'missing') return '这道题还没有答案，提交时 AI 先生成参考答案再批改';
   return q.rubric_count > 0 ? `按你资料里的 ${q.rubric_count} 个采分点批改` : '按参考答案批改';
 }
 
@@ -212,7 +212,7 @@ export function GradingResultView({
   const reference = g.reference_only || g.answer_tier === 'ai';
   return (
     <View style={styles.gap12}>
-      {reference ? <AIAnswerNotice /> : null}
+      {reference ? <AIAnswerNotice legacy={!!g.reference_only} /> : null}
       <View style={styles.scoreRow}>
         <Text variant="score" color={colors.ink} style={styles.score}>
           {g.score ?? '—'}
@@ -336,22 +336,31 @@ export function GradingResultView({
   );
 }
 
-/** 4.7b 顶部：按 AI 参考答案批改，分数仅供参考、不计入预估分（PRD v3 4.7b、11.6）。 */
-function AIAnswerNotice() {
+/**
+ * 4.7b 顶部：按 AI 参考答案批改（PRD v3 4.7b、11.16）。11 月 4 日起照常计入预估分（T49）；
+ * legacy 是那之前标了不计入的作答，仍按原样说明。
+ */
+function AIAnswerNotice({ legacy }: { legacy: boolean }) {
   return (
     <View style={styles.gap8}>
-      <Tag label="AI 参考答案 · 待确认" tone="info" />
+      <Tag label="AI 参考答案" tone="info" />
       <View style={styles.aiNotice}>
-        <Text variant="small" color={colors.blueInk} style={styles.lh19}>
-          这道题你的资料里没有答案，按 <Text variant="small" color={colors.blueInk} style={styles.bold}>AI 参考答案</Text> 批改，分数仅供参考，
-          <Text variant="small" color={colors.blueInk} style={styles.bold}>不计入预估分</Text>。确认答案后，之后的批改会计入
-        </Text>
+        {legacy ? (
+          <Text variant="small" color={colors.blueInk} style={styles.lh19}>
+            这次按 <Text variant="small" color={colors.blueInk} style={styles.bold}>AI 参考答案</Text> 批改，当时规则下
+            <Text variant="small" color={colors.blueInk} style={styles.bold}>不计入预估分</Text>
+          </Text>
+        ) : (
+          <Text variant="small" color={colors.blueInk} style={styles.lh19}>
+            这道题按 <Text variant="small" color={colors.blueInk} style={styles.bold}>AI 参考答案</Text> 批改，可以在参考答案里查看引用的教材段落；觉得答案不对，可以改成你的答案
+          </Text>
+        )}
       </View>
     </View>
   );
 }
 
-/** 4.7b「这份参考答案对吗？」：我来改 → 3.3b 编辑；答案没问题，确认 → 你已确认（本次分数不追溯）。 */
+/** 4.7b「这份参考答案对吗？」：我来改 → 3.3b 编辑；答案没问题，确认 → 你已确认。 */
 function ConfirmAIAnswerCard({ questionId }: { questionId: number }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -360,7 +369,7 @@ function ConfirmAIAnswerCard({ questionId }: { questionId: number }) {
     return (
       <View style={[styles.box, styles.aiCard]}>
         <Text variant="caption" color={colors.ink}>
-          已确认，答案来源变为「你已确认」，之后的批改会计入预估分
+          已确认，答案来源变为「你已确认」
         </Text>
       </View>
     );

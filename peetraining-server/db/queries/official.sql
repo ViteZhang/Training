@@ -45,14 +45,15 @@ UPDATE knowledge_points SET name = ?, original_text = ? WHERE id = ? AND bank_id
 DELETE FROM knowledge_points WHERE id = ? AND bank_id = ? AND owner_user_id IS NULL;
 
 -- name: ListOfficialQuestions :many
-SELECT id, qtype, stem, options, answer, analysis, score, exam_year, status, answer_snapshot_id FROM questions WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY id;
+SELECT id, qtype, stem, options, answer, answer_origin, analysis, score, exam_year, status, answer_snapshot_id FROM questions WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY id;
 
 -- name: InsertOfficialQuestion :execlastid
+-- answer_origin：official 团队给的答案；ai_generated 由 AI 生成、经编辑审核（用户端显示「AI 参考答案」，T49）。
 INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, score, source, exam_year, content_hash)
-VALUES (NULL, ?, ?, ?, ?, ?, 'official', ?, ?, 'official', ?, ?);
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'official', ?, ?);
 
 -- name: UpdateOfficialQuestion :exec
-UPDATE questions SET qtype = ?, stem = ?, options = ?, answer = ?, analysis = ?, score = ?, exam_year = ?, content_hash = ?, rubric_version = rubric_version + 1
+UPDATE questions SET qtype = ?, stem = ?, options = ?, answer = ?, answer_origin = ?, analysis = ?, score = ?, exam_year = ?, content_hash = ?, rubric_version = rubric_version + 1
 WHERE id = ? AND bank_id = ? AND owner_user_id IS NULL;
 
 -- name: SetOfficialQuestionStatus :exec
@@ -222,14 +223,14 @@ UPDATE knowledge_points SET official_kp_id = NULL, official_hash = NULL, officia
 DELETE FROM knowledge_points WHERE id = ? AND owner_user_id = ?;
 
 -- name: ListUserQuestionCopies :many
-SELECT id, official_question_id, qtype, stem, answer, status, official_hash FROM questions WHERE bank_id = ? AND owner_user_id = ? AND official_question_id IS NOT NULL;
+SELECT id, official_question_id, qtype, stem, answer, answer_origin, status, official_hash FROM questions WHERE bank_id = ? AND owner_user_id = ? AND official_question_id IS NOT NULL;
 
 -- name: InsertUserQuestionCopy :execlastid
 INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, score, source, exam_year, content_hash, official_question_id, official_hash)
-VALUES (?, ?, ?, ?, ?, ?, 'official', ?, ?, 'official', ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?);
 
 -- name: UpdateUserQuestionCopy :exec
-UPDATE questions SET qtype = ?, stem = ?, options = ?, answer = ?, analysis = ?, score = ?, exam_year = ?, content_hash = ?, official_hash = ?, status = 'active',
+UPDATE questions SET qtype = ?, stem = ?, options = ?, answer = ?, answer_origin = ?, analysis = ?, score = ?, exam_year = ?, content_hash = ?, official_hash = ?, status = 'active',
   rubric_version = rubric_version + 1
 WHERE id = ? AND owner_user_id = ?;
 
