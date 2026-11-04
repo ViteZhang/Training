@@ -4,7 +4,7 @@
 SELECT * FROM gradings WHERE owner_user_id = ? AND idempotency_key = ?;
 
 -- name: GetGrading :one
-SELECT g.*, a.question_id, a.answer_text, a.timed, a.answered_at, a.practice_session_id
+SELECT g.*, a.question_id, a.answer_text, a.timed, a.answered_at, a.practice_session_id, a.reference_only
 FROM gradings g JOIN attempts a ON a.id = g.attempt_id
 WHERE g.id = ? AND g.owner_user_id = ?;
 

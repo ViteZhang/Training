@@ -6463,7 +6463,8 @@ paths:
       description: |
         format 为 text 或 csv 时直接带 text，马上开始解析；pdf / docx / image 返回 upload_url，客户端直传后调用 confirm。
         表格导入的表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型；
-        题型、分值、题干必填，真题年份必填；缺参考答案、采分点时由 AI 补全。
+        题型、分值、题干必填，真题年份必填。
+        auto_answer 为 true 时解析过程中缺参考答案、采分点的题由 AI 补全；默认不补，解析后由编辑逐题「生成答案 / 提取采分点」或整份「一键补全」（T49）。
       x-roles: [content_lead, content_editor]
       security: [{ adminAuth: [] }]
       parameters:
@@ -6483,6 +6484,7 @@ paths:
                 text: { type: string, maxLength: 1200000, description: 粘贴的文字或 CSV }
                 exam_year: { type: integer, description: 真题卷年份（识别不出时用它） }
                 is_recollection: { type: boolean, description: 回忆版 }
+                auto_answer: { type: boolean, description: 缺答案时由 AI 生成（解析时就补全答案与采分点；默认 false） }
       responses:
         "200":
           description: OK
@@ -6529,12 +6531,59 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+  /admin/official/projects/{projectId}/imports/{fileId}/fill:
+    post:
+      tags: [admin]
+      operationId: adminFillOfficialImport
+      summary: 一键补全：这份资料里还没核对、缺答案或采分点的题都补上（T49）
+      description: |
+        在后台排队执行，进度见 OfficialImportFile.fill；单题失败不影响其余，原因记在条目的 fill_error 上。
+        缺答案的 AI 生成参考答案（主观题连同采分点，优先引用项目关联的官方教材，payload.answer_ai = true）；有答案缺采分点的从答案提采分点。
+        主观题没有分值时参考同项目同题型最常见的分值（payload.score_inferred = true）。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: fileId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: 已开始补全
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfficialImportFile" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/official/projects/{projectId}/import-items/{itemId}/fill:
+    post:
+      tags: [admin]
+      operationId: adminFillOfficialImportItem
+      summary: 生成答案 / 提取采分点：给一道还没核对的题补上（T49）
+      description: |
+        缺答案的 AI 生成参考答案（主观题连同采分点，客观题只要答案），标 payload.answer_ai，带引用（书名、章节、原文、页码）；
+        有答案缺采分点的从答案提采分点。主观题没有分值时参考同项目同题型最常见的分值（payload.score_inferred），
+        同题型一道有分值的都没有时返回 400（detail.reason = score_missing），请先「修改」填分值。
+        生成失败返回 400 / 502（AI_FAILED），原因同时记在条目的 fill_error 上。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: itemId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: 补好的条目
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfficialImportItem" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /admin/official/projects/{projectId}/import-items/{itemId}/review:
     post:
       tags: [admin]
       operationId: adminReviewOfficialImportItem
       summary: 逐条接受（可带修改后的内容）或驳回；接受的生成草稿并提交 7.13 审核
-      description: 采分点合计不等于分值时不能接受（detail.reason = rubric_sum）。
+      description: 主观题还没有采分点时不能接受（detail.reason = needs_fill）；采分点合计不等于分值时不能接受（detail.reason = rubric_sum）。
       x-roles: [content_lead, content_editor]
       security: [{ adminAuth: [] }]
       parameters:
@@ -10489,7 +10538,7 @@ components:
         answer_tier: { $ref: "#/components/schemas/AnswerTier" }
         reference_only:
           type: boolean
-          description: 按 AI 参考答案批改（4.7b）：分数仅供参考、不计入预估分；确认答案后，之后的批改会计入
+          description: 这次作答不计入预估分（11 月 4 日以前按 AI 参考答案批改的）。11 月 4 日起按 AI 参考答案批改照常计入，不再返回（T49）
         answer_confirmed: { type: boolean, description: 题目的 AI 参考答案已经被确认（4.7b 不再显示「这份参考答案对吗？」） }
     DisputeRequest:
       type: object
@@ -13448,6 +13497,16 @@ components:
         created_at: { type: string, format: date-time }
         upload_url: { type: string, description: 直传地址（新建文件时） }
         upload_headers: { type: object, additionalProperties: { type: string } }
+        auto_answer: { type: boolean, description: 上传时勾选了「缺答案时由 AI 生成」 }
+        fill:
+          type: object
+          description: 一键补全的进度（T49）
+          required: [status, total, done, failed]
+          properties:
+            status: { type: string, enum: [idle, running] }
+            total: { type: integer }
+            done: { type: integer, description: 已处理的题数（含失败） }
+            failed: { type: integer }
     OfficialImportItem:
       type: object
       required: [id, item_type, seq, payload, confidence, status, rubric_mismatch]
@@ -13455,21 +13514,33 @@ components:
         id: { type: integer, format: int64 }
         item_type: { type: string, enum: [question, knowledge_point] }
         seq: { type: integer }
-        payload: { type: object, additionalProperties: true, description: 结构同 7.12 草稿 }
+        payload:
+          type: object
+          additionalProperties: true
+          description: |
+            结构同 7.12 草稿。题目另有：answer_ai（参考答案由 AI 生成，发布后用户端显示「AI 参考答案」，照常计入预估分）、
+            score_inferred（原文没有分值，参考同项目同题型的给分填上，请核对）。
         citations:
           type: array
           items:
             type: object
             properties:
               reference_id: { type: integer, format: int64 }
-              title: { type: string }
-              heading: { type: string }
+              title: { type: string, description: 书名或资料名 }
+              heading: { type: string, description: 章节 }
+              kind: { type: string, description: official_textbook 官方教材 }
+              quote: { type: string, description: 引用的原文段落 }
+              claim: { type: string, description: 这段原文支撑答案里的哪个观点 }
+              page: { type: integer, description: 资料页码 }
+              printed_page: { type: string, description: 教材印刷页码 }
         source_text: { type: string, description: 原文片段（高亮） }
         page: { type: integer }
         confidence: { type: string, enum: [high, medium, low] }
         status: { type: string, enum: [pending, accepted, rejected] }
         draft_id: { type: integer, format: int64 }
         rubric_mismatch: { type: boolean, description: 采分点合计不等于分值（标红） }
+        needs_fill: { type: boolean, description: 还缺答案或采分点（可以「生成答案 / 提取采分点」） }
+        fill_error: { type: string, description: 上次补全失败的原因 }
     SubjectInput:
       type: object
       required: [name, full_score]
@@ -13693,8 +13764,8 @@ components:
     AnswerTier:
       type: string
       description: |
-        参考答案的来源档位（PRD 11.16）：来自你的资料 / 你已确认 / AI 参考答案（待确认）/ AI 出题自带的答案 / 缺答案。
-        只有 material、confirmed、ai_question 计入预估分；ai 可以批改，结果标「仅供参考」。
+        参考答案的来源档位（PRD 11.16）：来自你的资料 / 你已确认 / AI 参考答案 / AI 出题自带的答案 / 缺答案。
+        除 missing 外都计入预估分（11 月 4 日起 ai 也计入，T49）；ai 包括做到时 AI 生成的，和官方题库由 AI 生成、经编辑审核的，可以确认或修改。
       enum: [material, confirmed, ai, ai_question, missing]
     AnswerMatch:
       type: string
@@ -14110,7 +14181,7 @@ components:
         question_count: { type: integer }
         kp_count: { type: integer }
         needs_review_count: { type: integer }
-        missing_answer_count: { type: integer, description: 缺答案的题数（3.1 提醒条「N 题缺答案」，含只有 AI 参考答案、还没确认的） }
+        missing_answer_count: { type: integer, description: 缺答案的题数（3.1 提醒条「N 题缺答案」，含只有 AI 参考答案、还没确认的；官方题库经编辑审核的 AI 参考答案不算） }
         material_count: { type: integer }
         paper_count: { type: integer }
         mastery_distribution:
