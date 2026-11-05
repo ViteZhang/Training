@@ -37,6 +37,13 @@ export function useCatalogCourses(school: string | undefined, year?: number) {
   });
 }
 
+/** 至少一个方向有已上线的示例题（PRD v3 增补：没有时 1.1c 不显示「用示例题试试」）。 */
+export const hasSamples = (items?: { directions: { questions: unknown[] }[] }[]) => !!items?.some((d) => d.directions.some((x) => x.questions.length > 0));
+
+export function useSampleQuestions(enabled = true) {
+  return useQuery({ queryKey: officialKeys.samples, queryFn: () => unwrap(api.GET('/sample-questions')), enabled });
+}
+
 export function useTrialStatus(enabled = true) {
   return useQuery({ queryKey: officialKeys.trialStatus, queryFn: () => unwrap(api.GET('/trials/status')), enabled });
 }
