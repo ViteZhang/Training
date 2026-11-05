@@ -1,9 +1,10 @@
 // 1.2 设定目标分：每门专业课选满分（100 / 150 / 300），± 设目标分，默认取满分的 70%；可「先不设这门」或整页「先跳过」。
+// 还没有专业课时（院校未定、体验后没加入题库）这一页没有可设的内容，直接进 1.3；之后加了专业课在首页设目标分。
 import type { Schemas } from '@training/api-client';
 import { colors, fontFamily, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, ErrorState, Loading, Screen, Text, toast } from '@/components';
 import { setStep } from '@/features/onboarding/api';
@@ -48,7 +49,15 @@ export default function TargetStep() {
     router.push('/(onboarding)/setup');
   };
 
-  if (subjects.isLoading) return <Screen><Loading rows={6} /></Screen>;
+  const none = subjects.isSuccess && subjects.data.items.length === 0;
+  useEffect(() => {
+    if (!none) return;
+    void setStep('1.3')
+      .catch(() => undefined)
+      .then(() => router.replace('/(onboarding)/setup'));
+  }, [none]);
+
+  if (subjects.isLoading || none) return <Screen><Loading rows={6} /></Screen>;
   if (subjects.isError) return <Screen><ErrorState error={subjects.error} onRetry={() => void subjects.refetch()} /></Screen>;
 
   return (
