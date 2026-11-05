@@ -8,8 +8,9 @@ import { routeFor } from '../features/auth/routing';
 import { loadDraft, saveDraft } from '../features/onboarding/draft';
 
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({
-  router: { push: (...a: unknown[]) => mockPush(...a), replace: jest.fn(), back: jest.fn() },
+  router: { push: (...a: unknown[]) => mockPush(...a), replace: (...a: unknown[]) => mockReplace(...a), back: jest.fn() },
   useLocalSearchParams: () => ({}),
 }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'uuid' }));
@@ -45,6 +46,7 @@ function wrap(ui: React.ReactElement) {
 beforeEach(() => {
   mockCalls.length = 0;
   mockPush.mockReset();
+  mockReplace.mockReset();
   mockResponses = {};
 });
 
@@ -105,6 +107,19 @@ describe('1.2 设定目标分', () => {
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/(onboarding)/setup'));
     const patches = mockCalls.filter((c) => c.path === '/subjects/{subjectId}').map((c) => (c.init as { body: unknown }).body);
     expect(patches).toEqual([{ full_score: 150, target_score: 105 }, { full_score: 150, target_score: null }]);
+  });
+});
+
+describe('1.2 没有专业课', () => {
+  it('院校未定、没有加入专业课时跳过 1.2，直接去 1.3', async () => {
+    mockResponses = {
+      'GET /subjects': () => ({ status: 200, data: { items: [], max_subjects: 3, can_add: true } }),
+      'PATCH /me': () => ({ status: 200, data: {} }),
+    };
+    await wrap(<Target />);
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(onboarding)/setup'));
+    expect(mockCalls.some((c) => c.method === 'PATCH' && c.path === '/me')).toBe(true);
+    expect(screen.queryByText('给自己定个目标分')).toBeNull();
   });
 });
 

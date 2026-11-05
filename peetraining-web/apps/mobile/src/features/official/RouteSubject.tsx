@@ -1,6 +1,6 @@
 // 1.1 选院校和专业课（PRD v3 增补「引导分流」，设计稿 m1_subject）：选考试年份 → 搜索目标院校 → 按院校列出专业与专业课（最多 4 门），
 // 每门标「有官方题库 / 暂无官方题库」；列表里没有时手动添加（代码 + 名称）。「下一步」按匹配结果去 1.1a 或 1.1c；
-// 「院校还没定，先随便看看」去 1.10。院校与专业课来自后台维护的院校专业课库（onboarding_route 开关打开时才用这一页）。
+// 「院校还没定，先随便看看」去 1.10。搜不到的院校可以直接用输入的名称，专业课手动添加（进后台「待入库」），下一步去 1.1c。院校与专业课来自后台维护的院校专业课库（onboarding_route 开关打开时才用这一页）。
 import { ApiError } from '@training/api-client';
 import { colors, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -132,6 +132,8 @@ export function RouteSubject() {
   if (years.isError) return <Screen><ErrorState error={years.error} onRetry={() => void years.refetch()} /></Screen>;
 
   const showResults = !!term && query.trim() !== school;
+  // 搜索结果里没有同名院校时，可以直接用输入的院校名（PRD v3 增补 1.1：库里没有时手动添加），专业课手动添加后去 1.1c。
+  const exact = (schools.data?.items ?? []).some((s) => s.name === query.trim());
   return (
     <Screen>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
@@ -178,10 +180,23 @@ export function RouteSubject() {
                   <Text variant="small" num>{s.course_count} 门课</Text>
                 </Pressable>
               ))}
-              {schools.data && schools.data.items.length === 0 ? (
-                <View style={styles.row}>
-                  <Text variant="caption" style={styles.flex}>没找到这所院校，可以先随便看看，或检查一下院校全称</Text>
-                </View>
+              {schools.data && !exact ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    const name = query.trim();
+                    setSchool(name);
+                    setQuery(name);
+                    setPicked([]);
+                  }}
+                  style={[styles.row, schools.data.items.length > 0 && styles.divider, styles.custom]}
+                >
+                  <View style={styles.flex}>
+                    <Text variant="body">就用「{query.trim()}」</Text>
+                    <Text variant="small">{schools.data.items.length === 0 ? '库里还没有这所院校，' : ''}下一步手动添加你要考的专业课</Text>
+                  </View>
+                  <Icon name="chevron" size={16} color={semantic.textSecondary} />
+                </Pressable>
               ) : null}
             </View>
           ) : null}
@@ -228,6 +243,11 @@ export function RouteSubject() {
                   </Pressable>
                 </View>
               ))}
+              {!courses.isLoading && list.length === 0 && manual.length === 0 ? (
+                <View style={[styles.row, styles.divider]}>
+                  <Text variant="caption" style={styles.flex}>这所院校的专业课还没录入，手动添加后我们会尽快补上</Text>
+                </View>
+              ) : null}
               <Pressable accessibilityRole="button" onPress={() => (count >= MAX_COURSES ? toast(`最多选 ${MAX_COURSES} 门`) : setAdding(true))} style={styles.row}>
                 <Text variant="body" color={semantic.textSecondary}>列表里没有？手动添加专业课</Text>
               </Pressable>
@@ -323,6 +343,7 @@ const styles = StyleSheet.create({
   boxOn: { borderColor: semantic.primary, backgroundColor: semantic.primary },
   flex: { flex: 1, gap: 2 },
   center: { alignSelf: 'center' },
+  custom: { minHeight: 60 },
   remove: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   sheet: { gap: spacing.md, paddingBottom: spacing.md },
   field: { minHeight: 50, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: semantic.inputBorder, fontSize: 15, color: semantic.textPrimary },
