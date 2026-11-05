@@ -3,9 +3,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import NoOfficial from '../../app/(onboarding)/no-official';
 import Apply from '../../app/apply';
+import Samples from '../../app/trial/samples';
 import TrialPage from '../../app/trial/[id]';
 import { saveDraft } from '../features/onboarding/draft';
-import { parseCourse, routeOf } from '../features/official/RouteSubject';
+import { parseCourse, routeOf, RouteSubject } from '../features/official/RouteSubject';
 import { promptText } from '../features/official/SupplementCard';
 
 const mockPush = jest.fn();
@@ -55,6 +56,10 @@ beforeEach(() => {
     'GET /subjects': () => ({ status: 200, data: { items: [{ id: 5, name: '西方哲学史', code: '812', school: '四川大学', major: '哲学', is_essay: false }] } }),
     'GET /profile': () => ({ status: 200, data: { exam_year: 2027 } }),
     'PATCH /me': () => ({ status: 200, data: {} }),
+    'GET /sample-questions': () => ({
+      status: 200,
+      data: { items: [{ name: '哲学', directions: [{ id: 3, name: '西方哲学', questions: [{ id: 11, qtype: 'term', score: 5, stem: '绝对命令', ai_generated: false }] }] }] },
+    }),
   };
   saveDraft({ examYear: 2027, school: '四川大学', major: '哲学', noOfficial: [{ subjectId: 5, name: '西方哲学史', code: '812', major: '哲学' }], after: undefined });
 });
@@ -90,11 +95,65 @@ describe('1.1c 暂无官方题库', () => {
     await waitFor(() => expect(screen.getAllByText('已体验')).toHaveLength(2));
   });
 
+  it('还没有上线的示例题时不显示示例题入口', async () => {
+    mockResponses['GET /sample-questions'] = () => ({ status: 200, data: { items: [{ name: '哲学', directions: [{ id: 3, name: '西方哲学', questions: [] }] }] } });
+    await wrap(<NoOfficial />);
+    expect(await screen.findByText('用你手里的一道题，试试 AI 批改')).toBeTruthy();
+    await waitFor(() => expect(mockCalls.some((c) => c.path === '/sample-questions')).toBe(true));
+    expect(screen.queryByText('手边没有题？用示例题试试')).toBeNull();
+  });
+
   it('开关都关闭时只剩导入资料', async () => {
     mockResponses['GET /feature-flags'] = flags([]);
     await wrap(<NoOfficial />);
     expect(await screen.findByText('直接导入我的资料')).toBeTruthy();
     expect(screen.queryByText('申请收录这门课')).toBeNull();
+  });
+});
+
+describe('1.1 院校库里没有的院校', () => {
+  it('可以直接用输入的院校名，手动添加专业课后去 1.1c', async () => {
+    saveDraft({ examYear: undefined, school: undefined, picked: [], noOfficial: [] });
+    mockResponses['GET /subjects'] = () => ({ status: 200, data: { items: [] } });
+    mockResponses['GET /catalog/schools'] = () => ({ status: 200, data: { items: [] } });
+    mockResponses['GET /catalog/courses'] = () => ({ status: 200, data: { items: [] } });
+    mockResponses['POST /subjects'] = () => ({ status: 200, data: { id: 8, name: '文学理论', code: '831', is_essay: false } });
+    mockResponses['PUT /profile'] = () => ({ status: 200, data: {} });
+    await wrap(<RouteSubject />);
+    await fireEvent.changeText(await screen.findByLabelText('搜索院校'), '南京大学');
+    await fireEvent.press(await screen.findByText('就用「南京大学」'));
+    expect(await screen.findByText('这所院校的专业课还没录入，手动添加后我们会尽快补上')).toBeTruthy();
+    await fireEvent.press(screen.getByText('列表里没有？手动添加专业课'));
+    await fireEvent.changeText(screen.getByLabelText('专业'), '中国语言文学');
+    await fireEvent.changeText(screen.getByLabelText('专业课代码和名称'), '831 文学理论');
+    await fireEvent.press(screen.getByText('添加'));
+    expect(await screen.findByText('中国语言文学 · 手动添加')).toBeTruthy();
+    await fireEvent.press(await screen.findByText('下一步'));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/(onboarding)/no-official'));
+    const post = mockCalls.find((c) => c.method === 'POST' && c.path === '/subjects')!;
+    expect(post.init).toEqual({ body: { name: '文学理论', code: '831', full_score: 150, school: '南京大学', major: '中国语言文学' } });
+  });
+});
+
+describe('1.10 示例题', () => {
+  it('还没有示例题时给出口，不卡在这一页', async () => {
+    mockParams = { from: 'onboarding' };
+    mockResponses['GET /sample-questions'] = () => ({ status: 200, data: { items: [] } });
+    await wrap(<Samples />);
+    expect(await screen.findByText('示例题还在准备')).toBeTruthy();
+    await fireEvent.press(screen.getByText('用我手里的一道题试试'));
+    expect(mockReplace).toHaveBeenCalledWith({ pathname: '/trial/input', params: { subjectId: undefined } });
+    await fireEvent.press(screen.getByText('导入我的资料'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(onboarding)/import'));
+  });
+
+  it('示例题开关关闭（接口 404）时同样给出口', async () => {
+    mockResponses['GET /feature-flags'] = flags([]);
+    mockResponses['GET /sample-questions'] = () => ({ status: 404, error: { code: 'NOT_FOUND', message: '不存在' } });
+    await wrap(<Samples />);
+    expect(await screen.findByText('示例题还在准备')).toBeTruthy();
+    expect(screen.queryByText('用我手里的一道题试试')).toBeNull();
+    expect(screen.getByText('先进入 App')).toBeTruthy();
   });
 });
 

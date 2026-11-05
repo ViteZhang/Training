@@ -1,12 +1,12 @@
 // 1.1c 暂无官方题库 · 三个选择（PRD v3 增补，设计稿 n_no_official）：体验一道题（主推荐 → 1.9）、用示例题试试（→ 1.10）、
 // 申请收录（→ 1.11）；底部「直接导入我的资料」→ 1.4。体验次数用完后前两个入口显示「已体验」、不可点。
-// 开关：trial 关闭时不显示体验一道题；sample_trial 关闭时不显示示例题；course_apply 关闭时不显示申请收录。
+// 开关：trial 关闭时不显示体验一道题；sample_trial 关闭或还没有上线的示例题时不显示示例题；course_apply 关闭时不显示申请收录。
 import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View, Pressable } from 'react-native';
 import { Button, Icon, Screen, Tag, Text } from '@/components';
 import type { IconName } from '@/components/Icon';
-import { useTrialStatus } from '@/features/official/api';
+import { hasSamples, useSampleQuestions, useTrialStatus } from '@/features/official/api';
 import { setStep } from '@/features/onboarding/api';
 import { loadDraft } from '@/features/onboarding/draft';
 import { Footer, StepHeader } from '@/features/onboarding/ui';
@@ -19,6 +19,9 @@ export default function NoOfficial() {
   const sampleOn = useFeatureFlag('sample_trial');
   const applyOn = useFeatureFlag('course_apply');
   const status = useTrialStatus(trialOn || sampleOn);
+  // 示例题还没有审核上线的题时不显示这个入口（PRD v3 增补「上线条件」）。
+  const samples = useSampleQuestions(sampleOn);
+  const showSamples = sampleOn && hasSamples(samples.data?.items);
   const used = status.data ? status.data.remaining <= 0 : false;
 
   const importOwn = async () => {
@@ -42,7 +45,7 @@ export default function NoOfficial() {
             onPress={() => router.push({ pathname: '/trial/input', params: { subjectId: course ? String(course.subjectId) : undefined } })}
           />
         ) : null}
-        {sampleOn ? (
+        {showSamples ? (
           <Entry
             icon="book"
             title="手边没有题？用示例题试试"
@@ -56,7 +59,7 @@ export default function NoOfficial() {
         ) : null}
       </ScrollView>
       <Footer>
-        <Button title="直接导入我的资料" kind={trialOn || sampleOn ? 'secondary' : 'primary'} onPress={() => void importOwn()} />
+        <Button title="直接导入我的资料" kind={trialOn || showSamples ? 'secondary' : 'primary'} onPress={() => void importOwn()} />
       </Footer>
     </Screen>
   );
