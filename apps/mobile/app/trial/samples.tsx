@@ -1,24 +1,26 @@
 // 1.10 学科通用体验题（PRD v3 增补，设计稿 n_sample）：切换学科（哲学、文学）和方向；每个方向列出已上线的体验题（题型 + 分值）；
 // 选一道进入 1.9a 作答，之后同体验一道题流程；「示例题只用于体验和入门练习，不计入预估分」。
 // 专业不在已覆盖学科时，AI 按用户的专业课现场出一道，标「AI 出题」（ai_live_question 开关）。与体验一道题共用次数。
+// 还没有上线的示例题（或 sample_trial 关闭）、或体验次数用完时，底部给出口：用自己的一道题体验 / 导入我的资料 / 先进入 App，不让引导卡在这一页。
 import { ApiError } from '@training/api-client';
 import { radius, semantic, spacing } from '@training/ui-tokens';
-import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { AIGenerating, Card, EmptyState, ErrorState, Icon, Loading, NavBar, Screen, Segmented, Tag, Text, toast } from '@/components';
-import { Chips } from '@/features/onboarding/ui';
-import { officialKeys, qtypeScore, useTrialStatus, type SampleQuestion } from '@/features/official/api';
+import { AIGenerating, Button, Card, EmptyState, ErrorState, Icon, Loading, NavBar, Screen, Segmented, Tag, Text, toast } from '@/components';
+import { setStep } from '@/features/onboarding/api';
+import { Chips, Footer } from '@/features/onboarding/ui';
+import { afterFirstGrade, hasSamples, qtypeScore, useSampleQuestions, useTrialStatus, type SampleQuestion } from '@/features/official/api';
 import { track } from '@/lib/analytics';
 import { api, unwrap } from '@/lib/api';
 import { useFeatureFlag } from '@/lib/flags';
 
 export default function Samples() {
   const { subjectId } = useLocalSearchParams<{ subjectId?: string }>();
-  const samples = useQuery({ queryKey: officialKeys.samples, queryFn: () => unwrap(api.GET('/sample-questions')) });
+  const samples = useSampleQuestions();
   const status = useTrialStatus();
   const liveOn = useFeatureFlag('ai_live_question');
+  const trialOn = useFeatureFlag('trial');
   const [discipline, setDiscipline] = useState<string>();
   const [direction, setDirection] = useState<number>();
   const [busy, setBusy] = useState<'live' | number>();
@@ -48,14 +50,20 @@ export default function Samples() {
   };
 
   if (samples.isLoading || status.isLoading) return <Screen><Loading rows={6} /></Screen>;
-  if (samples.isError) return <Screen><ErrorState error={samples.error} onRetry={() => void samples.refetch()} /></Screen>;
+  // 开关关闭时接口返回 404，按「示例题还在准备」处理。
+  const off = samples.error instanceof ApiError && samples.error.status === 404;
+  if (samples.isError && !off) return <Screen><ErrorState error={samples.error} onRetry={() => void samples.refetch()} /></Screen>;
   if (busy === 'live') return <Screen><AIGenerating title="AI 正在按你的专业课出一道题" steps={['读参考教材', '出题', '整理采分点']} current={1} eta="约 15 秒" /></Screen>;
 
-  const list = samples.data?.items ?? [];
+  const list = hasSamples(samples.data?.items) ? (samples.data?.items ?? []) : [];
   const cur = list.find((d) => d.name === discipline) ?? list[0];
   const dir = cur?.directions.find((d) => d.id === direction) ?? cur?.directions[0];
   const remaining = status.data?.remaining ?? 0;
   const used = remaining <= 0;
+  const importOwn = async () => {
+    await setStep('1.4');
+    router.replace('/(onboarding)/import');
+  };
 
   return (
     <Screen>
@@ -81,7 +89,7 @@ export default function Samples() {
             </View>
           </>
         ) : (
-          <EmptyState title="示例题还在准备" desc="可以先用你手里的一道题体验，或导入自己的资料" />
+          <EmptyState title="示例题还在准备" desc={trialOn && !used ? '可以先用你手里的一道题体验，或导入自己的资料' : '可以先导入自己的资料，或先进入 App 看看'} />
         )}
         {liveOn && subjectId ? (
           <Card tone="fill" style={styles.live}>
@@ -95,6 +103,15 @@ export default function Samples() {
           </Card>
         ) : null}
       </ScrollView>
+      {!cur || used ? (
+        <Footer>
+          {!cur && trialOn && !used ? (
+            <Button title="用我手里的一道题试试" onPress={() => router.replace({ pathname: '/trial/input', params: { subjectId } })} />
+          ) : null}
+          <Button title="导入我的资料" kind={!cur && trialOn && !used ? 'secondary' : 'primary'} onPress={() => void importOwn()} />
+          <Button title="先进入 App" kind="text" onPress={() => void afterFirstGrade()} />
+        </Footer>
+      ) : null}
     </Screen>
   );
 }
