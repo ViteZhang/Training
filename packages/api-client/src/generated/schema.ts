@@ -4713,6 +4713,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/official/projects/{projectId}/framework": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 用项目已关联的资料生成知识框架（T54）
+         * @description 新建一份「参考书目录」解析记录（kind = catalog），AI 按它生成知识点候选，在核对区逐条接受。
+         *     考纲用全文，教材、讲义只用章节标题；经验总结不能生成（400）；资料没关联到本项目 404；没有发布原文 400。
+         */
+        post: operations["adminCreateOfficialFramework"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/official/projects/{projectId}/imports/{fileId}": {
         parameters: {
             query?: never;
@@ -17231,6 +17252,40 @@ export interface operations {
         };
         responses: {
             /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialImportFile"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    adminCreateOfficialFramework: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: int64
+                     * @description 项目已关联的资料版本
+                     */
+                    edition_id: number;
+                };
+            };
+        };
+        responses: {
+            /** @description 已开始生成 */
             200: {
                 headers: {
                     [name: string]: unknown;
