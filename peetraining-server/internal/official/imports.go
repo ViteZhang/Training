@@ -420,7 +420,7 @@ func RubricMatches(p QuestionPayload) bool {
 
 // needsFill 判断一道题要不要补：主观题缺答案或缺采分点，客观题缺答案。
 func needsFill(p QuestionPayload) bool {
-	if strings.TrimSpace(p.Answer) == "" {
+	if p.Regenerate || strings.TrimSpace(p.Answer) == "" {
 		return true
 	}
 	return ai.Subjective(p.QType) && len(p.Rubric) == 0
@@ -437,6 +437,13 @@ func (s *Service) fillAnswer(ctx context.Context, projectID uint64, p *QuestionP
 		return nil, false, nil
 	}
 	subjective := ai.Subjective(p.QType)
+	if p.Regenerate {
+		// 按关联教材重新生成（T53）：去掉 AI 给的答案与采分点，原文给的采分点留着。
+		p.Answer, p.AnswerSnapshotID, p.AnswerBasis = "", 0, nil
+		if !p.RubricKept {
+			p.Rubric = nil
+		}
+	}
 	score := 0.0
 	if subjective {
 		if p.Score == nil || *p.Score <= 0 {
@@ -460,7 +467,8 @@ func (s *Service) fillAnswer(ctx context.Context, projectID uint64, p *QuestionP
 	if err != nil {
 		return nil, false, err
 	}
-	p.Answer, p.AnswerSnapshotID, p.AnswerAI = c.Answer, c.SnapshotID, true
+	p.RubricKept = subjective && len(p.Rubric) > 0
+	p.Answer, p.AnswerSnapshotID, p.AnswerAI, p.AnswerBasis, p.Regenerate = c.Answer, c.SnapshotID, true, c.Basis, false
 	if subjective {
 		p.Rubric = c.Points // 已有采分点的保留原样（answerCandidates 原样返回）
 	}
@@ -865,6 +873,9 @@ type ImportItem struct {
 	// Duplicate 是重复说明（如「与《2025 真题》第 3 题相同」），只标还没核对的题；SeenYears 是别的年份也考过同一题（T52）。
 	Duplicate string
 	SeenYears []int
+	// AnswerAI 是答案由 AI 生成（还没核对的可以「按关联教材重新生成」）；AnswerBasis 是没有引用教材的原因（T53）。
+	AnswerAI    bool
+	AnswerBasis *ai.AnswerBasis
 }
 
 // ImportDetail 是核对区：原文与解析结果。
@@ -936,6 +947,7 @@ func toImportItem(r dbq.OfficialImportItem) ImportItem {
 		if json.Unmarshal(r.Payload, &p) == nil {
 			it.RubricMismatch = !RubricMatches(p)
 			it.NeedsFill = needsFill(p)
+			it.AnswerAI, it.AnswerBasis = p.AnswerAI && strings.TrimSpace(p.Answer) != "", p.AnswerBasis
 		}
 	}
 	return it
@@ -973,6 +985,21 @@ func (s *Service) ReviewImportItem(ctx context.Context, editorID, projectID, ite
 		var p QuestionPayload
 		if err := json.Unmarshal(payload, &p); err != nil {
 			return 0, apperr.New(apperr.BadRequest, "题目格式不正确")
+		}
+		if p.Regenerate {
+			// 整份重新生成还在跑时先别接受；跑完了还带着标记是重新生成失败，接受原来的答案。
+			f, err := s.q.GetOfficialImportFile(ctx, it.FileID)
+			if err != nil {
+				return 0, err
+			}
+			if f.FillStatus == dbq.OfficialImportFilesFillStatusRunning {
+				return 0, apperr.New(apperr.Conflict, "这道题正在重新生成答案，请稍候")
+			}
+		}
+		// 核对区的说明不进草稿（T53）。
+		if p.AnswerBasis != nil || p.RubricKept || p.Regenerate {
+			p.AnswerBasis, p.RubricKept, p.Regenerate = nil, false, false
+			payload, _ = json.Marshal(p)
 		}
 		if ai.Subjective(p.QType) && len(p.Rubric) == 0 {
 			return 0, apperr.New(apperr.BadRequest, "这道题还没有采分点，先点「生成答案 / 提取采分点」，或在「修改」里填写").With("reason", "needs_fill")
@@ -1024,6 +1051,11 @@ func (s *Service) fillItem(ctx context.Context, it dbq.OfficialImportItem, defau
 	if err := json.Unmarshal(it.Payload, &p); err != nil {
 		return apperr.New(apperr.BadRequest, "题目格式不正确")
 	}
+	return s.fillItemWith(ctx, it, p, defaults)
+}
+
+// fillItemWith 按 p 补全并写回；失败时条目内容保持 it.Payload 不变，只记原因。
+func (s *Service) fillItemWith(ctx context.Context, it dbq.OfficialImportItem, p QuestionPayload, defaults map[string]float64) error {
 	cite, _, err := s.fillAnswer(ctx, it.ProjectID, &p, defaults)
 	if err != nil {
 		if ctx.Err() == nil {
@@ -1034,7 +1066,7 @@ func (s *Service) fillItem(ctx context.Context, it dbq.OfficialImportItem, defau
 	}
 	b, _ := json.Marshal(p)
 	var cites dbtypes.NullJSON
-	if len(cite) > 0 {
+	if cite != nil { // AI 生成了答案：引用整个换掉（重新生成后没有引用时清空旧的）
 		cites, _ = json.Marshal(cite)
 	} else {
 		cites = it.Citations

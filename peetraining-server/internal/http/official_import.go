@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"peetraining-server/internal/ai"
 	"peetraining-server/internal/gen"
 	"peetraining-server/internal/official"
 )
@@ -142,6 +143,14 @@ type importItemJSON struct {
 	FillError      *string              `json:"fill_error,omitempty"`
 	DuplicateOf    *string              `json:"duplicate_of,omitempty"`
 	SeenYears      []int                `json:"seen_years,omitempty"`
+	AnswerAI       bool                 `json:"answer_ai,omitempty"`
+	AnswerBasis    *answerBasisJSON     `json:"answer_basis,omitempty"`
+}
+
+type answerBasisJSON struct {
+	Reason  string   `json:"reason"`
+	Message string   `json:"message"`
+	Details []string `json:"details,omitempty"`
 }
 
 func toImportItemJSON(it official.ImportItem) importItemJSON {
@@ -150,9 +159,39 @@ func toImportItemJSON(it official.ImportItem) importItemJSON {
 		cs[j] = importCitationJSON{ReferenceID: ct.ReferenceID, Title: ct.Title, Heading: ct.Heading, Kind: ct.Kind, Quote: ct.Quote, Claim: ct.Claim,
 			Page: ct.Page, PrintedPage: ct.PrintedPage}
 	}
-	return importItemJSON{ID: it.ID, ItemType: it.ItemType, Seq: it.Seq, Payload: it.Payload, Citations: cs, SourceText: optStr(it.SourceText), Page: it.Page,
+	out := importItemJSON{ID: it.ID, ItemType: it.ItemType, Seq: it.Seq, Payload: it.Payload, Citations: cs, SourceText: optStr(it.SourceText), Page: it.Page,
 		Confidence: it.Confidence, Status: it.Status, DraftID: optID(it.DraftID), RubricMismatch: it.RubricMismatch, NeedsFill: it.NeedsFill,
-		FillError: optStr(it.FillError), DuplicateOf: optStr(it.Duplicate), SeenYears: it.SeenYears}
+		FillError: optStr(it.FillError), DuplicateOf: optStr(it.Duplicate), SeenYears: it.SeenYears, AnswerAI: it.AnswerAI}
+	if b := it.AnswerBasis; b != nil && it.AnswerAI && len(it.Citations) == 0 {
+		out.AnswerBasis = &answerBasisJSON{Reason: b.Reason, Message: ai.BasisMessage(b.Reason), Details: b.Details}
+	}
+	return out
+}
+
+// AdminRegenerateOfficialImport 整份按关联教材重新生成（T53）。
+func (h *Handlers) AdminRegenerateOfficialImport(c *gin.Context, projectID, fileID int64) {
+	if !h.canProject(c, projectID) {
+		return
+	}
+	f, err := h.deps.Official.RegenerateImportFile(c.Request.Context(), uint64(projectID), uint64(fileID))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, toGenImportFile(f))
+}
+
+// AdminRegenerateOfficialImportItem 按关联教材重新生成一道题（T53）。
+func (h *Handlers) AdminRegenerateOfficialImportItem(c *gin.Context, projectID, itemID int64) {
+	if !h.canProject(c, projectID) {
+		return
+	}
+	it, err := h.deps.Official.RegenerateImportItem(c.Request.Context(), uint64(projectID), uint64(itemID))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, toImportItemJSON(it))
 }
 
 // AdminRejectOfficialImportDuplicates 一键驳回标为重复的题（T52）。

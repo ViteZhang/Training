@@ -197,6 +197,8 @@ type AnswerCandidate struct {
 	Answer     string
 	Points     []Point
 	Citations  []Citation
+	// Basis 不为空是答案没有引用教材，说明原因（T53）。
+	Basis *ai.AnswerBasis
 }
 
 // AnswerCandidates 给官方题生成参考答案与采分点：相关的官方参考素材段落 → 教材书名 → 通用知识（PRD v3 7.11、11.16 第 5 条）。
@@ -251,7 +253,14 @@ func (s *Service) answerCandidates(ctx context.Context, projectID uint64, qtype,
 	if err != nil {
 		return AnswerCandidate{}, err
 	}
-	return AnswerCandidate{Answer: out.Answer, Points: pts, Citations: citationsOf(out.Snapshot), SnapshotID: id, Snapshot: out.Snapshot}, nil
+	c := AnswerCandidate{Answer: out.Answer, Points: pts, Citations: citationsOf(out.Snapshot), SnapshotID: id, Snapshot: out.Snapshot, Basis: out.Basis}
+	if len(c.Citations) == 0 && len(links) == 0 {
+		c.Basis = &ai.AnswerBasis{Reason: ai.BasisNoTextbook}
+	}
+	if len(c.Citations) > 0 {
+		c.Basis = nil
+	}
+	return c, nil
 }
 
 // citationsOf 把依据快照里的来源转成引用：书名、章节、引用原文与页码。

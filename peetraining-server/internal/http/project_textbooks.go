@@ -12,7 +12,8 @@ import (
 func projectBookMatches(rows []dbq.ListProjectTextbooksRow) []gen.UserTextbookMatch {
 	out := []gen.UserTextbookMatch{}
 	for _, v := range rows {
-		out = append(out, gen.UserTextbookMatch{Input: v.Title, Title: v.Title, Author: v.Author, Edition: v.Edition, EditionId: int64(v.ID), BookId: int64(v.BookID), CatalogVersion: strconv.FormatUint(v.CatalogVersion, 10), Method: "explicit", Available: v.Status == "published" && v.Authorized && (!v.LicenseExpiresAt.Valid || v.LicenseExpiresAt.Time.After(time.Now().UTC()))})
+		out = append(out, gen.UserTextbookMatch{Input: v.Title, Title: v.Title, Author: v.Author, Edition: v.Edition, EditionId: int64(v.ID), BookId: int64(v.BookID), CatalogVersion: strconv.FormatUint(v.CatalogVersion, 10), Method: "explicit", Available: v.Status == "published" && v.Authorized && (!v.LicenseExpiresAt.Valid || v.LicenseExpiresAt.Time.After(time.Now().UTC())) &&
+			v.CurrentRevisionID.Valid && v.CurrentGenerationID.Valid}) // 还要有发布的索引，才能检索（T53：上传前提醒用）
 	}
 	return out
 }
