@@ -10,7 +10,7 @@ import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { BackButton, BottomSheet, Button, Card, ConfirmDialog, ErrorState, GroupNote, Icon, Loading, PassageCard, Screen, Tag, Text, toast } from '@/components';
+import { BackButton, BottomSheet, Button, Card, ConfirmDialog, ErrorState, GroupNote, GroupTag, Icon, Loading, PassageCard, Screen, Tag, Text, toast } from '@/components';
 import { qtypeNames } from '@/features/import/api';
 import { clearDrafts, clock, lastActive, loadDrafts, markActive, paperKeys, saveDrafts, type PaperItem, type PaperSession } from '@/features/paper/api';
 import { PaperTimer } from '@/features/paper/timer';
@@ -512,6 +512,8 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
               第 <Text variant="small" num={600} color={semantic.textPrimary}>{seq}</Text> / {s.items.length} 题 · {qtypeNames[item.qtype]} · {item.score} 分
             </Text>
             {item.origin_tags?.includes('ai_generated') ? <Tag label="AI 变式题" tone="ai" /> : null}
+            {/* 卷子里有限选题时，其余的题标「必答」（T51）。 */}
+            <GroupTag group={item.group} required={s.items.some((it) => !!it.group)} />
             <Pressable accessibilityRole="button" accessibilityLabel={item.marked ? '已标记' : '标记'} onPress={() => mark.mutate(!item.marked)} style={[styles.mark, item.marked && styles.markOn]}>
               <View style={[styles.markDot, item.marked && styles.markDotOn]} />
               <Text variant="small" color={semantic.textPrimary}>

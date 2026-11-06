@@ -35,19 +35,22 @@ export function PassageCard({ text, count, lines = 4, defaultOpen = false }: { t
   );
 }
 
-/** 分组标签：列表里只写组名，详情里带上适用专业。 */
-export function GroupTag({ group, full, size }: { group?: Schemas['QuestionGroup'] | null; full?: boolean; size?: 'sm' | 'md' }) {
-  if (!group) return null;
-  const label = full && group.majors ? `${group.label} · ${group.majors}` : group.label;
+/**
+ * 限选题标签（T51）：按专业分组的题标「限选 · 第一组」，详情里带上适用专业。
+ * required 为真时，没有分组的题标「必答」：只在同一份卷子里有限选题时传，免得每道题都挂标签。
+ */
+export function GroupTag({ group, full, size, required }: { group?: Schemas['QuestionGroup'] | null; full?: boolean; size?: 'sm' | 'md'; required?: boolean }) {
+  if (!group) return required ? <Tag label="必答" tone="neutral" size={size} /> : null;
+  const label = full && group.majors ? `限选 · ${group.label} · ${group.majors}` : `限选 · ${group.label}`;
   return <Tag label={label} tone="info" size={size} />;
 }
 
-/** 详情页题干上方的一行说明：只有报考这些专业的考生要答这道题。 */
+/** 详情页题干上方的一行说明：限选题只有报考这些专业的考生要答，回答非报考专业不得分。 */
 export function GroupNote({ group }: { group?: Schemas['QuestionGroup'] | null }) {
   if (!group) return null;
   return (
     <Text variant="small" color={semantic.textSecondary}>
-      按专业分组的题：{group.label}{group.majors ? `，${group.majors}专业的考生作答` : ''}
+      限选题（{group.label}）：{group.majors ? `${group.majors}专业的考生作答，` : ''}回答非报考专业不得分
     </Text>
   );
 }

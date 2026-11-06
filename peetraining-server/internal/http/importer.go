@@ -378,6 +378,11 @@ func (h *Handlers) KeepImportGroups(c *gin.Context, jobID gen.JobId) {
 		_ = c.Error(err)
 		return
 	}
+	// 选方向会改专业课上的报考方向：官方题库的限选题跟着换（T51）。
+	if err := h.deps.Official.ResyncUser(ctx, user); err != nil {
+		_ = c.Error(err)
+		return
+	}
 	_, counts, err := h.deps.Importer.Items(ctx, user, uint64(jobID), "all", 0, 1)
 	if err != nil {
 		_ = c.Error(err)

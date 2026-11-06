@@ -4699,8 +4699,9 @@ export interface paths {
         /**
          * 上传资料并标类型（真题卷 / 参考书目录 / 有授权的讲义），或粘贴文字、表格导入（CSV）
          * @description format 为 text 或 csv 时直接带 text，马上开始解析；pdf / docx / image 返回 upload_url，客户端直传后调用 confirm。
-         *     表格导入的表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型；
-         *     题型、分值、题干必填，真题年份必填。
+         *     表格导入的表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型、限选分组、适用专业；
+         *     题型、分值、题干必填，真题年份必填。限选分组（如「第一组」）与适用专业选填：填了是限选题，不填是必答题（T51）。
+         *     真题卷里按专业分组的题（「第一组：请选择文艺学专业的考生作答」）解析时自动标成限选题。
          *     auto_answer 为 true 时解析过程中缺参考答案、采分点的题由 AI 补全；默认不补，解析后由编辑逐题「生成答案 / 提取采分点」或整份「一键补全」（T49）。
          */
         post: operations["adminCreateOfficialImport"];
@@ -7937,6 +7938,10 @@ export interface components {
             id: number;
             title: string;
             status: string;
+            /**
+             * @description 知识点或题目的内容。题目的 group 是限选分组 { label（如「第一组」，32 字以内）, majors（适用专业）}，
+             *     没有 group 是必答题（T51）。用户添加官方题库时，限选题只复制与报考方向匹配的那一组。
+             */
             payload: {
                 [key: string]: unknown;
             };
@@ -8000,6 +8005,10 @@ export interface components {
             /** Format: int64 */
             entity_id?: number;
             change_type: string;
+            /**
+             * @description 知识点或题目的内容。题目的 group 是限选分组 { label（如「第一组」，32 字以内）, majors（适用专业）}，
+             *     没有 group 是必答题（T51）。用户添加官方题库时，限选题只复制与报考方向匹配的那一组。
+             */
             payload: {
                 [key: string]: unknown;
             };
@@ -8029,9 +8038,17 @@ export interface components {
             /** Format: int64 */
             entity_id?: number;
             change_type: string;
+            /**
+             * @description 知识点或题目的内容。题目的 group 是限选分组 { label（如「第一组」，32 字以内）, majors（适用专业）}，
+             *     没有 group 是必答题（T51）。用户添加官方题库时，限选题只复制与报考方向匹配的那一组。
+             */
             payload: {
                 [key: string]: unknown;
             };
+            /**
+             * @description 知识点或题目的内容。题目的 group 是限选分组 { label（如「第一组」，32 字以内）, majors（适用专业）}，
+             *     没有 group 是必答题（T51）。用户添加官方题库时，限选题只复制与报考方向匹配的那一组。
+             */
             before?: {
                 [key: string]: unknown;
             };
@@ -8872,7 +8889,8 @@ export interface components {
             seq: number;
             /**
              * @description 结构同 7.12 草稿。题目另有：answer_ai（参考答案由 AI 生成，发布后用户端显示「AI 参考答案」，照常计入预估分）、
-             *     score_inferred（原文没有分值，参考同项目同题型的给分填上，请核对）。
+             *     score_inferred（原文没有分值，参考同项目同题型的给分填上，请核对）、
+             *     group（限选题：{ label: 组名如「第一组」, majors: 适用专业 }；没有是必答题，T51）。
              */
             payload: {
                 [key: string]: unknown;
@@ -9263,7 +9281,7 @@ export interface components {
             counts: components["schemas"]["ImportCounts"];
             next_cursor?: string;
         };
-        /** @description 按专业分组的论述题所在的组，只答报考专业那一组 */
+        /** @description 限选题所在的组（按专业分组的题，只答报考专业那一组，回答非报考专业不得分）；题目没有 group 是必答题（T51） */
         QuestionGroup: {
             /** @description 如「第一组」 */
             label: string;

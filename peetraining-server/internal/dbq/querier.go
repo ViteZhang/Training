@@ -382,6 +382,8 @@ type Querier interface {
 	GetSubject(ctx context.Context, arg GetSubjectParams) (GetSubjectRow, error)
 	// 题库：知识点、题目、资料（T13）。每条查询都带 owner_user_id 归属条件。
 	GetSubjectBank(ctx context.Context, arg GetSubjectBankParams) (GetSubjectBankRow, error)
+	// 报考方向（T51）：复制官方题库时限选题只留与它匹配的组。
+	GetSubjectMyMajors(ctx context.Context, arg GetSubjectMyMajorsParams) (sql.NullString, error)
 	GetSubscription(ctx context.Context, arg GetSubscriptionParams) (BankSubscription, error)
 	GetSurveyResponse(ctx context.Context, ownerUserID uint64) (SurveyResponse, error)
 	GetTextbook(ctx context.Context, id uint64) (Textbook, error)
@@ -478,6 +480,7 @@ type Querier interface {
 	InsertOfficialKP(ctx context.Context, arg InsertOfficialKPParams) (int64, error)
 	InsertOfficialProject(ctx context.Context, arg InsertOfficialProjectParams) (int64, error)
 	// answer_origin：official 团队给的答案；ai_generated 由 AI 生成、经编辑审核（用户端显示「AI 参考答案」，T49）。
+	// group_label / group_majors：限选题（按专业分组的题，T51）；为空是必答题。
 	InsertOfficialQuestion(ctx context.Context, arg InsertOfficialQuestionParams) (int64, error)
 	InsertOfficialQuestionKP(ctx context.Context, arg InsertOfficialQuestionKPParams) error
 	InsertOfficialReferenceSegment(ctx context.Context, arg InsertOfficialReferenceSegmentParams) error
@@ -888,6 +891,8 @@ type Querier interface {
 	// 自动判断只在用户没改过时生效（essay_set_by = 'user' 后不再自动改）。
 	SetSubjectEssayAuto(ctx context.Context, arg SetSubjectEssayAutoParams) error
 	SetSubjectMajors(ctx context.Context, arg SetSubjectMajorsParams) error
+	// 1.1 选填的报考专业记为报考方向，已经有方向的不覆盖（T51）。
+	SetSubjectMajorsIfEmpty(ctx context.Context, arg SetSubjectMajorsIfEmptyParams) error
 	SetSubjectTextbookSelections(ctx context.Context, arg SetSubjectTextbookSelectionsParams) error
 	// PRD v3 1.3、6.9：参考教材（选填）。
 	SetSubjectTextbooks(ctx context.Context, arg SetSubjectTextbooksParams) error
@@ -918,6 +923,8 @@ type Querier interface {
 	SubmitEssay(ctx context.Context, arg SubmitEssayParams) error
 	SubmitOfficialDraft(ctx context.Context, arg SubmitOfficialDraftParams) (int64, error)
 	SubmitPaperSession(ctx context.Context, arg SubmitPaperSessionParams) error
+	// 报考方向改了以后，重新对这门专业课上的官方题库（T51）。
+	SubscriptionsOfSubject(ctx context.Context, arg SubscriptionsOfSubjectParams) ([]uint64, error)
 	SumInviterDays(ctx context.Context, inviterID uint64) (int64, error)
 	// 聚合表里某指标在一段时间的和（如活跃用户日累计、收入）。
 	SumStat(ctx context.Context, arg SumStatParams) (string, error)

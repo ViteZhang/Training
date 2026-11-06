@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
@@ -470,6 +471,14 @@ func (s *Service) validateDraft(ctx context.Context, bankID uint64, entityType, 
 		if ai.Subjective(p.QType) && len(p.Rubric) == 0 {
 			return apperr.New(apperr.BadRequest, "主观题要有采分点")
 		}
+		if g := p.Group; g != nil {
+			if l := utf8.RuneCountInString(strings.TrimSpace(g.Label)); l == 0 || l > 32 {
+				return apperr.New(apperr.BadRequest, "限选题要写组名（如「第一组」，32 字以内）")
+			}
+			if utf8.RuneCountInString(g.Majors) > 255 {
+				return apperr.New(apperr.BadRequest, "限选题的适用专业太长")
+			}
+		}
 	default:
 		return apperr.New(apperr.BadRequest, "暂只支持知识点和题目")
 	}
@@ -692,7 +701,7 @@ func (c content) payloadOf(entityType string, id uint64) json.RawMessage {
 			continue
 		}
 		p := QuestionPayload{AnswerSnapshotID: uint64(x.AnswerSnapshotID.Int64), QType: string(x.Qtype), Stem: x.Stem, Answer: x.Answer.String, Analysis: x.Analysis.String, Rubric: pts(c.qRubric[x.ID]), KPNames: []string{},
-			AnswerAI: x.AnswerOrigin.Valid && x.AnswerOrigin.QuestionsAnswerOrigin == dbq.QuestionsAnswerOriginAiGenerated}
+			AnswerAI: x.AnswerOrigin.Valid && x.AnswerOrigin.QuestionsAnswerOrigin == dbq.QuestionsAnswerOriginAiGenerated, Group: groupOf(x.GroupLabel, x.GroupMajors)}
 		_ = json.Unmarshal(x.Options, &p.Options)
 		if x.Score.Valid {
 			v, _ := strconv.ParseFloat(x.Score.String, 64)
@@ -1245,16 +1254,18 @@ func (s *Service) apply(ctx context.Context, q *dbq.Queries, bankID uint64, enti
 		year = sql.NullInt16{Int16: int16(*p.ExamYear), Valid: true}
 	}
 	id := entityID
+	gl, gm := groupCols(p.Group)
 	if changeType == "add" {
 		nid, err := q.InsertOfficialQuestion(ctx, dbq.InsertOfficialQuestionParams{BankID: bankID, Qtype: dbq.QuestionsQtype(p.QType), Stem: p.Stem, Options: opts,
-			Answer: nullStr(p.Answer), AnswerOrigin: answerOrigin(p), Analysis: nullStr(p.Analysis), Score: scoreStr(p.Score), ExamYear: year, ContentHash: importer.ContentHash(p.Stem)})
+			Answer: nullStr(p.Answer), AnswerOrigin: answerOrigin(p), Analysis: nullStr(p.Analysis), Score: scoreStr(p.Score), ExamYear: year, ContentHash: importer.ContentHash(p.Stem),
+			GroupLabel: gl, GroupMajors: gm})
 		if err != nil {
 			return 0, err
 		}
 		id = uint64(nid)
 	} else {
 		if err := q.UpdateOfficialQuestion(ctx, dbq.UpdateOfficialQuestionParams{Qtype: dbq.QuestionsQtype(p.QType), Stem: p.Stem, Options: opts, Answer: nullStr(p.Answer), AnswerOrigin: answerOrigin(p),
-			Analysis: nullStr(p.Analysis), Score: scoreStr(p.Score), ExamYear: year, ContentHash: importer.ContentHash(p.Stem), ID: id, BankID: bankID}); err != nil {
+			Analysis: nullStr(p.Analysis), Score: scoreStr(p.Score), ExamYear: year, ContentHash: importer.ContentHash(p.Stem), GroupLabel: gl, GroupMajors: gm, ID: id, BankID: bankID}); err != nil {
 			return 0, err
 		}
 		if err := q.DeleteOfficialQuestionRubric(ctx, sql.NullInt64{Int64: int64(id), Valid: true}); err != nil {

@@ -569,6 +569,10 @@ func (s *Service) parseQuestions(ctx context.Context, f dbq.OfficialImportFile, 
 				v := b.Score
 				p.Score = &v
 			}
+			// 按专业分组的题（规则识别）是限选题（T51）。
+			if b.Group != "" {
+				p.Group = &QuestionGroup{Label: b.Group, Majors: b.GroupMajors}
+			}
 			if f.Kind == dbq.OfficialImportFilesKindExam {
 				switch {
 				case it.ExamYear != nil:
@@ -703,7 +707,7 @@ func (s *Service) kpPaths(ctx context.Context, projectID uint64) ([][]string, er
 
 // 表格导入的列（增补「导入数据结构」）。院校、专业课名称、来源类型、方向在官方题库项目里已确定，不从表里读。
 var tableColumns = map[string]string{"年份": "year", "题号": "no", "题型": "qtype", "分值": "score", "题干": "stem", "参考答案": "answer",
-	"采分点": "rubric", "知识点": "kp", "出处": "source", "来源类型": "kind"}
+	"采分点": "rubric", "知识点": "kp", "出处": "source", "来源类型": "kind", "限选分组": "group", "适用专业": "group_majors"}
 
 var tableQTypes = map[string]string{"名词解释": "term", "简答": "short_answer", "简答题": "short_answer", "论述": "discussion", "论述题": "discussion",
 	"客观题": "single_choice", "单选": "single_choice", "选择": "single_choice"}
@@ -781,6 +785,12 @@ func (s *Service) parseTable(ctx context.Context, projectID uint64, text string,
 		}
 		if kp := get(row, "kp"); kp != "" {
 			p.KPNames = []string{kp}
+		}
+		// 选填两列：「限选分组」（如 第一组）与「适用专业」；不填是必答题（T51）。
+		if g := get(row, "group"); g != "" {
+			p.Group = &QuestionGroup{Label: g, Majors: get(row, "group_majors")}
+		} else if get(row, "group_majors") != "" {
+			return nil, apperr.New(apperr.BadRequest, fmt.Sprintf("第 %d 行填了适用专业，也要填限选分组（如 第一组）", line))
 		}
 		if cell := get(row, "rubric"); cell != "" {
 			pts, err := ParseRubricCell(cell)
