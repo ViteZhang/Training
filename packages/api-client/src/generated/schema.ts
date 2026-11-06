@@ -4809,6 +4809,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/official/projects/{projectId}/imports/{fileId}/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 整份按关联教材重新生成：这份资料里还没核对、答案由 AI 生成的题都重新生成（T53）
+         * @description 先导入、后关联教材时用。与一键补全共用后台任务与进度（OfficialImportFile.fill），缺答案、缺采分点的题一起补上。
+         *     只换 AI 生成的答案（payload.answer_ai），原文给的答案不动；原文给的采分点保留。单题失败时原来的答案不变，原因记在 fill_error 上。
+         */
+        post: operations["adminRegenerateOfficialImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/import-items/{itemId}/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 按关联教材重新生成一道题的 AI 答案（T53）
+         * @description 只能用于还没核对、答案由 AI 生成的题（answer_ai = true）；原文给的采分点保留。
+         *     失败返回 400 / 502（AI_FAILED），原来的答案不变，原因记在 fill_error 上。
+         */
+        post: operations["adminRegenerateOfficialImportItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/official/projects/{projectId}/import-items/{itemId}/review": {
         parameters: {
             query?: never;
@@ -8954,6 +8996,22 @@ export interface components {
             duplicate_of?: string;
             /** @description 别的年份也考过同一题（不算重复，只做提示） */
             seen_years?: number[];
+            /** @description 答案由 AI 生成（还没核对的可以按关联教材重新生成，T53） */
+            answer_ai?: boolean;
+            /** @description AI 生成的答案没有引用教材时的原因（T53）；引用了教材或答案是原文给的时没有 */
+            answer_basis?: {
+                /**
+                 * @description no_textbook 项目没有关联教材；unavailable 关联的教材都不能检索（details 逐本写原因）；no_hits 没检索到相关段落；
+                 *     not_relevant 检索到的段落与本题不相关；not_cited AI 没有引用检索到的段落；citation_rejected 引用核对没通过，已改按通用知识生成；
+                 *     retrieval_failed 检索出错（超时等），可稍后重新生成
+                 * @enum {string}
+                 */
+                reason: "no_textbook" | "unavailable" | "no_hits" | "not_relevant" | "not_cited" | "citation_rejected" | "retrieval_failed";
+                /** @description 给编辑看的说明 */
+                message: string;
+                /** @description 逐本说明，如「《文学理论教程》 第五版：还没有可检索的索引」 */
+                details?: string[];
+            };
         };
         SubjectInput: {
             name: string;
@@ -17277,6 +17335,58 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description 补好的条目 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialImportItem"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    adminRegenerateOfficialImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+                fileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已开始重新生成 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialImportFile"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    adminRegenerateOfficialImportItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+                itemId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 重新生成后的条目 */
             200: {
                 headers: {
                     [name: string]: unknown;
