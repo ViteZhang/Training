@@ -7,7 +7,18 @@
 INSERT INTO banks (source, owner_user_id, subject_id, title, school_major_tag, subject_code) VALUES ('official', NULL, NULL, ?, ?, ?);
 
 -- name: InsertOfficialProject :execlastid
-INSERT INTO official_projects (school, major, subject_code, subject_name, bank_id, editor_ids, created_by) VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT INTO official_projects (catalog_course_id, school, major, subject_code, subject_name, bank_id, editor_ids, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: OfficialProjectOfCourse :one
+-- 一门考试科目只立一个项目（T50）。
+SELECT id FROM official_projects WHERE catalog_course_id = ? ORDER BY id LIMIT 1;
+
+-- name: FindCatalogCourseForProject :one
+-- 旧版后台立项只传院校、代码、名称：找到对应的考试科目挂上。院校写「全国统考」的找统考科目。
+SELECT id FROM catalog_courses
+WHERE (scope = 'school' AND school = sqlc.arg(school) AND (subject_code = sqlc.arg(code) OR (subject_code IS NULL AND subject_name = sqlc.arg(name))))
+   OR (scope = 'national' AND sqlc.arg(national) AND subject_code = sqlc.arg(code))
+ORDER BY exam_year IS NOT NULL, id LIMIT 1;
 
 -- name: ListOfficialProjects :many
 SELECT p.*,
@@ -154,8 +165,9 @@ UPDATE official_versions SET rolled_back_at = ? WHERE id = ? AND rolled_back_at 
 -- ---------- 需求洞察（7.10，只用统计） ----------
 
 -- name: StatDemand :many
--- 按专业课代码聚合：自建用户数、平均题数、本周新增、填了目标院校的人数、付费人数（只有计数）。
-SELECT s.code,
+-- 按「院校 + 专业课代码」聚合（T50）：选了全国统考科目的不分院校，院校记为空串；没记院校的旧专业课也是空串。
+-- 自建用户数、平均题数、本周新增、填了目标院校的人数、付费人数（只有计数）。
+SELECT CAST(IF(cc.scope = 'national', '', COALESCE(s.school, '')) AS CHAR) AS school, s.code,
   COUNT(DISTINCT s.owner_user_id) AS users,
   CAST(COALESCE(AVG((SELECT COUNT(*) FROM questions q WHERE q.bank_id = b.id AND q.owner_user_id = s.owner_user_id AND q.status = 'active')), 0) AS SIGNED) AS avg_questions,
   CAST(SUM(s.created_at >= sqlc.arg(week_start)) AS SIGNED) AS week_new,
@@ -163,17 +175,18 @@ SELECT s.code,
   CAST(SUM(EXISTS (SELECT 1 FROM orders o WHERE o.owner_user_id = s.owner_user_id AND o.status IN ('paid', 'refunding'))) AS SIGNED) AS paid,
   CAST(COALESCE(AVG((SELECT COUNT(*) FROM import_items i WHERE i.owner_user_id = s.owner_user_id AND i.needs_review = 1 AND i.status = 'pending')), 0) AS SIGNED) AS avg_review
 FROM subjects s JOIN banks b ON b.subject_id = s.id
+LEFT JOIN catalog_courses cc ON cc.id = s.catalog_course_id
 WHERE s.code IS NOT NULL AND s.code <> ''
-GROUP BY s.code ORDER BY users DESC LIMIT 200;
+GROUP BY 1, s.code ORDER BY users DESC LIMIT 200;
 
 -- name: UpsertDemandMark :exec
-INSERT INTO official_demand_marks (subject_code, status, marked_by) VALUES (?, 'unplanned', ?) ON DUPLICATE KEY UPDATE marked_by = VALUES(marked_by), marked_at = CURRENT_TIMESTAMP(3);
+INSERT INTO official_demand_marks (school, subject_code, status, marked_by) VALUES (?, ?, 'unplanned', ?) ON DUPLICATE KEY UPDATE marked_by = VALUES(marked_by), marked_at = CURRENT_TIMESTAMP(3);
 
 -- name: DeleteDemandMark :exec
-DELETE FROM official_demand_marks WHERE subject_code = ?;
+DELETE FROM official_demand_marks WHERE school = ? AND subject_code = ?;
 
 -- name: ListDemandMarks :many
-SELECT subject_code FROM official_demand_marks;
+SELECT school, subject_code FROM official_demand_marks;
 
 -- ---------- 用户添加官方题库（11.15） ----------
 

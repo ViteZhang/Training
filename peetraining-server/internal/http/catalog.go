@@ -38,8 +38,11 @@ func (h *Handlers) SearchCatalogSchools(c *gin.Context, p gen.SearchCatalogSchoo
 }
 
 func toCatalogCourse(c official.CatalogCourse) gen.CatalogCourse {
-	out := gen.CatalogCourse{Id: int64(c.ID), School: c.School, Major: c.Major, Discipline: c.Discipline, SubjectName: c.SubjectName,
-		SubjectCode: optStr(c.SubjectCode), Textbooks: c.Textbooks, OfficialStatus: gen.CatalogCourseOfficialStatus(c.OfficialStatus)}
+	out := gen.CatalogCourse{Id: int64(c.ID), Scope: gen.CatalogCourseScope(c.Scope), School: c.School, Major: c.Major, Majors: c.Majors, Discipline: c.Discipline,
+		SubjectName: c.SubjectName, SubjectCode: optStr(c.SubjectCode), Textbooks: c.Textbooks, OfficialStatus: gen.CatalogCourseOfficialStatus(c.OfficialStatus)}
+	if c.Scope == "national" {
+		out.Registered = ptr(c.Registered)
+	}
 	if c.ExamYear > 0 {
 		out.ExamYear = ptr(c.ExamYear)
 	}
@@ -62,7 +65,7 @@ func (h *Handlers) ListCatalogCourses(c *gin.Context, p gen.ListCatalogCoursesPa
 	if p.ExamYear != nil {
 		year = *p.ExamYear
 	}
-	rows, err := h.deps.Official.Courses(ctx, uid, p.School, year, on)
+	rows, err := h.deps.Official.Courses(ctx, uid, p.School, year, on, p.IncludeNational != nil && *p.IncludeNational)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -87,10 +90,16 @@ func (h *Handlers) StartOfficialFirst(c *gin.Context) {
 	c.JSON(http.StatusOK, toGenSession(s))
 }
 
-// --- 后台：院校专业课库 ---
+// --- 后台：考试科目库（T44 院校专业课库，T50 起按考试科目维护）---
 
 func catalogInput(in gen.CatalogCourseInput) official.CatalogInput {
-	out := official.CatalogInput{School: in.School, Major: in.Major, SubjectName: in.SubjectName}
+	out := official.CatalogInput{School: deref(in.School), Major: deref(in.Major), SubjectName: in.SubjectName}
+	if in.Scope != nil {
+		out.Scope = string(*in.Scope)
+	}
+	if in.Majors != nil {
+		out.Majors = append([]string{}, *in.Majors...)
+	}
 	if in.Discipline != nil {
 		out.Discipline = *in.Discipline
 	}
@@ -110,11 +119,11 @@ func catalogInput(in gen.CatalogCourseInput) official.CatalogInput {
 }
 
 func (h *Handlers) AdminListCatalogCourses(c *gin.Context, p gen.AdminListCatalogCoursesParams) {
-	q := ""
-	if p.Q != nil {
-		q = *p.Q
+	scope := ""
+	if p.Scope != nil {
+		scope = string(*p.Scope)
 	}
-	rows, err := h.deps.Official.AdminCatalog(c.Request.Context(), q)
+	rows, err := h.deps.Official.AdminCatalog(c.Request.Context(), deref(p.Q), scope, deref(p.Discipline))
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -122,9 +131,10 @@ func (h *Handlers) AdminListCatalogCourses(c *gin.Context, p gen.AdminListCatalo
 	out := make([]gen.AdminCatalogCourse, len(rows))
 	for i, r := range rows {
 		cc := toCatalogCourse(r.CatalogCourse)
-		out[i] = gen.AdminCatalogCourse{Id: cc.Id, School: cc.School, Major: cc.Major, Discipline: cc.Discipline, SubjectName: cc.SubjectName, SubjectCode: cc.SubjectCode,
-			Textbooks: cc.Textbooks, ExamYear: cc.ExamYear, OfficialStatus: gen.AdminCatalogCourseOfficialStatus(cc.OfficialStatus),
-			Status: gen.AdminCatalogCourseStatus(r.Status), ChosenCount: r.ChosenCount}
+		out[i] = gen.AdminCatalogCourse{Id: cc.Id, Scope: gen.AdminCatalogCourseScope(cc.Scope), School: cc.School, Major: cc.Major, Majors: cc.Majors,
+			Discipline: cc.Discipline, SubjectName: cc.SubjectName, SubjectCode: cc.SubjectCode, Textbooks: cc.Textbooks, ExamYear: cc.ExamYear,
+			OfficialStatus: gen.AdminCatalogCourseOfficialStatus(cc.OfficialStatus), Status: gen.AdminCatalogCourseStatus(r.Status), ChosenCount: r.ChosenCount,
+			SchoolCount: r.SchoolCount, ProjectId: optID(r.ProjectID)}
 	}
 	c.JSON(http.StatusOK, items(out))
 }
@@ -148,6 +158,34 @@ func (h *Handlers) AdminUpdateCatalogCourse(c *gin.Context, courseID int64) {
 		return
 	}
 	if err := h.deps.Official.UpdateCatalogCourse(c.Request.Context(), uint64(courseID), catalogInput(body)); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// AdminListCatalogDisciplines 是考试科目可选的学科（固定选项，T50）。
+func (h *Handlers) AdminListCatalogDisciplines(c *gin.Context) {
+	c.JSON(http.StatusOK, items(h.deps.Official.Disciplines()))
+}
+
+// AdminListCatalogCourseSchools 是登记使用这门全国统考的院校。
+func (h *Handlers) AdminListCatalogCourseSchools(c *gin.Context, courseID int64) {
+	rows, err := h.deps.Official.CourseSchools(c.Request.Context(), uint64(courseID))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, items(rows))
+}
+
+// AdminSetCatalogCourseSchools 整体替换登记使用这门全国统考的院校。
+func (h *Handlers) AdminSetCatalogCourseSchools(c *gin.Context, courseID int64) {
+	var body gen.AdminSetCatalogCourseSchoolsJSONBody
+	if !bind(c, &body) {
+		return
+	}
+	if err := h.deps.Official.SetCourseSchools(c.Request.Context(), currentAdmin(c).ID, uint64(courseID), body.Schools); err != nil {
 		_ = c.Error(err)
 		return
 	}

@@ -303,7 +303,7 @@ func (q *Queries) LockLegacyTextbookReference(ctx context.Context, id uint64) (L
 }
 
 const lockOfficialProject = `-- name: LockOfficialProject :one
-SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at, textbook_link_version FROM official_projects WHERE id=? FOR UPDATE
+SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at, textbook_link_version, catalog_course_id FROM official_projects WHERE id=? FOR UPDATE
 `
 
 func (q *Queries) LockOfficialProject(ctx context.Context, id uint64) (OfficialProject, error) {
@@ -323,6 +323,7 @@ func (q *Queries) LockOfficialProject(ctx context.Context, id uint64) (OfficialP
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TextbookLinkVersion,
+		&i.CatalogCourseID,
 	)
 	return i, err
 }
