@@ -2,7 +2,7 @@
 
 - 仓库：后端 + App（peetraining-web）+ 管理后台（云效 peetraining-admin）
 - 依赖：T30、T47、T50
-- 状态：开发完成（后台页面待 peetraining-admin）
+- 状态：开发完成（后台页面在 peetraining-admin 分支 t50-t51-exam-subjects，待推送）
 
 ## 背景
 
@@ -27,7 +27,7 @@
 - 限选题标签「限选 · 第一组」，详情说明「限选题（第一组）：……专业的考生作答，回答非报考专业不得分」
 - 整卷作答：卷子里有限选题时，其余题标「必答」
 
-## 范围 · 管理后台（peetraining-admin，另行开发）
+## 范围 · 管理后台（peetraining-admin，分支 t50-t51-exam-subjects，待推送云效）
 
 - 7.12 题目编辑：「必答 / 限选」切换，限选时填组名与适用专业（写 payload.group）
 - 7.17 核对区：显示限选标签，可修改；表格导入模板加「限选分组」「适用专业」两列
