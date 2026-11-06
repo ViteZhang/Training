@@ -31,7 +31,7 @@ func (q *Queries) AddCatalogPendingUser(ctx context.Context, arg AddCatalogPendi
 }
 
 const adminGetCatalogCourse = `-- name: AdminGetCatalogCourse :one
-SELECT id, school, major, discipline, subject_name, subject_code, textbooks, exam_year, status, created_by, created_at, updated_at FROM catalog_courses WHERE id = ?
+SELECT id, school, major, discipline, subject_name, subject_code, textbooks, exam_year, status, created_by, created_at, updated_at, scope, majors, course_key FROM catalog_courses WHERE id = ?
 `
 
 func (q *Queries) AdminGetCatalogCourse(ctx context.Context, id uint64) (CatalogCourse, error) {
@@ -50,24 +50,39 @@ func (q *Queries) AdminGetCatalogCourse(ctx context.Context, id uint64) (Catalog
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Scope,
+		&i.Majors,
+		&i.CourseKey,
 	)
 	return i, err
 }
 
 const adminListCatalogCourses = `-- name: AdminListCatalogCourses :many
-SELECT c.id, c.school, c.major, c.discipline, c.subject_name, c.subject_code, c.textbooks, c.exam_year, c.status, c.created_by, c.created_at, c.updated_at,
-  CAST(COALESCE((SELECT p.stage FROM official_projects p WHERE p.school = c.school
-    AND (p.subject_code = c.subject_code OR (c.subject_code IS NULL AND p.subject_name = c.subject_name))
+SELECT c.id, c.school, c.major, c.discipline, c.subject_name, c.subject_code, c.textbooks, c.exam_year, c.status, c.created_by, c.created_at, c.updated_at, c.scope, c.majors, c.course_key,
+  CAST(COALESCE((SELECT p.stage FROM official_projects p WHERE p.catalog_course_id = c.id
+    OR (p.catalog_course_id IS NULL AND c.scope = 'school' AND p.school = c.school
+      AND (p.subject_code = c.subject_code OR (c.subject_code IS NULL AND p.subject_name = c.subject_name)))
     ORDER BY p.stage = 'published' DESC, p.id DESC LIMIT 1), '') AS CHAR) AS project_stage,
-  (SELECT COUNT(*) FROM subjects s WHERE s.catalog_course_id = c.id) AS chosen_count
+  CAST(COALESCE((SELECT p.id FROM official_projects p WHERE p.catalog_course_id = c.id
+    OR (p.catalog_course_id IS NULL AND c.scope = 'school' AND p.school = c.school
+      AND (p.subject_code = c.subject_code OR (c.subject_code IS NULL AND p.subject_name = c.subject_name)))
+    ORDER BY p.stage = 'published' DESC, p.id DESC LIMIT 1), 0) AS UNSIGNED) AS project_id,
+  (SELECT COUNT(*) FROM subjects s WHERE s.catalog_course_id = c.id) AS chosen_count,
+  (SELECT COUNT(*) FROM catalog_school_exams e WHERE e.course_id = c.id) AS school_count
 FROM catalog_courses c
-WHERE (? = '' OR c.school LIKE CONCAT('%', ?, '%') OR c.subject_name LIKE CONCAT('%', ?, '%') OR c.subject_code = ?)
-ORDER BY c.status, c.school, c.major, c.subject_code, c.subject_name
+WHERE (? = '' OR c.scope = ?)
+  AND (? = '' OR c.discipline = ?)
+  AND (? = '' OR c.school LIKE CONCAT('%', ?, '%') OR c.subject_name LIKE CONCAT('%', ?, '%') OR c.subject_code = ?
+    OR EXISTS (SELECT 1 FROM catalog_school_exams e WHERE e.course_id = c.id AND e.school LIKE CONCAT('%', ?, '%')))
+ORDER BY c.status, c.scope = 'school', c.school, c.discipline, c.subject_code, c.subject_name
 LIMIT 500
 `
 
 type AdminListCatalogCoursesParams struct {
-	Q sql.NullString
+	Scope      CatalogCoursesScope
+	Discipline string
+	Q          sql.NullString
+	SchoolQ    interface{}
 }
 
 type AdminListCatalogCoursesRow struct {
@@ -83,16 +98,27 @@ type AdminListCatalogCoursesRow struct {
 	CreatedBy    sql.NullInt64
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	Scope        CatalogCoursesScope
+	Majors       dbtypes.NullJSON
+	CourseKey    string
 	ProjectStage interface{}
+	ProjectID    int64
 	ChosenCount  int64
+	SchoolCount  int64
 }
 
+// 后台考试科目列表：按命题方式、学科筛选，按院校、科目名、代码搜索（统考科目还按登记的院校搜）。
 func (q *Queries) AdminListCatalogCourses(ctx context.Context, arg AdminListCatalogCoursesParams) ([]AdminListCatalogCoursesRow, error) {
 	rows, err := q.db.QueryContext(ctx, adminListCatalogCourses,
+		arg.Scope,
+		arg.Scope,
+		arg.Discipline,
+		arg.Discipline,
 		arg.Q,
 		arg.Q,
 		arg.Q,
 		arg.Q,
+		arg.SchoolQ,
 	)
 	if err != nil {
 		return nil, err
@@ -114,8 +140,13 @@ func (q *Queries) AdminListCatalogCourses(ctx context.Context, arg AdminListCata
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Scope,
+			&i.Majors,
+			&i.CourseKey,
 			&i.ProjectStage,
+			&i.ProjectID,
 			&i.ChosenCount,
+			&i.SchoolCount,
 		); err != nil {
 			return nil, err
 		}
@@ -131,8 +162,9 @@ func (q *Queries) AdminListCatalogCourses(ctx context.Context, arg AdminListCata
 }
 
 const catalogCoursesOfProject = `-- name: CatalogCoursesOfProject :many
-SELECT c.id FROM catalog_courses c JOIN official_projects p ON p.school = c.school
-  AND (p.subject_code = c.subject_code OR (c.subject_code IS NULL AND p.subject_name = c.subject_name))
+SELECT c.id FROM catalog_courses c JOIN official_projects p ON p.catalog_course_id = c.id
+  OR (p.catalog_course_id IS NULL AND c.scope = 'school' AND p.school = c.school
+    AND (p.subject_code = c.subject_code OR (c.subject_code IS NULL AND p.subject_name = c.subject_name)))
 WHERE p.id = ?
 `
 
@@ -159,6 +191,54 @@ func (q *Queries) CatalogCoursesOfProject(ctx context.Context, id uint64) ([]uin
 	return items, nil
 }
 
+const catalogCoursesSameName = `-- name: CatalogCoursesSameName :many
+SELECT id, subject_code FROM catalog_courses
+WHERE scope = ? AND school = ? AND subject_name = ? AND COALESCE(exam_year, 0) = ? AND id <> ?
+`
+
+type CatalogCoursesSameNameParams struct {
+	Scope       CatalogCoursesScope
+	School      string
+	SubjectName string
+	Year        sql.NullInt16
+	ExcludeID   uint64
+}
+
+type CatalogCoursesSameNameRow struct {
+	ID          uint64
+	SubjectCode sql.NullString
+}
+
+// 去重：同一院校（统考为空串）、同一年份下同名的科目；有一方没填代码时算重复。
+func (q *Queries) CatalogCoursesSameName(ctx context.Context, arg CatalogCoursesSameNameParams) ([]CatalogCoursesSameNameRow, error) {
+	rows, err := q.db.QueryContext(ctx, catalogCoursesSameName,
+		arg.Scope,
+		arg.School,
+		arg.SubjectName,
+		arg.Year,
+		arg.ExcludeID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CatalogCoursesSameNameRow{}
+	for rows.Next() {
+		var i CatalogCoursesSameNameRow
+		if err := rows.Scan(&i.ID, &i.SubjectCode); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countOfficialFirstSessions = `-- name: CountOfficialFirstSessions :one
 SELECT COUNT(*) FROM practice_sessions WHERE owner_user_id = ? AND kind = 'official_first'
 `
@@ -168,6 +248,15 @@ func (q *Queries) CountOfficialFirstSessions(ctx context.Context, ownerUserID ui
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const deleteCatalogSchoolExams = `-- name: DeleteCatalogSchoolExams :exec
+DELETE FROM catalog_school_exams WHERE course_id = ?
+`
+
+func (q *Queries) DeleteCatalogSchoolExams(ctx context.Context, courseID uint64) error {
+	_, err := q.db.ExecContext(ctx, deleteCatalogSchoolExams, courseID)
+	return err
 }
 
 const findOfficialFirstSession = `-- name: FindOfficialFirstSession :one
@@ -182,7 +271,7 @@ func (q *Queries) FindOfficialFirstSession(ctx context.Context, ownerUserID uint
 }
 
 const getCatalogCourse = `-- name: GetCatalogCourse :one
-SELECT id, school, major, discipline, subject_name, subject_code, textbooks, exam_year, status, created_by, created_at, updated_at FROM catalog_courses WHERE id = ? AND status = 'active'
+SELECT id, school, major, discipline, subject_name, subject_code, textbooks, exam_year, status, created_by, created_at, updated_at, scope, majors, course_key FROM catalog_courses WHERE id = ? AND status = 'active'
 `
 
 func (q *Queries) GetCatalogCourse(ctx context.Context, id uint64) (CatalogCourse, error) {
@@ -201,6 +290,9 @@ func (q *Queries) GetCatalogCourse(ctx context.Context, id uint64) (CatalogCours
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Scope,
+		&i.Majors,
+		&i.CourseKey,
 	)
 	return i, err
 }
@@ -282,35 +374,57 @@ func (q *Queries) IncCatalogPendingCount(ctx context.Context, id uint64) error {
 }
 
 const insertCatalogCourse = `-- name: InsertCatalogCourse :execlastid
-INSERT INTO catalog_courses (school, major, discipline, subject_name, subject_code, textbooks, exam_year, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO catalog_courses (scope, school, major, majors, discipline, subject_name, subject_code, textbooks, exam_year, course_key, created_by)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertCatalogCourseParams struct {
+	Scope       CatalogCoursesScope
 	School      string
 	Major       string
+	Majors      dbtypes.NullJSON
 	Discipline  string
 	SubjectName string
 	SubjectCode sql.NullString
 	Textbooks   dbtypes.NullJSON
 	ExamYear    sql.NullInt16
+	CourseKey   string
 	CreatedBy   sql.NullInt64
 }
 
 func (q *Queries) InsertCatalogCourse(ctx context.Context, arg InsertCatalogCourseParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, insertCatalogCourse,
+		arg.Scope,
 		arg.School,
 		arg.Major,
+		arg.Majors,
 		arg.Discipline,
 		arg.SubjectName,
 		arg.SubjectCode,
 		arg.Textbooks,
 		arg.ExamYear,
+		arg.CourseKey,
 		arg.CreatedBy,
 	)
 	if err != nil {
 		return 0, err
 	}
 	return result.LastInsertId()
+}
+
+const insertCatalogSchoolExam = `-- name: InsertCatalogSchoolExam :exec
+INSERT IGNORE INTO catalog_school_exams (school, course_id, created_by) VALUES (?, ?, ?)
+`
+
+type InsertCatalogSchoolExamParams struct {
+	School    string
+	CourseID  uint64
+	CreatedBy sql.NullInt64
+}
+
+func (q *Queries) InsertCatalogSchoolExam(ctx context.Context, arg InsertCatalogSchoolExamParams) error {
+	_, err := q.db.ExecContext(ctx, insertCatalogSchoolExam, arg.School, arg.CourseID, arg.CreatedBy)
+	return err
 }
 
 const linkPendingSubjects = `-- name: LinkPendingSubjects :exec
@@ -341,35 +455,52 @@ func (q *Queries) LinkPendingSubjects(ctx context.Context, arg LinkPendingSubjec
 }
 
 const listCatalogCoursesBySchool = `-- name: ListCatalogCoursesBySchool :many
-SELECT c.id, c.school, c.major, c.discipline, c.subject_name, c.subject_code, c.textbooks, c.exam_year,
-  CAST(COALESCE((SELECT p.id FROM official_projects p WHERE p.school = c.school
-    AND (p.subject_code = c.subject_code OR (c.subject_code IS NULL AND p.subject_name = c.subject_name))
+SELECT c.id, c.scope, c.school, c.major, c.majors, c.discipline, c.subject_name, c.subject_code, c.textbooks, c.exam_year,
+  CAST(EXISTS (SELECT 1 FROM catalog_school_exams e WHERE e.school = ? AND e.course_id = c.id) AS SIGNED) AS registered,
+  CAST(COALESCE((SELECT p.id FROM official_projects p WHERE p.catalog_course_id = c.id
+    OR (p.catalog_course_id IS NULL AND c.scope = 'school' AND p.school = c.school
+      AND (p.subject_code = c.subject_code OR (c.subject_code IS NULL AND p.subject_name = c.subject_name)))
     ORDER BY p.stage = 'published' DESC, p.id DESC LIMIT 1), 0) AS UNSIGNED) AS project_id
 FROM catalog_courses c
-WHERE c.status = 'active' AND c.school = ? AND (c.exam_year IS NULL OR ? = 0 OR c.exam_year = ?)
-ORDER BY c.major, c.subject_code IS NULL, c.subject_code, c.subject_name
+WHERE c.status = 'active' AND (c.exam_year IS NULL OR ? = 0 OR c.exam_year = ?)
+  AND ((c.scope = 'school' AND c.school = ?)
+    OR (? AND c.scope = 'national' AND NOT EXISTS (SELECT 1 FROM catalog_courses o
+      WHERE o.scope = 'school' AND o.status = 'active' AND o.school = ? AND o.subject_code = c.subject_code)))
+ORDER BY c.scope = 'national', c.discipline, c.major, c.subject_code IS NULL, c.subject_code, c.subject_name
 `
 
 type ListCatalogCoursesBySchoolParams struct {
-	School   string
-	ExamYear sql.NullInt16
+	School          string
+	ExamYear        sql.NullInt16
+	IncludeNational interface{}
 }
 
 type ListCatalogCoursesBySchoolRow struct {
 	ID          uint64
+	Scope       CatalogCoursesScope
 	School      string
 	Major       string
+	Majors      dbtypes.NullJSON
 	Discipline  string
 	SubjectName string
 	SubjectCode sql.NullString
 	Textbooks   dbtypes.NullJSON
 	ExamYear    sql.NullInt16
+	Registered  int64
 	ProjectID   int64
 }
 
-// 1.1 按院校列出专业与专业课；带出官方题库立项（院校相同，代码相同，没有代码时名称相同）。
+// 1.1 按院校列出考试科目：本校自命题的；include_national 时再加上全国统考科目（本校已有同代码自命题卷的不列，免得选错），
+// registered 表示这所院校在后台登记了使用这门统考。官方题库立项按考试科目 id 关联；T50 之前的旧立项按院校 + 代码匹配。
 func (q *Queries) ListCatalogCoursesBySchool(ctx context.Context, arg ListCatalogCoursesBySchoolParams) ([]ListCatalogCoursesBySchoolRow, error) {
-	rows, err := q.db.QueryContext(ctx, listCatalogCoursesBySchool, arg.School, arg.ExamYear, arg.ExamYear)
+	rows, err := q.db.QueryContext(ctx, listCatalogCoursesBySchool,
+		arg.School,
+		arg.ExamYear,
+		arg.ExamYear,
+		arg.School,
+		arg.IncludeNational,
+		arg.School,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -379,13 +510,16 @@ func (q *Queries) ListCatalogCoursesBySchool(ctx context.Context, arg ListCatalo
 		var i ListCatalogCoursesBySchoolRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.Scope,
 			&i.School,
 			&i.Major,
+			&i.Majors,
 			&i.Discipline,
 			&i.SubjectName,
 			&i.SubjectCode,
 			&i.Textbooks,
 			&i.ExamYear,
+			&i.Registered,
 			&i.ProjectID,
 		); err != nil {
 			return nil, err
@@ -432,6 +566,34 @@ func (q *Queries) ListCatalogPending(ctx context.Context) ([]CatalogPendingCours
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCatalogSchoolExams = `-- name: ListCatalogSchoolExams :many
+SELECT school FROM catalog_school_exams WHERE course_id = ? ORDER BY school
+`
+
+// 登记使用这门统考的院校。
+func (q *Queries) ListCatalogSchoolExams(ctx context.Context, courseID uint64) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listCatalogSchoolExams, courseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var school string
+		if err := rows.Scan(&school); err != nil {
+			return nil, err
+		}
+		items = append(items, school)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -499,10 +661,19 @@ func (q *Queries) ResolveCatalogPending(ctx context.Context, arg ResolveCatalogP
 
 const searchCatalogSchools = `-- name: SearchCatalogSchools :many
 
-SELECT school, COUNT(*) AS course_count FROM catalog_courses
-WHERE status = 'active' AND school LIKE CONCAT('%', ?, '%')
-GROUP BY school ORDER BY course_count DESC, school LIMIT 20
+SELECT t.school, CAST(SUM(t.n) AS SIGNED) AS course_count FROM (
+  SELECT c.school, COUNT(*) AS n FROM catalog_courses c
+  WHERE c.status = 'active' AND c.scope = 'school' AND c.school LIKE CONCAT('%', ?, '%') GROUP BY c.school
+  UNION ALL
+  SELECT e.school, COUNT(*) AS n FROM catalog_school_exams e JOIN catalog_courses c ON c.id = e.course_id AND c.status = 'active'
+  WHERE e.school LIKE CONCAT('%', ?, '%') GROUP BY e.school
+) t
+GROUP BY t.school ORDER BY course_count DESC, t.school LIMIT 20
 `
+
+type SearchCatalogSchoolsParams struct {
+	Q interface{}
+}
 
 type SearchCatalogSchoolsRow struct {
 	School      string
@@ -510,9 +681,9 @@ type SearchCatalogSchoolsRow struct {
 }
 
 // T44 院校专业课库与引导分流。
-// 1.1 搜索院校：按名称包含匹配，课多的排前面。
-func (q *Queries) SearchCatalogSchools(ctx context.Context, q_ interface{}) ([]SearchCatalogSchoolsRow, error) {
-	rows, err := q.db.QueryContext(ctx, searchCatalogSchools, q_)
+// 1.1 搜索院校：按名称包含匹配，课多的排前面。课数 = 本校自命题科目 + 本校登记使用的统考科目（T50）。
+func (q *Queries) SearchCatalogSchools(ctx context.Context, arg SearchCatalogSchoolsParams) ([]SearchCatalogSchoolsRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchCatalogSchools, arg.Q, arg.Q)
 	if err != nil {
 		return nil, err
 	}
@@ -558,30 +729,37 @@ func (q *Queries) SetSubjectCatalog(ctx context.Context, arg SetSubjectCatalogPa
 }
 
 const updateCatalogCourse = `-- name: UpdateCatalogCourse :exec
-UPDATE catalog_courses SET school = ?, major = ?, discipline = ?, subject_name = ?, subject_code = ?, textbooks = ?, exam_year = ?, status = ? WHERE id = ?
+UPDATE catalog_courses SET scope = ?, school = ?, major = ?, majors = ?, discipline = ?, subject_name = ?, subject_code = ?, textbooks = ?, exam_year = ?,
+  course_key = ?, status = ? WHERE id = ?
 `
 
 type UpdateCatalogCourseParams struct {
+	Scope       CatalogCoursesScope
 	School      string
 	Major       string
+	Majors      dbtypes.NullJSON
 	Discipline  string
 	SubjectName string
 	SubjectCode sql.NullString
 	Textbooks   dbtypes.NullJSON
 	ExamYear    sql.NullInt16
+	CourseKey   string
 	Status      CatalogCoursesStatus
 	ID          uint64
 }
 
 func (q *Queries) UpdateCatalogCourse(ctx context.Context, arg UpdateCatalogCourseParams) error {
 	_, err := q.db.ExecContext(ctx, updateCatalogCourse,
+		arg.Scope,
 		arg.School,
 		arg.Major,
+		arg.Majors,
 		arg.Discipline,
 		arg.SubjectName,
 		arg.SubjectCode,
 		arg.Textbooks,
 		arg.ExamYear,
+		arg.CourseKey,
 		arg.Status,
 		arg.ID,
 	)

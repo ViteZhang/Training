@@ -554,6 +554,64 @@ func AllBanksSourceValues() []BanksSource {
 	}
 }
 
+type CatalogCoursesScope string
+
+const (
+	CatalogCoursesScopeSchool   CatalogCoursesScope = "school"
+	CatalogCoursesScopeNational CatalogCoursesScope = "national"
+)
+
+func (e *CatalogCoursesScope) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CatalogCoursesScope(s)
+	case string:
+		*e = CatalogCoursesScope(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CatalogCoursesScope: %T", src)
+	}
+	return nil
+}
+
+type NullCatalogCoursesScope struct {
+	CatalogCoursesScope CatalogCoursesScope
+	Valid               bool // Valid is true if CatalogCoursesScope is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCatalogCoursesScope) Scan(value interface{}) error {
+	if value == nil {
+		ns.CatalogCoursesScope, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CatalogCoursesScope.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCatalogCoursesScope) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CatalogCoursesScope), nil
+}
+
+func (e CatalogCoursesScope) Valid() bool {
+	switch e {
+	case CatalogCoursesScopeSchool,
+		CatalogCoursesScopeNational:
+		return true
+	}
+	return false
+}
+
+func AllCatalogCoursesScopeValues() []CatalogCoursesScope {
+	return []CatalogCoursesScope{
+		CatalogCoursesScopeSchool,
+		CatalogCoursesScopeNational,
+	}
+}
+
 type CatalogCoursesStatus string
 
 const (
@@ -7318,6 +7376,12 @@ type CatalogCourse struct {
 	CreatedBy sql.NullInt64
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	// 命题方式：院校自命题 / 全国统考（统考的 school 为空串）
+	Scope CatalogCoursesScope
+	// 适用专业，字符串数组（选填，只用来展示和搜索）
+	Majors dbtypes.NullJSON
+	// 去重键：命题方式|院校|代码（没有代码时 n:名称）|年份（各年通用为 0）
+	CourseKey string
 }
 
 // 用户在 1.1 手动添加、待运营入库的课程
@@ -7343,6 +7407,15 @@ type CatalogPendingCourse struct {
 type CatalogPendingUser struct {
 	PendingID uint64
 	UserID    uint64
+}
+
+// 院校登记使用的全国统考科目（选填：没登记的院校在学科下也能看到统考科目）
+type CatalogSchoolExam struct {
+	School string
+	// 全国统考科目
+	CourseID  uint64
+	CreatedBy sql.NullInt64
+	CreatedAt time.Time
 }
 
 // 用户授权后台查看内容（PRD 10.1）
@@ -7934,6 +8007,8 @@ type OfficialDemandMark struct {
 	Status      OfficialDemandMarksStatus
 	MarkedBy    sql.NullInt64
 	MarkedAt    time.Time
+	// 院校；全国统考或院校未知时为空串
+	School string
 }
 
 // 官方内容草稿（7.12）
@@ -8028,6 +8103,8 @@ type OfficialProject struct {
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 	TextbookLinkVersion uint64
+	// 考试科目；为空的是 T50 之前的旧立项，仍按院校 + 代码匹配
+	CatalogCourseID sql.NullInt64
 }
 
 type OfficialProjectTextbook struct {

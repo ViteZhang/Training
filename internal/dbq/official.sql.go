@@ -85,11 +85,16 @@ func (q *Queries) DecideReviewTask(ctx context.Context, arg DecideReviewTaskPara
 }
 
 const deleteDemandMark = `-- name: DeleteDemandMark :exec
-DELETE FROM official_demand_marks WHERE subject_code = ?
+DELETE FROM official_demand_marks WHERE school = ? AND subject_code = ?
 `
 
-func (q *Queries) DeleteDemandMark(ctx context.Context, subjectCode string) error {
-	_, err := q.db.ExecContext(ctx, deleteDemandMark, subjectCode)
+type DeleteDemandMarkParams struct {
+	School      string
+	SubjectCode string
+}
+
+func (q *Queries) DeleteDemandMark(ctx context.Context, arg DeleteDemandMarkParams) error {
+	_, err := q.db.ExecContext(ctx, deleteDemandMark, arg.School, arg.SubjectCode)
 	return err
 }
 
@@ -255,6 +260,34 @@ func (q *Queries) DeleteUserQuestionRubric(ctx context.Context, arg DeleteUserQu
 	return err
 }
 
+const findCatalogCourseForProject = `-- name: FindCatalogCourseForProject :one
+SELECT id FROM catalog_courses
+WHERE (scope = 'school' AND school = ? AND (subject_code = ? OR (subject_code IS NULL AND subject_name = ?)))
+   OR (scope = 'national' AND ? AND subject_code = ?)
+ORDER BY exam_year IS NOT NULL, id LIMIT 1
+`
+
+type FindCatalogCourseForProjectParams struct {
+	School   string
+	Code     sql.NullString
+	Name     string
+	National interface{}
+}
+
+// 旧版后台立项只传院校、代码、名称：找到对应的考试科目挂上。院校写「全国统考」的找统考科目。
+func (q *Queries) FindCatalogCourseForProject(ctx context.Context, arg FindCatalogCourseForProjectParams) (uint64, error) {
+	row := q.db.QueryRowContext(ctx, findCatalogCourseForProject,
+		arg.School,
+		arg.Code,
+		arg.Name,
+		arg.National,
+		arg.Code,
+	)
+	var id uint64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getOfficialDraft = `-- name: GetOfficialDraft :one
 SELECT id, project_id, editor_id, entity_type, entity_id, change_type, payload, status, created_at, updated_at, submitted_at, reject_reason FROM official_drafts WHERE id = ?
 `
@@ -280,7 +313,7 @@ func (q *Queries) GetOfficialDraft(ctx context.Context, id uint64) (OfficialDraf
 }
 
 const getOfficialProject = `-- name: GetOfficialProject :one
-SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at, textbook_link_version FROM official_projects WHERE id = ?
+SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at, textbook_link_version, catalog_course_id FROM official_projects WHERE id = ?
 `
 
 func (q *Queries) GetOfficialProject(ctx context.Context, id uint64) (OfficialProject, error) {
@@ -300,12 +333,13 @@ func (q *Queries) GetOfficialProject(ctx context.Context, id uint64) (OfficialPr
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TextbookLinkVersion,
+		&i.CatalogCourseID,
 	)
 	return i, err
 }
 
 const getOfficialProjectByBank = `-- name: GetOfficialProjectByBank :one
-SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at, textbook_link_version FROM official_projects WHERE bank_id = ?
+SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at, textbook_link_version, catalog_course_id FROM official_projects WHERE bank_id = ?
 `
 
 func (q *Queries) GetOfficialProjectByBank(ctx context.Context, bankID sql.NullInt64) (OfficialProject, error) {
@@ -325,6 +359,7 @@ func (q *Queries) GetOfficialProjectByBank(ctx context.Context, bankID sql.NullI
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TextbookLinkVersion,
+		&i.CatalogCourseID,
 	)
 	return i, err
 }
@@ -506,21 +541,23 @@ func (q *Queries) InsertOfficialKP(ctx context.Context, arg InsertOfficialKPPara
 }
 
 const insertOfficialProject = `-- name: InsertOfficialProject :execlastid
-INSERT INTO official_projects (school, major, subject_code, subject_name, bank_id, editor_ids, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT INTO official_projects (catalog_course_id, school, major, subject_code, subject_name, bank_id, editor_ids, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertOfficialProjectParams struct {
-	School      string
-	Major       string
-	SubjectCode string
-	SubjectName string
-	BankID      sql.NullInt64
-	EditorIds   dbtypes.NullJSON
-	CreatedBy   sql.NullInt64
+	CatalogCourseID sql.NullInt64
+	School          string
+	Major           string
+	SubjectCode     string
+	SubjectName     string
+	BankID          sql.NullInt64
+	EditorIds       dbtypes.NullJSON
+	CreatedBy       sql.NullInt64
 }
 
 func (q *Queries) InsertOfficialProject(ctx context.Context, arg InsertOfficialProjectParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, insertOfficialProject,
+		arg.CatalogCourseID,
 		arg.School,
 		arg.Major,
 		arg.SubjectCode,
@@ -848,22 +885,27 @@ func (q *Queries) ListApprovedDrafts(ctx context.Context, projectID uint64) ([]O
 }
 
 const listDemandMarks = `-- name: ListDemandMarks :many
-SELECT subject_code FROM official_demand_marks
+SELECT school, subject_code FROM official_demand_marks
 `
 
-func (q *Queries) ListDemandMarks(ctx context.Context) ([]string, error) {
+type ListDemandMarksRow struct {
+	School      string
+	SubjectCode string
+}
+
+func (q *Queries) ListDemandMarks(ctx context.Context) ([]ListDemandMarksRow, error) {
 	rows, err := q.db.QueryContext(ctx, listDemandMarks)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []string{}
+	items := []ListDemandMarksRow{}
 	for rows.Next() {
-		var subject_code string
-		if err := rows.Scan(&subject_code); err != nil {
+		var i ListDemandMarksRow
+		if err := rows.Scan(&i.School, &i.SubjectCode); err != nil {
 			return nil, err
 		}
-		items = append(items, subject_code)
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -1008,7 +1050,7 @@ func (q *Queries) ListOfficialKPs(ctx context.Context, bankID uint64) ([]ListOff
 }
 
 const listOfficialProjects = `-- name: ListOfficialProjects :many
-SELECT p.id, p.school, p.major, p.subject_code, p.subject_name, p.bank_id, p.stage, p.editor_ids, p.authorized_materials, p.created_by, p.created_at, p.updated_at, p.textbook_link_version,
+SELECT p.id, p.school, p.major, p.subject_code, p.subject_name, p.bank_id, p.stage, p.editor_ids, p.authorized_materials, p.created_by, p.created_at, p.updated_at, p.textbook_link_version, p.catalog_course_id,
   (SELECT COUNT(*) FROM knowledge_points k WHERE k.bank_id = p.bank_id AND k.owner_user_id IS NULL AND k.level = 'point') AS kp_count,
   (SELECT COUNT(*) FROM questions q WHERE q.bank_id = p.bank_id AND q.owner_user_id IS NULL AND q.status = 'active') AS question_count,
   (SELECT COUNT(*) FROM questions q WHERE q.bank_id = p.bank_id AND q.owner_user_id IS NULL AND q.status = 'active' AND q.source = 'official' AND q.exam_year IS NOT NULL) AS exam_count,
@@ -1031,6 +1073,7 @@ type ListOfficialProjectsRow struct {
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 	TextbookLinkVersion uint64
+	CatalogCourseID     sql.NullInt64
 	KpCount             int64
 	QuestionCount       int64
 	ExamCount           int64
@@ -1061,6 +1104,7 @@ func (q *Queries) ListOfficialProjects(ctx context.Context) ([]ListOfficialProje
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TextbookLinkVersion,
+			&i.CatalogCourseID,
 			&i.KpCount,
 			&i.QuestionCount,
 			&i.ExamCount,
@@ -1706,6 +1750,18 @@ func (q *Queries) NotifyOfficialLaunch(ctx context.Context, arg NotifyOfficialLa
 	return result.RowsAffected()
 }
 
+const officialProjectOfCourse = `-- name: OfficialProjectOfCourse :one
+SELECT id FROM official_projects WHERE catalog_course_id = ? ORDER BY id LIMIT 1
+`
+
+// 一门考试科目只立一个项目（T50）。
+func (q *Queries) OfficialProjectOfCourse(ctx context.Context, catalogCourseID sql.NullInt64) (uint64, error) {
+	row := q.db.QueryRowContext(ctx, officialProjectOfCourse, catalogCourseID)
+	var id uint64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const reciteReviewAgain = `-- name: ReciteReviewAgain :exec
 UPDATE kp_mastery SET recite_next_review_on = ?, recite_interval_step = 0 WHERE kp_id = ? AND owner_user_id = ? AND recite_next_review_on IS NOT NULL
 `
@@ -1797,7 +1853,7 @@ func (q *Queries) SetUserQuestionStatus(ctx context.Context, arg SetUserQuestion
 
 const statDemand = `-- name: StatDemand :many
 
-SELECT s.code,
+SELECT CAST(IF(cc.scope = 'national', '', COALESCE(s.school, '')) AS CHAR) AS school, s.code,
   COUNT(DISTINCT s.owner_user_id) AS users,
   CAST(COALESCE(AVG((SELECT COUNT(*) FROM questions q WHERE q.bank_id = b.id AND q.owner_user_id = s.owner_user_id AND q.status = 'active')), 0) AS SIGNED) AS avg_questions,
   CAST(SUM(s.created_at >= ?) AS SIGNED) AS week_new,
@@ -1805,11 +1861,13 @@ SELECT s.code,
   CAST(SUM(EXISTS (SELECT 1 FROM orders o WHERE o.owner_user_id = s.owner_user_id AND o.status IN ('paid', 'refunding'))) AS SIGNED) AS paid,
   CAST(COALESCE(AVG((SELECT COUNT(*) FROM import_items i WHERE i.owner_user_id = s.owner_user_id AND i.needs_review = 1 AND i.status = 'pending')), 0) AS SIGNED) AS avg_review
 FROM subjects s JOIN banks b ON b.subject_id = s.id
+LEFT JOIN catalog_courses cc ON cc.id = s.catalog_course_id
 WHERE s.code IS NOT NULL AND s.code <> ''
-GROUP BY s.code ORDER BY users DESC LIMIT 200
+GROUP BY 1, s.code ORDER BY users DESC LIMIT 200
 `
 
 type StatDemandRow struct {
+	School       interface{}
 	Code         sql.NullString
 	Users        int64
 	AvgQuestions int64
@@ -1820,7 +1878,8 @@ type StatDemandRow struct {
 }
 
 // ---------- 需求洞察（7.10，只用统计） ----------
-// 按专业课代码聚合：自建用户数、平均题数、本周新增、填了目标院校的人数、付费人数（只有计数）。
+// 按「院校 + 专业课代码」聚合（T50）：选了全国统考科目的不分院校，院校记为空串；没记院校的旧专业课也是空串。
+// 自建用户数、平均题数、本周新增、填了目标院校的人数、付费人数（只有计数）。
 func (q *Queries) StatDemand(ctx context.Context, weekStart time.Time) ([]StatDemandRow, error) {
 	rows, err := q.db.QueryContext(ctx, statDemand, weekStart)
 	if err != nil {
@@ -1831,6 +1890,7 @@ func (q *Queries) StatDemand(ctx context.Context, weekStart time.Time) ([]StatDe
 	for rows.Next() {
 		var i StatDemandRow
 		if err := rows.Scan(
+			&i.School,
 			&i.Code,
 			&i.Users,
 			&i.AvgQuestions,
@@ -2066,15 +2126,16 @@ func (q *Queries) UpdateUserQuestionCopy(ctx context.Context, arg UpdateUserQues
 }
 
 const upsertDemandMark = `-- name: UpsertDemandMark :exec
-INSERT INTO official_demand_marks (subject_code, status, marked_by) VALUES (?, 'unplanned', ?) ON DUPLICATE KEY UPDATE marked_by = VALUES(marked_by), marked_at = CURRENT_TIMESTAMP(3)
+INSERT INTO official_demand_marks (school, subject_code, status, marked_by) VALUES (?, ?, 'unplanned', ?) ON DUPLICATE KEY UPDATE marked_by = VALUES(marked_by), marked_at = CURRENT_TIMESTAMP(3)
 `
 
 type UpsertDemandMarkParams struct {
+	School      string
 	SubjectCode string
 	MarkedBy    sql.NullInt64
 }
 
 func (q *Queries) UpsertDemandMark(ctx context.Context, arg UpsertDemandMarkParams) error {
-	_, err := q.db.ExecContext(ctx, upsertDemandMark, arg.SubjectCode, arg.MarkedBy)
+	_, err := q.db.ExecContext(ctx, upsertDemandMark, arg.School, arg.SubjectCode, arg.MarkedBy)
 	return err
 }
