@@ -140,6 +140,8 @@ type importItemJSON struct {
 	RubricMismatch bool                 `json:"rubric_mismatch"`
 	NeedsFill      bool                 `json:"needs_fill"`
 	FillError      *string              `json:"fill_error,omitempty"`
+	DuplicateOf    *string              `json:"duplicate_of,omitempty"`
+	SeenYears      []int                `json:"seen_years,omitempty"`
 }
 
 func toImportItemJSON(it official.ImportItem) importItemJSON {
@@ -150,7 +152,20 @@ func toImportItemJSON(it official.ImportItem) importItemJSON {
 	}
 	return importItemJSON{ID: it.ID, ItemType: it.ItemType, Seq: it.Seq, Payload: it.Payload, Citations: cs, SourceText: optStr(it.SourceText), Page: it.Page,
 		Confidence: it.Confidence, Status: it.Status, DraftID: optID(it.DraftID), RubricMismatch: it.RubricMismatch, NeedsFill: it.NeedsFill,
-		FillError: optStr(it.FillError)}
+		FillError: optStr(it.FillError), DuplicateOf: optStr(it.Duplicate), SeenYears: it.SeenYears}
+}
+
+// AdminRejectOfficialImportDuplicates 一键驳回标为重复的题（T52）。
+func (h *Handlers) AdminRejectOfficialImportDuplicates(c *gin.Context, projectID, fileID int64) {
+	if !h.canProject(c, projectID) {
+		return
+	}
+	n, err := h.deps.Official.RejectDuplicates(c.Request.Context(), currentAdmin(c).ID, uint64(projectID), uint64(fileID))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"rejected": n})
 }
 
 // AdminFillOfficialImport 一键补全（T49）。

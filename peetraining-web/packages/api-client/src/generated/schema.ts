@@ -4699,6 +4699,8 @@ export interface paths {
         /**
          * 上传资料并标类型（真题卷 / 参考书目录 / 有授权的讲义），或粘贴文字、表格导入（CSV）
          * @description format 为 text 或 csv 时直接带 text，马上开始解析；pdf / docx / image 返回 upload_url，客户端直传后调用 confirm。
+         *     md（Markdown，T52）可以上传 .md 文件（带 size，UTF-8 编码），也可以直接带 text 粘贴；解析前去掉排版标记（标题符号、加粗、链接网址、图片），
+         *     表格逐行转成文字。粘贴的 text 也做同样的处理。
          *     表格导入的表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型、限选分组、适用专业；
          *     题型、分值、题干必填，真题年份必填。限选分组（如「第一组」）与适用专业选填：填了是限选题，不填是必答题（T51）。
          *     真题卷里按专业分组的题（「第一组：请选择文艺学专业的考生作答」）解析时自动标成限选题。
@@ -4739,6 +4741,23 @@ export interface paths {
         put?: never;
         /** 文件上传完成，开始解析（解析失败后也用它重新解析） */
         post: operations["adminConfirmOfficialImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/official/projects/{projectId}/imports/{fileId}/reject-duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 一键驳回这份资料里标为重复、还没核对的题（T52） */
+        post: operations["adminRejectOfficialImportDuplicates"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8853,7 +8872,7 @@ export interface components {
             kind: "exam" | "catalog" | "handout" | "table";
             file_name: string;
             /** @enum {string} */
-            format: "pdf" | "docx" | "image" | "text" | "csv";
+            format: "pdf" | "docx" | "image" | "text" | "csv" | "md";
             /** @enum {string} */
             status: "uploading" | "parsing" | "parsed" | "failed";
             fail_reason?: string;
@@ -8928,6 +8947,13 @@ export interface components {
             needs_fill?: boolean;
             /** @description 上次补全失败的原因 */
             fill_error?: string;
+            /**
+             * @description 重复说明（T52），如「与《2025 真题.pdf》第 3 题相同」「与已发布的官方题相同」；只标还没核对的题，标了的置信度为 low。
+             *     同一年份下题干相同，或同题型且题干互相重合 90% 以上算重复；比对已发布的官方题、未发布的新增题目草稿、项目里各份资料还没驳回的解析题。
+             */
+            duplicate_of?: string;
+            /** @description 别的年份也考过同一题（不算重复，只做提示） */
+            seen_years?: number[];
         };
         SubjectInput: {
             name: string;
@@ -17100,7 +17126,7 @@ export interface operations {
                     /** @enum {string} */
                     kind: "exam" | "catalog" | "handout" | "table";
                     /** @enum {string} */
-                    format: "pdf" | "docx" | "image" | "text" | "csv";
+                    format: "pdf" | "docx" | "image" | "text" | "csv" | "md";
                     file_name?: string;
                     /**
                      * Format: int64
@@ -17183,6 +17209,33 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    adminRejectOfficialImportDuplicates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+                fileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description 驳回的条数 */
+                        rejected: number;
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
     adminFillOfficialImport: {

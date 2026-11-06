@@ -666,6 +666,10 @@ type Querier interface {
 	ListProjectDraftQuestionPayloads(ctx context.Context, projectID uint64) ([]json.RawMessage, error)
 	// 同一项目里各资料解析出的题目，给缺分值的题参考同题型的默认给分。
 	ListProjectImportQuestionPayloads(ctx context.Context, projectID uint64) ([]json.RawMessage, error)
+	// T52 查重：项目里还没驳回的解析题（各份资料的），与资料名一起。
+	ListProjectImportQuestions(ctx context.Context, projectID uint64) ([]ListProjectImportQuestionsRow, error)
+	// T52 查重：项目里还没发布、没退回的新增题目草稿（7.12 手工录的与核对接受的）。
+	ListProjectQuestionDrafts(ctx context.Context, projectID uint64) ([]ListProjectQuestionDraftsRow, error)
 	ListProjectTextbooks(ctx context.Context, projectID uint64) ([]ListProjectTextbooksRow, error)
 	// ---------- 用户添加官方题库（11.15） ----------
 	ListPublishedOfficialBanks(ctx context.Context) ([]ListPublishedOfficialBanksRow, error)
