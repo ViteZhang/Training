@@ -5653,6 +5653,11 @@ export interface components {
             method: "auto" | "explicit";
             catalog_version: string;
             available: boolean;
+            /**
+             * @description 资料类型（T55，项目关联列表才有）
+             * @enum {string}
+             */
+            kind?: "textbook" | "handout" | "syllabus" | "experience";
         };
         AnswerEvidenceSource: {
             id: string;
@@ -5801,8 +5806,11 @@ export interface components {
         TextbookMetadata: {
             title: string;
             author: string;
-            /** @enum {string} */
-            kind: "textbook" | "handout";
+            /**
+             * @description 资料类型（T55）：textbook 教材、handout 讲义（答案的知识依据）；syllabus 考纲（只定考点范围）；experience 经验总结（只参考答题结构与侧重点，上传即视为已获授权）
+             * @enum {string}
+             */
+            kind: "textbook" | "handout" | "syllabus" | "experience";
             discipline: string;
             aliases: string[];
             /** @description 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册 */
@@ -5878,8 +5886,11 @@ export interface components {
             id: number;
             title: string;
             author: string;
-            /** @enum {string} */
-            kind: "textbook" | "handout";
+            /**
+             * @description 资料类型（T55）：textbook 教材、handout 讲义（答案的知识依据）；syllabus 考纲（只定考点范围）；experience 经验总结（只参考答题结构与侧重点，上传即视为已获授权）
+             * @enum {string}
+             */
+            kind: "textbook" | "handout" | "syllabus" | "experience";
             discipline: string;
             aliases: string[];
             /** @description 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册 */
@@ -5897,8 +5908,11 @@ export interface components {
         TextbookCreate: {
             title: string;
             author: string;
-            /** @enum {string} */
-            kind: "textbook" | "handout";
+            /**
+             * @description 资料类型（T55）：textbook 教材、handout 讲义（答案的知识依据）；syllabus 考纲（只定考点范围）；experience 经验总结（只参考答题结构与侧重点，上传即视为已获授权）
+             * @enum {string}
+             */
+            kind: "textbook" | "handout" | "syllabus" | "experience";
             discipline: string;
             aliases: string[];
             /** @description 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册 */
@@ -5909,8 +5923,11 @@ export interface components {
         TextbookUpdate: {
             title: string;
             author: string;
-            /** @enum {string} */
-            kind: "textbook" | "handout";
+            /**
+             * @description 资料类型（T55）：textbook 教材、handout 讲义（答案的知识依据）；syllabus 考纲（只定考点范围）；experience 经验总结（只参考答题结构与侧重点，上传即视为已获授权）
+             * @enum {string}
+             */
+            kind: "textbook" | "handout" | "syllabus" | "experience";
             discipline: string;
             aliases: string[];
             /** @description 套书名。分上下卷等多册出版的教材填同一个套书名，用户输入套书名时整套一起匹配；空表示单册 */
@@ -8036,6 +8053,11 @@ export interface components {
                 reference_id: number;
                 title: string;
                 heading: string;
+                /**
+                 * @description 资料类型（T55）；没有是教材
+                 * @enum {string}
+                 */
+                material?: "textbook" | "handout" | "syllabus" | "experience";
             }[];
         };
         OfficialPoint: {
@@ -8973,6 +8995,11 @@ export interface components {
                 page?: number;
                 /** @description 教材印刷页码 */
                 printed_page?: string;
+                /**
+                 * @description 资料类型（T55）；没有是教材
+                 * @enum {string}
+                 */
+                material?: "textbook" | "handout" | "syllabus" | "experience";
             }[];
             /** @description 原文片段（高亮） */
             source_text?: string;

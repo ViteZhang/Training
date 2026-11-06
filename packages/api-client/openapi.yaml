@@ -9160,6 +9160,7 @@ components:
         method: {type: string, enum: [auto, explicit]}
         catalog_version: {type: string}
         available: {type: boolean}
+        kind: {type: string, enum: [textbook, handout, syllabus, experience], description: 资料类型（T55，项目关联列表才有）}
     AnswerEvidenceSource:
       type: object
       properties:
@@ -9555,9 +9556,12 @@ components:
           maxLength: 128
         kind:
           type: string
+          description: 资料类型（T55）：textbook 教材、handout 讲义（答案的知识依据）；syllabus 考纲（只定考点范围）；experience 经验总结（只参考答题结构与侧重点，上传即视为已获授权）
           enum:
           - textbook
           - handout
+          - syllabus
+          - experience
         discipline:
           type: string
           minLength: 1
@@ -9784,9 +9788,12 @@ components:
           maxLength: 128
         kind:
           type: string
+          description: 资料类型（T55）：textbook 教材、handout 讲义（答案的知识依据）；syllabus 考纲（只定考点范围）；experience 经验总结（只参考答题结构与侧重点，上传即视为已获授权）
           enum:
           - textbook
           - handout
+          - syllabus
+          - experience
         discipline:
           type: string
           minLength: 1
@@ -9841,9 +9848,12 @@ components:
           maxLength: 128
         kind:
           type: string
+          description: 资料类型（T55）：textbook 教材、handout 讲义（答案的知识依据）；syllabus 考纲（只定考点范围）；experience 经验总结（只参考答题结构与侧重点，上传即视为已获授权）
           enum:
           - textbook
           - handout
+          - syllabus
+          - experience
         discipline:
           type: string
           minLength: 1
@@ -9885,9 +9895,12 @@ components:
           maxLength: 128
         kind:
           type: string
+          description: 资料类型（T55）：textbook 教材、handout 讲义（答案的知识依据）；syllabus 考纲（只定考点范围）；experience 经验总结（只参考答题结构与侧重点，上传即视为已获授权）
           enum:
           - textbook
           - handout
+          - syllabus
+          - experience
         discipline:
           type: string
           minLength: 1
@@ -12729,6 +12742,10 @@ components:
                 type: string
               heading:
                 type: string
+              material:
+                type: string
+                enum: [textbook, handout, syllabus, experience]
+                description: 资料类型（T55）；没有是教材
     OfficialPoint:
       type: object
       required:
@@ -13698,6 +13715,7 @@ components:
               claim: { type: string, description: 这段原文支撑答案里的哪个观点 }
               page: { type: integer, description: 资料页码 }
               printed_page: { type: string, description: 教材印刷页码 }
+              material: { type: string, enum: [textbook, handout, syllabus, experience], description: 资料类型（T55）；没有是教材 }
         source_text: { type: string, description: 原文片段（高亮） }
         page: { type: integer }
         confidence: { type: string, enum: [high, medium, low] }
