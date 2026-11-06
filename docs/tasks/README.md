@@ -84,6 +84,7 @@
 | T47 | 后台 7.17 AI 解析导入（含 CSV 表格导入） | 开发完成（真实文件待验） |
 | T48 | 3.1e 官方 / 我的、补充资料提示；1.5 隐私承诺与微信说明；4.8 异议新增「和我们老师讲的不一样」 | 开发完成（真机待测） |
 | T50 | 1.1 考试科目：按学科分组、全国统考、报考专业选填（后端卡 peetraining-server/docs/tasks/T50-exam-subjects.md） | 开发完成（真机待测） |
+| T51 | 题目「必答 / 限选」标签（后端卡 peetraining-server/docs/tasks/T51-required-elective.md） | 开发完成（真机待测） |
 
 ## 卡片模板
 
