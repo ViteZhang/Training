@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
+	"peetraining-server/internal/rules"
 	"peetraining-server/internal/store"
 )
 
@@ -188,6 +190,8 @@ type Citation struct {
 	Claim       string `json:",omitempty"`
 	Page        int    `json:",omitempty"`
 	PrintedPage string `json:",omitempty"`
+	// Material 是资料类型（textbook / handout / syllabus / experience，T55）；空是教材。
+	Material string `json:",omitempty"`
 }
 
 // AnswerCandidate 是 AI 给官方题生成的参考答案、采分点与出处。
@@ -254,10 +258,12 @@ func (s *Service) answerCandidates(ctx context.Context, projectID uint64, qtype,
 		return AnswerCandidate{}, err
 	}
 	c := AnswerCandidate{Answer: out.Answer, Points: pts, Citations: citationsOf(out.Snapshot), SnapshotID: id, Snapshot: out.Snapshot, Basis: out.Basis}
-	if len(c.Citations) == 0 && len(links) == 0 {
+	// 「没有引用教材」只看教材、讲义的引用（T55）。
+	knowledge := slices.ContainsFunc(c.Citations, func(x Citation) bool { return x.Material == "" || rules.IsKnowledgeMaterial(x.Material) })
+	if !knowledge && len(links) == 0 {
 		c.Basis = &ai.AnswerBasis{Reason: ai.BasisNoTextbook}
 	}
-	if len(c.Citations) > 0 {
+	if knowledge {
 		c.Basis = nil
 	}
 	return c, nil
@@ -270,7 +276,7 @@ func citationsOf(snap *ai.AnswerSnapshot) []Citation {
 		return cites
 	}
 	for _, v := range snap.Sources {
-		c := Citation{ReferenceID: v.BookID, Title: v.Title, Heading: v.Heading, Kind: v.Kind, Quote: v.Quote, Claim: v.Claim, Page: v.Page}
+		c := Citation{ReferenceID: v.BookID, Title: v.Title, Heading: v.Heading, Kind: v.Kind, Quote: v.Quote, Claim: v.Claim, Page: v.Page, Material: v.Material}
 		if v.SourcePage != nil {
 			c.Page = *v.SourcePage
 		}

@@ -54,6 +54,9 @@ func (h *Handlers) MatchSubjectTextbooks(c *gin.Context, subjectID int64) {
 			continue
 		}
 		for _, v := range rows {
+			if !rules.IsKnowledgeMaterial(v.Kind) {
+				continue // 考纲、经验总结不给考生（T55）
+			}
 			out = append(out, gen.UserTextbookMatch{Input: name, BookId: int64(v.BookID), EditionId: int64(v.ID), Title: v.Title, Author: v.Author, Edition: v.Edition, Method: method, CatalogVersion: strconv.FormatUint(v.Version, 10), Available: true})
 		}
 	}

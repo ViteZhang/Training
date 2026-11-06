@@ -178,3 +178,44 @@ func TestAnswerBasisExplainsMissingCitations(t *testing.T) {
 		}
 	}
 }
+
+// T55：只引用了考纲、经验总结时，仍说明没有引用教材；类型名交给提示词。
+type syllabusClient struct{}
+
+func (syllabusClient) Complete(_ context.Context, r cloudai.Request) (cloudai.Response, error) {
+	var out any
+	switch r.Capability {
+	case "answer_citation_check":
+		out = CitationCheckOut{true}
+	default:
+		out = GenerateAnswerOut{Answer: "意境是情景交融的艺术境界。", Points: []RubricPoint{{Content: "意境是情景交融的艺术境界。", Score: 5, Keywords: []string{"情景交融"}}},
+			Citations: []AnswerCitation{{"textbook:9:1", "考查意境的内涵", "意境是情景交融的艺术境界。"}}}
+	}
+	data, _ := json.Marshal(out)
+	return cloudai.Response{Content: string(data)}, nil
+}
+
+func TestSyllabusCitationIsNotTextbook(t *testing.T) {
+	e := NewEngine(Config{Client: syllabusClient{}})
+	ev := []EvidenceFragment{{ID: "textbook:9:1", Kind: "official_textbook", Material: "syllabus", Text: "考查意境的内涵与特征。"}}
+	out, _, err := e.GenerateReferenceAnswer(context.Background(), 0, GenerateAnswerIn{Stem: "意境", Score: 5, Evidence: ev, EditionIDs: []uint64{9},
+		Basis: &AnswerBasis{Reason: BasisNoTextbook}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Snapshot.Sources) != 1 || out.Snapshot.Sources[0].Material != "syllabus" {
+		t.Fatalf("考纲引用保留：%+v", out.Snapshot.Sources)
+	}
+	if out.Basis == nil || out.Basis.Reason != BasisNoTextbook || !out.Snapshot.UsesGeneralKnowledge {
+		t.Fatalf("只引用考纲仍说明没有教材：%+v %v", out.Basis, out.Snapshot.UsesGeneralKnowledge)
+	}
+	names := map[string]string{"": "教材", "handout": "讲义", "syllabus": "考纲", "experience": "经验总结"}
+	for m, want := range names {
+		if got := (EvidenceFragment{Kind: "official_textbook", Material: m}).MaterialName(); got != want {
+			t.Errorf("%q → %s", m, got)
+		}
+	}
+	if (EvidenceFragment{Kind: "official_textbook", Material: "experience"}).IsKnowledge() || !(EvidenceFragment{Kind: "official_textbook", Material: "handout"}).IsKnowledge() {
+		t.Error("只有教材讲义算知识依据")
+	}
+}

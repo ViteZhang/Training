@@ -65,12 +65,14 @@ func (s *Service) MatchEditions(ctx context.Context, names []string, subject str
 			}
 		}
 	}
+	// 按书名匹配（考生填的参考书）只认教材、讲义；考纲、经验总结只能由官方项目明确关联（T55）。
+	named := slices.DeleteFunc(slices.Clone(rows), func(e dbq.ListPublishedTextbookEditionsRow) bool { return !rules.IsKnowledgeMaterial(e.Kind) })
 	for _, name := range names {
 		input := rules.NormalizeTextbookName(name)
 		if explicitNames[input] {
 			continue
 		}
-		for _, e := range matchByName(rows, input, subject) {
+		for _, e := range matchByName(named, input, subject) {
 			add(e)
 		}
 	}
@@ -206,42 +208,70 @@ func (s *Service) PrepareAnswer(ctx context.Context, user uint64, in ai.Generate
 	if err != nil {
 		return in, err
 	}
+	if user != 0 {
+		// 考生的答案只用教材、讲义（Q20：考纲、经验总结先不给考生）。
+		editions = slices.DeleteFunc(editions, func(e dbq.ListPublishedTextbookEditionsRow) bool { return !rules.IsKnowledgeMaterial(e.Kind) })
+	}
 	// T53 记下没用上教材的原因：关联了哪些版本、哪本为什么不能检索。
-	details := s.unavailableEditions(ctx, in.EditionIDs, editions)
+	details, knowledgeDown := s.unavailableEditions(ctx, in.EditionIDs, editions)
 	if len(in.EditionIDs) == 0 && len(editions) == 0 {
 		in.Basis = &ai.AnswerBasis{Reason: ai.BasisNoTextbook}
 		return in, nil
 	}
-	evidence := []ai.EvidenceFragment{}
-	searched := 0
+	// T55 按类型分名额：教材讲义是知识依据占大头，考纲、经验总结各取几段，免得被教材挤掉。
+	caps := map[string]int{rules.MaterialSyllabus: 3, rules.MaterialExperience: 3}
+	group := func(kind string) string {
+		if rules.IsKnowledgeMaterial(kind) {
+			return rules.MaterialTextbook
+		}
+		return kind
+	}
+	caps[rules.MaterialTextbook] = 16 - caps[rules.MaterialSyllabus] - caps[rules.MaterialExperience]
+	picked := map[string][]ai.EvidenceFragment{}
+	knowledgeLinked, knowledgeSearched := knowledgeDown, 0
 	for _, e := range editions {
+		g := group(e.Kind)
+		if g == rules.MaterialTextbook {
+			knowledgeLinked++
+		}
+		if len(picked[g]) >= caps[g] {
+			continue
+		}
 		result, err := s.SearchRevision(ctx, e.BookID, e.ID, uint64(e.CurrentRevisionID.Int64), uint64(e.CurrentGenerationID.Int64), query)
 		if err != nil {
 			details = append(details, e.Title+"："+errText(err))
 			continue
 		}
-		searched++
-		for _, h := range result.Hits {
-			evidence = append(evidence, ai.EvidenceFragment{ID: fmt.Sprintf("textbook:%d:%d", result.GenerationID, h.Ordinal), Kind: "official_textbook", Title: e.Title, Author: e.Author, Edition: e.Edition, Text: h.Text, BookID: e.BookID, EditionID: e.ID, RevisionID: uint64(e.CurrentRevisionID.Int64), GenerationID: result.GenerationID, Ordinal: h.Ordinal, SectionNo: h.SectionNo, StartRune: h.StartRune, EndRune: h.EndRune, TextHash: h.TextHash, Heading: h.Heading, SourcePage: h.SourcePage, PrintedPage: h.PrintedPage})
+		if g == rules.MaterialTextbook {
+			knowledgeSearched++
 		}
-		if len(evidence) >= 16 {
-			evidence = evidence[:min(16, len(evidence))]
-			break
+		for _, h := range result.Hits {
+			if len(picked[g]) >= caps[g] {
+				break
+			}
+			picked[g] = append(picked[g], ai.EvidenceFragment{ID: fmt.Sprintf("textbook:%d:%d", result.GenerationID, h.Ordinal), Kind: "official_textbook", Material: e.Kind, Title: e.Title, Author: e.Author, Edition: e.Edition, Text: h.Text, BookID: e.BookID, EditionID: e.ID, RevisionID: uint64(e.CurrentRevisionID.Int64), GenerationID: result.GenerationID, Ordinal: h.Ordinal, SectionNo: h.SectionNo, StartRune: h.StartRune, EndRune: h.EndRune, TextHash: h.TextHash, Heading: h.Heading, SourcePage: h.SourcePage, PrintedPage: h.PrintedPage})
 		}
 	}
+	evidence := append(append(picked[rules.MaterialTextbook], picked[rules.MaterialSyllabus]...), picked[rules.MaterialExperience]...)
+	// 没有教材讲义可用时先记原因（考纲、经验总结照样往下用）。
+	switch {
+	case knowledgeLinked == 0:
+		in.Basis = &ai.AnswerBasis{Reason: ai.BasisNoTextbook, Details: details}
+	case knowledgeSearched == 0:
+		in.Basis = &ai.AnswerBasis{Reason: ai.BasisUnavailable, Details: details}
+	case len(picked[rules.MaterialTextbook]) == 0:
+		in.Basis = &ai.AnswerBasis{Reason: ai.BasisNoHits, Details: details}
+	}
 	if len(evidence) == 0 {
-		if searched == 0 {
-			in.Basis = &ai.AnswerBasis{Reason: ai.BasisUnavailable, Details: details}
-		} else {
-			in.Basis = &ai.AnswerBasis{Reason: ai.BasisNoHits, Details: details}
-		}
 		return in, nil
 	}
 	selection, _, err := ai.SelectAnswerEvidence.Run(ctx, s.engine, user, ai.SelectEvidenceIn{Subject: in.Subject, QType: in.QType, Stem: in.Stem, Evidence: evidence})
 	if err != nil {
 		return in, err
 	}
-	if len(selection.SourceIDs) == 0 {
+	if in.Basis == nil && !slices.ContainsFunc(selection.SourceIDs, func(id string) bool {
+		return slices.ContainsFunc(evidence, func(f ai.EvidenceFragment) bool { return f.ID == id && f.IsKnowledge() })
+	}) {
 		in.Basis = &ai.AnswerBasis{Reason: ai.BasisNotRelevant, Details: details}
 	}
 	for _, id := range selection.SourceIDs {
@@ -257,8 +287,10 @@ func (s *Service) PrepareAnswer(ctx context.Context, user uint64, in ai.Generate
 }
 
 // unavailableEditions 是明确关联、但不在可检索列表里的版本及原因（未发布、授权不可用、还没有索引）。
-func (s *Service) unavailableEditions(ctx context.Context, explicit []uint64, usable []dbq.ListPublishedTextbookEditionsRow) []string {
+// 第二个返回值是其中教材、讲义的本数（用来区分「没关联教材」与「关联的教材不能检索」）。
+func (s *Service) unavailableEditions(ctx context.Context, explicit []uint64, usable []dbq.ListPublishedTextbookEditionsRow) ([]string, int) {
 	var out []string
+	knowledge := 0
 	for _, id := range explicit {
 		if slices.ContainsFunc(usable, func(e dbq.ListPublishedTextbookEditionsRow) bool { return e.ID == id }) {
 			continue
@@ -270,6 +302,9 @@ func (s *Service) unavailableEditions(ctx context.Context, explicit []uint64, us
 		title := e.Edition
 		if b, err := dbq.New(s.db).GetTextbook(ctx, e.BookID); err == nil {
 			title = b.Title + " " + e.Edition
+			if rules.IsKnowledgeMaterial(b.Kind) {
+				knowledge++
+			}
 		}
 		switch {
 		case e.Status != "published":
@@ -280,7 +315,7 @@ func (s *Service) unavailableEditions(ctx context.Context, explicit []uint64, us
 			out = append(out, title+"：还没有可检索的索引")
 		}
 	}
-	return out
+	return out, knowledge
 }
 
 // errText 是检索失败时给编辑看的原因：业务错误原样给，其余统一说检索出错。
@@ -350,6 +385,10 @@ func VisibleSnapshot(ctx context.Context, q *dbq.Queries, snapshot *ai.AnswerSna
 	data, _ := json.Marshal(snapshot)
 	var out ai.AnswerSnapshot
 	_ = json.Unmarshal(data, &out)
+	// 考纲、经验总结只在后台用，考生看到的出处里去掉（Q20，T55）。
+	out.Sources = slices.DeleteFunc(out.Sources, func(src ai.AnswerSource) bool {
+		return src.Kind == "official_textbook" && src.Material != "" && !rules.IsKnowledgeMaterial(src.Material)
+	})
 	for i, src := range out.Sources {
 		if src.Kind != "official_textbook" {
 			continue
