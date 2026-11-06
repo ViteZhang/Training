@@ -12,7 +12,7 @@ export type SampleQuestion = Schemas['SampleQuestion'];
 
 export const officialKeys = {
   schools: (q: string) => ['catalog', 'schools', q] as const,
-  courses: (school: string, year?: number) => ['catalog', 'courses', school, year] as const,
+  courses: (school: string, year?: number) => ['catalog', 'courses', school, year, 'national'] as const,
   trialStatus: ['trial-status'] as const,
   trial: (id: number) => ['trial', id] as const,
   samples: ['sample-questions'] as const,
@@ -32,7 +32,7 @@ export function useCatalogSchools(q: string) {
 export function useCatalogCourses(school: string | undefined, year?: number) {
   return useQuery({
     queryKey: officialKeys.courses(school ?? '', year),
-    queryFn: () => unwrap(api.GET('/catalog/courses', { params: { query: { school: school ?? '', exam_year: year } } })),
+    queryFn: () => unwrap(api.GET('/catalog/courses', { params: { query: { school: school ?? '', exam_year: year, include_national: true } } })),
     enabled: !!school,
   });
 }
