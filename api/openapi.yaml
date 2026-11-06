@@ -6676,6 +6676,50 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+  /admin/official/projects/{projectId}/imports/{fileId}/regenerate:
+    post:
+      tags: [admin]
+      operationId: adminRegenerateOfficialImport
+      summary: 整份按关联教材重新生成：这份资料里还没核对、答案由 AI 生成的题都重新生成（T53）
+      description: |
+        先导入、后关联教材时用。与一键补全共用后台任务与进度（OfficialImportFile.fill），缺答案、缺采分点的题一起补上。
+        只换 AI 生成的答案（payload.answer_ai），原文给的答案不动；原文给的采分点保留。单题失败时原来的答案不变，原因记在 fill_error 上。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: fileId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: 已开始重新生成
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfficialImportFile" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/official/projects/{projectId}/import-items/{itemId}/regenerate:
+    post:
+      tags: [admin]
+      operationId: adminRegenerateOfficialImportItem
+      summary: 按关联教材重新生成一道题的 AI 答案（T53）
+      description: |
+        只能用于还没核对、答案由 AI 生成的题（answer_ai = true）；原文给的采分点保留。
+        失败返回 400 / 502（AI_FAILED），原来的答案不变，原因记在 fill_error 上。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: itemId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: 重新生成后的条目
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfficialImportItem" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /admin/official/projects/{projectId}/import-items/{itemId}/review:
     post:
       tags: [admin]
@@ -13671,6 +13715,21 @@ components:
           type: array
           items: { type: integer }
           description: 别的年份也考过同一题（不算重复，只做提示）
+        answer_ai: { type: boolean, description: 答案由 AI 生成（还没核对的可以按关联教材重新生成，T53） }
+        answer_basis:
+          type: object
+          description: AI 生成的答案没有引用教材时的原因（T53）；引用了教材或答案是原文给的时没有
+          required: [reason, message]
+          properties:
+            reason:
+              type: string
+              enum: [no_textbook, unavailable, no_hits, not_relevant, not_cited, citation_rejected, retrieval_failed]
+              description: |
+                no_textbook 项目没有关联教材；unavailable 关联的教材都不能检索（details 逐本写原因）；no_hits 没检索到相关段落；
+                not_relevant 检索到的段落与本题不相关；not_cited AI 没有引用检索到的段落；citation_rejected 引用核对没通过，已改按通用知识生成；
+                retrieval_failed 检索出错（超时等），可稍后重新生成
+            message: { type: string, description: 给编辑看的说明 }
+            details: { type: array, items: { type: string }, description: 逐本说明，如「《文学理论教程》 第五版：还没有可检索的索引」 }
     SubjectInput:
       type: object
       required: [name, full_score]

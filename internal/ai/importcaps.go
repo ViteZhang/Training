@@ -298,12 +298,14 @@ type GenerateAnswerIn struct {
 	Evidence   []EvidenceFragment `json:"evidence,omitempty"`
 	Coverage   string             `json:"coverage,omitempty"`
 	EditionIDs []uint64           `json:"-"`
-	Subject    string             `json:"subject"`
-	QType      string             `json:"qtype"`
-	Stem       string             `json:"stem"`
-	Score      float64            `json:"score"`
-	Textbooks  []string           `json:"textbooks,omitempty"`
-	Context    []AnswerContext    `json:"context,omitempty"`
+	// Basis 是检索教材的结果说明（T53），由 PrepareAnswer 填写，不交给模型。
+	Basis     *AnswerBasis    `json:"-"`
+	Subject   string          `json:"subject"`
+	QType     string          `json:"qtype"`
+	Stem      string          `json:"stem"`
+	Score     float64         `json:"score"`
+	Textbooks []string        `json:"textbooks,omitempty"`
+	Context   []AnswerContext `json:"context,omitempty"`
 }
 
 // AnswerContext 是一段用户资料（或官方参考素材）的原文。
@@ -315,7 +317,9 @@ type AnswerContext struct {
 }
 
 type GenerateAnswerOut struct {
-	Snapshot             *AnswerSnapshot  `json:"-"`
+	Snapshot *AnswerSnapshot `json:"-"`
+	// Basis 不为空是答案没有引用教材：说明原因（T53）。
+	Basis                *AnswerBasis     `json:"-"`
 	Citations            []AnswerCitation `json:"citations"`
 	UsesGeneralKnowledge bool             `json:"uses_general_knowledge"`
 	Answer               string           `json:"answer"`

@@ -55,6 +55,44 @@ type AnswerSnapshot struct {
 	Sources              []AnswerSource `json:"sources"`
 }
 
+// AnswerBasis 说明生成的答案为什么没有引用教材（T53），核对区逐题显示，便于编辑判断是关联、索引还是检索的问题。
+type AnswerBasis struct {
+	Reason  string   `json:"reason"`
+	Details []string `json:"details,omitempty"`
+}
+
+// 没有引用教材的原因。
+const (
+	BasisNoTextbook       = "no_textbook"       // 没有关联教材
+	BasisUnavailable      = "unavailable"       // 关联的教材都不能检索
+	BasisNoHits           = "no_hits"           // 没检索到段落
+	BasisNotRelevant      = "not_relevant"      // 检索到的段落与题目不相关
+	BasisNotCited         = "not_cited"         // 模型没有引用给它的段落
+	BasisCitationRejected = "citation_rejected" // 引用核对没通过
+	BasisRetrievalFailed  = "retrieval_failed"  // 检索出错（超时等）
+)
+
+// BasisMessage 是给编辑看的说明。
+func BasisMessage(reason string) string {
+	switch reason {
+	case BasisNoTextbook:
+		return "本项目没有关联教材，答案按通用知识生成"
+	case BasisUnavailable:
+		return "关联的教材都不能检索，答案按通用知识生成"
+	case BasisNoHits:
+		return "关联教材里没有检索到相关段落，答案按通用知识生成"
+	case BasisNotRelevant:
+		return "检索到的教材段落与本题不相关，答案按通用知识生成"
+	case BasisNotCited:
+		return "AI 没有引用检索到的教材段落，答案按通用知识生成"
+	case BasisCitationRejected:
+		return "教材引用核对没有通过，答案已改按通用知识生成"
+	case BasisRetrievalFailed:
+		return "教材检索暂时失败，答案按通用知识生成，可稍后重新生成"
+	}
+	return "答案没有引用教材"
+}
+
 // AnswerEvidenceProvider 由官方教材服务实现，AI层不依赖业务服务。最终校验由写事务调用。
 type AnswerEvidenceProvider interface {
 	PrepareAnswer(context.Context, uint64, GenerateAnswerIn) (GenerateAnswerIn, error)
@@ -82,8 +120,11 @@ func (e *Engine) GenerateReferenceAnswer(ctx context.Context, user uint64, in Ge
 	if e.answerEvidence != nil {
 		if prepared, err := e.answerEvidence.PrepareAnswer(ctx, user, in); err == nil {
 			in = prepared
+		} else if len(in.EditionIDs) > 0 {
+			in.Basis = &AnswerBasis{Reason: BasisRetrievalFailed}
 		}
 	}
+	basis := in.Basis
 	// 个人原文同样使用服务端分配的ID；不接受模型生成的来源元数据。
 	for i, c := range in.Context {
 		in.Evidence = append(in.Evidence, EvidenceFragment{ID: fmt.Sprintf("personal:%d", i+1), Kind: "personal_material", Title: c.Source, Text: c.Text, MaterialID: c.MaterialID, Page: c.Page})
@@ -93,6 +134,7 @@ func (e *Engine) GenerateReferenceAnswer(ctx context.Context, user uint64, in Ge
 		return out, meta, err
 	}
 	if len(out.Citations) == 0 && len(in.Evidence) > 0 {
+		basis = &AnswerBasis{Reason: BasisNotCited}
 		in.Evidence = nil
 		in.Context = nil
 		in.Coverage = "none"
@@ -105,6 +147,7 @@ func (e *Engine) GenerateReferenceAnswer(ctx context.Context, user uint64, in Ge
 		checked, _, checkErr := CheckAnswerCitations.Run(ctx, e, user, CitationCheckIn{Answer: out.Answer, Points: out.Points, Citations: out.Citations, Evidence: in.Evidence})
 		if checkErr != nil || !checked.AllSupported {
 			// 引文无法证实支撑时整份答案重新生成，不能只删标签保留来源内容。
+			basis = &AnswerBasis{Reason: BasisCitationRejected}
 			in.Evidence = nil
 			in.Context = nil
 			in.Coverage = "none"
@@ -123,6 +166,12 @@ func (e *Engine) GenerateReferenceAnswer(ctx context.Context, user uint64, in Ge
 				break
 			}
 		}
+	}
+	if len(sources) == 0 {
+		if basis == nil && len(in.EditionIDs) > 0 {
+			basis = &AnswerBasis{Reason: BasisNotCited}
+		}
+		out.Basis = basis
 	}
 	out.Snapshot = &AnswerSnapshot{Version: "v1", GeneratedAt: e.now().UTC(), Model: meta.Model, PromptVersion: meta.Version, Coverage: in.Coverage, UsesGeneralKnowledge: out.UsesGeneralKnowledge || len(sources) == 0, Sources: sources}
 	if out.Snapshot.Coverage == "" {

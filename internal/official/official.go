@@ -66,6 +66,12 @@ type QuestionPayload struct {
 	AnswerAI bool `json:"answer_ai,omitempty"`
 	// ScoreInferred 表示分值是补答案时参考同项目同题型的给分填上的（原文没有分值），请编辑核对。
 	ScoreInferred bool `json:"score_inferred,omitempty"`
+	// 以下三项只在 7.17 核对区用，接受时去掉、不进草稿（T53）：
+	// AnswerBasis 是 AI 生成的答案没有引用教材的原因；RubricKept 是采分点是原文给的（重新生成时保留）；
+	// Regenerate 是编辑点了「按关联教材重新生成」、还没生成完。
+	AnswerBasis *ai.AnswerBasis `json:"answer_basis,omitempty"`
+	RubricKept  bool            `json:"rubric_kept,omitempty"`
+	Regenerate  bool            `json:"regenerate,omitempty"`
 	// Group 不为空是限选题（T51）：按专业分组的题（「第一组：请选择文艺学专业的考生作答」，回答非报考专业不得分），
 	// 只有报考这些专业的考生要答；为空是必答题。
 	Group *QuestionGroup `json:"group,omitempty"`
