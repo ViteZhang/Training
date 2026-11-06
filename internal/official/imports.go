@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/hibiken/asynq"
 	"golang.org/x/sync/errgroup"
@@ -100,7 +101,7 @@ type ImportFileInput struct {
 }
 
 var importContentTypes = map[string]string{"pdf": "application/pdf", "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-	"image": "image/jpeg", "csv": "text/csv", "text": "text/plain"}
+	"image": "image/jpeg", "csv": "text/csv", "text": "text/plain", "md": "text/markdown"}
 
 // CreateImportFile 新增一份资料。粘贴的文字与表格直接开始解析；文件返回直传地址，上传后调用 ConfirmImportFile。
 func (s *Service) CreateImportFile(ctx context.Context, adminID, projectID uint64, in ImportFileInput) (ImportFile, error) {
@@ -123,7 +124,9 @@ func (s *Service) CreateImportFile(ctx context.Context, adminID, projectID uint6
 		ExamYear: sql.NullInt16{Int16: int16(in.ExamYear), Valid: in.ExamYear > 0}, IsRecollection: in.Recollection, AutoAnswer: in.AutoAnswer,
 		CreatedBy: sql.NullInt64{Int64: int64(adminID), Valid: adminID > 0}}
 	text := strings.TrimSpace(in.Text)
-	inline := format == dbq.OfficialImportFilesFormatText || format == dbq.OfficialImportFilesFormatCsv
+	// Markdown 既可以上传 .md 文件，也可以直接粘贴（带 text）。
+	inline := format == dbq.OfficialImportFilesFormatText || format == dbq.OfficialImportFilesFormatCsv ||
+		(format == dbq.OfficialImportFilesFormatMd && in.Size == 0 && text != "")
 	if inline {
 		if text == "" {
 			return ImportFile{}, apperr.New(apperr.BadRequest, "内容不能为空")
@@ -279,9 +282,12 @@ func (s *Service) ProcessImport(ctx context.Context, fileID uint64) error {
 
 // readPages 取出资料的文字，按页。
 func (s *Service) readPages(ctx context.Context, f dbq.OfficialImportFile) ([]importer.Page, error) {
-	switch f.Format {
-	case dbq.OfficialImportFilesFormatText, dbq.OfficialImportFilesFormatCsv:
+	switch {
+	case f.Format == dbq.OfficialImportFilesFormatCsv:
 		return []importer.Page{{No: 1, Text: f.Content.String}}, nil
+	case f.Format == dbq.OfficialImportFilesFormatText || (f.Format == dbq.OfficialImportFilesFormatMd && !f.ObjectKey.Valid):
+		// 粘贴的文字常是从 Markdown 编辑器复制的：一并去掉排版标记（T52）。
+		return []importer.Page{{No: 1, Text: markdownText(f.Content.String)}}, nil
 	}
 	if s.imports.OSS == nil {
 		return nil, apperr.New(apperr.BadRequest, "文件上传还没配置")
@@ -316,6 +322,11 @@ func (s *Service) readPages(ctx context.Context, f dbq.OfficialImportFile) ([]im
 		for i, p := range ps {
 			pages = append(pages, importer.Page{No: i + 1, Text: p.Text})
 		}
+	case dbq.OfficialImportFilesFormatMd:
+		if !utf8.Valid(data) {
+			return nil, apperr.New(apperr.BadRequest, "Markdown 文件请用 UTF-8 编码保存")
+		}
+		pages = []importer.Page{{No: 1, Text: markdownText(string(data))}}
 	case dbq.OfficialImportFilesFormatImage:
 		if s.imports.OCR == nil {
 			return nil, apperr.New(apperr.BadRequest, "拍照识别还没配置")
@@ -851,6 +862,9 @@ type ImportItem struct {
 	// NeedsFill 是还缺答案或采分点（可以点「生成答案 / 提取采分点」）；FillError 是上次补全失败的原因。
 	NeedsFill bool
 	FillError string
+	// Duplicate 是重复说明（如「与《2025 真题》第 3 题相同」），只标还没核对的题；SeenYears 是别的年份也考过同一题（T52）。
+	Duplicate string
+	SeenYears []int
 }
 
 // ImportDetail 是核对区：原文与解析结果。
@@ -882,7 +896,33 @@ func (s *Service) ImportItems(ctx context.Context, projectID, fileID uint64) (Im
 		}
 		out.Items[i] = it
 	}
+	if err := s.markDuplicates(ctx, f, out.Items); err != nil {
+		return ImportDetail{}, err
+	}
 	return out, nil
+}
+
+// RejectDuplicates 一键驳回这份资料里标为重复、还没核对的题（T52），返回驳回的条数。
+func (s *Service) RejectDuplicates(ctx context.Context, editorID, projectID, fileID uint64) (int, error) {
+	d, err := s.ImportItems(ctx, projectID, fileID)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, it := range d.Items {
+		if it.Duplicate == "" {
+			continue
+		}
+		if _, err := s.ReviewImportItem(ctx, editorID, projectID, it.ID, "reject", nil); err != nil {
+			var ae *apperr.Error
+			if errors.As(err, &ae) && ae.Kind == apperr.Conflict {
+				continue // 别人刚核对过这一条
+			}
+			return n, err
+		}
+		n++
+	}
+	return n, nil
 }
 
 func toImportItem(r dbq.OfficialImportItem) ImportItem {

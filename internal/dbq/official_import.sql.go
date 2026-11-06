@@ -33,7 +33,7 @@ func (q *Queries) FinishOfficialImportFill(ctx context.Context, id uint64) error
 }
 
 const getOfficialImportFile = `-- name: GetOfficialImportFile :one
-SELECT id, project_id, kind, file_name, format, object_key, size_bytes, content, exam_year, is_recollection, status, fail_reason, question_count, kp_count, created_by, created_at, updated_at, auto_answer, fill_status, fill_total, fill_done, fill_failed FROM official_import_files WHERE id = ?
+SELECT id, project_id, kind, file_name, object_key, size_bytes, content, exam_year, is_recollection, status, fail_reason, question_count, kp_count, created_by, created_at, updated_at, auto_answer, fill_status, fill_total, fill_done, fill_failed, format FROM official_import_files WHERE id = ?
 `
 
 func (q *Queries) GetOfficialImportFile(ctx context.Context, id uint64) (OfficialImportFile, error) {
@@ -44,7 +44,6 @@ func (q *Queries) GetOfficialImportFile(ctx context.Context, id uint64) (Officia
 		&i.ProjectID,
 		&i.Kind,
 		&i.FileName,
-		&i.Format,
 		&i.ObjectKey,
 		&i.SizeBytes,
 		&i.Content,
@@ -62,6 +61,7 @@ func (q *Queries) GetOfficialImportFile(ctx context.Context, id uint64) (Officia
 		&i.FillTotal,
 		&i.FillDone,
 		&i.FillFailed,
+		&i.Format,
 	)
 	return i, err
 }
@@ -327,6 +327,88 @@ func (q *Queries) ListProjectImportQuestionPayloads(ctx context.Context, project
 			return nil, err
 		}
 		items = append(items, payload)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectImportQuestions = `-- name: ListProjectImportQuestions :many
+SELECT i.id, i.file_id, i.seq, i.status, i.payload, f.file_name
+FROM official_import_items i JOIN official_import_files f ON f.id = i.file_id
+WHERE i.project_id = ? AND i.item_type = 'question' AND i.status <> 'rejected'
+ORDER BY i.file_id, i.seq
+`
+
+type ListProjectImportQuestionsRow struct {
+	ID       uint64
+	FileID   uint64
+	Seq      uint32
+	Status   OfficialImportItemsStatus
+	Payload  json.RawMessage
+	FileName string
+}
+
+// T52 查重：项目里还没驳回的解析题（各份资料的），与资料名一起。
+func (q *Queries) ListProjectImportQuestions(ctx context.Context, projectID uint64) ([]ListProjectImportQuestionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectImportQuestions, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectImportQuestionsRow{}
+	for rows.Next() {
+		var i ListProjectImportQuestionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FileID,
+			&i.Seq,
+			&i.Status,
+			&i.Payload,
+			&i.FileName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectQuestionDrafts = `-- name: ListProjectQuestionDrafts :many
+SELECT id, payload FROM official_drafts
+WHERE project_id = ? AND entity_type = 'question' AND change_type = 'add' AND status IN ('draft', 'submitted', 'approved')
+ORDER BY id
+`
+
+type ListProjectQuestionDraftsRow struct {
+	ID      uint64
+	Payload json.RawMessage
+}
+
+// T52 查重：项目里还没发布、没退回的新增题目草稿（7.12 手工录的与核对接受的）。
+func (q *Queries) ListProjectQuestionDrafts(ctx context.Context, projectID uint64) ([]ListProjectQuestionDraftsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectQuestionDrafts, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectQuestionDraftsRow{}
+	for rows.Next() {
+		var i ListProjectQuestionDraftsRow
+		if err := rows.Scan(&i.ID, &i.Payload); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
