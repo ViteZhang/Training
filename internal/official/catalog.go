@@ -197,14 +197,20 @@ func (s *Service) AttachSubject(ctx context.Context, userID, subjectID uint64, c
 		if major == "" && c.School == "" {
 			major = cc.Major
 		}
-		return s.q.SetSubjectCatalog(ctx, dbq.SetSubjectCatalogParams{CatalogCourseID: sql.NullInt64{Int64: int64(cc.ID), Valid: true},
-			School: nullStr(school), Major: nullStr(major), ID: subjectID, OwnerUserID: userID})
+		if err := s.q.SetSubjectCatalog(ctx, dbq.SetSubjectCatalogParams{CatalogCourseID: sql.NullInt64{Int64: int64(cc.ID), Valid: true},
+			School: nullStr(school), Major: nullStr(major), ID: subjectID, OwnerUserID: userID}); err != nil {
+			return err
+		}
+		return s.majorsFromChoice(ctx, userID, subjectID, c.Major)
 	}
 	school := strings.TrimSpace(c.School)
 	if school == "" {
 		return nil
 	}
 	if err := s.q.SetSubjectCatalog(ctx, dbq.SetSubjectCatalogParams{School: nullStr(school), Major: nullStr(strings.TrimSpace(c.Major)), ID: subjectID, OwnerUserID: userID}); err != nil {
+		return err
+	}
+	if err := s.majorsFromChoice(ctx, userID, subjectID, c.Major); err != nil {
 		return err
 	}
 	key := rules.CourseKey(school, c.Code, c.Name)
@@ -226,6 +232,15 @@ func (s *Service) AttachSubject(ctx context.Context, userID, subjectID uint64, c
 		}
 		return q.IncCatalogPendingCount(ctx, p.ID)
 	})
+}
+
+// majorsFromChoice：1.1 选填的报考专业记为这门课的报考方向（限选题只留这一组，T51）；已经有方向的不覆盖。
+func (s *Service) majorsFromChoice(ctx context.Context, userID, subjectID uint64, major string) error {
+	m := strings.TrimSpace(major)
+	if m == "" {
+		return nil
+	}
+	return s.q.SetSubjectMajorsIfEmpty(ctx, dbq.SetSubjectMajorsIfEmptyParams{MyMajors: nullStr(m), ID: subjectID, OwnerUserID: userID})
 }
 
 // --- 后台：考试科目库（配置组）---
