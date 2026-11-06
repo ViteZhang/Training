@@ -2,7 +2,7 @@
 
 - 仓库：后端 + App（peetraining-web）+ 管理后台（云效 peetraining-admin）
 - 依赖：T44、T46
-- 状态：开发完成（后台页面在 peetraining-admin 分支 t50-t51-exam-subjects，待推送）
+- 状态：开发完成（后台页面已推 peetraining-admin master）
 
 ## 背景
 
@@ -32,7 +32,7 @@
 - 1.1：本校科目少于 4 门时直接列出，另列「全国统考科目」；4 门及以上按学科分组；统考标「全国统考」，自命题显示适用专业；
   「报考专业」选填；手动添加不再填专业，填的代码是统考代码时提示直接选统考科目
 
-## 范围 · 管理后台（peetraining-admin，分支 t50-t51-exam-subjects，待推送云效）
+## 范围 · 管理后台（peetraining-admin，已推云效 master d428581）
 
 - 「院校专业课库」改名「考试科目库」：命题方式、学科下拉（GET /admin/catalog/disciplines）、适用专业多选、筛选；
   统考科目的「登记院校」编辑；每行「立项做官方题库」（传 catalog_course_id）
