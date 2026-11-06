@@ -3,7 +3,7 @@ UPDATE subjects SET textbook_selections=? WHERE id=? AND owner_user_id=?;
 -- name: GetBankTextbookSelections :one
 SELECT s.textbook_selections FROM subjects s JOIN banks b ON b.subject_id=s.id WHERE b.id=? AND s.owner_user_id=?;
 -- name: ListProjectTextbooks :many
-SELECT e.*,b.title,b.author,b.version AS catalog_version FROM official_project_textbooks p JOIN textbook_editions e ON e.id=p.edition_id JOIN textbooks b ON b.id=e.book_id WHERE p.project_id=? ORDER BY e.id;
+SELECT e.*,b.title,b.author,b.kind,b.version AS catalog_version FROM official_project_textbooks p JOIN textbook_editions e ON e.id=p.edition_id JOIN textbooks b ON b.id=e.book_id WHERE p.project_id=? ORDER BY e.id;
 -- name: DeleteProjectTextbooks :exec
 DELETE FROM official_project_textbooks WHERE project_id=?;
 -- name: AddProjectTextbook :exec

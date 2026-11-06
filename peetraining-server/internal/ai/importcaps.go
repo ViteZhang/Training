@@ -327,7 +327,7 @@ type GenerateAnswerOut struct {
 }
 
 var GenerateAnswer = &Cap[GenerateAnswerIn, GenerateAnswerOut]{
-	Def: Def{Name: "answer_generate", Version: "v3", Tier: "strong", Temperature: 0.3, Schema: `{
+	Def: Def{Name: "answer_generate", Version: "v4", Tier: "strong", Temperature: 0.3, Schema: `{
 		"type": "object", "required": ["answer", "points", "citations", "uses_general_knowledge"],
 		"properties": {
 			"answer": {"type": "string", "minLength": 1},

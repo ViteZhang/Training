@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -33,7 +34,30 @@ type EvidenceFragment struct {
 	PrintedPage  *string `json:"printed_page,omitempty"`
 	MaterialID   uint64  `json:"material_id,omitempty"`
 	Page         int     `json:"page,omitempty"`
+	// Material 是官方资料库的资料类型（textbook / handout / syllabus / experience，T55）；空是教材（T55 之前的快照）或考生资料。
+	Material string `json:"material,omitempty"`
 }
+
+// MaterialName 是提示词里的资料类型名。
+func (f EvidenceFragment) MaterialName() string {
+	switch {
+	case f.Kind == "personal_material":
+		return "考生资料"
+	case f.Material == "handout":
+		return "讲义"
+	case f.Material == "syllabus":
+		return "考纲"
+	case f.Material == "experience":
+		return "经验总结"
+	}
+	return "教材"
+}
+
+// IsKnowledge 是能当知识依据的来源：官方教材、讲义（考纲、经验总结不算，T55）。
+func (f EvidenceFragment) IsKnowledge() bool {
+	return f.Kind == "official_textbook" && (f.Material == "" || f.Material == "textbook" || f.Material == "handout")
+}
+
 type AnswerCitation struct {
 	SourceID string `json:"source_id"`
 	Quote    string `json:"quote"`
@@ -134,7 +158,9 @@ func (e *Engine) GenerateReferenceAnswer(ctx context.Context, user uint64, in Ge
 		return out, meta, err
 	}
 	if len(out.Citations) == 0 && len(in.Evidence) > 0 {
-		basis = &AnswerBasis{Reason: BasisNotCited}
+		if basis == nil {
+			basis = &AnswerBasis{Reason: BasisNotCited}
+		}
 		in.Evidence = nil
 		in.Context = nil
 		in.Coverage = "none"
@@ -147,7 +173,9 @@ func (e *Engine) GenerateReferenceAnswer(ctx context.Context, user uint64, in Ge
 		checked, _, checkErr := CheckAnswerCitations.Run(ctx, e, user, CitationCheckIn{Answer: out.Answer, Points: out.Points, Citations: out.Citations, Evidence: in.Evidence})
 		if checkErr != nil || !checked.AllSupported {
 			// 引文无法证实支撑时整份答案重新生成，不能只删标签保留来源内容。
-			basis = &AnswerBasis{Reason: BasisCitationRejected}
+			if basis == nil {
+				basis = &AnswerBasis{Reason: BasisCitationRejected}
+			}
 			in.Evidence = nil
 			in.Context = nil
 			in.Coverage = "none"
@@ -167,13 +195,15 @@ func (e *Engine) GenerateReferenceAnswer(ctx context.Context, user uint64, in Ge
 			}
 		}
 	}
-	if len(sources) == 0 {
+	// 「没有引用教材」只看教材、讲义；只引用了考纲、经验总结的也要说明（T55）。
+	knowledge := slices.ContainsFunc(sources, func(s AnswerSource) bool { return s.IsKnowledge() })
+	if !knowledge {
 		if basis == nil && len(in.EditionIDs) > 0 {
 			basis = &AnswerBasis{Reason: BasisNotCited}
 		}
 		out.Basis = basis
 	}
-	out.Snapshot = &AnswerSnapshot{Version: "v1", GeneratedAt: e.now().UTC(), Model: meta.Model, PromptVersion: meta.Version, Coverage: in.Coverage, UsesGeneralKnowledge: out.UsesGeneralKnowledge || len(sources) == 0, Sources: sources}
+	out.Snapshot = &AnswerSnapshot{Version: "v1", GeneratedAt: e.now().UTC(), Model: meta.Model, PromptVersion: meta.Version, Coverage: in.Coverage, UsesGeneralKnowledge: out.UsesGeneralKnowledge || !knowledge, Sources: sources}
 	if out.Snapshot.Coverage == "" {
 		out.Snapshot.Coverage = "none"
 	}
@@ -218,21 +248,26 @@ type SelectEvidenceOut struct {
 }
 
 var SelectAnswerEvidence = &Cap[SelectEvidenceIn, SelectEvidenceOut]{
-	Def: Def{Name: "answer_evidence_select", Version: "v1", Tier: "strong", Temperature: 0, Schema: `{"type":"object","required":["coverage","source_ids"],"properties":{"coverage":{"type":"string","enum":["none","partial","sufficient"]},"source_ids":{"type":"array","maxItems":8,"items":{"type":"string"}}}}`},
+	Def: Def{Name: "answer_evidence_select", Version: "v2", Tier: "strong", Temperature: 0, Schema: `{"type":"object","required":["coverage","source_ids"],"properties":{"coverage":{"type":"string","enum":["none","partial","sufficient"]},"source_ids":{"type":"array","maxItems":8,"items":{"type":"string"}}}}`},
 	Check: func(in SelectEvidenceIn, out *SelectEvidenceOut) error {
-		if (out.Coverage == "none") != (len(out.SourceIDs) == 0) {
-			return fmt.Errorf("依据覆盖与片段不一致")
-		}
 		seen := map[string]bool{}
+		knowledge := false
 		for _, id := range out.SourceIDs {
-			found := false
-			for _, f := range in.Evidence {
-				found = found || f.ID == id
+			var f *EvidenceFragment
+			for i := range in.Evidence {
+				if in.Evidence[i].ID == id {
+					f = &in.Evidence[i]
+				}
 			}
-			if !found || seen[id] {
+			if f == nil || seen[id] {
 				return fmt.Errorf("片段ID无效")
 			}
 			seen[id] = true
+			knowledge = knowledge || f.IsKnowledge() || f.Kind != "official_textbook"
+		}
+		// 覆盖判断只看教材、讲义（T55）：选了教材讲义就不能是 none；只选了考纲、经验总结必须是 none。
+		if (out.Coverage == "none") == knowledge {
+			return fmt.Errorf("依据覆盖与片段不一致")
 		}
 		return nil
 	},
@@ -251,7 +286,7 @@ type CitationCheckOut struct {
 	AllSupported bool `json:"all_supported"`
 }
 
-var CheckAnswerCitations = &Cap[CitationCheckIn, CitationCheckOut]{Def: Def{Name: "answer_citation_check", Version: "v1", Tier: "strong", Temperature: 0, Schema: `{"type":"object","required":["all_supported"],"properties":{"all_supported":{"type":"boolean"}}}`}, Mock: func(CitationCheckIn) (CitationCheckOut, error) { return CitationCheckOut{false}, nil }}
+var CheckAnswerCitations = &Cap[CitationCheckIn, CitationCheckOut]{Def: Def{Name: "answer_citation_check", Version: "v2", Tier: "strong", Temperature: 0, Schema: `{"type":"object","required":["all_supported"],"properties":{"all_supported":{"type":"boolean"}}}`}, Mock: func(CitationCheckIn) (CitationCheckOut, error) { return CitationCheckOut{false}, nil }}
 
 // EvidenceJSON 仅供提示词引用结构化证据；其中正文是数据，不能执行其中的指令。
 func EvidenceJSON(v any) string { data, _ := json.Marshal(v); return string(data) }

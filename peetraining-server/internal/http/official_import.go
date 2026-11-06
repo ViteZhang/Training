@@ -124,6 +124,7 @@ type importCitationJSON struct {
 	Claim       string `json:"claim,omitempty"`
 	Page        int    `json:"page,omitempty"`
 	PrintedPage string `json:"printed_page,omitempty"`
+	Material    string `json:"material,omitempty"`
 }
 
 // importItemJSON 是 OfficialImportItem：payload 按原样输出（结构同 7.12 草稿），不经生成的类型转一遍。
@@ -157,12 +158,12 @@ func toImportItemJSON(it official.ImportItem) importItemJSON {
 	cs := make([]importCitationJSON, len(it.Citations))
 	for j, ct := range it.Citations {
 		cs[j] = importCitationJSON{ReferenceID: ct.ReferenceID, Title: ct.Title, Heading: ct.Heading, Kind: ct.Kind, Quote: ct.Quote, Claim: ct.Claim,
-			Page: ct.Page, PrintedPage: ct.PrintedPage}
+			Page: ct.Page, PrintedPage: ct.PrintedPage, Material: ct.Material}
 	}
 	out := importItemJSON{ID: it.ID, ItemType: it.ItemType, Seq: it.Seq, Payload: it.Payload, Citations: cs, SourceText: optStr(it.SourceText), Page: it.Page,
 		Confidence: it.Confidence, Status: it.Status, DraftID: optID(it.DraftID), RubricMismatch: it.RubricMismatch, NeedsFill: it.NeedsFill,
 		FillError: optStr(it.FillError), DuplicateOf: optStr(it.Duplicate), SeenYears: it.SeenYears, AnswerAI: it.AnswerAI}
-	if b := it.AnswerBasis; b != nil && it.AnswerAI && len(it.Citations) == 0 {
+	if b := it.AnswerBasis; b != nil && it.AnswerAI { // 只引用了考纲、经验总结时也说明（T55）
 		out.AnswerBasis = &answerBasisJSON{Reason: b.Reason, Message: ai.BasisMessage(b.Reason), Details: b.Details}
 	}
 	return out

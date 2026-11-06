@@ -42,6 +42,44 @@ func boundedText(v string, min, max int) bool {
 	n := utf8.RuneCountInString(v)
 	return n >= min && n <= max
 }
+
+// 官方资料库的资料类型（Q20，T55）：教材、讲义是答案的知识依据；考纲只定考点范围；经验总结只参考答题结构与侧重点。
+const (
+	MaterialTextbook   = "textbook"
+	MaterialHandout    = "handout"
+	MaterialSyllabus   = "syllabus"
+	MaterialExperience = "experience"
+)
+
+// ExperienceLicenseNote 是经验总结默认的授权说明：上传即视为已获授权，不另外校验（Q20）。
+const ExperienceLicenseNote = "经验总结：上传即视为已获授权"
+
+// IsMaterialKind 是不是资料库认得的类型。
+func IsMaterialKind(kind string) bool {
+	switch kind {
+	case MaterialTextbook, MaterialHandout, MaterialSyllabus, MaterialExperience:
+		return true
+	}
+	return false
+}
+
+// IsKnowledgeMaterial 是能当答案知识依据的类型（教材、讲义）；考生在 App 里填书名也只匹配这两类。
+func IsKnowledgeMaterial(kind string) bool {
+	return kind == MaterialTextbook || kind == MaterialHandout
+}
+
+// ExperienceEdition 给经验总结补上授权：上传即视为已获授权，没写说明时用默认说明（Q20）。其他类型原样返回。
+func ExperienceEdition(kind string, e TextbookEditionInput) TextbookEditionInput {
+	if kind != MaterialExperience {
+		return e
+	}
+	e.Authorized = true
+	if strings.TrimSpace(e.LicenseNote) == "" {
+		e.LicenseNote = ExperienceLicenseNote
+	}
+	return e
+}
+
 func NormalizeTextbook(m TextbookMetadata) (TextbookMetadata, error) {
 	m.Title = strings.TrimSpace(m.Title)
 	m.Author = strings.TrimSpace(m.Author)
@@ -50,7 +88,7 @@ func NormalizeTextbook(m TextbookMetadata) (TextbookMetadata, error) {
 	if !boundedText(m.Series, 0, 128) {
 		return m, apperr.New(apperr.BadRequest, "套书名最多 128 字")
 	}
-	if !boundedText(m.Title, 1, 128) || !boundedText(m.Author, 1, 128) || !boundedText(m.Discipline, 1, 128) || (m.Kind != "textbook" && m.Kind != "handout") || len(m.Aliases) > 20 {
+	if !boundedText(m.Title, 1, 128) || !boundedText(m.Author, 1, 128) || !boundedText(m.Discipline, 1, 128) || !IsMaterialKind(m.Kind) || len(m.Aliases) > 20 {
 		return m, apperr.New(apperr.BadRequest, "请完整填写书名、作者、类型和学科")
 	}
 	aliases := make([]string, 0, len(m.Aliases))
