@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -9,6 +10,7 @@ import (
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/gen"
 	"peetraining-server/internal/official"
+	"peetraining-server/internal/rules"
 )
 
 // T47 后台 AI 解析导入（PRD v3 增补 7.17）。内容编辑只能访问分配给自己的项目（canProject）。
@@ -193,6 +195,27 @@ func (h *Handlers) AdminRegenerateOfficialImportItem(c *gin.Context, projectID, 
 		return
 	}
 	c.JSON(http.StatusOK, toImportItemJSON(it))
+}
+
+// AdminCreateOfficialFramework 用项目已关联的资料生成知识框架（T54）。
+func (h *Handlers) AdminCreateOfficialFramework(c *gin.Context, projectID int64) {
+	if !h.canProject(c, projectID) {
+		return
+	}
+	var body gen.AdminCreateOfficialFrameworkJSONBody
+	if !bind(c, &body) {
+		return
+	}
+	load := func(ctx context.Context, book, edition, revision uint64) ([]rules.TextbookSection, error) {
+		r, err := h.deps.Textbooks.GetRevision(ctx, book, edition, revision)
+		return r.Sections, err
+	}
+	f, err := h.deps.Official.CreateFrameworkImport(c.Request.Context(), currentAdmin(c).ID, uint64(projectID), uint64(body.EditionId), load)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, toGenImportFile(f))
 }
 
 // AdminRejectOfficialImportDuplicates 一键驳回标为重复的题（T52）。
