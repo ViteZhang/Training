@@ -3539,6 +3539,7 @@ const (
 	OfficialImportFilesFormatImage OfficialImportFilesFormat = "image"
 	OfficialImportFilesFormatText  OfficialImportFilesFormat = "text"
 	OfficialImportFilesFormatCsv   OfficialImportFilesFormat = "csv"
+	OfficialImportFilesFormatMd    OfficialImportFilesFormat = "md"
 )
 
 func (e *OfficialImportFilesFormat) Scan(src interface{}) error {
@@ -3582,7 +3583,8 @@ func (e OfficialImportFilesFormat) Valid() bool {
 		OfficialImportFilesFormatDocx,
 		OfficialImportFilesFormatImage,
 		OfficialImportFilesFormatText,
-		OfficialImportFilesFormatCsv:
+		OfficialImportFilesFormatCsv,
+		OfficialImportFilesFormatMd:
 		return true
 	}
 	return false
@@ -3595,6 +3597,7 @@ func AllOfficialImportFilesFormatValues() []OfficialImportFilesFormat {
 		OfficialImportFilesFormatImage,
 		OfficialImportFilesFormatText,
 		OfficialImportFilesFormatCsv,
+		OfficialImportFilesFormatMd,
 	}
 }
 
@@ -8035,7 +8038,6 @@ type OfficialImportFile struct {
 	// 真题卷 / 参考书目录 / 有授权的讲义 / 表格导入
 	Kind     OfficialImportFilesKind
 	FileName string
-	Format   OfficialImportFilesFormat
 	// OSS 私有桶对象键（official-imports/ 前缀，与用户资料分开）
 	ObjectKey sql.NullString
 	SizeBytes uint64
@@ -8062,6 +8064,7 @@ type OfficialImportFile struct {
 	FillDone uint32
 	// 补全失败的题数
 	FillFailed uint32
+	Format     OfficialImportFilesFormat
 }
 
 // 7.17 解析结果，逐条接受 / 修改 / 驳回
