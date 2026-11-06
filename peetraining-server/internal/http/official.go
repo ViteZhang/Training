@@ -520,12 +520,17 @@ func (h *Handlers) GenerateOfficialAnswer(c *gin.Context, projectID int64) {
 	}
 	out := gen.OfficialAnswerCandidate{Answer: a.Answer, Points: toGenPoints(a.Points)}
 	out.Citations = make([]struct {
-		Heading     string `json:"heading"`
-		ReferenceId int64  `json:"reference_id"`
-		Title       string `json:"title"`
+		Heading     string                                        `json:"heading"`
+		Material    *gen.OfficialAnswerCandidateCitationsMaterial `json:"material,omitempty"`
+		ReferenceId int64                                         `json:"reference_id"`
+		Title       string                                        `json:"title"`
 	}, len(a.Citations))
 	for i, x := range a.Citations {
 		out.Citations[i].Heading, out.Citations[i].ReferenceId, out.Citations[i].Title = x.Heading, int64(x.ReferenceID), x.Title
+		if x.Material != "" {
+			m := gen.OfficialAnswerCandidateCitationsMaterial(x.Material)
+			out.Citations[i].Material = &m
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"answer": a.Answer, "points": out.Points, "citations": out.Citations, "snapshot_id": a.SnapshotID, "snapshot": a.Snapshot})
 }
