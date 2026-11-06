@@ -6570,6 +6570,35 @@ paths:
               schema: { $ref: "#/components/schemas/OfficialImportFile" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /admin/official/projects/{projectId}/framework:
+    post:
+      tags: [admin]
+      operationId: adminCreateOfficialFramework
+      summary: 用项目已关联的资料生成知识框架（T54）
+      description: |
+        新建一份「参考书目录」解析记录（kind = catalog），AI 按它生成知识点候选，在核对区逐条接受。
+        考纲用全文，教材、讲义只用章节标题；经验总结不能生成（400）；资料没关联到本项目 404；没有发布原文 400。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [edition_id]
+              properties:
+                edition_id: { type: integer, format: int64, minimum: 1, description: 项目已关联的资料版本 }
+      responses:
+        "200":
+          description: 已开始生成
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfficialImportFile" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /admin/official/projects/{projectId}/imports/{fileId}:
     get:
       tags: [admin]
