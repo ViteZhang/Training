@@ -21,6 +21,13 @@ func publishOfficial(t *testing.T, f *fx, s *official.Service, school, code, nam
 	if err != nil {
 		t.Fatal(err)
 	}
+	return pid, fillAndPublish(t, s, pid, editor, lead)
+}
+
+// fillAndPublish 往立项里放两个知识点、三道真题（两道名词解释），审核后发布，返回官方题库 id。
+func fillAndPublish(t *testing.T, s *official.Service, pid, editor, lead uint64) uint64 {
+	t.Helper()
+	ctx := context.Background()
 	rub := []official.Point{{Content: "要点一", Score: 3}, {Content: "要点二", Score: 2}}
 	kpA, err := s.SaveDraft(ctx, editor, pid, 0, "knowledge_point", "add", 0, payload(official.KPPayload{Section: "近代哲学", Chapter: "康德", Name: "绝对命令", OriginalText: "绝对命令：无条件的道德律令。", Rubric: rub}))
 	if err != nil {
@@ -54,7 +61,7 @@ func publishOfficial(t *testing.T, f *fx, s *official.Service, school, code, nam
 	if err != nil {
 		t.Fatal(err)
 	}
-	return pid, p.BankID
+	return p.BankID
 }
 
 // TestOfficialFirstRoute 是 T44 的验收：院校专业课库 → 1.1 匹配到官方题库 → 添加 → 1.1b 首题批改不扣额度；
@@ -69,13 +76,13 @@ func TestOfficialFirstRoute(t *testing.T) {
 		t.Fatalf("搜索院校：%+v %v", got, err)
 	}
 	uid, sid := f.user(t)
-	cs, err := s.Courses(ctx, uid, "四川大学", 2027, true)
+	cs, err := s.Courses(ctx, uid, "四川大学", 2027, true, false)
 	if err != nil || len(cs) != 2 || cs[0].OfficialStatus != official.OfficialNone {
 		t.Fatalf("课程列表：%+v %v", cs, err)
 	}
 	// 立项后是「生产中」，发布后是「有」并带摘要；开关关闭时一律按「暂无」。
 	pid, bankID := publishOfficial(t, f, s, "四川大学", "812", "西方哲学史")
-	cs, _ = s.Courses(ctx, uid, "四川大学", 2027, true)
+	cs, _ = s.Courses(ctx, uid, "四川大学", 2027, true, false)
 	var west official.CatalogCourse
 	for _, c := range cs {
 		if c.SubjectCode == "812" {
@@ -86,7 +93,7 @@ func TestOfficialFirstRoute(t *testing.T) {
 		west.Official.ExamYearCount != 3 || west.Official.KPCount != 2 || west.Official.QuestionCount != 3 {
 		t.Fatalf("1.1a 摘要：%+v %+v", west, west.Official)
 	}
-	if cs, _ := s.Courses(ctx, uid, "四川大学", 2027, false); cs[0].OfficialStatus != official.OfficialNone || cs[1].OfficialStatus != official.OfficialNone {
+	if cs, _ := s.Courses(ctx, uid, "四川大学", 2027, false, false); cs[0].OfficialStatus != official.OfficialNone || cs[1].OfficialStatus != official.OfficialNone {
 		t.Errorf("官方题库开关关闭时都按暂无：%+v", cs)
 	}
 	_ = pid
@@ -172,7 +179,7 @@ func TestOfficialFirstRoute(t *testing.T) {
 	if _, err := s.ResolvePending(ctx, 0, pend[0].ID, "ignore", 0, official.CatalogInput{}); kind(err) != apperr.Conflict {
 		t.Errorf("重复处理：%v", err)
 	}
-	if _, err := s.CreateCatalogCourse(ctx, 0, official.CatalogInput{School: "南京大学", Major: "中国语言文学", SubjectName: "文学理论"}); kind(err) != apperr.Conflict {
+	if _, err := s.CreateCatalogCourse(ctx, 0, official.CatalogInput{School: "南京大学", Major: "中国语言文学", Discipline: "文学", SubjectName: "文学理论"}); kind(err) != apperr.Conflict {
 		t.Errorf("同名课程：%v", err)
 	}
 

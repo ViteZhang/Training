@@ -1,20 +1,31 @@
 -- T44 院校专业课库与引导分流。
 
 -- name: SearchCatalogSchools :many
--- 1.1 搜索院校：按名称包含匹配，课多的排前面。
-SELECT school, COUNT(*) AS course_count FROM catalog_courses
-WHERE status = 'active' AND school LIKE CONCAT('%', sqlc.arg(q), '%')
-GROUP BY school ORDER BY course_count DESC, school LIMIT 20;
+-- 1.1 搜索院校：按名称包含匹配，课多的排前面。课数 = 本校自命题科目 + 本校登记使用的统考科目（T50）。
+SELECT t.school, CAST(SUM(t.n) AS SIGNED) AS course_count FROM (
+  SELECT c.school, COUNT(*) AS n FROM catalog_courses c
+  WHERE c.status = 'active' AND c.scope = 'school' AND c.school LIKE CONCAT('%', sqlc.arg(q), '%') GROUP BY c.school
+  UNION ALL
+  SELECT e.school, COUNT(*) AS n FROM catalog_school_exams e JOIN catalog_courses c ON c.id = e.course_id AND c.status = 'active'
+  WHERE e.school LIKE CONCAT('%', sqlc.arg(q), '%') GROUP BY e.school
+) t
+GROUP BY t.school ORDER BY course_count DESC, t.school LIMIT 20;
 
 -- name: ListCatalogCoursesBySchool :many
--- 1.1 按院校列出专业与专业课；带出官方题库立项（院校相同，代码相同，没有代码时名称相同）。
-SELECT c.id, c.school, c.major, c.discipline, c.subject_name, c.subject_code, c.textbooks, c.exam_year,
-  CAST(COALESCE((SELECT p.id FROM official_projects p WHERE p.school = c.school
-    AND (p.subject_code = c.subject_code OR (c.subject_code IS NULL AND p.subject_name = c.subject_name))
+-- 1.1 按院校列出考试科目：本校自命题的；include_national 时再加上全国统考科目（本校已有同代码自命题卷的不列，免得选错），
+-- registered 表示这所院校在后台登记了使用这门统考。官方题库立项按考试科目 id 关联；T50 之前的旧立项按院校 + 代码匹配。
+SELECT c.id, c.scope, c.school, c.major, c.majors, c.discipline, c.subject_name, c.subject_code, c.textbooks, c.exam_year,
+  CAST(EXISTS (SELECT 1 FROM catalog_school_exams e WHERE e.school = sqlc.arg(school) AND e.course_id = c.id) AS SIGNED) AS registered,
+  CAST(COALESCE((SELECT p.id FROM official_projects p WHERE p.catalog_course_id = c.id
+    OR (p.catalog_course_id IS NULL AND c.scope = 'school' AND p.school = c.school
+      AND (p.subject_code = c.subject_code OR (c.subject_code IS NULL AND p.subject_name = c.subject_name)))
     ORDER BY p.stage = 'published' DESC, p.id DESC LIMIT 1), 0) AS UNSIGNED) AS project_id
 FROM catalog_courses c
-WHERE c.status = 'active' AND c.school = sqlc.arg(school) AND (c.exam_year IS NULL OR sqlc.arg(exam_year) = 0 OR c.exam_year = sqlc.arg(exam_year))
-ORDER BY c.major, c.subject_code IS NULL, c.subject_code, c.subject_name;
+WHERE c.status = 'active' AND (c.exam_year IS NULL OR sqlc.arg(exam_year) = 0 OR c.exam_year = sqlc.arg(exam_year))
+  AND ((c.scope = 'school' AND c.school = sqlc.arg(school))
+    OR (sqlc.arg(include_national) AND c.scope = 'national' AND NOT EXISTS (SELECT 1 FROM catalog_courses o
+      WHERE o.scope = 'school' AND o.status = 'active' AND o.school = sqlc.arg(school) AND o.subject_code = c.subject_code)))
+ORDER BY c.scope = 'national', c.discipline, c.major, c.subject_code IS NULL, c.subject_code, c.subject_name;
 
 -- name: GetCatalogCourse :one
 SELECT * FROM catalog_courses WHERE id = ? AND status = 'active';
@@ -54,29 +65,57 @@ UPDATE catalog_pending_courses SET request_count = request_count + 1 WHERE id = 
 SELECT DISTINCT owner_user_id FROM subjects WHERE catalog_course_id = ?;
 
 -- name: CatalogCoursesOfProject :many
-SELECT c.id FROM catalog_courses c JOIN official_projects p ON p.school = c.school
-  AND (p.subject_code = c.subject_code OR (c.subject_code IS NULL AND p.subject_name = c.subject_name))
+SELECT c.id FROM catalog_courses c JOIN official_projects p ON p.catalog_course_id = c.id
+  OR (p.catalog_course_id IS NULL AND c.scope = 'school' AND p.school = c.school
+    AND (p.subject_code = c.subject_code OR (c.subject_code IS NULL AND p.subject_name = c.subject_name)))
 WHERE p.id = ?;
 
 -- name: AdminListCatalogCourses :many
+-- 后台考试科目列表：按命题方式、学科筛选，按院校、科目名、代码搜索（统考科目还按登记的院校搜）。
 SELECT c.*,
-  CAST(COALESCE((SELECT p.stage FROM official_projects p WHERE p.school = c.school
-    AND (p.subject_code = c.subject_code OR (c.subject_code IS NULL AND p.subject_name = c.subject_name))
+  CAST(COALESCE((SELECT p.stage FROM official_projects p WHERE p.catalog_course_id = c.id
+    OR (p.catalog_course_id IS NULL AND c.scope = 'school' AND p.school = c.school
+      AND (p.subject_code = c.subject_code OR (c.subject_code IS NULL AND p.subject_name = c.subject_name)))
     ORDER BY p.stage = 'published' DESC, p.id DESC LIMIT 1), '') AS CHAR) AS project_stage,
-  (SELECT COUNT(*) FROM subjects s WHERE s.catalog_course_id = c.id) AS chosen_count
+  CAST(COALESCE((SELECT p.id FROM official_projects p WHERE p.catalog_course_id = c.id
+    OR (p.catalog_course_id IS NULL AND c.scope = 'school' AND p.school = c.school
+      AND (p.subject_code = c.subject_code OR (c.subject_code IS NULL AND p.subject_name = c.subject_name)))
+    ORDER BY p.stage = 'published' DESC, p.id DESC LIMIT 1), 0) AS UNSIGNED) AS project_id,
+  (SELECT COUNT(*) FROM subjects s WHERE s.catalog_course_id = c.id) AS chosen_count,
+  (SELECT COUNT(*) FROM catalog_school_exams e WHERE e.course_id = c.id) AS school_count
 FROM catalog_courses c
-WHERE (sqlc.arg(q) = '' OR c.school LIKE CONCAT('%', sqlc.arg(q), '%') OR c.subject_name LIKE CONCAT('%', sqlc.arg(q), '%') OR c.subject_code = sqlc.arg(q))
-ORDER BY c.status, c.school, c.major, c.subject_code, c.subject_name
+WHERE (sqlc.arg(scope) = '' OR c.scope = sqlc.arg(scope))
+  AND (sqlc.arg(discipline) = '' OR c.discipline = sqlc.arg(discipline))
+  AND (sqlc.arg(q) = '' OR c.school LIKE CONCAT('%', sqlc.arg(q), '%') OR c.subject_name LIKE CONCAT('%', sqlc.arg(q), '%') OR c.subject_code = sqlc.arg(q)
+    OR EXISTS (SELECT 1 FROM catalog_school_exams e WHERE e.course_id = c.id AND e.school LIKE CONCAT('%', sqlc.arg(school_q), '%')))
+ORDER BY c.status, c.scope = 'school', c.school, c.discipline, c.subject_code, c.subject_name
 LIMIT 500;
 
 -- name: AdminGetCatalogCourse :one
 SELECT * FROM catalog_courses WHERE id = ?;
 
 -- name: InsertCatalogCourse :execlastid
-INSERT INTO catalog_courses (school, major, discipline, subject_name, subject_code, textbooks, exam_year, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO catalog_courses (scope, school, major, majors, discipline, subject_name, subject_code, textbooks, exam_year, course_key, created_by)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: UpdateCatalogCourse :exec
-UPDATE catalog_courses SET school = ?, major = ?, discipline = ?, subject_name = ?, subject_code = ?, textbooks = ?, exam_year = ?, status = ? WHERE id = ?;
+UPDATE catalog_courses SET scope = ?, school = ?, major = ?, majors = ?, discipline = ?, subject_name = ?, subject_code = ?, textbooks = ?, exam_year = ?,
+  course_key = ?, status = ? WHERE id = ?;
+
+-- name: CatalogCoursesSameName :many
+-- 去重：同一院校（统考为空串）、同一年份下同名的科目；有一方没填代码时算重复。
+SELECT id, subject_code FROM catalog_courses
+WHERE scope = ? AND school = ? AND subject_name = ? AND COALESCE(exam_year, 0) = sqlc.arg(year) AND id <> sqlc.arg(exclude_id);
+
+-- name: ListCatalogSchoolExams :many
+-- 登记使用这门统考的院校。
+SELECT school FROM catalog_school_exams WHERE course_id = ? ORDER BY school;
+
+-- name: DeleteCatalogSchoolExams :exec
+DELETE FROM catalog_school_exams WHERE course_id = ?;
+
+-- name: InsertCatalogSchoolExam :exec
+INSERT IGNORE INTO catalog_school_exams (school, course_id, created_by) VALUES (?, ?, ?);
 
 -- name: ListCatalogPending :many
 SELECT * FROM catalog_pending_courses WHERE status = 'pending' ORDER BY request_count DESC, last_at DESC LIMIT 200;

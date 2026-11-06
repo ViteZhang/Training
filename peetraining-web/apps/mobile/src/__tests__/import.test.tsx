@@ -293,7 +293,7 @@ describe('1.7 确认导入结果', () => {
     await wrap(<ConfirmScreen />);
     expect(await screen.findByText('论述题按专业分了 3 组')).toBeTruthy();
     expect(screen.getByText('共用材料 · 2 题')).toBeTruthy();
-    expect(screen.getAllByText('第三组').length).toBe(2);
+    expect(screen.getAllByText('限选 · 第三组').length).toBe(2);
 
     await fireEvent.press(screen.getByText('只保留这一组'));
     await waitFor(() => expect(mockCalls.find((c) => c.path === '/import-jobs/{jobId}/groups')?.init?.body).toEqual({ labels: ['第三组'] }));

@@ -3916,9 +3916,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 1.1 按院校列出专业与专业课，标出有没有官方题库
+         * 1.1 按院校列出考试科目，标出有没有官方题库
          * @description 受 onboarding_route 开关控制。official_status：available 有官方题库 / producing 生产中 / none 暂无；
          *     官方题库开关对当前用户关闭时一律为 none（增补「功能开关」）。有官方题库时带 official 摘要（1.1a）。
+         *     include_national 为真时（T50 新版 App）另外列出全国统考科目（scope = national）；本校已有同代码自命题卷的统考科目不列。
+         *     院校不在库里时也可以调用，只会返回统考科目。
          */
         get: operations["listCatalogCourses"];
         put?: never;
@@ -4231,7 +4233,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 7.10 需求洞察（按专业课代码统计自建用户）
+         * 7.10 需求洞察（按「院校 + 专业课代码」统计自建用户；全国统考只按代码，院校为空串）
          * @description 只有计数，不含任何用户资料内容。
          */
         get: operations["listAdminDemand"];
@@ -4298,6 +4300,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/catalog/disciplines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 考试科目可选的学科（学科门类，固定选项） */
+        get: operations["adminListCatalogDisciplines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/catalog/courses/{courseId}/schools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 登记使用这门全国统考的院校 */
+        get: operations["adminListCatalogCourseSchools"];
+        /**
+         * 整体替换登记使用这门全国统考的院校
+         * @description 只有全国统考科目能登记院校。登记是选填的：没登记的院校在 1.1 选到这个学科时也能看到统考科目。
+         */
+        put: operations["adminSetCatalogCourseSchools"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/catalog/pending": {
         parameters: {
             query?: never;
@@ -4330,6 +4370,7 @@ export interface paths {
         /**
          * 处理待入库：一键入库 / 合并到已有课程 / 忽略
          * @description 入库或合并后，当初手动添加这门课的用户关联到库里的课（官方题库上线时能收到通知）。
+         *     合并到全国统考科目时，同时把这所院校登记为使用该统考（T50）。
          */
         post: operations["adminResolveCatalogPending"];
         delete?: never;
@@ -4658,8 +4699,9 @@ export interface paths {
         /**
          * 上传资料并标类型（真题卷 / 参考书目录 / 有授权的讲义），或粘贴文字、表格导入（CSV）
          * @description format 为 text 或 csv 时直接带 text，马上开始解析；pdf / docx / image 返回 upload_url，客户端直传后调用 confirm。
-         *     表格导入的表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型；
-         *     题型、分值、题干必填，真题年份必填。
+         *     表格导入的表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型、限选分组、适用专业；
+         *     题型、分值、题干必填，真题年份必填。限选分组（如「第一组」）与适用专业选填：填了是限选题，不填是必答题（T51）。
+         *     真题卷里按专业分组的题（「第一组：请选择文艺学专业的考生作答」）解析时自动标成限选题。
          *     auto_answer 为 true 时解析过程中缺参考答案、采分点的题由 AI 补全；默认不补，解析后由编辑逐题「生成答案 / 提取采分点」或整份「一键补全」（T49）。
          */
         post: operations["adminCreateOfficialImport"];
@@ -7851,6 +7893,8 @@ export interface components {
             project_id?: number;
             project_stage?: string;
             unplanned: boolean;
+            /** @description 院校；全国统考或院校未知时为空串（T50） */
+            school?: string;
         };
         /**
          * @description 立项 → 授权资料入库 → 知识框架 → 内容生产 → 审核 → 发布上线
@@ -7866,6 +7910,11 @@ export interface components {
         AdminOfficialProject: {
             /** Format: int64 */
             id: number;
+            /**
+             * Format: int64
+             * @description 考试科目（T50 之前的旧立项可能没有）
+             */
+            catalog_course_id?: number;
             school: string;
             major: string;
             subject_code: string;
@@ -7889,6 +7938,10 @@ export interface components {
             id: number;
             title: string;
             status: string;
+            /**
+             * @description 知识点或题目的内容。题目的 group 是限选分组 { label（如「第一组」，32 字以内）, majors（适用专业）}，
+             *     没有 group 是必答题（T51）。用户添加官方题库时，限选题只复制与报考方向匹配的那一组。
+             */
             payload: {
                 [key: string]: unknown;
             };
@@ -7952,6 +8005,10 @@ export interface components {
             /** Format: int64 */
             entity_id?: number;
             change_type: string;
+            /**
+             * @description 知识点或题目的内容。题目的 group 是限选分组 { label（如「第一组」，32 字以内）, majors（适用专业）}，
+             *     没有 group 是必答题（T51）。用户添加官方题库时，限选题只复制与报考方向匹配的那一组。
+             */
             payload: {
                 [key: string]: unknown;
             };
@@ -7981,9 +8038,17 @@ export interface components {
             /** Format: int64 */
             entity_id?: number;
             change_type: string;
+            /**
+             * @description 知识点或题目的内容。题目的 group 是限选分组 { label（如「第一组」，32 字以内）, majors（适用专业）}，
+             *     没有 group 是必答题（T51）。用户添加官方题库时，限选题只复制与报考方向匹配的那一组。
+             */
             payload: {
                 [key: string]: unknown;
             };
+            /**
+             * @description 知识点或题目的内容。题目的 group 是限选分组 { label（如「第一组」，32 字以内）, majors（适用专业）}，
+             *     没有 group 是必答题（T51）。用户添加官方题库时，限选题只复制与报考方向匹配的那一组。
+             */
             before?: {
                 [key: string]: unknown;
             };
@@ -8586,12 +8651,24 @@ export interface components {
             notify_review_due: boolean;
             notify_task_done: boolean;
         };
+        /** @description 考试科目（T50）：一套卷子一条，院校 + 学科 + 考试代码 + 科目名称；专业只是选填的适用专业 */
         CatalogCourse: {
             /** Format: int64 */
             id: number;
+            /**
+             * @description 命题方式：院校自命题 / 全国统考
+             * @enum {string}
+             */
+            scope: "school" | "national";
+            /** @description 院校；全国统考为空串 */
             school: string;
+            /** @description 旧字段：适用专业的第一个，旧版 App 显示用 */
             major: string;
-            /** @description 学科，如 哲学、文学 */
+            /** @description 适用专业（选填，只用来展示） */
+            majors: string[];
+            /** @description 全国统考科目：查询的院校在后台登记了使用这门统考 */
+            registered?: boolean;
+            /** @description 学科（学科门类），如 哲学、教育学 */
             discipline: string;
             subject_name: string;
             subject_code?: string;
@@ -8619,9 +8696,17 @@ export interface components {
              */
             added_subject_id?: number;
         };
+        /**
+         * @description 考试科目（T50）。scope 默认 school；自命题必须填院校，统考不填院校（填了也忽略）。discipline 必须是
+         *     GET /admin/catalog/disciplines 里的一项。去重：自命题按院校 + 代码 + 年份，统考按代码 + 年份，没有代码时按名称。
+         *     majors 是选填的适用专业；旧版后台只传 major 时当作一个适用专业。
+         */
         CatalogCourseInput: {
-            school: string;
-            major: string;
+            /** @enum {string} */
+            scope?: "school" | "national";
+            school?: string;
+            major?: string;
+            majors?: string[];
             discipline?: string;
             subject_name: string;
             subject_code?: string;
@@ -8634,6 +8719,13 @@ export interface components {
             status: "active" | "hidden";
             /** @description 在 1.1 选了这门课的人数 */
             chosen_count: number;
+            /** @description 全国统考科目：登记使用它的院校数 */
+            school_count: number;
+            /**
+             * Format: int64
+             * @description 官方题库立项；没立项时没有
+             */
+            project_id?: number;
         };
         TrialUsage: {
             limit: number;
@@ -8797,7 +8889,8 @@ export interface components {
             seq: number;
             /**
              * @description 结构同 7.12 草稿。题目另有：answer_ai（参考答案由 AI 生成，发布后用户端显示「AI 参考答案」，照常计入预估分）、
-             *     score_inferred（原文没有分值，参考同项目同题型的给分填上，请核对）。
+             *     score_inferred（原文没有分值，参考同项目同题型的给分填上，请核对）、
+             *     group（限选题：{ label: 组名如「第一组」, majors: 适用专业 }；没有是必答题，T51）。
              */
             payload: {
                 [key: string]: unknown;
@@ -8845,11 +8938,12 @@ export interface components {
             target_score?: number | null;
             /**
              * Format: int64
-             * @description 1.1 从院校专业课库选的课（新 1.1）
+             * @description 1.1 从考试科目库选的科目（新 1.1）
              */
             catalog_course_id?: number;
-            /** @description 1.1 手动添加时的院校；库里没有的课进后台「待入库」 */
+            /** @description 1.1 的目标院校（选全国统考科目时也传）；手动添加、库里没有的课进后台「待入库」 */
             school?: string;
+            /** @description 选填的专业，只用来展示和统计，不影响匹配题库 */
             major?: string;
         };
         SubjectPatch: {
@@ -9187,7 +9281,7 @@ export interface components {
             counts: components["schemas"]["ImportCounts"];
             next_cursor?: string;
         };
-        /** @description 按专业分组的论述题所在的组，只答报考专业那一组 */
+        /** @description 限选题所在的组（按专业分组的题，只答报考专业那一组，回答非报考专业不得分）；题目没有 group 是必答题（T51） */
         QuestionGroup: {
             /** @description 如「第一组」 */
             label: string;
@@ -15557,6 +15651,8 @@ export interface operations {
             query: {
                 school: string;
                 exam_year?: number;
+                /** @description 同时列出全国统考科目（T50） */
+                include_national?: boolean;
             };
             header?: never;
             path?: never;
@@ -16116,6 +16212,8 @@ export interface operations {
             content: {
                 "application/json": {
                     unplanned: boolean;
+                    /** @description 院校（T50 起按院校 + 代码标记）；全国统考或院校未知时不传或传空串 */
+                    school?: string;
                 };
             };
         };
@@ -16133,8 +16231,11 @@ export interface operations {
     adminListCatalogCourses: {
         parameters: {
             query?: {
-                /** @description 按院校、课程名或代码搜索 */
+                /** @description 按院校、科目名或代码搜索（统考科目也按登记的院校搜） */
                 q?: string;
+                /** @description 命题方式 */
+                scope?: "school" | "national";
+                discipline?: string;
             };
             header?: never;
             path?: never;
@@ -16209,6 +16310,81 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    adminListCatalogDisciplines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: string[];
+                    };
+                };
+            };
+        };
+    };
+    adminListCatalogCourseSchools: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                courseId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: string[];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    adminSetCatalogCourseSchools: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                courseId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    schools: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
         };
     };
     adminListCatalogPending: {
@@ -16745,10 +16921,15 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    school: string;
-                    major: string;
-                    subject_code: string;
-                    subject_name: string;
+                    /**
+                     * Format: int64
+                     * @description 考试科目
+                     */
+                    catalog_course_id?: number;
+                    school?: string;
+                    major?: string;
+                    subject_code?: string;
+                    subject_name?: string;
                     editor_ids?: number[];
                 };
             };
@@ -16764,6 +16945,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            409: components["responses"]["Conflict"];
         };
     };
     getOfficialProject: {

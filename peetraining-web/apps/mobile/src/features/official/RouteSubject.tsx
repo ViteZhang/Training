@@ -1,6 +1,8 @@
-// 1.1 选院校和专业课（PRD v3 增补「引导分流」，设计稿 m1_subject）：选考试年份 → 搜索目标院校 → 按院校列出专业与专业课（最多 4 门），
+// 1.1 选院校和考试科目（PRD v3 增补「引导分流」「考试科目」，设计稿 m1_subject）：选考试年份 → 搜索目标院校 →（学科）→ 考试科目（最多 4 门），
 // 每门标「有官方题库 / 暂无官方题库」；列表里没有时手动添加（代码 + 名称）。「下一步」按匹配结果去 1.1a 或 1.1c；
-// 「院校还没定，先随便看看」去 1.10。搜不到的院校可以直接用输入的名称，专业课手动添加（进后台「待入库」），下一步去 1.1c。院校与专业课来自后台维护的院校专业课库（onboarding_route 开关打开时才用这一页）。
+// 「院校还没定，先随便看看」去 1.10。搜不到的院校可以直接用输入的名称（只列全国统考科目），其他课手动添加（进后台「待入库」）。
+// 本校的科目（自命题 + 登记使用的统考）少于 4 门时直接列出，下面另列全国统考；4 门及以上先按学科分组。
+// 专业选填，只用来展示和统计，不影响匹配题库。考试科目来自后台维护的考试科目库（onboarding_route 开关打开时才用这一页）。
 import { ApiError } from '@training/api-client';
 import { colors, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,12 +19,33 @@ import { api, unwrap } from '@/lib/api';
 import { useCatalogCourses, useCatalogSchools, type CatalogCourse } from './api';
 
 const MAX_COURSES = 4;
+/** 本校的科目少于这个数时不分学科，直接列出（T50）。 */
+export const FLAT_LIMIT = 4;
 
 interface Manual {
   name: string;
   code: string;
-  major: string;
 }
+
+export const isNational = (c: Pick<CatalogCourse, 'scope'>) => c.scope === 'national';
+
+/**
+ * 按院校整理考试科目：own 是本校的（自命题 + 登记使用的统考），others 是其余全国统考；
+ * own 少于 FLAT_LIMIT 门时 flat 为真（直接列出），否则按学科分组，disciplines 是本校的学科在前、统考的学科在后。
+ */
+export function groupCourses(list: CatalogCourse[]) {
+  const own = list.filter((c) => !isNational(c) || c.registered);
+  const others = list.filter((c) => isNational(c) && !c.registered);
+  const disciplines: string[] = [];
+  for (const c of [...own, ...others]) {
+    const d = c.discipline || '其他';
+    if (!disciplines.includes(d)) disciplines.push(d);
+  }
+  return { own, others, disciplines, flat: own.length < FLAT_LIMIT };
+}
+
+/** 列表第二行：统考写「全国统考」，自命题写适用专业。 */
+export const courseNote = (c: Pick<CatalogCourse, 'scope' | 'majors'>) => (isNational(c) ? '全国统考' : c.majors.join('、'));
 
 /** 代码 + 名称写在一个框里，开头是 3 位数字时拆成代码（与旧 1.1 一致）。 */
 export function parseCourse(text: string): { code: string; name: string } {
@@ -47,6 +70,8 @@ export function RouteSubject() {
   const [school, setSchool] = useState<string | undefined>(draft.school);
   const [picked, setPicked] = useState<number[]>(draft.picked ?? []);
   const [manual, setManual] = useState<Manual[]>([]);
+  const [discipline, setDiscipline] = useState<string>();
+  const [major, setMajor] = useState(draft.major ?? '');
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [quota, setQuota] = useState(false);
@@ -61,6 +86,10 @@ export function RouteSubject() {
   const schools = useCatalogSchools(term);
   const courses = useCatalogCourses(school, selectedYear?.exam_year);
   const list = useMemo(() => courses.data?.items ?? [], [courses.data]);
+  const groups = useMemo(() => groupCourses(list), [list]);
+  const curDiscipline = discipline && groups.disciplines.includes(discipline) ? discipline : groups.disciplines[0];
+  const shown = groups.flat ? groups.own : list.filter((c) => (c.discipline || '其他') === curDiscipline);
+  const nationals = useMemo(() => list.filter(isNational), [list]);
   const count = picked.length + manual.length;
 
   const toggle = (c: CatalogCourse) => {
@@ -84,23 +113,25 @@ export function RouteSubject() {
     try {
       const existing = subjects.data?.items ?? [];
       const noOfficial: NonNullable<ReturnType<typeof loadDraft>['noOfficial']> = [];
+      const m = major.trim();
+      // 选填的专业只用来展示和统计；院校总是带上（选全国统考科目时也是用户自己的目标院校）。
+      const who = m ? { school, major: m } : { school };
       for (const c of chosen) {
         let s = existing.find((x) => x.catalog_course_id === c.id);
         if (!s) {
           s = await unwrap(
-            api.POST('/subjects', { body: { name: c.subject_name, code: c.subject_code ?? null, full_score: 150, catalog_course_id: c.id } }),
+            api.POST('/subjects', { body: { name: c.subject_name, code: c.subject_code ?? null, full_score: 150, catalog_course_id: c.id, ...who } }),
           );
         }
-        if (c.official_status !== 'available') noOfficial.push({ subjectId: s.id, name: c.subject_name, code: c.subject_code, major: c.major });
+        if (c.official_status !== 'available') noOfficial.push({ subjectId: s.id, name: c.subject_name, code: c.subject_code, major: m });
       }
-      for (const m of manual) {
-        const s = await unwrap(api.POST('/subjects', { body: { name: m.name, code: m.code || null, full_score: 150, school, major: m.major } }));
-        noOfficial.push({ subjectId: s.id, name: m.name, code: m.code || undefined, major: m.major });
+      for (const x of manual) {
+        const s = await unwrap(api.POST('/subjects', { body: { name: x.name, code: x.code || null, full_score: 150, ...who } }));
+        noOfficial.push({ subjectId: s.id, name: x.name, code: x.code || undefined, major: m });
       }
-      const major = chosen[0]?.major ?? manual[0]?.major ?? '';
-      const target = major ? `${school} · ${major}` : school;
+      const target = m ? `${school} · ${m}` : school;
       await saveProfile(target);
-      saveDraft({ examYear: selectedYear.exam_year, school, major, picked, noOfficial, targetSchoolMajor: target });
+      saveDraft({ examYear: selectedYear.exam_year, school, major: m, picked, noOfficial, targetSchoolMajor: target });
       await qc.invalidateQueries({ queryKey: ['subjects'] });
       const route = routeOf(chosen);
       track('onboarding_route', { route: route === 'official' ? 'official' : 'none', code: chosen[0]?.subject_code ?? manual[0]?.code });
@@ -205,53 +236,82 @@ export function RouteSubject() {
         {school ? (
           <View style={styles.block}>
             <View style={styles.labelRow}>
-              <Text variant="caption" color={semantic.textPrimary} style={styles.label}>专业与专业课</Text>
-              <Text variant="small">最多 {MAX_COURSES} 门</Text>
+              <Text variant="caption" color={semantic.textPrimary} style={styles.label}>考试科目</Text>
+              <Text variant="small">{count > 0 ? `已选 ${count} 门 · ` : ''}最多 {MAX_COURSES} 门</Text>
             </View>
             {courses.isLoading ? <Loading rows={3} /> : null}
             {courses.isError ? <ErrorState error={courses.error} onRetry={() => void courses.refetch()} /> : null}
+            {!groups.flat ? (
+              <View style={styles.chips} accessibilityRole="tablist">
+                {groups.disciplines.map((d) => {
+                  const on = d === curDiscipline;
+                  return (
+                    <Pressable
+                      key={d}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: on }}
+                      onPress={() => setDiscipline(d)}
+                      hitSlop={4}
+                      style={[styles.chip, on && styles.chipOn]}
+                    >
+                      <Text variant="caption" color={on ? colors.white : semantic.textPrimary}>{d}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
             <View style={styles.list}>
-              {list.map((c) => {
-                const on = picked.includes(c.id);
-                const has = c.official_status === 'available';
-                return (
-                  <Pressable
-                    key={c.id}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: on }}
-                    onPress={() => toggle(c)}
-                    style={[styles.row, styles.divider, styles.course]}
-                  >
-                    <View style={[styles.box, on && styles.boxOn]}>{on ? <Icon name="check" size={12} color={colors.white} /> : null}</View>
-                    <View style={styles.flex}>
-                      <Text variant="body">{c.subject_code ? `${c.subject_code} ` : ''}{c.subject_name}</Text>
-                      <Text variant="small">{c.major}</Text>
-                    </View>
-                    <Tag label={has ? '有官方题库' : '暂无官方题库'} tone={has ? 'mastered' : 'neutral'} style={styles.center} />
-                  </Pressable>
-                );
-              })}
+              {shown.map((c) => (
+                <CourseRow key={c.id} c={c} on={picked.includes(c.id)} onPress={() => toggle(c)} />
+              ))}
+              {groups.flat && groups.others.length > 0 ? (
+                <>
+                  <View style={[styles.section, styles.divider]}>
+                    <Text variant="small">全国统考科目（各院校同一套卷子）</Text>
+                  </View>
+                  {groups.others.map((c) => (
+                    <CourseRow key={c.id} c={c} on={picked.includes(c.id)} onPress={() => toggle(c)} />
+                  ))}
+                </>
+              ) : null}
               {manual.map((m, i) => (
                 <View key={`${m.code}${m.name}${i}`} style={[styles.row, styles.divider, styles.course]}>
                   <View style={[styles.box, styles.boxOn]}><Icon name="check" size={12} color={colors.white} /></View>
                   <View style={styles.flex}>
                     <Text variant="body">{m.code ? `${m.code} ` : ''}{m.name}</Text>
-                    <Text variant="small">{m.major} · 手动添加</Text>
+                    <Text variant="small">手动添加</Text>
                   </View>
                   <Pressable accessibilityRole="button" accessibilityLabel="移除" onPress={() => setManual(manual.filter((_, j) => j !== i))} style={styles.remove}>
                     <Icon name="close" size={18} color={semantic.textSecondary} />
                   </Pressable>
                 </View>
               ))}
-              {!courses.isLoading && list.length === 0 && manual.length === 0 ? (
+              {!courses.isLoading && groups.own.length === 0 && manual.length === 0 ? (
                 <View style={[styles.row, styles.divider]}>
-                  <Text variant="caption" style={styles.flex}>这所院校的专业课还没录入，手动添加后我们会尽快补上</Text>
+                  <Text variant="caption" style={styles.flex}>这所院校的自命题科目还没录入，手动添加后我们会尽快补上</Text>
                 </View>
               ) : null}
               <Pressable accessibilityRole="button" onPress={() => (count >= MAX_COURSES ? toast(`最多选 ${MAX_COURSES} 门`) : setAdding(true))} style={styles.row}>
                 <Text variant="body" color={semantic.textSecondary}>列表里没有？手动添加专业课</Text>
               </Pressable>
             </View>
+          </View>
+        ) : null}
+
+        {school ? (
+          <View style={styles.block}>
+            <Text variant="caption" color={semantic.textPrimary} style={styles.label}>报考专业（选填）</Text>
+            <TextInput
+              accessibilityLabel="报考专业"
+              placeholder={chosen[0]?.majors[0] ? `如 ${chosen[0].majors[0]}` : '如 文艺学'}
+              placeholderTextColor={colors.faint}
+              value={major}
+              onChangeText={setMajor}
+              style={styles.field}
+              maxLength={64}
+              maxFontSizeMultiplier={layout.maxFontScale}
+            />
+            <Text variant="small">只用来展示，不影响匹配题库；很多专业共用同一套卷子</Text>
           </View>
         ) : null}
       </ScrollView>
@@ -263,9 +323,14 @@ export function RouteSubject() {
       <ManualSheet
         visible={adding}
         onClose={() => setAdding(false)}
-        majors={[...new Set(list.map((c) => c.major))]}
+        nationals={nationals}
         onAdd={(m) => {
           setManual([...manual, m]);
+          setAdding(false);
+        }}
+        onPickNational={(c) => {
+          if (!picked.includes(c.id)) toggle(c);
+          setDiscipline(c.discipline || '其他');
           setAdding(false);
         }}
       />
@@ -282,26 +347,44 @@ export function RouteSubject() {
   );
 }
 
-/** 手动添加：专业 + 「代码 + 名称」（规则同 PRD v3 1.1），库里没有的课进后台「待入库」。 */
-function ManualSheet({ visible, onClose, onAdd, majors }: { visible: boolean; onClose: () => void; onAdd: (m: Manual) => void; majors: string[] }) {
-  const [major, setMajor] = useState('');
+function CourseRow({ c, on, onPress }: { c: CatalogCourse; on: boolean; onPress: () => void }) {
+  const has = c.official_status === 'available';
+  const note = courseNote(c);
+  return (
+    <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: on }} onPress={onPress} style={[styles.row, styles.divider, styles.course]}>
+      <View style={[styles.box, on && styles.boxOn]}>{on ? <Icon name="check" size={12} color={colors.white} /> : null}</View>
+      <View style={styles.flex}>
+        <Text variant="body">{c.subject_code ? `${c.subject_code} ` : ''}{c.subject_name}</Text>
+        {note ? <Text variant="small">{note}</Text> : null}
+      </View>
+      <Tag label={has ? '有官方题库' : '暂无官方题库'} tone={has ? 'mastered' : 'neutral'} style={styles.center} />
+    </Pressable>
+  );
+}
+
+/**
+ * 手动添加：「代码 + 名称」（规则同 PRD v3 1.1），库里没有的课进后台「待入库」。
+ * 代码正好是某个全国统考代码时提示「是不是全国统考的 333 教育综合？」，点了就直接选统考科目（T50）。
+ */
+function ManualSheet({
+  visible,
+  onClose,
+  onAdd,
+  nationals,
+  onPickNational,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onAdd: (m: Manual) => void;
+  nationals: CatalogCourse[];
+  onPickNational: (c: CatalogCourse) => void;
+}) {
   const [text, setText] = useState('');
   const parsed = parseCourse(text);
-  const ok = !!parsed.name && !!major.trim();
+  const hit = parsed.code ? nationals.find((c) => c.subject_code === parsed.code) : undefined;
   return (
     <BottomSheet visible={visible} onClose={onClose} title="手动添加专业课">
       <View style={styles.sheet}>
-        <Text variant="caption" color={semantic.textPrimary} style={styles.label}>专业</Text>
-        <TextInput
-          accessibilityLabel="专业"
-          placeholder={majors[0] ? `如 ${majors[0]}` : '如 哲学'}
-          placeholderTextColor={colors.faint}
-          value={major}
-          onChangeText={setMajor}
-          style={styles.field}
-          maxLength={64}
-          maxFontSizeMultiplier={layout.maxFontScale}
-        />
         <Text variant="caption" color={semantic.textPrimary} style={styles.label}>专业课</Text>
         <TextInput
           accessibilityLabel="专业课代码和名称"
@@ -314,11 +397,28 @@ function ManualSheet({ visible, onClose, onAdd, majors }: { visible: boolean; on
           maxFontSizeMultiplier={layout.maxFontScale}
         />
         <Text variant="small">不知道代码？只写名称也可以</Text>
+        {hit ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              onPickNational(hit);
+              setText('');
+            }}
+            style={styles.hint}
+          >
+            <View style={styles.flex}>
+              <Text variant="body">是全国统考的「{hit.subject_code} {hit.subject_name}」吗？</Text>
+              <Text variant="small">各院校同一套卷子，点这里直接选它</Text>
+            </View>
+            <Icon name="chevron" size={16} color={semantic.textSecondary} />
+          </Pressable>
+        ) : null}
         <Button
-          title="添加"
-          disabled={!ok}
+          title={hit ? '不是，按我填的添加' : '添加'}
+          kind={hit ? 'secondary' : undefined}
+          disabled={!parsed.name}
           onPress={() => {
-            onAdd({ name: parsed.name, code: parsed.code, major: major.trim() });
+            onAdd({ name: parsed.name, code: parsed.code });
             setText('');
           }}
         />
@@ -346,5 +446,10 @@ const styles = StyleSheet.create({
   custom: { minHeight: 60 },
   remove: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   sheet: { gap: spacing.md, paddingBottom: spacing.md },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { minHeight: 36, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: semantic.inputBorder, justifyContent: 'center' },
+  chipOn: { borderColor: semantic.primary, backgroundColor: semantic.primary },
+  section: { minHeight: 36, paddingHorizontal: 16, justifyContent: 'center', backgroundColor: semantic.primarySoft },
+  hint: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: semantic.inputBorder },
   field: { minHeight: 50, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: semantic.inputBorder, fontSize: 15, color: semantic.textPrimary },
 });

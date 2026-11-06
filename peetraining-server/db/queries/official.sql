@@ -7,7 +7,18 @@
 INSERT INTO banks (source, owner_user_id, subject_id, title, school_major_tag, subject_code) VALUES ('official', NULL, NULL, ?, ?, ?);
 
 -- name: InsertOfficialProject :execlastid
-INSERT INTO official_projects (school, major, subject_code, subject_name, bank_id, editor_ids, created_by) VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT INTO official_projects (catalog_course_id, school, major, subject_code, subject_name, bank_id, editor_ids, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: OfficialProjectOfCourse :one
+-- 一门考试科目只立一个项目（T50）。
+SELECT id FROM official_projects WHERE catalog_course_id = ? ORDER BY id LIMIT 1;
+
+-- name: FindCatalogCourseForProject :one
+-- 旧版后台立项只传院校、代码、名称：找到对应的考试科目挂上。院校写「全国统考」的找统考科目。
+SELECT id FROM catalog_courses
+WHERE (scope = 'school' AND school = sqlc.arg(school) AND (subject_code = sqlc.arg(code) OR (subject_code IS NULL AND subject_name = sqlc.arg(name))))
+   OR (scope = 'national' AND sqlc.arg(national) AND subject_code = sqlc.arg(code))
+ORDER BY exam_year IS NOT NULL, id LIMIT 1;
 
 -- name: ListOfficialProjects :many
 SELECT p.*,
@@ -45,15 +56,17 @@ UPDATE knowledge_points SET name = ?, original_text = ? WHERE id = ? AND bank_id
 DELETE FROM knowledge_points WHERE id = ? AND bank_id = ? AND owner_user_id IS NULL;
 
 -- name: ListOfficialQuestions :many
-SELECT id, qtype, stem, options, answer, answer_origin, analysis, score, exam_year, status, answer_snapshot_id FROM questions WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY id;
+SELECT id, qtype, stem, options, answer, answer_origin, analysis, score, exam_year, status, answer_snapshot_id, group_label, group_majors FROM questions WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY id;
 
 -- name: InsertOfficialQuestion :execlastid
 -- answer_origin：official 团队给的答案；ai_generated 由 AI 生成、经编辑审核（用户端显示「AI 参考答案」，T49）。
-INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, score, source, exam_year, content_hash)
-VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'official', ?, ?);
+-- group_label / group_majors：限选题（按专业分组的题，T51）；为空是必答题。
+INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, score, source, exam_year, content_hash, group_label, group_majors)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?);
 
 -- name: UpdateOfficialQuestion :exec
-UPDATE questions SET qtype = ?, stem = ?, options = ?, answer = ?, answer_origin = ?, analysis = ?, score = ?, exam_year = ?, content_hash = ?, rubric_version = rubric_version + 1
+UPDATE questions SET qtype = ?, stem = ?, options = ?, answer = ?, answer_origin = ?, analysis = ?, score = ?, exam_year = ?, content_hash = ?,
+  group_label = ?, group_majors = ?, rubric_version = rubric_version + 1
 WHERE id = ? AND bank_id = ? AND owner_user_id IS NULL;
 
 -- name: SetOfficialQuestionStatus :exec
@@ -154,8 +167,9 @@ UPDATE official_versions SET rolled_back_at = ? WHERE id = ? AND rolled_back_at 
 -- ---------- 需求洞察（7.10，只用统计） ----------
 
 -- name: StatDemand :many
--- 按专业课代码聚合：自建用户数、平均题数、本周新增、填了目标院校的人数、付费人数（只有计数）。
-SELECT s.code,
+-- 按「院校 + 专业课代码」聚合（T50）：选了全国统考科目的不分院校，院校记为空串；没记院校的旧专业课也是空串。
+-- 自建用户数、平均题数、本周新增、填了目标院校的人数、付费人数（只有计数）。
+SELECT CAST(IF(cc.scope = 'national', '', COALESCE(s.school, '')) AS CHAR) AS school, s.code,
   COUNT(DISTINCT s.owner_user_id) AS users,
   CAST(COALESCE(AVG((SELECT COUNT(*) FROM questions q WHERE q.bank_id = b.id AND q.owner_user_id = s.owner_user_id AND q.status = 'active')), 0) AS SIGNED) AS avg_questions,
   CAST(SUM(s.created_at >= sqlc.arg(week_start)) AS SIGNED) AS week_new,
@@ -163,17 +177,18 @@ SELECT s.code,
   CAST(SUM(EXISTS (SELECT 1 FROM orders o WHERE o.owner_user_id = s.owner_user_id AND o.status IN ('paid', 'refunding'))) AS SIGNED) AS paid,
   CAST(COALESCE(AVG((SELECT COUNT(*) FROM import_items i WHERE i.owner_user_id = s.owner_user_id AND i.needs_review = 1 AND i.status = 'pending')), 0) AS SIGNED) AS avg_review
 FROM subjects s JOIN banks b ON b.subject_id = s.id
+LEFT JOIN catalog_courses cc ON cc.id = s.catalog_course_id
 WHERE s.code IS NOT NULL AND s.code <> ''
-GROUP BY s.code ORDER BY users DESC LIMIT 200;
+GROUP BY 1, s.code ORDER BY users DESC LIMIT 200;
 
 -- name: UpsertDemandMark :exec
-INSERT INTO official_demand_marks (subject_code, status, marked_by) VALUES (?, 'unplanned', ?) ON DUPLICATE KEY UPDATE marked_by = VALUES(marked_by), marked_at = CURRENT_TIMESTAMP(3);
+INSERT INTO official_demand_marks (school, subject_code, status, marked_by) VALUES (?, ?, 'unplanned', ?) ON DUPLICATE KEY UPDATE marked_by = VALUES(marked_by), marked_at = CURRENT_TIMESTAMP(3);
 
 -- name: DeleteDemandMark :exec
-DELETE FROM official_demand_marks WHERE subject_code = ?;
+DELETE FROM official_demand_marks WHERE school = ? AND subject_code = ?;
 
 -- name: ListDemandMarks :many
-SELECT subject_code FROM official_demand_marks;
+SELECT school, subject_code FROM official_demand_marks;
 
 -- ---------- 用户添加官方题库（11.15） ----------
 
@@ -223,16 +238,29 @@ UPDATE knowledge_points SET official_kp_id = NULL, official_hash = NULL, officia
 DELETE FROM knowledge_points WHERE id = ? AND owner_user_id = ?;
 
 -- name: ListUserQuestionCopies :many
-SELECT id, official_question_id, qtype, stem, answer, answer_origin, status, official_hash FROM questions WHERE bank_id = ? AND owner_user_id = ? AND official_question_id IS NOT NULL;
+SELECT id, official_question_id, qtype, stem, answer, answer_origin, status, official_hash, group_label, group_majors FROM questions WHERE bank_id = ? AND owner_user_id = ? AND official_question_id IS NOT NULL;
 
 -- name: InsertUserQuestionCopy :execlastid
-INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, score, source, exam_year, content_hash, official_question_id, official_hash)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?);
+INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, score, source, exam_year, content_hash, official_question_id, official_hash,
+  group_label, group_majors)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?, ?, ?);
 
 -- name: UpdateUserQuestionCopy :exec
 UPDATE questions SET qtype = ?, stem = ?, options = ?, answer = ?, answer_origin = ?, analysis = ?, score = ?, exam_year = ?, content_hash = ?, official_hash = ?, status = 'active',
-  rubric_version = rubric_version + 1
+  group_label = ?, group_majors = ?, rubric_version = rubric_version + 1
 WHERE id = ? AND owner_user_id = ?;
+
+-- name: GetSubjectMyMajors :one
+-- 报考方向（T51）：复制官方题库时限选题只留与它匹配的组。
+SELECT my_majors FROM subjects WHERE id = ? AND owner_user_id = ?;
+
+-- name: SubscriptionsOfSubject :many
+-- 报考方向改了以后，重新对这门专业课上的官方题库（T51）。
+SELECT bank_id FROM bank_subscriptions WHERE owner_user_id = ? AND subject_id = ?;
+
+-- name: SetSubjectMajorsIfEmpty :exec
+-- 1.1 选填的报考专业记为报考方向，已经有方向的不覆盖（T51）。
+UPDATE subjects SET my_majors = ? WHERE id = ? AND owner_user_id = ? AND (my_majors IS NULL OR my_majors = '');
 
 -- name: SetUserQuestionStatus :exec
 UPDATE questions SET status = ? WHERE id = ? AND owner_user_id = ?;

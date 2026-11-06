@@ -5273,13 +5273,16 @@ paths:
     get:
       tags: [profile]
       operationId: listCatalogCourses
-      summary: 1.1 按院校列出专业与专业课，标出有没有官方题库
+      summary: 1.1 按院校列出考试科目，标出有没有官方题库
       description: |
         受 onboarding_route 开关控制。official_status：available 有官方题库 / producing 生产中 / none 暂无；
         官方题库开关对当前用户关闭时一律为 none（增补「功能开关」）。有官方题库时带 official 摘要（1.1a）。
+        include_national 为真时（T50 新版 App）另外列出全国统考科目（scope = national）；本校已有同代码自命题卷的统考科目不列。
+        院校不在库里时也可以调用，只会返回统考科目。
       parameters:
         - { name: school, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
         - { name: exam_year, in: query, required: false, schema: { type: integer } }
+        - { name: include_national, in: query, required: false, schema: { type: boolean }, description: 同时列出全国统考科目（T50） }
       responses:
         "200":
           description: OK
@@ -5712,7 +5715,7 @@ paths:
       tags:
       - admin
       operationId: listAdminDemand
-      summary: 7.10 需求洞察（按专业课代码统计自建用户）
+      summary: 7.10 需求洞察（按「院校 + 专业课代码」统计自建用户；全国统考只按代码，院校为空串）
       x-roles:
       - content_lead
       - analyst
@@ -5761,6 +5764,10 @@ paths:
               properties:
                 unplanned: &id005_2
                   type: boolean
+                school:
+                  type: string
+                  maxLength: 64
+                  description: 院校（T50 起按院校 + 代码标记）；全国统考或院校未知时不传或传空串
       responses:
         '204':
           description: 完成
@@ -5775,7 +5782,9 @@ paths:
       x-roles: [admin, content_lead]
       security: [{ adminAuth: [] }]
       parameters:
-        - { name: q, in: query, required: false, schema: { type: string, maxLength: 64 }, description: 按院校、课程名或代码搜索 }
+        - { name: q, in: query, required: false, schema: { type: string, maxLength: 64 }, description: 按院校、科目名或代码搜索（统考科目也按登记的院校搜） }
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [school, national] }, description: 命题方式 }
+        - { name: discipline, in: query, required: false, schema: { type: string, maxLength: 16 } }
       responses:
         "200":
           description: OK
@@ -5824,6 +5833,65 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+  /admin/catalog/disciplines:
+    get:
+      tags: [admin]
+      operationId: adminListCatalogDisciplines
+      summary: 考试科目可选的学科（学科门类，固定选项）
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { type: string } }
+  /admin/catalog/courses/{courseId}/schools:
+    get:
+      tags: [admin]
+      operationId: adminListCatalogCourseSchools
+      summary: 登记使用这门全国统考的院校
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: courseId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { type: string } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [admin]
+      operationId: adminSetCatalogCourseSchools
+      summary: 整体替换登记使用这门全国统考的院校
+      description: 只有全国统考科目能登记院校。登记是选填的：没登记的院校在 1.1 选到这个学科时也能看到统考科目。
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: courseId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [schools]
+              properties:
+                schools: { type: array, maxItems: 500, items: { type: string, minLength: 1, maxLength: 64 } }
+      responses:
+        "204": { description: 完成 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /admin/catalog/pending:
     get:
       tags: [admin]
@@ -5860,7 +5928,9 @@ paths:
       tags: [admin]
       operationId: adminResolveCatalogPending
       summary: 处理待入库：一键入库 / 合并到已有课程 / 忽略
-      description: 入库或合并后，当初手动添加这门课的用户关联到库里的课（官方题库上线时能收到通知）。
+      description: |
+        入库或合并后，当初手动添加这门课的用户关联到库里的课（官方题库上线时能收到通知）。
+        合并到全国统考科目时，同时把这所院校登记为使用该统考（T50）。
       x-roles: [admin, content_lead]
       security: [{ adminAuth: [] }]
       parameters:
@@ -6261,12 +6331,14 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-              - school
-              - major
-              - subject_code
-              - subject_name
+              description: |
+                T50 起从考试科目立项：传 catalog_course_id，院校、代码、名称取自考试科目，一门考试科目只能立一个项目；
+                全国统考科目的院校记为「全国统考」。旧版后台不传 catalog_course_id 时须填院校、代码、名称，按它们找到考试科目挂上。
               properties:
+                catalog_course_id:
+                  type: integer
+                  format: int64
+                  description: 考试科目
                 school:
                   type: string
                   maxLength: 64
@@ -6292,6 +6364,8 @@ paths:
                 $ref: '#/components/schemas/AdminOfficialProject'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /admin/official/projects/{projectId}:
     get:
       tags:
@@ -6462,8 +6536,9 @@ paths:
       summary: 上传资料并标类型（真题卷 / 参考书目录 / 有授权的讲义），或粘贴文字、表格导入（CSV）
       description: |
         format 为 text 或 csv 时直接带 text，马上开始解析；pdf / docx / image 返回 upload_url，客户端直传后调用 confirm。
-        表格导入的表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型；
-        题型、分值、题干必填，真题年份必填。
+        表格导入的表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型、限选分组、适用专业；
+        题型、分值、题干必填，真题年份必填。限选分组（如「第一组」）与适用专业选填：填了是限选题，不填是必答题（T51）。
+        真题卷里按专业分组的题（「第一组：请选择文艺学专业的考生作答」）解析时自动标成限选题。
         auto_answer 为 true 时解析过程中缺参考答案、采分点的题由 AI 补全；默认不补，解析后由编辑逐题「生成答案 / 提取采分点」或整份「一键补全」（T49）。
       x-roles: [content_lead, content_editor]
       security: [{ adminAuth: [] }]
@@ -12426,6 +12501,9 @@ components:
         project_stage: *id001_6
         unplanned: &id007_4
           type: boolean
+        school:
+          type: string
+          description: 院校；全国统考或院校未知时为空串（T50）
     OfficialStage:
       type: string
       enum:
@@ -12473,6 +12551,10 @@ components:
       - created_at
       properties:
         id: *id003_6
+        catalog_course_id:
+          type: integer
+          format: int64
+          description: 考试科目（T50 之前的旧立项可能没有）
         school: *id001_6
         major: *id001_6
         subject_code: *id001_6
@@ -12511,6 +12593,9 @@ components:
         payload: &id005_5
           type: object
           additionalProperties: true
+          description: |
+            知识点或题目的内容。题目的 group 是限选分组 { label（如「第一组」，32 字以内）, majors（适用专业）}，
+            没有 group 是必答题（T51）。用户添加官方题库时，限选题只复制与报考方向匹配的那一组。
     OfficialReferenceKind:
       type: string
       enum:
@@ -13343,12 +13428,16 @@ components:
 
     CatalogCourse:
       type: object
-      required: [id, school, major, discipline, subject_name, textbooks, official_status]
+      description: 考试科目（T50）：一套卷子一条，院校 + 学科 + 考试代码 + 科目名称；专业只是选填的适用专业
+      required: [id, scope, school, major, majors, discipline, subject_name, textbooks, official_status]
       properties:
         id: { type: integer, format: int64 }
-        school: { type: string }
-        major: { type: string }
-        discipline: { type: string, description: 学科，如 哲学、文学 }
+        scope: { type: string, enum: [school, national], description: 命题方式：院校自命题 / 全国统考 }
+        school: { type: string, description: 院校；全国统考为空串 }
+        major: { type: string, description: 旧字段：适用专业的第一个，旧版 App 显示用 }
+        majors: { type: array, items: { type: string }, description: 适用专业（选填，只用来展示） }
+        registered: { type: boolean, description: 全国统考科目：查询的院校在后台登记了使用这门统考 }
+        discipline: { type: string, description: 学科（学科门类），如 哲学、教育学 }
         subject_name: { type: string }
         subject_code: { type: string }
         textbooks: { type: array, items: { type: string } }
@@ -13369,10 +13458,16 @@ components:
         added_subject_id: { type: integer, format: int64, description: 已添加到哪门专业课；没添加时没有 }
     CatalogCourseInput:
       type: object
-      required: [school, major, subject_name]
+      description: |
+        考试科目（T50）。scope 默认 school；自命题必须填院校，统考不填院校（填了也忽略）。discipline 必须是
+        GET /admin/catalog/disciplines 里的一项。去重：自命题按院校 + 代码 + 年份，统考按代码 + 年份，没有代码时按名称。
+        majors 是选填的适用专业；旧版后台只传 major 时当作一个适用专业。
+      required: [subject_name]
       properties:
-        school: { type: string, minLength: 1, maxLength: 64 }
-        major: { type: string, minLength: 1, maxLength: 64 }
+        scope: { type: string, enum: [school, national] }
+        school: { type: string, maxLength: 64 }
+        major: { type: string, maxLength: 64 }
+        majors: { type: array, maxItems: 20, items: { type: string, minLength: 1, maxLength: 64 } }
         discipline: { type: string, maxLength: 16 }
         subject_name: { type: string, minLength: 1, maxLength: 64 }
         subject_code: { type: string, maxLength: 16 }
@@ -13383,10 +13478,12 @@ components:
       allOf:
         - $ref: "#/components/schemas/CatalogCourse"
         - type: object
-          required: [status, chosen_count]
+          required: [status, chosen_count, school_count]
           properties:
             status: { type: string, enum: [active, hidden] }
             chosen_count: { type: integer, description: 在 1.1 选了这门课的人数 }
+            school_count: { type: integer, description: 全国统考科目：登记使用它的院校数 }
+            project_id: { type: integer, format: int64, description: 官方题库立项；没立项时没有 }
     TrialUsage:
       type: object
       required: [limit, used, remaining]
@@ -13519,7 +13616,8 @@ components:
           additionalProperties: true
           description: |
             结构同 7.12 草稿。题目另有：answer_ai（参考答案由 AI 生成，发布后用户端显示「AI 参考答案」，照常计入预估分）、
-            score_inferred（原文没有分值，参考同项目同题型的给分填上，请核对）。
+            score_inferred（原文没有分值，参考同项目同题型的给分填上，请核对）、
+            group（限选题：{ label: 组名如「第一组」, majors: 适用专业 }；没有是必答题，T51）。
         citations:
           type: array
           items:
@@ -13549,9 +13647,9 @@ components:
         code: { type: string, maxLength: 16, nullable: true }
         full_score: { type: integer, enum: [100, 150, 300] }
         target_score: { type: integer, minimum: 0, nullable: true, description: 不设目标传 null }
-        catalog_course_id: { type: integer, format: int64, description: 1.1 从院校专业课库选的课（新 1.1） }
-        school: { type: string, maxLength: 64, description: 1.1 手动添加时的院校；库里没有的课进后台「待入库」 }
-        major: { type: string, maxLength: 64 }
+        catalog_course_id: { type: integer, format: int64, description: 1.1 从考试科目库选的科目（新 1.1） }
+        school: { type: string, maxLength: 64, description: 1.1 的目标院校（选全国统考科目时也传）；手动添加、库里没有的课进后台「待入库」 }
+        major: { type: string, maxLength: 64, description: 选填的专业，只用来展示和统计，不影响匹配题库 }
     SubjectPatch:
       type: object
       properties:
@@ -13876,7 +13974,8 @@ components:
         next_cursor: { type: string }
     QuestionGroup:
       type: object
-      description: 按专业分组的论述题所在的组，只答报考专业那一组
+      description: |
+        限选题所在的组（按专业分组的题，只答报考专业那一组，回答非报考专业不得分）；题目没有 group 是必答题（T51）
       required: [label]
       properties:
         label: { type: string, description: 如「第一组」 }

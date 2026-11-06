@@ -158,6 +158,13 @@ func (h *Handlers) UpdateSubject(c *gin.Context, subjectID int64) {
 		_ = c.Error(err)
 		return
 	}
+	// 报考方向改了：这门课上的官方题库限选题换成新方向那一组（T51）。
+	if req.MyMajors.IsSpecified() {
+		if err := h.deps.Official.ResyncSubject(c.Request.Context(), currentUser(c), uint64(subjectID)); err != nil {
+			_ = c.Error(err)
+			return
+		}
+	}
 	c.JSON(http.StatusOK, toSubject(s))
 }
 
