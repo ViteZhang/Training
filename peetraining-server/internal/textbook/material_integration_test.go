@@ -35,7 +35,11 @@ func (c *selectAllClient) Complete(_ context.Context, r cloudai.Request) (clouda
 	for _, m := range reEvidenceID.FindAllStringSubmatch(user, -1) {
 		ids = append(ids, `"`+m[1]+`"`)
 	}
-	return cloudai.Response{Content: `{"coverage":"partial","source_ids":[` + strings.Join(ids, ",") + `]}`}, nil
+	coverage := "none" // 覆盖判断只看教材讲义（T55）
+	if strings.Contains(user, "类型=教材") {
+		coverage = "partial"
+	}
+	return cloudai.Response{Content: `{"coverage":"` + coverage + `","source_ids":[` + strings.Join(ids, ",") + `]}`}, nil
 }
 
 // TestMaterialKinds 是 T55 的验收：资料库有教材、讲义、考纲、经验总结四种；经验总结上传即视为已获授权；
