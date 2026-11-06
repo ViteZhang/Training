@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -205,12 +206,21 @@ func (s *Service) PrepareAnswer(ctx context.Context, user uint64, in ai.Generate
 	if err != nil {
 		return in, err
 	}
+	// T53 记下没用上教材的原因：关联了哪些版本、哪本为什么不能检索。
+	details := s.unavailableEditions(ctx, in.EditionIDs, editions)
+	if len(in.EditionIDs) == 0 && len(editions) == 0 {
+		in.Basis = &ai.AnswerBasis{Reason: ai.BasisNoTextbook}
+		return in, nil
+	}
 	evidence := []ai.EvidenceFragment{}
+	searched := 0
 	for _, e := range editions {
 		result, err := s.SearchRevision(ctx, e.BookID, e.ID, uint64(e.CurrentRevisionID.Int64), uint64(e.CurrentGenerationID.Int64), query)
 		if err != nil {
+			details = append(details, e.Title+"："+errText(err))
 			continue
 		}
+		searched++
 		for _, h := range result.Hits {
 			evidence = append(evidence, ai.EvidenceFragment{ID: fmt.Sprintf("textbook:%d:%d", result.GenerationID, h.Ordinal), Kind: "official_textbook", Title: e.Title, Author: e.Author, Edition: e.Edition, Text: h.Text, BookID: e.BookID, EditionID: e.ID, RevisionID: uint64(e.CurrentRevisionID.Int64), GenerationID: result.GenerationID, Ordinal: h.Ordinal, SectionNo: h.SectionNo, StartRune: h.StartRune, EndRune: h.EndRune, TextHash: h.TextHash, Heading: h.Heading, SourcePage: h.SourcePage, PrintedPage: h.PrintedPage})
 		}
@@ -220,11 +230,19 @@ func (s *Service) PrepareAnswer(ctx context.Context, user uint64, in ai.Generate
 		}
 	}
 	if len(evidence) == 0 {
+		if searched == 0 {
+			in.Basis = &ai.AnswerBasis{Reason: ai.BasisUnavailable, Details: details}
+		} else {
+			in.Basis = &ai.AnswerBasis{Reason: ai.BasisNoHits, Details: details}
+		}
 		return in, nil
 	}
 	selection, _, err := ai.SelectAnswerEvidence.Run(ctx, s.engine, user, ai.SelectEvidenceIn{Subject: in.Subject, QType: in.QType, Stem: in.Stem, Evidence: evidence})
 	if err != nil {
 		return in, err
+	}
+	if len(selection.SourceIDs) == 0 {
+		in.Basis = &ai.AnswerBasis{Reason: ai.BasisNotRelevant, Details: details}
 	}
 	for _, id := range selection.SourceIDs {
 		for _, f := range evidence {
@@ -236,6 +254,42 @@ func (s *Service) PrepareAnswer(ctx context.Context, user uint64, in ai.Generate
 	}
 	in.Coverage = selection.Coverage
 	return in, nil
+}
+
+// unavailableEditions 是明确关联、但不在可检索列表里的版本及原因（未发布、授权不可用、还没有索引）。
+func (s *Service) unavailableEditions(ctx context.Context, explicit []uint64, usable []dbq.ListPublishedTextbookEditionsRow) []string {
+	var out []string
+	for _, id := range explicit {
+		if slices.ContainsFunc(usable, func(e dbq.ListPublishedTextbookEditionsRow) bool { return e.ID == id }) {
+			continue
+		}
+		e, err := dbq.New(s.db).GetTextbookEditionByID(ctx, id)
+		if err != nil {
+			continue
+		}
+		title := e.Edition
+		if b, err := dbq.New(s.db).GetTextbook(ctx, e.BookID); err == nil {
+			title = b.Title + " " + e.Edition
+		}
+		switch {
+		case e.Status != "published":
+			out = append(out, title+"：还没发布")
+		case !validLicense(e, s.now().UTC()):
+			out = append(out, title+"：授权不可用")
+		default:
+			out = append(out, title+"：还没有可检索的索引")
+		}
+	}
+	return out
+}
+
+// errText 是检索失败时给编辑看的原因：业务错误原样给，其余统一说检索出错。
+func errText(err error) string {
+	var ae *apperr.Error
+	if errors.As(err, &ae) {
+		return ae.Message
+	}
+	return "检索出错"
 }
 
 // ValidateAnswerSources 在写入事务中锁定所有版次，阻止下架/授权撤销与最终保存交错。
