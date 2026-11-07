@@ -14,11 +14,18 @@
 
 各目录的开发规范见各自的 CLAUDE.md。
 
+## 生产服务器（2026-11 起）
+
+- 阿里云 47.95.34.95（入口 + 数据 + 前端）：nginx（域名、TLS、备案、反代）、MySQL / Redis / Qdrant（全部业务数据）、training-admin、dreamer-web、camera、hair 等；WireGuard `10.88.0.1`
+- 京东云 111.228.45.235（后端计算）：training-api / training-worker、dreamer-server、dreamer-interview-api / worker、dreamer-agent
+- 两边走 WireGuard 虚拟隧道（私网 `10.88.0.0/24`）：京东云经 `10.88.0.1` 访问阿里云数据库，阿里云 Nginx 经隧道反代京东云后端接口
+- 生产数据库迁移仍在阿里云 ECS 上执行（`dreamer-mysql`）；应用 `.env`、`docker compose`、云效部署在京东云应用机。详见 peetraining-server/docs/runbook.md「生产拓扑」
+
 ## 用户偏好
 
 - 回复一律用中文
 - AI 模型统一用 qwen3.8-flash（不再用 qwen-max、qwen-plus），百炼默认不开思考（AI_BAILIAN_THINKING=false）；
-  评测也用它：`AI_PROVIDER=bailian go run ./cmd/eval -cap=…`（代码默认模型已是 qwen3.8-flash）。生产以应用机 .env 为准，见 peetraining-server/docs/runbook.md 第 8 节
+  评测也用它：`AI_PROVIDER=bailian go run ./cmd/eval -cap=…`（代码默认模型已是 qwen3.8-flash）。生产以京东云应用机 .env 为准，见 peetraining-server/docs/runbook.md 第 8 节
 
 ## 三端：Claude 会话的工作副本、GitHub、云效，三者内容保持一致（以云效为准）
 
@@ -35,7 +42,7 @@
 3. 合并后在 GitHub main 上再执行一次 `status`、`pull`，然后 `scripts/sync-codeup.sh push server`（推到云效 server 的 main）/ `push web`（推到云效 web 的 master-zhangzhao）
    - 推完 server 后流水线自动运行（云效 main 推送触发）：`scripts/yunxiao-flow.sh runs` 找到这次的运行编号，再 `scripts/yunxiao-flow.sh wait <编号>` 等到构建、部署都成功；需要重新发布时用 `scripts/yunxiao-flow.sh run`
 4. 推到云效 server 的 main 会发布到生产：推送前先跟用户确认；有新的数据库迁移时，提醒用户按 peetraining-server/docs/runbook.md 先在生产库执行迁移
-   - 给用户生产迁移时，直接给出可以在 ECS 上粘贴执行的完整 SQL：先 `SET NAMES utf8mb4;`，再按编号从小到大放每个迁移文件 `-- +goose Up` 部分的全文，每个文件后面紧跟 `INSERT INTO goose_db_version (version_id, is_applied) VALUES (N, 1);`；
+   - 给用户生产迁移时，直接给出可以在阿里云 ECS（数据库所在机器）上粘贴执行的完整 SQL：先 `SET NAMES utf8mb4;`，再按编号从小到大放每个迁移文件 `-- +goose Up` 部分的全文，每个文件后面紧跟 `INSERT INTO goose_db_version (version_id, is_applied) VALUES (N, 1);`；
      连同进入 MySQL 的命令（`docker exec -it dreamer-mysql mysql -uroot -p --default-character-set=utf8mb4 training`）、执行前查版本号与执行后核对的 SQL 一起给。
      不要让用户在本机仓库里生成 SQL、scp 文件或跑脚本；给之前先在 testcontainers 上验证这份 SQL 能从上一个版本执行到最新
    - 粘贴进 ECS 上 mysql 客户端时中文会被吞掉（2026-11-03 迁移 00037–00041 时出现过：课程名、方向名变成空串）：给用户的 SQL 必须全是 ASCII，

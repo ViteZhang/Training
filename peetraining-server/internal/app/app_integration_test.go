@@ -28,6 +28,8 @@ func testConfig(t *testing.T) *config.Config {
 	t.Setenv("REDIS_ADDR", env.RedisAddr)
 	t.Setenv("REDIS_DB", strconv.Itoa(env.RedisDB))
 	t.Setenv("SHUTDOWN_TIMEOUT", "5s")
+	// 集成测试默认走真实两步验证码，固定验证码另有专门用例。
+	t.Setenv("ADMIN_2FA_FIXED_CODE", "off")
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)

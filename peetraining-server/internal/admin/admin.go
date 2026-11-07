@@ -87,6 +87,8 @@ type Deps struct {
 	Invalidate []Invalidator
 	// LogCodes 为 true 时把两步验证码写进日志（只在本地与测试环境用 mock 短信时打开）。
 	LogCodes bool
+	// FixedCode 非空时，所有后台账号的两步验证码固定为它，登录不发短信（ADMIN_2FA_FIXED_CODE）。
+	FixedCode string
 }
 
 // Service 是管理后台。
