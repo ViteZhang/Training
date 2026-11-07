@@ -1,16 +1,54 @@
 # 运维手册（runbook）
 
-生产只有一套：https://training.dreamerlab.cn（API /api/v1/，后台 /admin/）。本项目复用现有 ECS 上的 `dreamer-mysql`、`dreamer-redis`、`dreamer-nginx`，应用容器加入同一个 `dreamer-net`。
-本手册按顺序列出需要在阿里云控制台、现有 ECS 和云效上手动完成的步骤，每一步都写了怎么验证。
+生产只有一套：https://training.dreamerlab.cn（API /api/v1/，后台 /admin/）。
+本手册按顺序列出需要在阿里云控制台、服务器和云效上手动完成的步骤，每一步都写了怎么验证。
 密钥只在控制台和服务器上填写，不写进仓库、文档和聊天。
+
+## 生产拓扑（2026-11 起：阿里云 + 京东云，WireGuard 互通）
+
+部分服务已从阿里云迁到京东云：**阿里云放入口、数据和前端，京东云放后端计算**。两台机器之间走 WireGuard 虚拟隧道（私网 `10.88.0.0/24`），
+京东云访问阿里云上的数据库，阿里云 Nginx 反代京东云上的后端接口，都走这条隧道，不走公网。
+
+```text
+阿里云 47.95.34.95（入口 + 数据 + 前端）
+  ├─ nginx（dreamer-nginx）：域名、TLS、备案、反向代理
+  ├─ MySQL（dreamer-mysql）/ Redis（dreamer-redis）/ Qdrant（dreamer-qdrant）：全部业务数据
+  ├─ training-admin、dreamer-web、camera、hair 等前端/辅助服务
+  └─ WireGuard 10.88.0.1
+         │ 私网 10.88.0.0/24
+京东云 111.228.45.235（后端计算）
+  ├─ training-api / training-worker（本项目，含 asynqmon）
+  ├─ dreamer-server
+  ├─ dreamer-interview-api / worker
+  └─ dreamer-agent
+```
+
+对本项目的影响（下文旧章节里的「ECS」「应用机」按这里理解）：
+
+| 事项 | 在哪台机器 | 说明 |
+| --- | --- | --- |
+| 部署目录 `/opt/dreamer/project/training`（Compose、`.env`）、云效部署主机组、`docker compose ps/logs`、asynqmon、SLS 采集容器日志 | 京东云（应用机） | 「应用机」现在指京东云 111.228.45.235 |
+| 生产数据库迁移（`docker exec -it dreamer-mysql …`）、MySQL/Redis/Qdrant 排查与备份 | 阿里云 | 数据库仍在阿里云，迁移步骤不变 |
+| 域名解析、证书、Nginx 配置、`/admin/` 后台静态页、APK 下载文件 | 阿里云 | 域名仍解析到阿里云 47.95.34.95 |
+
+- **应用连数据**：京东云上的 api、worker 和阿里云的 MySQL、Redis、Qdrant 不在同一个 Docker 网络，`.env` 里不能再写容器名，要写隧道地址：
+  `MYSQL_DSN` 的主机为 `10.88.0.1:3306`，`REDIS_ADDR=10.88.0.1:6379`，`TEXTBOOK_VECTOR_URL=http://10.88.0.1:6333`（端口以阿里云实际映射为准，生产以京东云应用机 `.env` 为准）。
+  这些端口在阿里云上只允许 WireGuard 网段（`10.88.0.0/24`）访问，不对公网开放。
+- **Nginx 反代后端**：阿里云 `dreamer-nginx` 把 `training.dreamerlab.cn` 的请求经隧道转发到京东云上的 training-api（京东云的隧道地址 + 端口，以阿里云 Nginx 实际配置为准）。
+  仓库里的 [deploy/nginx/training.conf](../deploy/nginx/training.conf) 仍是同机写法（`training-api:8080`），改 Nginx 时以服务器上的实际配置为准。
+- **OSS 内网地址不能用**：`oss-cn-beijing-internal.aliyuncs.com` 只有阿里云同地域 ECS 才能访问。京东云上的 api、worker 要把 `OSS_INTERNAL_ENDPOINT` 留空（服务端读写走 `OSS_ENDPOINT` 公网地址），否则上传后的解析、导出等服务端读写会超时。
+- **其他阿里云服务**（短信、OCR、内容安全、百炼、ASR）本来就走公网接口，迁到京东云不受影响。
+- **排查连不上数据库**（健康检查 mysql=error / redis=error）先看隧道：两边执行 `wg show` 看最近握手时间；京东云上 `ping 10.88.0.1`、`nc -zv 10.88.0.1 3306`。
+  App 报 502 时，除了看京东云上 api 是否在跑，也要确认阿里云能经隧道访问到京东云的 api 端口。
+- 后续开发新增依赖（新数据服务、新内网接口）时，都要按「数据在阿里云、计算在京东云、中间走 10.88.0.0/24 隧道」来设计和写配置，不要假设同机或同一个 Docker 网络。
 
 部署文件都在 `deploy/`：
 
 | 文件 | 用途 |
 | --- | --- |
-| docker-compose.yml | 接入现有 `dreamer-net` 的 api、worker、asynqmon；每次启动自动拉取 latest |
+| docker-compose.yml | 京东云应用机上的 api、worker、asynqmon；每次启动自动拉取 latest |
 | .env.app.example | 可提交仓库的应用服务环境变量模板（只有占位值，不含真实密钥） |
-| nginx/training.conf | 合并到现有 Nginx 的域名与 HTTPS 配置片段 |
+| nginx/training.conf | 合并到现有 Nginx 的域名与 HTTPS 配置片段（同机写法；迁到京东云后后端地址改为隧道地址，以服务器实际配置为准） |
 | db/init.sql | 本地或新建项目库的完整手动初始化 SQL |
 | ci/test.sh、ci/build-push.sh | 可选 CI 脚本；当前流水线使用云效原生 Go 与 ACR 构建节点时不需要它们 |
 
@@ -110,6 +148,8 @@ docker login --username <ACR 用户名> crpi-3mjxc296umgnl4w9.cn-beijing.persona
 
 如果出现 `peetraining-server:v1.0:latest` 和 `invalid reference format`，说明 `IMAGE` 已带标签，又被 Compose 追加了 `:latest`。把服务器 `.env` 的 `IMAGE` 改为不带标签的仓库地址；若部署节点导出了同名 `IMAGE` 环境变量，也需删除该标签，因为进程环境变量会优先于 `.env`。可在部署目录执行 `docker compose config --images` 核对最终镜像地址，再执行 `docker compose up -d`。
 
+> 2026-11 起应用在京东云，`MYSQL_DSN`、`REDIS_ADDR` 改写 WireGuard 隧道地址 `10.88.0.1`，`OSS_INTERNAL_ENDPOINT` 留空，见文首「生产拓扑」；下面这段是迁移前同机部署时的写法。
+
 应用实际连接的是 Docker 网络内的容器名，不是 ECS 公网 IP。执行 `docker ps` 确认 MySQL、Redis 容器名；再用 `docker network inspect dreamer-net` 确认这些容器和本项目都在同一个网络。数据库密码建议使用 `openssl rand -hex 24`，避免 DSN 分隔符影响解析。
 
 **短信、OSS、文字识别、内容安全已接入阿里云（`*_PROVIDER=aliyun`）；语音识别（ASR）已接入百炼 Qwen 语音大模型（`ASR_PROVIDER=bailian`）。** 某项设为 `disabled` 时 API 和 Worker 照常启动，相关调用返回不可用，不会伪造成功结果；例如内容安全关闭时资料导入和 AI 生成都不会放行。`aliyun` 缺配置时 api 与 worker 启动直接报错并写明缺哪个变量。生产禁止 mock 短信。数据库迁移需要在发布前单独完成，Compose 不会自动执行迁移。
@@ -143,7 +183,7 @@ PAY_PROVIDER=disabled
 
 现有 `dreamer-nginx` 负责 80/443、证书和前端静态文件。它需要加入 `dreamer-net`，并把新域名的请求反向代理到 `http://training-api:8080`。配置片段见 [deploy/nginx/training.conf](../deploy/nginx/training.conf)，DNS、证书挂载、配置合并与验证步骤见 [Nginx HTTPS 接入](nginx-https.md)。片段追加到现有 `http` 块内；本项目不重新占用宿主机 80/443/8080。`/admin/` 静态页面按前端部署方案另外配置。
 
-验证：`dig training.dreamerlab.cn` 解析到应用机；证书文件存在且权限 600。
+验证：`dig training.dreamerlab.cn` 解析到阿里云入口 47.95.34.95；证书文件存在且权限 600。
 
 #### 阿里云短信（登录验证码）
 
@@ -189,7 +229,7 @@ PAY_PROVIDER=disabled
    ```dotenv
    OSS_PROVIDER=aliyun
    OSS_ENDPOINT=oss-cn-beijing.aliyuncs.com                    # 公网地址：App 直传与下载
-   OSS_INTERNAL_ENDPOINT=oss-cn-beijing-internal.aliyuncs.com  # 内网地址：服务端读写，不花公网流量
+   OSS_INTERNAL_ENDPOINT=                  # 应用在京东云时留空；只有应用跑在阿里云北京 ECS 上才填 oss-cn-beijing-internal.aliyuncs.com
    OSS_REGION=cn-beijing
    OSS_BUCKET=<桶名>
    OCR_PROVIDER=aliyun
@@ -375,14 +415,14 @@ unset ADMIN_INITIAL_PASSWORD
   3. 再查一次版本号确认，然后推云效发布。
 - 健康检查失败：查看 `docker compose ps` 和 `docker compose logs api worker`，修复配置或代码后重新运行流水线；Compose 不会执行数据库迁移。
 - 新功能先用功能开关只对自己的账号打开（后台 7.8），在生产上自测后再对全部用户打开。
-- 查看队列：`ssh -L 8081:127.0.0.1:8081 应用机`，浏览器打开 http://localhost:8081（asynqmon 只绑定在本机回环地址）。
+- 查看队列：`ssh -L 8081:127.0.0.1:8081 京东云应用机`，浏览器打开 http://localhost:8081（asynqmon 只绑定在本机回环地址）。
 
 ## 三、故障排查
 
 | 现象 | 先看 | 处理 |
 | --- | --- | --- |
-| 健康检查 503，mysql=error | ECS 上现有 MySQL 容器日志、磁盘 `df -h` | 检查 MySQL 容器与 dreamer-net、数据盘剩余空间；不要直接删除 MySQL 数据文件 |
-| 健康检查 503，redis=error | ECS 上现有 Redis 容器日志 | 检查 Redis 容器与 dreamer-net；AOF 损坏时使用 Redis 工具修复 |
+| 健康检查 503，mysql=error | 先看 WireGuard 隧道（两边 `wg show`，京东云 `nc -zv 10.88.0.1 3306`），再看阿里云 MySQL 容器日志、磁盘 `df -h` | 检查 MySQL 容器与 dreamer-net、数据盘剩余空间；不要直接删除 MySQL 数据文件 |
+| 健康检查 503，redis=error | 先看 WireGuard 隧道（京东云 `nc -zv 10.88.0.1 6379`），再看阿里云 Redis 容器日志 | 检查 Redis 容器与 dreamer-net；AOF 损坏时使用 Redis 工具修复 |
 | 502 Bad Gateway | `docker compose ps`、`docker compose logs api` | api 启动失败多为 .env 缺项（日志会写明哪个变量）；修正后在 `/opt/dreamer/project/training` 执行 `docker compose up -d` |
 | 数据库结构不匹配 | 应用日志里的 SQL/字段报错 | 先单独执行已审核的迁移 SQL，再重新发布（不要改已合并的迁移文件，写新的） |
 | 队列积压 | asynqmon 各队列 pending 数 | 看 worker 日志里失败最多的任务类型；AI 服务异常时在后台 7.8 回滚提示词版本或模型 |
