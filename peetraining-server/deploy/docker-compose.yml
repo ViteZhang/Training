@@ -1,4 +1,5 @@
-# 应用服务：api、worker、asynqmon。
+# 应用服务：api、worker、asynqmon。部署在京东云应用机（2026-11 起）；MySQL、Redis、Qdrant 在阿里云，
+# 经 WireGuard 隧道 10.88.0.1 访问，.env 里写隧道地址，见 docs/runbook.md「生产拓扑」。
 # /opt/dreamer/project/training/docker-compose.yml 与 .env 只需首次准备；日常发布执行 cd /opt/dreamer/project/training && docker compose up -d。
 # Docker Compose v2 每次 up 都会先拉取 latest，再按镜像摘要更新容器。
 name: training

@@ -39,7 +39,7 @@
 - internal/jobs/：Asynq 任务定义、处理器与定时任务
 - db/migrations/：goose SQL 迁移；db/queries/：sqlc 查询；sqlc.yaml
 - evals/：AI 评测数据集（JSONL）与门槛配置；真实样本放 evals/private/，不提交到仓库
-- deploy/：接入现有 dreamer-net 的应用 Compose 与云效构建脚本
+- deploy/：应用 Compose（部署在京东云应用机）与云效构建脚本
 
 ## 常用命令
 
@@ -91,8 +91,12 @@ PAY_PROVIDER、PAY_NOTIFY_BASE_URL、WECHAT_PAY_*、ALIPAY_*、APPLE_IAP_*、ALE
 ## 部署
 
 - 只有一个生产环境：https://training.dreamerlab.cn，API 在 /api/v1/，管理后台在 /admin/
-- ECS 现有 `dreamer-nginx`、`dreamer-mysql`、`dreamer-redis`；项目只部署 api、worker、asynqmon，并全部加入外部 Docker 网络 `dreamer-net`
-- 云效流水线：云效 Go 1.25.3 构建 → 构建镜像 → 推送 ACR 的 `latest` → 应用机执行 `docker compose up -d`；Compose 自动拉取镜像，数据库迁移在发布前单独完成
+- 两台机器（2026-11 起，详见 docs/runbook.md「生产拓扑」）：
+  - 阿里云 47.95.34.95（入口 + 数据 + 前端）：`dreamer-nginx`（域名、TLS、备案、反代）、`dreamer-mysql`、`dreamer-redis`、`dreamer-qdrant`、管理后台等前端；WireGuard `10.88.0.1`
+  - 京东云 111.228.45.235（后端计算）：本项目的 api、worker、asynqmon（应用机），以及 dreamer-server、dreamer-interview、dreamer-agent
+  - 两边走 WireGuard 隧道（私网 `10.88.0.0/24`）：京东云经 `10.88.0.1` 访问阿里云的 MySQL/Redis/Qdrant，阿里云 Nginx 经隧道反代京东云的 API；应用 `.env` 里写隧道地址，不写容器名；`OSS_INTERNAL_ENDPOINT` 留空（阿里云 OSS 内网京东云访问不到）
+  - 新增依赖时按「数据在阿里云、计算在京东云、中间走隧道」设计，不要假设同机或同一个 Docker 网络
+- 云效流水线：云效 Go 1.25.3 构建 → 构建镜像 → 推送 ACR 的 `latest` → 京东云应用机执行 `docker compose up -d`；Compose 自动拉取镜像，数据库迁移在发布前单独完成
 - 没有测试环境：新功能先用功能开关只对自己的账号打开
 
 ## 完成一张卡前自检
