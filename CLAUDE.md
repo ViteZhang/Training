@@ -68,7 +68,8 @@
 ## 环境与发布
 
 - 只有一个生产环境：API 为 https://training.dreamerlab.cn/api/v1；管理后台在 peetraining-admin 仓库，地址 https://training.dreamerlab.cn/admin/
-- 管理后台：peetraining-admin 仓库 Docker 构建，应用机 docker compose 部署，宿主机 Nginx 反代 /admin/
+- 管理后台：peetraining-admin 仓库 Docker 构建，部署在阿里云 47.95.34.95（training-admin），阿里云 Nginx 反代 /admin/
+- App 调的 API 在京东云 111.228.45.235，由阿里云 Nginx 经 WireGuard 隧道（10.88.0.0/24）反代，App 侧地址不变；见 peetraining-server/docs/runbook.md「生产拓扑」
 - App：EAS Build 三个配置 development / preview（内测）/ production；安卓内测包放 OSS，iOS 走 TestFlight
 
 ## 约定
