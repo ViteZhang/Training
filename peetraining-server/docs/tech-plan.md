@@ -26,6 +26,7 @@
 ## 架构
 
 - App 和管理后台只调用 Go API；数据库、存储、模型和第三方服务都在 API 后面，客户端不持有任何云服务密钥
+- 2026-11 起实际拓扑：阿里云 47.95.34.95 放 Nginx、MySQL、Redis、Qdrant 和前端；京东云 111.228.45.235 放 api、worker；两边走 WireGuard 隧道（10.88.0.0/24），见 runbook「生产拓扑」。以下两行是最初方案。
 - 应用机（4 核 16G）：nginx（HTTPS、反向代理、托管后台网页）、api、worker、asynqmon（仅内网）
 - 数据库机：mysql、redis，安全组只放行应用机内网访问；MySQL 数据放独立数据盘并启用云盘加密
 - 对外只有一个域名 training.dreamerlab.cn：App 调 /api/v1/，后台接口 /api/v1/admin/，后台网页 /admin/

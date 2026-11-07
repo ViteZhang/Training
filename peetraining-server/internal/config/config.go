@@ -156,6 +156,24 @@ type SMSConfig struct {
 	Endpoint string
 	// TestPhones 是测试账号：获取验证码时不发短信，验证码固定为 000000（SMS_TEST_PHONES）。
 	TestPhones map[string]bool
+	// AdminFixedCode 是后台账号两步验证的固定验证码（ADMIN_2FA_FIXED_CODE）：非空时登录不发短信，所有后台账号都用它。
+	// 默认 000000；设 off 恢复真实短信。账号密码与错误次数限制照常生效。
+	AdminFixedCode string
+}
+
+// defaultAdminFixedCode 是后台两步验证的默认固定验证码。
+const defaultAdminFixedCode = "000000"
+
+// parseAdminFixedCode 解析 ADMIN_2FA_FIXED_CODE：off 表示发真实短信，否则必须是 6 位数字。
+func parseAdminFixedCode(v string) (string, error) {
+	v = strings.TrimSpace(v)
+	if v == "off" {
+		return "", nil
+	}
+	if len(v) != 6 || strings.Trim(v, "0123456789") != "" {
+		return "", fmt.Errorf("ADMIN_2FA_FIXED_CODE 需为 6 位数字或 off，当前是 %q", v)
+	}
+	return v, nil
 }
 
 // defaultTestPhones 是默认的测试账号 18600010001～18600010010；设 SMS_TEST_PHONES=off 关闭。
@@ -323,6 +341,10 @@ func load(getenv func(string) string) (*Config, error) {
 	cfg.AI.Prices = prices
 
 	cfg.SMS.TestPhones, err = parseTestPhones(get("SMS_TEST_PHONES", defaultTestPhones))
+	if err != nil {
+		errs = append(errs, err)
+	}
+	cfg.SMS.AdminFixedCode, err = parseAdminFixedCode(get("ADMIN_2FA_FIXED_CODE", defaultAdminFixedCode))
 	if err != nil {
 		errs = append(errs, err)
 	}
