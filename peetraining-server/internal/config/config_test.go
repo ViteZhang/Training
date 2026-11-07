@@ -162,6 +162,26 @@ func TestLoadSMSTestPhones(t *testing.T) {
 	}
 }
 
+func TestLoadAdminFixedCode(t *testing.T) {
+	cfg, err := load(envFrom(nil))
+	if err != nil || cfg.SMS.AdminFixedCode != "000000" {
+		t.Fatalf("后台两步验证默认固定 000000：%q %v", cfg.SMS.AdminFixedCode, err)
+	}
+	cfg, err = load(envFrom(map[string]string{"ADMIN_2FA_FIXED_CODE": "off"}))
+	if err != nil || cfg.SMS.AdminFixedCode != "" {
+		t.Fatalf("off 应恢复真实短信：%q %v", cfg.SMS.AdminFixedCode, err)
+	}
+	cfg, err = load(envFrom(map[string]string{"ADMIN_2FA_FIXED_CODE": "123456"}))
+	if err != nil || cfg.SMS.AdminFixedCode != "123456" {
+		t.Fatalf("自定义固定验证码：%q %v", cfg.SMS.AdminFixedCode, err)
+	}
+	for _, v := range []string{"12345", "abcdef", "1234567"} {
+		if _, err := load(envFrom(map[string]string{"ADMIN_2FA_FIXED_CODE": v})); err == nil || !strings.Contains(err.Error(), "ADMIN_2FA_FIXED_CODE") {
+			t.Fatalf("%q 应报错：%v", v, err)
+		}
+	}
+}
+
 func TestVoiceModelConfigIsIndependent(t *testing.T) {
 	cfg, err := load(envFrom(map[string]string{"BAILIAN_BASE_URL": "https://model.invalid/v1", "BAILIAN_API_KEY": "test-key", "AI_MODEL_STRONG": "qwen3.8-flash"}))
 	if err != nil || cfg.ASRBaseURL != "https://model.invalid/v1" || cfg.ASRAPIKey != "test-key" || cfg.ASRModel != "qwen3-asr-flash" {

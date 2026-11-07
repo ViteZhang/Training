@@ -87,6 +87,7 @@ type Challenge struct {
 }
 
 // Login 第一步：校验账号密码，通过后给账号绑定的手机发短信验证码（所有后台账号强制两步验证）。
+// 配了固定验证码（ADMIN_2FA_FIXED_CODE，默认 000000）时不发短信，验证码就是它。
 func (s *Service) Login(ctx context.Context, username, password string) (Challenge, error) {
 	if err := s.checkLocked(ctx, username); err != nil {
 		return Challenge{}, err
@@ -109,10 +110,17 @@ func (s *Service) Login(ctx context.Context, username, password string) (Challen
 		return Challenge{}, apperr.New(apperr.Forbidden, "账号已停用")
 	}
 	id, code := randomHex(16), sixDigits()
+	if s.d.FixedCode != "" {
+		code = s.d.FixedCode
+	}
 	if err := s.d.Redis.HSet(ctx, challengeKey(id), map[string]any{"admin_id": a.ID, "code": code, "username": a.Username}).Err(); err != nil {
 		return Challenge{}, err
 	}
 	s.d.Redis.Expire(ctx, challengeKey(id), challengeTTL)
+	if s.d.FixedCode != "" {
+		// 固定验证码：不调用短信，不花短信费，也不受短信频控影响。
+		return Challenge{ID: id, PhoneMasked: MaskPhone(a.Phone)}, nil
+	}
 	if err := s.d.SMS.SendCode(ctx, a.Phone, code); err != nil {
 		return Challenge{}, fmt.Errorf("发送两步验证码：%w", err)
 	}
