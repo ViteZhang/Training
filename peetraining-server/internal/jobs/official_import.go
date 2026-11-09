@@ -21,6 +21,7 @@ const (
 type OfficialImporter interface {
 	ProcessImport(ctx context.Context, fileID uint64) error
 	ProcessImportFill(ctx context.Context, fileID uint64) error
+	ProcessImportItemFill(ctx context.Context, itemID uint64, regenerate bool) error
 	RecoverImports(ctx context.Context) error
 }
 
@@ -75,4 +76,32 @@ func (h *Handlers) handleOfficialImportFill(ctx context.Context, t *asynq.Task) 
 		return nil
 	}
 	return h.Official.ProcessImportFill(ctx, payload.ID)
+}
+
+// TypeOfficialImportItemFill 是单题「生成答案 / 重新生成」：同步执行会超过反向代理的等待时间，放到 Worker 里。
+const TypeOfficialImportItemFill = "official:import_item_fill"
+
+type officialItemFillPayload struct {
+	ID         uint64 `json:"id"`
+	Regenerate bool   `json:"regenerate,omitempty"`
+}
+
+// NewOfficialImportItemFillTask 创建单题生成任务。不重试：失败原因记在题目上，编辑可以再点。
+func NewOfficialImportItemFillTask(itemID uint64, regenerate bool) (*asynq.Task, error) {
+	data, err := json.Marshal(officialItemFillPayload{ID: itemID, Regenerate: regenerate})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TypeOfficialImportItemFill, data, asynq.Queue(QueueDefault), asynq.MaxRetry(0), asynq.Timeout(10*time.Minute)), nil
+}
+
+func (h *Handlers) handleOfficialImportItemFill(ctx context.Context, t *asynq.Task) error {
+	var payload officialItemFillPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil || payload.ID == 0 {
+		return asynq.SkipRetry
+	}
+	if h.Official == nil {
+		return nil
+	}
+	return h.Official.ProcessImportItemFill(ctx, payload.ID, payload.Regenerate)
 }
