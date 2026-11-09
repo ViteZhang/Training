@@ -348,6 +348,47 @@ func (q *Queries) GetTextbookRevisionRequest(ctx context.Context, arg GetTextboo
 	return i, err
 }
 
+const getTextbookRevisionSection = `-- name: GetTextbookRevisionSection :one
+SELECT CAST(JSON_EXTRACT(sections, CONCAT('$[', ?, ']')) AS JSON) AS section
+FROM textbook_revisions WHERE id = ? AND edition_id = ?
+`
+
+type GetTextbookRevisionSectionParams struct {
+	Idx       interface{}
+	ID        uint64
+	EditionID uint64
+}
+
+// 取一节原文（sections 数组下标从 0 开始），用于核对检索命中的片段。
+func (q *Queries) GetTextbookRevisionSection(ctx context.Context, arg GetTextbookRevisionSectionParams) (json.RawMessage, error) {
+	row := q.db.QueryRowContext(ctx, getTextbookRevisionSection, arg.Idx, arg.ID, arg.EditionID)
+	var section json.RawMessage
+	err := row.Scan(&section)
+	return section, err
+}
+
+const getTextbookRevisionState = `-- name: GetTextbookRevisionState :one
+SELECT content_hash, reviewed_at FROM textbook_revisions WHERE id = ? AND edition_id = ?
+`
+
+type GetTextbookRevisionStateParams struct {
+	ID        uint64
+	EditionID uint64
+}
+
+type GetTextbookRevisionStateRow struct {
+	ContentHash string
+	ReviewedAt  sql.NullTime
+}
+
+// 检索只需要校验内容哈希与校对状态，不读整本书的 sections（多本书检索时整本读取太慢）。
+func (q *Queries) GetTextbookRevisionState(ctx context.Context, arg GetTextbookRevisionStateParams) (GetTextbookRevisionStateRow, error) {
+	row := q.db.QueryRowContext(ctx, getTextbookRevisionState, arg.ID, arg.EditionID)
+	var i GetTextbookRevisionStateRow
+	err := row.Scan(&i.ContentHash, &i.ReviewedAt)
+	return i, err
+}
+
 const listTextbookEditions = `-- name: ListTextbookEditions :many
 SELECT id, book_id, edition, publisher, publication_year, isbn, license_note, authorized, scope_note, status, current_revision_id, created_by, request_key, request_hash, created_at, version, current_generation_id, license_expires_at, excerpts_enabled FROM textbook_editions WHERE book_id = ? ORDER BY id
 `

@@ -53,12 +53,14 @@ func (s *Service) searchRevision(ctx context.Context, book, edition, revision, g
 	}
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
-	r, err := s.GetRevision(ctx, book, edition, revision)
-	if err != nil {
-		return out, err
-	}
 	q := dbq.New(s.db)
 	e, err := q.GetTextbookEdition(ctx, dbq.GetTextbookEditionParams{ID: edition, BookID: book})
+	if err != nil {
+		return out, mapError(err)
+	}
+	// 只读哈希与校对状态；命中片段所在的节再单独取。整本书的 sections 有几 MB，
+	// 生成答案时关联的每本书都要检索，整本读取会把时间耗在传输和解码上。
+	r, err := q.GetTextbookRevisionState(ctx, dbq.GetTextbookRevisionStateParams{ID: revision, EditionID: edition})
 	if err != nil {
 		return out, mapError(err)
 	}
@@ -117,15 +119,23 @@ func (s *Service) searchRevision(ctx context.Context, book, edition, revision, g
 		scores[uint32(h.ID)] = h.Score
 	}
 	used := 0
+	sections := map[uint32]rules.TextbookSection{}
 	for _, rank := range rules.FuseTextbookRanks(ft, vec) {
 		chunk, err := q.GetTextbookChunk(ctx, dbq.GetTextbookChunkParams{GenerationID: g.ID, Ordinal: rank.Ordinal})
 		if err != nil {
 			return out, err
 		}
-		if chunk.SectionNo < 1 || int(chunk.SectionNo) > len(r.Sections) {
-			return out, errors.New("片段定位损坏")
+		sec, ok := sections[chunk.SectionNo]
+		if !ok {
+			raw, err := q.GetTextbookRevisionSection(ctx, dbq.GetTextbookRevisionSectionParams{Idx: int64(chunk.SectionNo) - 1, ID: revision, EditionID: edition})
+			if err != nil {
+				return out, err
+			}
+			if chunk.SectionNo < 1 || len(raw) == 0 || string(raw) == "null" || json.Unmarshal(raw, &sec) != nil {
+				return out, errors.New("片段定位损坏")
+			}
+			sections[chunk.SectionNo] = sec
 		}
-		sec := r.Sections[chunk.SectionNo-1]
 		runes := []rune(sec.Text)
 		if chunk.EndRune > uint32(len(runes)) || chunk.StartRune >= chunk.EndRune || string(runes[chunk.StartRune:chunk.EndRune]) != chunk.Body {
 			return out, errors.New("片段与校对原文不一致")
@@ -144,7 +154,7 @@ func (s *Service) searchRevision(ctx context.Context, book, edition, revision, g
 		}
 	}
 	// 长检索期间校对被修改或授权被撤销时拒绝返回旧草稿结果。
-	current, err := q.GetTextbookRevision(ctx, dbq.GetTextbookRevisionParams{ID: revision, EditionID: edition})
+	current, err := q.GetTextbookRevisionState(ctx, dbq.GetTextbookRevisionStateParams{ID: revision, EditionID: edition})
 	if err != nil {
 		return out, err
 	}
