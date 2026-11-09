@@ -52,6 +52,15 @@ FROM textbook_revisions WHERE edition_id = ? ORDER BY revision_no DESC;
 -- name: GetTextbookRevision :one
 SELECT * FROM textbook_revisions WHERE id = ? AND edition_id = ?;
 
+-- name: GetTextbookRevisionState :one
+-- 检索只需要校验内容哈希与校对状态，不读整本书的 sections（多本书检索时整本读取太慢）。
+SELECT content_hash, reviewed_at FROM textbook_revisions WHERE id = ? AND edition_id = ?;
+
+-- name: GetTextbookRevisionSection :one
+-- 取一节原文（sections 数组下标从 0 开始），用于核对检索命中的片段。
+SELECT CAST(JSON_EXTRACT(sections, CONCAT('$[', sqlc.arg(idx), ']')) AS JSON) AS section
+FROM textbook_revisions WHERE id = sqlc.arg(id) AND edition_id = sqlc.arg(edition_id);
+
 -- name: LockTextbookRevision :one
 SELECT * FROM textbook_revisions WHERE id = ? AND edition_id = ? FOR UPDATE;
 
