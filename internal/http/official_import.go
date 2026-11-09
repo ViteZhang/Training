@@ -218,6 +218,18 @@ func (h *Handlers) AdminCreateOfficialFramework(c *gin.Context, projectID int64)
 	c.JSON(http.StatusOK, toGenImportFile(f))
 }
 
+// AdminDeleteOfficialImport 删除一份导入的资料（重新导入前清理）。
+func (h *Handlers) AdminDeleteOfficialImport(c *gin.Context, projectID, fileID int64) {
+	if !h.canProject(c, projectID) {
+		return
+	}
+	if err := h.deps.Official.DeleteImportFile(c.Request.Context(), uint64(projectID), uint64(fileID)); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // AdminRejectOfficialImportDuplicates 一键驳回标为重复的题（T52）。
 func (h *Handlers) AdminRejectOfficialImportDuplicates(c *gin.Context, projectID, fileID int64) {
 	if !h.canProject(c, projectID) {

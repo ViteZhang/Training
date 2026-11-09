@@ -78,3 +78,20 @@ ORDER BY i.file_id, i.seq;
 SELECT id, payload FROM official_drafts
 WHERE project_id = ? AND entity_type = 'question' AND change_type = 'add' AND status IN ('draft', 'submitted', 'approved')
 ORDER BY id;
+
+-- name: LockOfficialImportFile :one
+SELECT * FROM official_import_files WHERE id = ? FOR UPDATE;
+
+-- name: CountPublishedOfficialImportDrafts :one
+SELECT COUNT(*) FROM official_drafts
+WHERE status = 'published' AND id IN (SELECT draft_id FROM official_import_items WHERE file_id = ? AND draft_id IS NOT NULL);
+
+-- name: DeleteOfficialImportReviewTasks :exec
+DELETE FROM review_tasks WHERE draft_id IN (SELECT draft_id FROM official_import_items WHERE file_id = ? AND draft_id IS NOT NULL);
+
+-- name: DeleteOfficialImportDrafts :exec
+DELETE FROM official_drafts WHERE id IN (SELECT draft_id FROM official_import_items WHERE file_id = ? AND draft_id IS NOT NULL);
+
+-- name: DeleteOfficialImportFile :exec
+-- 解析出的题随外键级联删除。
+DELETE FROM official_import_files WHERE id = ?;
