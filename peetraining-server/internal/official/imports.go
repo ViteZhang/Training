@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -63,8 +64,10 @@ const (
 	maxImportBytes = 50 << 20
 	// importAIParallel 是一份资料同时调用模型的请求数，与用户端导入（importer.aiParallel）一致，不至于触发平台限流。
 	importAIParallel = 3
-	maxImportRunes   = 400000
-	importPrefix     = "official-imports/"
+	// maxFillRateLimits 是补答案时累计限流的容忍次数；超过就停止整份资料，避免 429 风暴。
+	maxFillRateLimits = 3
+	maxImportRunes    = 400000
+	importPrefix      = "official-imports/"
 	// tagBatch 是归知识点时每批交给模型的题数（与用户端导入一致）。
 	tagBatch = 30
 	// structureRetryDelay 是结构化遇到平台错误后再试一次前的等待。
@@ -215,6 +218,10 @@ func (s *Service) enqueueImport(ctx context.Context, fileID uint64) error {
 		return err
 	}
 	_, err = s.imports.Queue.EnqueueContext(ctx, t)
+	if errors.Is(err, asynq.ErrDuplicateTask) || errors.Is(err, asynq.ErrTaskIDConflict) {
+		// 同一份资料已有解析任务在排队/运行：不重复入队，避免并发重跑同一份资料。
+		return nil
+	}
 	return err
 }
 
@@ -252,12 +259,24 @@ func (s *Service) ProcessImport(ctx context.Context, fileID uint64) error {
 	}
 	items, text, err := s.parseImport(ctx, f)
 	if err != nil {
-		reason := importFailReason(err)
-		s.d.Log.WarnContext(ctx, "official import failed", "file_id", fileID, "err", err)
-		return s.q.SetOfficialImportStatus(ctx, dbq.SetOfficialImportStatusParams{Status: dbq.OfficialImportFilesStatusFailed, FailReason: nullStr(cutRunes(reason, 255)), ID: fileID})
+		reason := "解析失败，请稍后重试或改用表格导入"
+		var ue *extract.UserError
+		var ae *apperr.Error
+		switch {
+		case errors.Is(err, cloudai.ErrInsufficientBalance):
+			reason = "AI 服务余额不足，本次解析已停止，充值后重新解析"
+		case errors.Is(err, cloudai.ErrRateLimited):
+			reason = "AI 服务限流，本次解析已停止，请稍后重试"
+		case errors.As(err, &ue):
+			reason = ue.Msg
+		case errors.As(err, &ae) && ae.Kind == apperr.BadRequest:
+			reason = ae.Message
+		}
+		s.d.Log.WarnContext(context.WithoutCancel(ctx), "official import failed", "file_id", fileID, "err", err)
+		return s.failImport(ctx, fileID, reason)
 	}
 	if err := s.q.DeleteOfficialImportItems(ctx, fileID); err != nil {
-		return err
+		return s.failImport(ctx, fileID, "解析结果保存失败，请稍后重试")
 	}
 	qs, ks := 0, 0
 	for i, it := range items {
@@ -268,11 +287,21 @@ func (s *Service) ProcessImport(ctx context.Context, fileID uint64) error {
 		}
 		it.FileID, it.ProjectID, it.Seq = fileID, f.ProjectID, uint32(i+1)
 		if err := s.q.InsertOfficialImportItem(ctx, it); err != nil {
-			return err
+			return s.failImport(ctx, fileID, "解析结果保存失败，请稍后重试")
 		}
 	}
-	return s.q.SetOfficialImportParsed(ctx, dbq.SetOfficialImportParsedParams{Content: sql.NullString{String: cutRunes(text, maxImportRunes), Valid: true},
-		QuestionCount: uint32(qs), KpCount: uint32(ks), ID: fileID})
+	if err := s.q.SetOfficialImportParsed(ctx, dbq.SetOfficialImportParsedParams{Content: sql.NullString{String: cutRunes(text, maxImportRunes), Valid: true},
+		QuestionCount: uint32(qs), KpCount: uint32(ks), ID: fileID}); err != nil {
+		return s.failImport(ctx, fileID, "解析结果保存失败，请稍后重试")
+	}
+	return nil
+}
+
+// failImport 写失败状态。任务超时或取消后 ctx 已经失效，必须用 WithoutCancel 落库；
+// 否则状态会停在 parsing，恢复任务每 15 分钟重排一次同一份资料，反复调用模型（2026-11-04 重复烧 token 的原因之一）。
+func (s *Service) failImport(ctx context.Context, fileID uint64, reason string) error {
+	return s.q.SetOfficialImportStatus(context.WithoutCancel(ctx), dbq.SetOfficialImportStatusParams{
+		Status: dbq.OfficialImportFilesStatusFailed, FailReason: nullStr(cutRunes(reason, 255)), ID: fileID})
 }
 
 // importFailReason 是资料卡上显示的失败原因（只给后台编辑看）：分清是模型服务、超时还是资料本身的问题，
@@ -439,6 +468,15 @@ func needsFill(p QuestionPayload) bool {
 		return true
 	}
 	return ai.Subjective(p.QType) && len(p.Rubric) == 0
+}
+
+// fillFailureFatal 判断补答案错误是否应停止整份资料：余额不足立即停；累计限流达到阈值也停，
+// 避免余额为 0 或平台限流时继续为剩余题目逐条发请求。
+func fillFailureFatal(err error, rateLimits int) bool {
+	if errors.Is(err, cloudai.ErrInsufficientBalance) {
+		return true
+	}
+	return errors.Is(err, cloudai.ErrRateLimited) && rateLimits >= maxFillRateLimits
 }
 
 // fillAnswer 补参考答案与采分点（T49）：
@@ -660,12 +698,21 @@ func (s *Service) parseQuestions(ctx context.Context, f dbq.OfficialImportFile, 
 		if err != nil {
 			return nil, err
 		}
+		var rateLimits atomic.Int32
 		fill, fctx := errgroup.WithContext(ctx)
 		fill.SetLimit(importAIParallel)
 		for i := range qs {
 			fill.Go(func() error {
 				cite, filled, err := s.fillAnswer(fctx, f.ProjectID, &qs[i].p, defaults)
 				if err != nil {
+					n := 0
+					if errors.Is(err, cloudai.ErrRateLimited) {
+						n = int(rateLimits.Add(1))
+					}
+					if fillFailureFatal(err, n) {
+						// 余额不足或累计限流：停止整份资料，避免继续逐题空打请求。
+						return err
+					}
 					// 单题补答案失败不拖垮整份：原因记在条目上，编辑可以再点「生成答案」。
 					s.d.Log.WarnContext(fctx, "official import fill answer failed", "file_id", f.ID, "err", err)
 					qs[i].fillErr = fillErrorText(err)
@@ -675,7 +722,9 @@ func (s *Service) parseQuestions(ctx context.Context, f dbq.OfficialImportFile, 
 				return nil
 			})
 		}
-		_ = fill.Wait()
+		if err := fill.Wait(); err != nil {
+			return nil, err // 余额不足/累计限流：整份停止，交给任务层稍后重试
+		}
 		if err := ctx.Err(); err != nil {
 			return nil, err // 任务超时或被取消：交给重试，不保存一半没补答案的结果
 		}

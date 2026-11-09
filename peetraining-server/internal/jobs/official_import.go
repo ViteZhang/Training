@@ -32,7 +32,10 @@ func NewOfficialImportTask(fileID uint64) (*asynq.Task, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Unique 防止同一份资料在任务运行期间被恢复任务/手动重试重复入队：
+	// 单份资料最长 1 小时，取 90 分钟覆盖整个运行期；重复入队由 enqueueImport 忽略。
 	return asynq.NewTask(TypeOfficialImport, data, asynq.Queue(QueueLow), asynq.MaxRetry(2), asynq.Timeout(time.Hour),
+		asynq.Unique(90*time.Minute),
 		asynq.TaskID(fmt.Sprintf("%s:%d:%d", TypeOfficialImport, fileID, time.Now().Unix()/60))), nil
 }
 
