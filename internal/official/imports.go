@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
@@ -469,6 +470,15 @@ func needsFill(p QuestionPayload) bool {
 	return ai.Subjective(p.QType) && len(p.Rubric) == 0
 }
 
+// fillFailureFatal 判断补答案错误是否应停止整份资料：余额不足立即停；累计限流达到阈值也停，
+// 避免余额为 0 或平台限流时继续为剩余题目逐条发请求。
+func fillFailureFatal(err error, rateLimits int) bool {
+	if errors.Is(err, cloudai.ErrInsufficientBalance) {
+		return true
+	}
+	return errors.Is(err, cloudai.ErrRateLimited) && rateLimits >= maxFillRateLimits
+}
+
 // fillAnswer 补参考答案与采分点（T49）：
 //   - 主观题有答案、缺采分点：从答案提采分点，答案仍算原文的
 //   - 缺答案：AI 生成参考答案（主观题连同采分点；已经填了采分点的保留），优先引用项目关联的官方教材，标「AI 生成」（answer_ai）
@@ -688,12 +698,21 @@ func (s *Service) parseQuestions(ctx context.Context, f dbq.OfficialImportFile, 
 		if err != nil {
 			return nil, err
 		}
+		var rateLimits atomic.Int32
 		fill, fctx := errgroup.WithContext(ctx)
 		fill.SetLimit(importAIParallel)
 		for i := range qs {
 			fill.Go(func() error {
 				cite, filled, err := s.fillAnswer(fctx, f.ProjectID, &qs[i].p, defaults)
 				if err != nil {
+					n := 0
+					if errors.Is(err, cloudai.ErrRateLimited) {
+						n = int(rateLimits.Add(1))
+					}
+					if fillFailureFatal(err, n) {
+						// 余额不足或累计限流：停止整份资料，避免继续逐题空打请求。
+						return err
+					}
 					// 单题补答案失败不拖垮整份：原因记在条目上，编辑可以再点「生成答案」。
 					s.d.Log.WarnContext(fctx, "official import fill answer failed", "file_id", f.ID, "err", err)
 					qs[i].fillErr = fillErrorText(err)
@@ -703,7 +722,9 @@ func (s *Service) parseQuestions(ctx context.Context, f dbq.OfficialImportFile, 
 				return nil
 			})
 		}
-		_ = fill.Wait()
+		if err := fill.Wait(); err != nil {
+			return nil, err // 余额不足/累计限流：整份停止，交给任务层稍后重试
+		}
 		if err := ctx.Err(); err != nil {
 			return nil, err // 任务超时或被取消：交给重试，不保存一半没补答案的结果
 		}
