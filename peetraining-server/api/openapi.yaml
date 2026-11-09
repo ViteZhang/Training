@@ -6622,6 +6622,20 @@ paths:
                   text: { type: string, description: 原文 }
                   items: { type: array, items: { $ref: "#/components/schemas/OfficialImportItem" } }
         "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [admin]
+      operationId: adminDeleteOfficialImport
+      summary: 删除一份导入的资料，连同解析出的题、核对时生成的草稿与审核任务
+      description: 其中有题已经发布到题库时不能删除（409）。正在解析、补全时也可以删，后台任务发现资料不在了会自行结束。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: fileId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "204": { description: 已删除 }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /admin/official/projects/{projectId}/imports/{fileId}/confirm:
     post:
       tags: [admin]
