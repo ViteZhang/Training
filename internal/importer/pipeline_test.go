@@ -96,7 +96,7 @@ func TestAssembleStructuredFallback(t *testing.T) {
 	if len(ordered) != 3 {
 		t.Fatalf("应输出 3 条，实际 %d 条", len(ordered))
 	}
-	if ordered[2].Block != 3 || ordered[2].Confidence > fallbackConfidence {
+	if ordered[2].Block != 3 || ordered[2].Confidence > FallbackConfidence {
 		t.Fatalf("缺失块应由规则兜底并降低置信度：%+v", ordered[2])
 	}
 
