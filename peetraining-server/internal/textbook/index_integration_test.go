@@ -24,6 +24,8 @@ type fakeVector struct {
 	failAt   int
 	writes   int
 	onVerify func()
+	// score 按集合给向量相似度；为空时都是 0.9。
+	score func(name string) float64
 }
 
 func (v *fakeVector) Ensure(_ context.Context, name string, _ int) error {
@@ -65,7 +67,11 @@ func (v *fakeVector) Search(_ context.Context, name string, _ vector.Scope, _ []
 	defer v.mu.Unlock()
 	out := []vector.Hit{}
 	for i := 1; i <= len(v.points[name]) && i <= limit; i++ {
-		out = append(out, vector.Hit{ID: uint64(i), Score: .9})
+		score := .9
+		if v.score != nil {
+			score = v.score(name)
+		}
+		out = append(out, vector.Hit{ID: uint64(i), Score: score})
 	}
 	return out, nil
 }
