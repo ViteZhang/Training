@@ -414,6 +414,8 @@ type GenerateAnswerIn struct {
 	Score     float64         `json:"score"`
 	Textbooks []string        `json:"textbooks,omitempty"`
 	Context   []AnswerContext `json:"context,omitempty"`
+	// RejectedClaims 是上一次引文核验判为原文不支持的观点（v5）：重新生成时不再为它们引用原文。
+	RejectedClaims []string `json:"rejected_claims,omitempty"`
 }
 
 // AnswerContext 是一段用户资料（或官方参考素材）的原文。
@@ -435,7 +437,7 @@ type GenerateAnswerOut struct {
 }
 
 var GenerateAnswer = &Cap[GenerateAnswerIn, GenerateAnswerOut]{
-	Def: Def{Name: "answer_generate", Version: "v4", Tier: "strong", Temperature: 0.3, Schema: `{
+	Def: Def{Name: "answer_generate", Version: "v5", Tier: "strong", Temperature: 0.3, Schema: `{
 		"type": "object", "required": ["answer", "points", "citations", "uses_general_knowledge"],
 		"properties": {
 			"answer": {"type": "string", "minLength": 1},
