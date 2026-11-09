@@ -26,7 +26,7 @@ func regenerable(it dbq.OfficialImportItem) (QuestionPayload, bool) {
 	return p, p.AnswerAI && strings.TrimSpace(p.Answer) != ""
 }
 
-// RegenerateImportItem 重新生成一道题的 AI 答案（同步）；失败时原来的答案不变，原因记在条目上。
+// RegenerateImportItem 重新生成一道题的 AI 答案（有队列时在 Worker 里执行，见 item_fill.go）；失败时原来的答案不变，原因记在条目上。
 func (s *Service) RegenerateImportItem(ctx context.Context, projectID, itemID uint64) (ImportItem, error) {
 	it, err := s.q.GetOfficialImportItem(ctx, itemID)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && it.ProjectID != projectID) {
@@ -48,6 +48,12 @@ func (s *Service) RegenerateImportItem(ctx context.Context, projectID, itemID ui
 	}
 	if f.FillStatus == dbq.OfficialImportFilesFillStatusRunning {
 		return ImportItem{}, apperr.New(apperr.Conflict, "正在补全，请稍候")
+	}
+	if fillingAt(p, s.now()) {
+		return ImportItem{}, apperr.New(apperr.Conflict, "这道题正在生成答案，请稍候")
+	}
+	if s.asyncItemFill() {
+		return s.queueItemFill(ctx, it, p, true)
 	}
 	defaults, err := s.defaultScores(ctx, projectID)
 	if err != nil {
@@ -85,6 +91,9 @@ func (s *Service) RegenerateImportFile(ctx context.Context, projectID, fileID ui
 	total := 0
 	for _, r := range rows {
 		if p, ok := regenerable(r); ok {
+			if fillingAt(p, s.now()) {
+				continue // 单题生成中的交给它自己的任务
+			}
 			if !p.Regenerate {
 				marks = append(marks, r)
 			}

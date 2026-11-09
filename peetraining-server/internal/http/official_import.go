@@ -147,6 +147,7 @@ type importItemJSON struct {
 	DuplicateOf    *string              `json:"duplicate_of,omitempty"`
 	SeenYears      []int                `json:"seen_years,omitempty"`
 	AnswerAI       bool                 `json:"answer_ai,omitempty"`
+	Filling        bool                 `json:"filling,omitempty"`
 	AnswerBasis    *answerBasisJSON     `json:"answer_basis,omitempty"`
 }
 
@@ -164,7 +165,7 @@ func toImportItemJSON(it official.ImportItem) importItemJSON {
 	}
 	out := importItemJSON{ID: it.ID, ItemType: it.ItemType, Seq: it.Seq, Payload: it.Payload, Citations: cs, SourceText: optStr(it.SourceText), Page: it.Page,
 		Confidence: it.Confidence, Status: it.Status, DraftID: optID(it.DraftID), RubricMismatch: it.RubricMismatch, NeedsFill: it.NeedsFill,
-		FillError: optStr(it.FillError), DuplicateOf: optStr(it.Duplicate), SeenYears: it.SeenYears, AnswerAI: it.AnswerAI}
+		FillError: optStr(it.FillError), DuplicateOf: optStr(it.Duplicate), SeenYears: it.SeenYears, AnswerAI: it.AnswerAI, Filling: it.Filling}
 	if b := it.AnswerBasis; b != nil && it.AnswerAI { // 只引用了考纲、经验总结时也说明（T55）
 		out.AnswerBasis = &answerBasisJSON{Reason: b.Reason, Message: ai.BasisMessage(b.Reason), Details: b.Details}
 	}

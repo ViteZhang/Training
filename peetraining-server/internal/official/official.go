@@ -72,6 +72,8 @@ type QuestionPayload struct {
 	AnswerBasis *ai.AnswerBasis `json:"answer_basis,omitempty"`
 	RubricKept  bool            `json:"rubric_kept,omitempty"`
 	Regenerate  bool            `json:"regenerate,omitempty"`
+	// FillQueuedAt 是编辑点了单题「生成答案 / 重新生成」、Worker 还没生成完的时间（核对区显示「生成中」），同样不进草稿。
+	FillQueuedAt *time.Time `json:"fill_queued_at,omitempty"`
 	// Group 不为空是限选题（T51）：按专业分组的题（「第一组：请选择文艺学专业的考生作答」，回答非报考专业不得分），
 	// 只有报考这些专业的考生要答；为空是必答题。
 	Group *QuestionGroup `json:"group,omitempty"`

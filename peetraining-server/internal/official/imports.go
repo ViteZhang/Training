@@ -57,6 +57,8 @@ type ImportDeps struct {
 	NewTask func(fileID uint64) (*asynq.Task, error)
 	// NewFillTask 创建一键补全任务（jobs.NewOfficialImportFillTask）。
 	NewFillTask func(fileID uint64) (*asynq.Task, error)
+	// NewItemFillTask 创建单题生成任务（jobs.NewOfficialImportItemFillTask）。
+	NewItemFillTask func(itemID uint64, regenerate bool) (*asynq.Task, error)
 }
 
 // ConfigureImports 接上 7.17 的云服务；没配置时只能粘贴文字与表格导入，且同步解析。
@@ -1009,6 +1011,8 @@ type ImportItem struct {
 	// AnswerAI 是答案由 AI 生成（还没核对的可以「按关联教材重新生成」）；AnswerBasis 是没有引用教材的原因（T53）。
 	AnswerAI    bool
 	AnswerBasis *ai.AnswerBasis
+	// Filling 是单题「生成答案 / 重新生成」已排队、还没生成完。
+	Filling bool
 }
 
 // ImportDetail 是核对区：原文与解析结果。
@@ -1081,6 +1085,7 @@ func toImportItem(r dbq.OfficialImportItem) ImportItem {
 			it.RubricMismatch = !RubricMatches(p)
 			it.NeedsFill = needsFill(p)
 			it.AnswerAI, it.AnswerBasis = p.AnswerAI && strings.TrimSpace(p.Answer) != "", p.AnswerBasis
+			it.Filling = fillingAt(p, time.Now())
 		}
 	}
 	return it
@@ -1119,6 +1124,9 @@ func (s *Service) ReviewImportItem(ctx context.Context, editorID, projectID, ite
 		if err := json.Unmarshal(payload, &p); err != nil {
 			return 0, apperr.New(apperr.BadRequest, "题目格式不正确")
 		}
+		if fillingAt(p, s.now()) {
+			return 0, apperr.New(apperr.Conflict, "这道题正在生成答案，请稍候")
+		}
 		if p.Regenerate {
 			// 整份重新生成还在跑时先别接受；跑完了还带着标记是重新生成失败，接受原来的答案。
 			f, err := s.q.GetOfficialImportFile(ctx, it.FileID)
@@ -1130,8 +1138,8 @@ func (s *Service) ReviewImportItem(ctx context.Context, editorID, projectID, ite
 			}
 		}
 		// 核对区的说明不进草稿（T53）。
-		if p.AnswerBasis != nil || p.RubricKept || p.Regenerate {
-			p.AnswerBasis, p.RubricKept, p.Regenerate = nil, false, false
+		if p.AnswerBasis != nil || p.RubricKept || p.Regenerate || p.FillQueuedAt != nil {
+			p.AnswerBasis, p.RubricKept, p.Regenerate, p.FillQueuedAt = nil, false, false, nil
 			payload, _ = json.Marshal(p)
 		}
 		if ai.Subjective(p.QType) && len(p.Rubric) == 0 {
@@ -1215,7 +1223,8 @@ func (s *Service) fillItemWith(ctx context.Context, it dbq.OfficialImportItem, p
 	return nil
 }
 
-// FillImportItem 「生成答案 / 提取采分点」：给一道还没核对的题补上（缺答案的 AI 生成，有答案缺采分点的从答案提），返回补好的条目。
+// FillImportItem 「生成答案 / 提取采分点」：给一道还没核对的题补上（缺答案的 AI 生成，有答案缺采分点的从答案提），返回补好的条目；
+// 有队列时只排队，返回生成中的条目（见 item_fill.go）。
 // 失败时返回原因（缺分值且同题型没有可参考的、模型输出不合格等），原因同时记在条目上。
 func (s *Service) FillImportItem(ctx context.Context, projectID, itemID uint64) (ImportItem, error) {
 	it, err := s.q.GetOfficialImportItem(ctx, itemID)
@@ -1235,8 +1244,21 @@ func (s *Service) FillImportItem(ctx context.Context, projectID, itemID uint64) 
 	if err := json.Unmarshal(it.Payload, &p); err != nil {
 		return ImportItem{}, apperr.New(apperr.BadRequest, "题目格式不正确")
 	}
+	if fillingAt(p, s.now()) {
+		return ImportItem{}, apperr.New(apperr.Conflict, "这道题正在生成答案，请稍候")
+	}
 	if !needsFill(p) {
 		return ImportItem{}, apperr.New(apperr.BadRequest, "这道题已经有答案和采分点了")
+	}
+	if s.asyncItemFill() {
+		f, err := s.q.GetOfficialImportFile(ctx, it.FileID)
+		if err != nil {
+			return ImportItem{}, err
+		}
+		if f.FillStatus == dbq.OfficialImportFilesFillStatusRunning {
+			return ImportItem{}, apperr.New(apperr.Conflict, "正在补全，请稍候")
+		}
+		return s.queueItemFill(ctx, it, p, false)
 	}
 	defaults, err := s.defaultScores(ctx, projectID)
 	if err != nil {
@@ -1273,7 +1295,7 @@ func (s *Service) pendingFills(ctx context.Context, fileID uint64) ([]dbq.Offici
 			continue
 		}
 		var p QuestionPayload
-		if json.Unmarshal(r.Payload, &p) == nil && needsFill(p) {
+		if json.Unmarshal(r.Payload, &p) == nil && needsFill(p) && !fillingAt(p, s.now()) { // 单题生成中的交给它自己的任务
 			out = append(out, r)
 		}
 	}
