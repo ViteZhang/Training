@@ -23,6 +23,9 @@ func TestOpenAI(t *testing.T) {
 		switch got.Model {
 		case "busy":
 			w.WriteHeader(http.StatusTooManyRequests)
+		case "insufficient":
+			w.WriteHeader(http.StatusPaymentRequired)
+			_, _ = w.Write([]byte(`{"error":{"message":"Insufficient Balance"}}`))
 		case "empty":
 			_, _ = w.Write([]byte(`{"choices":[]}`))
 		case "html":
@@ -56,6 +59,9 @@ func TestOpenAI(t *testing.T) {
 	c.Thinking = nil
 	if _, err := c.Complete(context.Background(), Request{Model: "busy"}); !errors.Is(err, ErrRateLimited) {
 		t.Fatalf("限流：%v", err)
+	}
+	if _, err := c.Complete(context.Background(), Request{Model: "insufficient"}); !errors.Is(err, ErrInsufficientBalance) {
+		t.Fatalf("余额不足应可捕获：%v", err)
 	}
 	for _, m := range []string{"empty", "html"} {
 		if _, err := c.Complete(context.Background(), Request{Model: m}); err == nil {
