@@ -23,6 +23,7 @@ import (
 
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
+	cloudai "peetraining-server/internal/cloud/ai"
 	"peetraining-server/internal/cloud/ocr"
 	"peetraining-server/internal/cloud/oss"
 	"peetraining-server/internal/dbq"
@@ -66,6 +67,8 @@ const (
 	importPrefix     = "official-imports/"
 	// tagBatch 是归知识点时每批交给模型的题数（与用户端导入一致）。
 	tagBatch = 30
+	// structureRetryDelay 是结构化遇到平台错误后再试一次前的等待。
+	structureRetryDelay = 20 * time.Second
 )
 
 // ImportFile 是一份团队上传的资料。
@@ -249,15 +252,7 @@ func (s *Service) ProcessImport(ctx context.Context, fileID uint64) error {
 	}
 	items, text, err := s.parseImport(ctx, f)
 	if err != nil {
-		reason := "解析失败，请稍后重试或改用表格导入"
-		var ue *extract.UserError
-		var ae *apperr.Error
-		switch {
-		case errors.As(err, &ue):
-			reason = ue.Msg
-		case errors.As(err, &ae) && ae.Kind == apperr.BadRequest:
-			reason = ae.Message
-		}
+		reason := importFailReason(err)
 		s.d.Log.WarnContext(ctx, "official import failed", "file_id", fileID, "err", err)
 		return s.q.SetOfficialImportStatus(ctx, dbq.SetOfficialImportStatusParams{Status: dbq.OfficialImportFilesStatusFailed, FailReason: nullStr(cutRunes(reason, 255)), ID: fileID})
 	}
@@ -278,6 +273,26 @@ func (s *Service) ProcessImport(ctx context.Context, fileID uint64) error {
 	}
 	return s.q.SetOfficialImportParsed(ctx, dbq.SetOfficialImportParsedParams{Content: sql.NullString{String: cutRunes(text, maxImportRunes), Valid: true},
 		QuestionCount: uint32(qs), KpCount: uint32(ks), ID: fileID})
+}
+
+// importFailReason 是资料卡上显示的失败原因（只给后台编辑看）：分清是模型服务、超时还是资料本身的问题，
+// 不然一律「解析失败」，没法判断该重试、拆分资料还是改用表格。
+func importFailReason(err error) string {
+	var ue *extract.UserError
+	var ae *apperr.Error
+	switch {
+	case errors.As(err, &ue):
+		return ue.Msg
+	case errors.As(err, &ae) && ae.Kind == apperr.BadRequest:
+		return ae.Message
+	case errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled):
+		return "解析超时，请重新解析；资料很长时可按年份拆成几份上传"
+	case errors.Is(err, cloudai.ErrRateLimited) || errors.Is(err, cloudai.ErrIdleTimeout):
+		return "模型服务暂时不可用（限流或响应超时），请稍后重新解析"
+	case errors.As(err, &ae) && ae.Kind == apperr.AIFailed:
+		return "模型输出不合格，请稍后重新解析或改用表格导入"
+	}
+	return "解析失败，请稍后重试或改用表格导入"
 }
 
 // readPages 取出资料的文字，按页。
@@ -561,21 +576,48 @@ func (s *Service) parseQuestions(ctx context.Context, f dbq.OfficialImportFile, 
 	var qs []parsed
 	// 多年真题合集有几十批、几百道题，各批同时调用模型，才能在任务时限（1 小时）内解析完。
 	chunks := importer.Chunk(blocks, 6000, 40)
-	outs := make([]ai.StructureOut, len(chunks))
+	outs := make([][]ai.QItem, len(chunks))
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(importAIParallel)
 	for i, chunk := range chunks {
 		g.Go(func() error {
-			out, _, err := ai.Structure.Run(gctx, s.d.AI, 0, ai.StructureIn{Subject: proj.SubjectName, Blocks: chunk})
-			outs[i] = out
+			// 与用户导入相同：一批输出不合格时拆半重试，单块还不合格就按规则照录原文（低置信度，编辑核对），
+			// 不让一批坏掉就整份解析失败（模型输出每次不同，同一份资料时好时坏）。
+			items, err := importer.StructureEach(gctx, chunk, func(ctx context.Context, bs []ai.Block) ([]ai.QItem, error) {
+				byID := make(map[int]ai.Block, len(bs))
+				for _, b := range bs {
+					byID[b.ID] = b
+				}
+				in := ai.StructureIn{Subject: proj.SubjectName, Blocks: bs}
+				out, _, err := ai.Structure.Run(ctx, s.d.AI, 0, in)
+				if err != nil && !apperr.IsKind(err, apperr.AIFailed) && ctx.Err() == nil {
+					// 平台偶发限流、超时（三批并行时实测出现过）：等一会儿再试一次，不让一次抖动整份失败。
+					s.d.Log.WarnContext(ctx, "official import structure retry", "file_id", f.ID, "err", err)
+					select {
+					case <-ctx.Done():
+						return nil, ctx.Err()
+					case <-time.After(structureRetryDelay):
+					}
+					out, _, err = ai.Structure.Run(ctx, s.d.AI, 0, in)
+				}
+				if err != nil {
+					if len(bs) == 1 && apperr.IsKind(err, apperr.AIFailed) {
+						s.d.Log.WarnContext(ctx, "official import block fallback", "file_id", f.ID, "block", bs[0].ID, "err", err)
+						return importer.RuleFallback([]int{bs[0].ID}, byID), nil
+					}
+					return nil, err
+				}
+				return append(out.Items, importer.RuleFallback(out.Dropped, byID)...), nil
+			})
+			outs[i] = items
 			return err
 		})
 	}
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
-	for _, out := range outs {
-		for _, it := range out.Items {
+	for _, items := range outs {
+		for _, it := range items {
 			if it.Kind != "question" || strings.TrimSpace(it.Stem) == "" {
 				continue
 			}
