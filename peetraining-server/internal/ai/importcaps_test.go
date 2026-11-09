@@ -2,6 +2,7 @@ package ai
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -78,5 +79,64 @@ func TestStructureUnknownQTypeBecomesOther(t *testing.T) {
 	}
 	if out.Items[0].QType != "other" || out.Items[1].QType != "term" {
 		t.Fatalf("题型应为 other、term：%+v", out.Items)
+	}
+}
+
+// 生成参考答案：模型给的采分点合计差一点、关键词改写了，按比例调分值、去掉找不到的关键词，不再整题失败。
+func TestGenerateAnswerRepairsPoints(t *testing.T) {
+	answer := "六书指象形、指事、会意、形声、转注、假借。前四者是造字之法，后二者是用字之法。许慎的划分影响深远。"
+	out := &GenerateAnswerOut{Answer: answer, Citations: []AnswerCitation{}, UsesGeneralKnowledge: true, Points: []RubricPoint{
+		{Content: "六书指象形、指事、会意、形声、转注、假借。", Score: 4, Keywords: []string{"象形", "六种造字法"}},
+		{Content: "前四者是造字之法，后二者是用字之法。", Score: 3, Keywords: []string{"四体二用"}},
+		{Content: "许慎的划分影响深远。", Score: 2, Keywords: []string{"许慎"}},
+	}}
+	if err := GenerateAnswer.Check(GenerateAnswerIn{QType: "short_answer", Stem: "请列出六书", Score: 10}, out); err != nil {
+		t.Fatal(err)
+	}
+	sum := 0.0
+	for _, p := range out.Points {
+		sum += p.Score
+		if len(p.Keywords) == 0 {
+			t.Fatalf("关键词不能为空：%+v", p)
+		}
+		for _, k := range p.Keywords {
+			if !strings.Contains(answer, k) {
+				t.Fatalf("关键词不在答案里：%q", k)
+			}
+		}
+	}
+	if sum != 10 || out.Points[0].Score < out.Points[2].Score {
+		t.Fatalf("分值：%+v", out.Points)
+	}
+	if got := out.Points[0].Keywords; len(got) != 1 || got[0] != "象形" {
+		t.Fatalf("只去掉找不到的：%v", got)
+	}
+	if got := out.Points[1].Keywords; got[0] != "前四者是造字" {
+		t.Fatalf("一个都不剩时取原句开头：%v", got)
+	}
+
+	// 采分点太多、每条分不到 0.5 分时调不出来，照旧报错重试。
+	many := &GenerateAnswerOut{Answer: answer, Citations: []AnswerCitation{}, UsesGeneralKnowledge: true}
+	for range 5 {
+		many.Points = append(many.Points, RubricPoint{Content: "许慎的划分影响深远。", Score: 1, Keywords: []string{"许慎"}})
+	}
+	if err := GenerateAnswer.Check(GenerateAnswerIn{QType: "term", Stem: "六书", Score: 2}, many); err == nil {
+		t.Fatal("调不出来应当报错")
+	}
+	// 答案里的 Markdown 加粗去掉，采分点原句就能对上。
+	md := &GenerateAnswerOut{Answer: "1. **诗可以兴**：指诗歌能感发志意。", Citations: []AnswerCitation{}, Points: []RubricPoint{{Content: "诗可以兴：指诗歌能感发志意。", Score: 10, Keywords: []string{"**感发志意**"}}}}
+	if err := GenerateAnswer.Check(GenerateAnswerIn{QType: "short_answer", Stem: "兴观群怨", Score: 10}, md); err != nil || strings.Contains(md.Answer, "*") || md.Points[0].Keywords[0] != "感发志意" {
+		t.Fatalf("加粗：%v %+v", err, md)
+	}
+	// 采分点是答案里一段话的略写（结尾标点不同、省掉引诗）：算出自答案。
+	brief := &GenerateAnswerOut{Answer: "《小雅·鹿鸣》描写宴饮场景，“呦呦鹿鸣，食野之苹”，表现了主人对宾客的热情招待，体现了人际和谐的功能，影响深远。", Citations: []AnswerCitation{},
+		Points: []RubricPoint{{Content: "《小雅·鹿鸣》描写宴饮场景，表现了主人对宾客的热情招待，体现了人际和谐的功能。", Score: 10, Keywords: []string{"鹿鸣"}}}}
+	if err := GenerateAnswer.Check(GenerateAnswerIn{QType: "short_answer", Stem: "诗可以群", Score: 10}, brief); err != nil {
+		t.Fatalf("略写：%v", err)
+	}
+	// 采分点不是答案原句：照旧报错。
+	bad := &GenerateAnswerOut{Answer: answer, Citations: []AnswerCitation{}, Points: []RubricPoint{{Content: "答案里没有这句", Score: 10, Keywords: []string{"许慎"}}}}
+	if err := GenerateAnswer.Check(GenerateAnswerIn{QType: "short_answer", Stem: "六书", Score: 10}, bad); err == nil {
+		t.Fatal("采分点不是原句应当报错")
 	}
 }
