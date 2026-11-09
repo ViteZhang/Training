@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/hibiken/asynq"
 	"golang.org/x/sync/errgroup"
@@ -36,6 +37,7 @@ import (
 //   - 只处理团队上传的资料：文件放在 OSS 的 official-imports/ 前缀下，解析结果存 official_import_*，与用户端资料完全分开
 //   - 解析能力复用用户端：取文本（Word / PDF / 拍照）、规则切题、结构化、采分点提取、参考答案生成（优先引用官方参考素材）
 //   - 采分点合计不等于分值时标红，不能接受；解析效果不理想时可以用表格导入（增补「导入数据结构」）
+//   - 缺答案、采分点的题：解析后由编辑点「生成答案 / 提取采分点」，或整份「一键补全」（T49）；上传时勾选「缺答案时由 AI 生成」才在解析时自动补
 
 // ImportQueue 排 7.17 解析任务。
 type ImportQueue interface {
@@ -50,6 +52,8 @@ type ImportDeps struct {
 	Queue ImportQueue
 	// NewTask 创建解析任务（jobs.NewOfficialImportTask）；放在这里避免 official 依赖 jobs。
 	NewTask func(fileID uint64) (*asynq.Task, error)
+	// NewFillTask 创建一键补全任务（jobs.NewOfficialImportFillTask）。
+	NewFillTask func(fileID uint64) (*asynq.Task, error)
 }
 
 // ConfigureImports 接上 7.17 的云服务；没配置时只能粘贴文字与表格导入，且同步解析。
@@ -63,6 +67,10 @@ const (
 	maxFillRateLimits = 3
 	maxImportRunes    = 400000
 	importPrefix      = "official-imports/"
+	// tagBatch 是归知识点时每批交给模型的题数（与用户端导入一致）。
+	tagBatch = 30
+	// structureRetryDelay 是结构化遇到平台错误后再试一次前的等待。
+	structureRetryDelay = 20 * time.Second
 )
 
 // ImportFile 是一份团队上传的资料。
@@ -74,6 +82,16 @@ type ImportFile struct {
 	CreatedAt                                  time.Time
 	UploadURL                                  string
 	UploadHeaders                              map[string]string
+	// AutoAnswer 是上传时勾选了「缺答案时由 AI 生成」。
+	AutoAnswer bool
+	// Fill 是一键补全的进度（T49）。
+	Fill ImportFill
+}
+
+// ImportFill 是一键补全答案与采分点的进度：running 时 Done / Total 题已处理，其中 Failed 题没补上。
+type ImportFill struct {
+	Status              string
+	Total, Done, Failed int
 }
 
 // ImportFileInput 是新增一份资料：文件（先拿直传地址再确认上传）或直接粘贴文字 / 表格。
@@ -83,10 +101,12 @@ type ImportFileInput struct {
 	Text                   string
 	ExamYear               int
 	Recollection           bool
+	// AutoAnswer 解析时缺答案、采分点的题由 AI 补全；不勾时解析后由编辑逐题或一键补全（T49）。
+	AutoAnswer bool
 }
 
 var importContentTypes = map[string]string{"pdf": "application/pdf", "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-	"image": "image/jpeg", "csv": "text/csv", "text": "text/plain"}
+	"image": "image/jpeg", "csv": "text/csv", "text": "text/plain", "md": "text/markdown"}
 
 // CreateImportFile 新增一份资料。粘贴的文字与表格直接开始解析；文件返回直传地址，上传后调用 ConfirmImportFile。
 func (s *Service) CreateImportFile(ctx context.Context, adminID, projectID uint64, in ImportFileInput) (ImportFile, error) {
@@ -106,10 +126,12 @@ func (s *Service) CreateImportFile(ctx context.Context, adminID, projectID uint6
 		name = "粘贴的内容"
 	}
 	p := dbq.InsertOfficialImportFileParams{ProjectID: projectID, Kind: kind, FileName: cutRunes(name, 255), Format: format,
-		ExamYear: sql.NullInt16{Int16: int16(in.ExamYear), Valid: in.ExamYear > 0}, IsRecollection: in.Recollection,
+		ExamYear: sql.NullInt16{Int16: int16(in.ExamYear), Valid: in.ExamYear > 0}, IsRecollection: in.Recollection, AutoAnswer: in.AutoAnswer,
 		CreatedBy: sql.NullInt64{Int64: int64(adminID), Valid: adminID > 0}}
 	text := strings.TrimSpace(in.Text)
-	inline := format == dbq.OfficialImportFilesFormatText || format == dbq.OfficialImportFilesFormatCsv
+	// Markdown 既可以上传 .md 文件，也可以直接粘贴（带 text）。
+	inline := format == dbq.OfficialImportFilesFormatText || format == dbq.OfficialImportFilesFormatCsv ||
+		(format == dbq.OfficialImportFilesFormatMd && in.Size == 0 && text != "")
 	if inline {
 		if text == "" {
 			return ImportFile{}, apperr.New(apperr.BadRequest, "内容不能为空")
@@ -131,7 +153,8 @@ func (s *Service) CreateImportFile(ctx context.Context, adminID, projectID uint6
 	if err != nil {
 		return ImportFile{}, err
 	}
-	out := ImportFile{ID: uint64(id), Kind: string(kind), FileName: p.FileName, Format: string(format), Status: string(p.Status), ExamYear: in.ExamYear}
+	out := ImportFile{ID: uint64(id), Kind: string(kind), FileName: p.FileName, Format: string(format), Status: string(p.Status), ExamYear: in.ExamYear,
+		AutoAnswer: in.AutoAnswer, Fill: ImportFill{Status: "idle"}}
 	if inline {
 		return out, s.enqueueImport(ctx, uint64(id))
 	}
@@ -213,7 +236,8 @@ func (s *Service) ImportFiles(ctx context.Context, projectID uint64) ([]ImportFi
 	out := make([]ImportFile, len(rows))
 	for i, r := range rows {
 		out[i] = ImportFile{ID: r.ID, Kind: string(r.Kind), FileName: r.FileName, Format: string(r.Format), Status: string(r.Status), FailReason: r.FailReason.String,
-			QuestionCount: int(r.QuestionCount), KPCount: int(r.KpCount), ReviewedCount: int(r.ReviewedCount), ExamYear: int(r.ExamYear.Int16), CreatedAt: r.CreatedAt}
+			QuestionCount: int(r.QuestionCount), KPCount: int(r.KpCount), ReviewedCount: int(r.ReviewedCount), ExamYear: int(r.ExamYear.Int16), CreatedAt: r.CreatedAt,
+			AutoAnswer: r.AutoAnswer, Fill: ImportFill{Status: string(r.FillStatus), Total: int(r.FillTotal), Done: int(r.FillDone), Failed: int(r.FillFailed)}}
 	}
 	return out, nil
 }
@@ -279,11 +303,34 @@ func (s *Service) failImport(ctx context.Context, fileID uint64, reason string) 
 		Status: dbq.OfficialImportFilesStatusFailed, FailReason: nullStr(cutRunes(reason, 255)), ID: fileID})
 }
 
+// importFailReason 是资料卡上显示的失败原因（只给后台编辑看）：分清是模型服务、超时还是资料本身的问题，
+// 不然一律「解析失败」，没法判断该重试、拆分资料还是改用表格。
+func importFailReason(err error) string {
+	var ue *extract.UserError
+	var ae *apperr.Error
+	switch {
+	case errors.As(err, &ue):
+		return ue.Msg
+	case errors.As(err, &ae) && ae.Kind == apperr.BadRequest:
+		return ae.Message
+	case errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled):
+		return "解析超时，请重新解析；资料很长时可按年份拆成几份上传"
+	case errors.Is(err, cloudai.ErrRateLimited) || errors.Is(err, cloudai.ErrIdleTimeout):
+		return "模型服务暂时不可用（限流或响应超时），请稍后重新解析"
+	case errors.As(err, &ae) && ae.Kind == apperr.AIFailed:
+		return "模型输出不合格，请稍后重新解析或改用表格导入"
+	}
+	return "解析失败，请稍后重试或改用表格导入"
+}
+
 // readPages 取出资料的文字，按页。
 func (s *Service) readPages(ctx context.Context, f dbq.OfficialImportFile) ([]importer.Page, error) {
-	switch f.Format {
-	case dbq.OfficialImportFilesFormatText, dbq.OfficialImportFilesFormatCsv:
+	switch {
+	case f.Format == dbq.OfficialImportFilesFormatCsv:
 		return []importer.Page{{No: 1, Text: f.Content.String}}, nil
+	case f.Format == dbq.OfficialImportFilesFormatText || (f.Format == dbq.OfficialImportFilesFormatMd && !f.ObjectKey.Valid):
+		// 粘贴的文字常是从 Markdown 编辑器复制的：一并去掉排版标记（T52）。
+		return []importer.Page{{No: 1, Text: markdownText(f.Content.String)}}, nil
 	}
 	if s.imports.OSS == nil {
 		return nil, apperr.New(apperr.BadRequest, "文件上传还没配置")
@@ -318,6 +365,11 @@ func (s *Service) readPages(ctx context.Context, f dbq.OfficialImportFile) ([]im
 		for i, p := range ps {
 			pages = append(pages, importer.Page{No: i + 1, Text: p.Text})
 		}
+	case dbq.OfficialImportFilesFormatMd:
+		if !utf8.Valid(data) {
+			return nil, apperr.New(apperr.BadRequest, "Markdown 文件请用 UTF-8 编码保存")
+		}
+		pages = []importer.Page{{No: 1, Text: markdownText(string(data))}}
 	case dbq.OfficialImportFilesFormatImage:
 		if s.imports.OCR == nil {
 			return nil, apperr.New(apperr.BadRequest, "拍照识别还没配置")
@@ -353,7 +405,7 @@ func (s *Service) parseImport(ctx context.Context, f dbq.OfficialImportFile) ([]
 	case dbq.OfficialImportFilesKindCatalog:
 		items, err = s.parseCatalog(ctx, f.ProjectID, text)
 	case dbq.OfficialImportFilesKindTable:
-		items, err = s.parseTable(ctx, f.ProjectID, text)
+		items, err = s.parseTable(ctx, f.ProjectID, text, f.AutoAnswer)
 	default:
 		items, err = s.parseQuestions(ctx, f, pages)
 	}
@@ -409,38 +461,123 @@ func RubricMatches(p QuestionPayload) bool {
 	return math.Abs(sum-*p.Score) < 0.01
 }
 
-// fillFailureFatal 判断补答案错误是否应停止整份资料：余额不足立即停；累计限流达到阈值也停，
-// 避免余额为 0 或平台限流时继续为剩余题目逐条发请求。
-func fillFailureFatal(err error, rateLimits int) bool {
-	if errors.Is(err, cloudai.ErrInsufficientBalance) {
+// needsFill 判断一道题要不要补：主观题缺答案或缺采分点，客观题缺答案。
+func needsFill(p QuestionPayload) bool {
+	if p.Regenerate || strings.TrimSpace(p.Answer) == "" {
 		return true
 	}
-	return errors.Is(err, cloudai.ErrRateLimited) && rateLimits >= maxFillRateLimits
+	return ai.Subjective(p.QType) && len(p.Rubric) == 0
 }
 
-// fillAnswer 补参考答案与采分点：有答案时从答案提采分点，没有时 AI 生成（优先引用官方参考素材）。返回引用与是否由 AI 补全。
-func (s *Service) fillAnswer(ctx context.Context, projectID uint64, p *QuestionPayload) ([]Citation, bool, error) {
-	if !ai.Subjective(p.QType) || len(p.Rubric) > 0 {
+// fillAnswer 补参考答案与采分点（T49）：
+//   - 主观题有答案、缺采分点：从答案提采分点，答案仍算原文的
+//   - 缺答案：AI 生成参考答案（主观题连同采分点；已经填了采分点的保留），优先引用项目关联的官方教材，标「AI 生成」（answer_ai）
+//   - 主观题没有分值：参考同项目同题型的给分（defaults），标「分值待核对」；同题型一道有分值的都没有时提示先填分值
+//
+// 返回引用与是否由 AI 补了内容；不需要补的原样返回。
+func (s *Service) fillAnswer(ctx context.Context, projectID uint64, p *QuestionPayload, defaults map[string]float64) ([]Citation, bool, error) {
+	if !needsFill(*p) {
 		return nil, false, nil
 	}
+	subjective := ai.Subjective(p.QType)
+	if p.Regenerate {
+		// 按关联教材重新生成（T53）：去掉 AI 给的答案与采分点，原文给的采分点留着。
+		p.Answer, p.AnswerSnapshotID, p.AnswerBasis = "", 0, nil
+		if !p.RubricKept {
+			p.Rubric = nil
+		}
+	}
 	score := 0.0
-	if p.Score != nil {
+	if subjective {
+		if p.Score == nil || *p.Score <= 0 {
+			v, ok := defaults[p.QType]
+			if !ok {
+				return nil, false, apperr.New(apperr.BadRequest, "这道题没有分值，同项目里也没有同题型的题可以参考，请先在「修改」里填分值").With("reason", "score_missing")
+			}
+			p.Score, p.ScoreInferred = &v, true
+		}
 		score = *p.Score
 	}
 	if strings.TrimSpace(p.Answer) != "" {
 		pts, err := s.RubricCandidates(ctx, p.QType, p.Stem, p.Answer, score)
 		if err != nil {
-			return nil, true, err
+			return nil, false, err
 		}
 		p.Rubric = pts
 		return nil, true, nil
 	}
-	c, err := s.AnswerCandidates(ctx, projectID, p.QType, p.Stem, score)
+	c, err := s.answerCandidates(ctx, projectID, p.QType, p.Stem, p.Options, score, p.Rubric)
 	if err != nil {
-		return nil, true, err
+		return nil, false, err
 	}
-	p.Answer, p.Rubric, p.AnswerSnapshotID = c.Answer, c.Points, c.SnapshotID
+	p.RubricKept = subjective && len(p.Rubric) > 0
+	p.Answer, p.AnswerSnapshotID, p.AnswerAI, p.AnswerBasis, p.Regenerate = c.Answer, c.SnapshotID, true, c.Basis, false
+	if subjective {
+		p.Rubric = c.Points // 已有采分点的保留原样（answerCandidates 原样返回）
+	}
 	return c.Citations, true, nil
+}
+
+// defaultScores 是同项目里每个题型最常见的分值（各资料解析出的题、草稿、已发布的官方题），给没有分值的题参考。
+// 一样多时取较小的，免得把名词解释按论述题给分。
+func (s *Service) defaultScores(ctx context.Context, projectID uint64) (map[string]float64, error) {
+	counts := map[string]map[float64]int{}
+	add := func(qtype string, v float64) {
+		if v <= 0 || !ai.Subjective(qtype) {
+			return
+		}
+		if counts[qtype] == nil {
+			counts[qtype] = map[float64]int{}
+		}
+		counts[qtype][v]++
+	}
+	addPayloads := func(rows []json.RawMessage) {
+		for _, raw := range rows {
+			var p QuestionPayload
+			if json.Unmarshal(raw, &p) == nil && p.Score != nil && !p.ScoreInferred {
+				add(p.QType, *p.Score)
+			}
+		}
+	}
+	items, err := s.q.ListProjectImportQuestionPayloads(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	addPayloads(items)
+	drafts, err := s.q.ListProjectDraftQuestionPayloads(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	addPayloads(drafts)
+	proj, err := s.projectExists(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	if proj.BankID.Valid {
+		qs, err := s.q.ListOfficialQuestions(ctx, uint64(proj.BankID.Int64))
+		if err != nil {
+			return nil, err
+		}
+		for _, q := range qs {
+			if q.Status != dbq.QuestionsStatusActive || !q.Score.Valid {
+				continue
+			}
+			if v, err := strconv.ParseFloat(q.Score.String, 64); err == nil {
+				add(string(q.Qtype), v)
+			}
+		}
+	}
+	out := map[string]float64{}
+	for qt, m := range counts {
+		best, bestN := 0.0, 0
+		for v, n := range m {
+			if n > bestN || (n == bestN && v < best) {
+				best, bestN = v, n
+			}
+		}
+		out[qt] = best
+	}
+	return out, nil
 }
 
 // parseQuestions 真题卷与讲义：规则切题 → AI 结构化 → 补答案与采分点 → 归知识点。
@@ -461,25 +598,54 @@ func (s *Service) parseQuestions(ctx context.Context, f dbq.OfficialImportFile, 
 		page int
 		cite []Citation
 		ai   bool
+		// fillErr 是解析时自动补答案失败的原因（勾了「缺答案时由 AI 生成」时）。
+		fillErr string
 	}
 	var qs []parsed
 	// 多年真题合集有几十批、几百道题，各批同时调用模型，才能在任务时限（1 小时）内解析完。
 	chunks := importer.Chunk(blocks, 6000, 40)
-	outs := make([]ai.StructureOut, len(chunks))
+	outs := make([][]ai.QItem, len(chunks))
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(importAIParallel)
 	for i, chunk := range chunks {
 		g.Go(func() error {
-			out, _, err := ai.Structure.Run(gctx, s.d.AI, 0, ai.StructureIn{Subject: proj.SubjectName, Blocks: chunk})
-			outs[i] = out
+			// 与用户导入相同：一批输出不合格时拆半重试，单块还不合格就按规则照录原文（低置信度，编辑核对），
+			// 不让一批坏掉就整份解析失败（模型输出每次不同，同一份资料时好时坏）。
+			items, err := importer.StructureEach(gctx, chunk, func(ctx context.Context, bs []ai.Block) ([]ai.QItem, error) {
+				byID := make(map[int]ai.Block, len(bs))
+				for _, b := range bs {
+					byID[b.ID] = b
+				}
+				in := ai.StructureIn{Subject: proj.SubjectName, Blocks: bs}
+				out, _, err := ai.Structure.Run(ctx, s.d.AI, 0, in)
+				if err != nil && !apperr.IsKind(err, apperr.AIFailed) && ctx.Err() == nil {
+					// 平台偶发限流、超时（三批并行时实测出现过）：等一会儿再试一次，不让一次抖动整份失败。
+					s.d.Log.WarnContext(ctx, "official import structure retry", "file_id", f.ID, "err", err)
+					select {
+					case <-ctx.Done():
+						return nil, ctx.Err()
+					case <-time.After(structureRetryDelay):
+					}
+					out, _, err = ai.Structure.Run(ctx, s.d.AI, 0, in)
+				}
+				if err != nil {
+					if len(bs) == 1 && apperr.IsKind(err, apperr.AIFailed) {
+						s.d.Log.WarnContext(ctx, "official import block fallback", "file_id", f.ID, "block", bs[0].ID, "err", err)
+						return importer.RuleFallback([]int{bs[0].ID}, byID), nil
+					}
+					return nil, err
+				}
+				return append(out.Items, importer.RuleFallback(out.Dropped, byID)...), nil
+			})
+			outs[i] = items
 			return err
 		})
 	}
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
-	for _, out := range outs {
-		for _, it := range out.Items {
+	for _, items := range outs {
+		for _, it := range items {
 			if it.Kind != "question" || strings.TrimSpace(it.Stem) == "" {
 				continue
 			}
@@ -491,6 +657,10 @@ func (s *Service) parseQuestions(ctx context.Context, f dbq.OfficialImportFile, 
 			if p.Score == nil && b.Score > 0 {
 				v := b.Score
 				p.Score = &v
+			}
+			// 按专业分组的题（规则识别）是限选题（T51）。
+			if b.Group != "" {
+				p.Group = &QuestionGroup{Label: b.Group, Majors: b.GroupMajors}
 			}
 			if f.Kind == dbq.OfficialImportFilesKindExam {
 				switch {
@@ -513,35 +683,30 @@ func (s *Service) parseQuestions(ctx context.Context, f dbq.OfficialImportFile, 
 			qs = append(qs, parsed{p: p, conf: it.Confidence, src: b.Text, page: b.Page})
 		}
 	}
-	var rateLimits atomic.Int32
-	fill, fctx := errgroup.WithContext(ctx)
-	fill.SetLimit(importAIParallel)
-	for i := range qs {
-		fill.Go(func() error {
-			cite, filled, err := s.fillAnswer(fctx, f.ProjectID, &qs[i].p)
-			if err != nil {
-				n := 0
-				if errors.Is(err, cloudai.ErrRateLimited) {
-					n = int(rateLimits.Add(1))
+	if f.AutoAnswer {
+		defaults, err := s.defaultScores(ctx, f.ProjectID)
+		if err != nil {
+			return nil, err
+		}
+		fill, fctx := errgroup.WithContext(ctx)
+		fill.SetLimit(importAIParallel)
+		for i := range qs {
+			fill.Go(func() error {
+				cite, filled, err := s.fillAnswer(fctx, f.ProjectID, &qs[i].p, defaults)
+				if err != nil {
+					// 单题补答案失败不拖垮整份：原因记在条目上，编辑可以再点「生成答案」。
+					s.d.Log.WarnContext(fctx, "official import fill answer failed", "file_id", f.ID, "err", err)
+					qs[i].fillErr = fillErrorText(err)
+					return nil
 				}
-				if fillFailureFatal(err, n) {
-					// 余额不足或累计限流：停止整份资料，避免继续逐题空打请求。
-					return err
-				}
-				// 单题补答案失败不拖垮整份：留给编辑「修改」时补，置信度记低。
-				s.d.Log.WarnContext(fctx, "official import fill answer failed", "file_id", f.ID, "err", err)
-				qs[i].conf = 0
+				qs[i].cite, qs[i].ai = cite, filled
 				return nil
-			}
-			qs[i].cite, qs[i].ai = cite, filled
-			return nil
-		})
-	}
-	if err := fill.Wait(); err != nil {
-		return nil, err // 余额不足/累计限流：整份停止，交给任务层稍后重试
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err // 任务超时或被取消：交给重试，不保存一半没补答案的结果
+			})
+		}
+		_ = fill.Wait()
+		if err := ctx.Err(); err != nil {
+			return nil, err // 任务超时或被取消：交给重试，不保存一半没补答案的结果
+		}
 	}
 	// 归知识点：按现有知识点树（已发布的与草稿里的）给每道题打板块 / 章节 / 知识点。
 	if len(qs) > 0 {
@@ -551,16 +716,33 @@ func (s *Service) parseQuestions(ctx context.Context, f dbq.OfficialImportFile, 
 		if err != nil {
 			return nil, err
 		}
+		// 按 tagBatch 题一批：几百道题一次交给模型容易超时或回不全，结果就全是「未归类」。
+		var batches []ai.TagIn
 		for i, q := range qs {
-			tagIn.Questions = append(tagIn.Questions, ai.TagQ{ID: i, QType: q.p.QType, Stem: q.p.Stem, Answer: q.p.Answer})
-		}
-		if out, _, err := ai.TagQuestions.Run(ctx, s.d.AI, 0, tagIn); err == nil {
-			for _, t := range out.Tags {
-				if t.ID >= 0 && t.ID < len(qs) && len(t.Path) == 3 {
-					qs[t.ID].p.KPNames = []string{t.Path[2]}
-				}
+			if i%tagBatch == 0 {
+				batches = append(batches, ai.TagIn{Subject: tagIn.Subject, Existing: tagIn.Existing})
 			}
+			b := &batches[len(batches)-1]
+			b.Questions = append(b.Questions, ai.TagQ{ID: i, QType: q.p.QType, Stem: q.p.Stem, Answer: q.p.Answer})
 		}
+		tags, tctx := errgroup.WithContext(ctx)
+		tags.SetLimit(importAIParallel)
+		for _, in := range batches {
+			tags.Go(func() error {
+				out, _, err := ai.TagQuestions.Run(tctx, s.d.AI, 0, in)
+				if err != nil {
+					s.d.Log.WarnContext(tctx, "official import tag failed", "file_id", f.ID, "err", err)
+					return nil // 归不上的留「未归类」，编辑修改时再选
+				}
+				for _, t := range out.Tags {
+					if t.ID >= 0 && t.ID < len(qs) && len(t.Path) == 3 {
+						qs[t.ID].p.KPNames = []string{t.Path[2]}
+					}
+				}
+				return nil
+			})
+		}
+		_ = tags.Wait()
 	}
 	out := make([]dbq.InsertOfficialImportItemParams, 0, len(qs))
 	for _, q := range qs {
@@ -569,8 +751,12 @@ func (s *Service) parseQuestions(ctx context.Context, f dbq.OfficialImportFile, 
 		if len(q.cite) > 0 {
 			cites, _ = json.Marshal(q.cite)
 		}
+		conf := confidenceOf(q.conf, q.ai, q.p)
+		if q.fillErr != "" {
+			conf = dbq.OfficialImportItemsConfidenceLow
+		}
 		out = append(out, dbq.InsertOfficialImportItemParams{ItemType: dbq.OfficialImportItemsItemTypeQuestion, Payload: b, Citations: cites,
-			SourceText: nullStr(cutRunes(q.src, 2000)), Page: uint32(max(q.page, 0)), Confidence: confidenceOf(q.conf, q.ai, q.p)})
+			SourceText: nullStr(cutRunes(q.src, 2000)), Page: uint32(max(q.page, 0)), Confidence: conf, FillError: nullStr(q.fillErr)})
 	}
 	return out, nil
 }
@@ -610,7 +796,7 @@ func (s *Service) kpPaths(ctx context.Context, projectID uint64) ([][]string, er
 
 // 表格导入的列（增补「导入数据结构」）。院校、专业课名称、来源类型、方向在官方题库项目里已确定，不从表里读。
 var tableColumns = map[string]string{"年份": "year", "题号": "no", "题型": "qtype", "分值": "score", "题干": "stem", "参考答案": "answer",
-	"采分点": "rubric", "知识点": "kp", "出处": "source", "来源类型": "kind"}
+	"采分点": "rubric", "知识点": "kp", "出处": "source", "来源类型": "kind", "限选分组": "group", "适用专业": "group_majors"}
 
 var tableQTypes = map[string]string{"名词解释": "term", "简答": "short_answer", "简答题": "short_answer", "论述": "discussion", "论述题": "discussion",
 	"客观题": "single_choice", "单选": "single_choice", "选择": "single_choice"}
@@ -637,7 +823,7 @@ func ParseRubricCell(cell string) ([]Point, error) {
 }
 
 // parseTable 表格导入：CSV 第一行是表头。选填字段缺失时由 AI 补全（答案、采分点），审核后生效。
-func (s *Service) parseTable(ctx context.Context, projectID uint64, text string) ([]dbq.InsertOfficialImportItemParams, error) {
+func (s *Service) parseTable(ctx context.Context, projectID uint64, text string, autoAnswer bool) ([]dbq.InsertOfficialImportItemParams, error) {
 	r := csv.NewReader(bytes.NewReader([]byte(strings.TrimPrefix(text, "\uFEFF"))))
 	r.FieldsPerRecord = -1
 	rows, err := r.ReadAll()
@@ -689,6 +875,12 @@ func (s *Service) parseTable(ctx context.Context, projectID uint64, text string)
 		if kp := get(row, "kp"); kp != "" {
 			p.KPNames = []string{kp}
 		}
+		// 选填两列：「限选分组」（如 第一组）与「适用专业」；不填是必答题（T51）。
+		if g := get(row, "group"); g != "" {
+			p.Group = &QuestionGroup{Label: g, Majors: get(row, "group_majors")}
+		} else if get(row, "group_majors") != "" {
+			return nil, apperr.New(apperr.BadRequest, fmt.Sprintf("第 %d 行填了适用专业，也要填限选分组（如 第一组）", line))
+		}
 		if cell := get(row, "rubric"); cell != "" {
 			pts, err := ParseRubricCell(cell)
 			if err != nil {
@@ -696,13 +888,23 @@ func (s *Service) parseTable(ctx context.Context, projectID uint64, text string)
 			}
 			p.Rubric = pts
 		}
-		cite, filled, err := s.fillAnswer(ctx, projectID, &p)
-		if err != nil {
-			return nil, err
+		var cite []Citation
+		filled, fillErr := false, ""
+		if autoAnswer {
+			cite, filled, err = s.fillAnswer(ctx, projectID, &p, nil)
+			if err != nil {
+				if ctx.Err() != nil {
+					return nil, ctx.Err()
+				}
+				fillErr = fillErrorText(err)
+			}
 		}
 		conf := dbq.OfficialImportItemsConfidenceHigh
-		if filled || !RubricMatches(p) {
+		if filled || !RubricMatches(p) || needsFill(p) {
 			conf = dbq.OfficialImportItemsConfidenceMedium
+		}
+		if fillErr != "" {
+			conf = dbq.OfficialImportItemsConfidenceLow
 		}
 		b, _ := json.Marshal(p)
 		var cites dbtypes.NullJSON
@@ -714,7 +916,7 @@ func (s *Service) parseTable(ctx context.Context, projectID uint64, text string)
 			src += "\n出处：" + s
 		}
 		out = append(out, dbq.InsertOfficialImportItemParams{ItemType: dbq.OfficialImportItemsItemTypeQuestion, Payload: b, Citations: cites,
-			SourceText: nullStr(cutRunes(src, 2000)), Page: uint32(line), Confidence: conf})
+			SourceText: nullStr(cutRunes(src, 2000)), Page: uint32(line), Confidence: conf, FillError: nullStr(fillErr)})
 	}
 	return out, nil
 }
@@ -735,6 +937,15 @@ type ImportItem struct {
 	DraftID    uint64
 	// RubricMismatch 是采分点合计不等于分值（标红，不能接受）。
 	RubricMismatch bool
+	// NeedsFill 是还缺答案或采分点（可以点「生成答案 / 提取采分点」）；FillError 是上次补全失败的原因。
+	NeedsFill bool
+	FillError string
+	// Duplicate 是重复说明（如「与《2025 真题》第 3 题相同」），只标还没核对的题；SeenYears 是别的年份也考过同一题（T52）。
+	Duplicate string
+	SeenYears []int
+	// AnswerAI 是答案由 AI 生成（还没核对的可以「按关联教材重新生成」）；AnswerBasis 是没有引用教材的原因（T53）。
+	AnswerAI    bool
+	AnswerBasis *ai.AnswerBasis
 }
 
 // ImportDetail 是核对区：原文与解析结果。
@@ -757,24 +968,59 @@ func (s *Service) ImportItems(ctx context.Context, projectID, fileID uint64) (Im
 	out := ImportDetail{File: ImportFile{ID: f.ID, Kind: string(f.Kind), FileName: f.FileName, Format: string(f.Format), Status: string(f.Status),
 		FailReason: f.FailReason.String, QuestionCount: int(f.QuestionCount), KPCount: int(f.KpCount), ExamYear: int(f.ExamYear.Int16), CreatedAt: f.CreatedAt},
 		Text: f.Content.String, Items: make([]ImportItem, len(rows))}
+	out.File.AutoAnswer = f.AutoAnswer
+	out.File.Fill = ImportFill{Status: string(f.FillStatus), Total: int(f.FillTotal), Done: int(f.FillDone), Failed: int(f.FillFailed)}
 	for i, r := range rows {
-		it := ImportItem{ID: r.ID, ItemType: string(r.ItemType), Seq: int(r.Seq), Payload: r.Payload, SourceText: r.SourceText.String, Page: int(r.Page),
-			Confidence: string(r.Confidence), Status: string(r.Status), DraftID: uint64(r.DraftID.Int64)}
-		if len(r.Citations) > 0 {
-			_ = json.Unmarshal(r.Citations, &it.Citations)
-		}
-		if r.ItemType == dbq.OfficialImportItemsItemTypeQuestion {
-			var p QuestionPayload
-			if json.Unmarshal(r.Payload, &p) == nil {
-				it.RubricMismatch = !RubricMatches(p)
-			}
-		}
+		it := toImportItem(r)
 		if it.Status != "pending" {
 			out.File.ReviewedCount++
 		}
 		out.Items[i] = it
 	}
+	if err := s.markDuplicates(ctx, f, out.Items); err != nil {
+		return ImportDetail{}, err
+	}
 	return out, nil
+}
+
+// RejectDuplicates 一键驳回这份资料里标为重复、还没核对的题（T52），返回驳回的条数。
+func (s *Service) RejectDuplicates(ctx context.Context, editorID, projectID, fileID uint64) (int, error) {
+	d, err := s.ImportItems(ctx, projectID, fileID)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, it := range d.Items {
+		if it.Duplicate == "" {
+			continue
+		}
+		if _, err := s.ReviewImportItem(ctx, editorID, projectID, it.ID, "reject", nil); err != nil {
+			var ae *apperr.Error
+			if errors.As(err, &ae) && ae.Kind == apperr.Conflict {
+				continue // 别人刚核对过这一条
+			}
+			return n, err
+		}
+		n++
+	}
+	return n, nil
+}
+
+func toImportItem(r dbq.OfficialImportItem) ImportItem {
+	it := ImportItem{ID: r.ID, ItemType: string(r.ItemType), Seq: int(r.Seq), Payload: r.Payload, SourceText: r.SourceText.String, Page: int(r.Page),
+		Confidence: string(r.Confidence), Status: string(r.Status), DraftID: uint64(r.DraftID.Int64), FillError: r.FillError.String}
+	if len(r.Citations) > 0 {
+		_ = json.Unmarshal(r.Citations, &it.Citations)
+	}
+	if r.ItemType == dbq.OfficialImportItemsItemTypeQuestion {
+		var p QuestionPayload
+		if json.Unmarshal(r.Payload, &p) == nil {
+			it.RubricMismatch = !RubricMatches(p)
+			it.NeedsFill = needsFill(p)
+			it.AnswerAI, it.AnswerBasis = p.AnswerAI && strings.TrimSpace(p.Answer) != "", p.AnswerBasis
+		}
+	}
+	return it
 }
 
 // ReviewImportItem 核对一条：accept 接受（payload 不为空时是「修改后接受」），生成 7.12 草稿并提交 7.13 审核；reject 驳回。
@@ -810,6 +1056,24 @@ func (s *Service) ReviewImportItem(ctx context.Context, editorID, projectID, ite
 		if err := json.Unmarshal(payload, &p); err != nil {
 			return 0, apperr.New(apperr.BadRequest, "题目格式不正确")
 		}
+		if p.Regenerate {
+			// 整份重新生成还在跑时先别接受；跑完了还带着标记是重新生成失败，接受原来的答案。
+			f, err := s.q.GetOfficialImportFile(ctx, it.FileID)
+			if err != nil {
+				return 0, err
+			}
+			if f.FillStatus == dbq.OfficialImportFilesFillStatusRunning {
+				return 0, apperr.New(apperr.Conflict, "这道题正在重新生成答案，请稍候")
+			}
+		}
+		// 核对区的说明不进草稿（T53）。
+		if p.AnswerBasis != nil || p.RubricKept || p.Regenerate {
+			p.AnswerBasis, p.RubricKept, p.Regenerate = nil, false, false
+			payload, _ = json.Marshal(p)
+		}
+		if ai.Subjective(p.QType) && len(p.Rubric) == 0 {
+			return 0, apperr.New(apperr.BadRequest, "这道题还没有采分点，先点「生成答案 / 提取采分点」，或在「修改」里填写").With("reason", "needs_fill")
+		}
 		if !RubricMatches(p) {
 			return 0, apperr.New(apperr.BadRequest, "采分点合计和分值不一致，先修改").With("reason", "rubric_sum")
 		}
@@ -828,6 +1092,238 @@ func (s *Service) ReviewImportItem(ctx context.Context, editorID, projectID, ite
 	return d.ID, nil
 }
 
+// --- 解析后补答案与采分点（T49） ---
+
+// fillErrorText 是补全失败时给编辑看的原因：业务错误（缺分值、模型输出不合格）原样给，平台错误统一说稍后再试。
+func fillErrorText(err error) string {
+	var ae *apperr.Error
+	if errors.As(err, &ae) && (ae.Kind == apperr.BadRequest || ae.Kind == apperr.AIFailed) {
+		return cutRunes(ae.Message, 255)
+	}
+	return "AI 暂时不可用，请稍后再试"
+}
+
+// filledConfidence 是补全后的置信度：AI 补的最多算中；原来因补全失败记低的回到中，结构化本身把握低的仍是低。
+func filledConfidence(it dbq.OfficialImportItem, p QuestionPayload) dbq.OfficialImportItemsConfidence {
+	c := it.Confidence
+	if c == dbq.OfficialImportItemsConfidenceHigh || (c == dbq.OfficialImportItemsConfidenceLow && it.FillError.Valid) {
+		c = dbq.OfficialImportItemsConfidenceMedium
+	}
+	if c == dbq.OfficialImportItemsConfidenceHigh && !RubricMatches(p) {
+		c = dbq.OfficialImportItemsConfidenceMedium
+	}
+	return c
+}
+
+// fillItem 给一条还没核对的题补答案与采分点，结果写回条目；失败的原因也记在条目上。
+func (s *Service) fillItem(ctx context.Context, it dbq.OfficialImportItem, defaults map[string]float64) error {
+	var p QuestionPayload
+	if err := json.Unmarshal(it.Payload, &p); err != nil {
+		return apperr.New(apperr.BadRequest, "题目格式不正确")
+	}
+	return s.fillItemWith(ctx, it, p, defaults)
+}
+
+// fillItemWith 按 p 补全并写回；失败时条目内容保持 it.Payload 不变，只记原因。
+func (s *Service) fillItemWith(ctx context.Context, it dbq.OfficialImportItem, p QuestionPayload, defaults map[string]float64) error {
+	cite, _, err := s.fillAnswer(ctx, it.ProjectID, &p, defaults)
+	if err != nil {
+		if ctx.Err() == nil {
+			_, _ = s.q.UpdateOfficialImportItemFill(ctx, dbq.UpdateOfficialImportItemFillParams{Payload: it.Payload, Citations: it.Citations,
+				Confidence: it.Confidence, FillError: nullStr(fillErrorText(err)), ID: it.ID})
+		}
+		return err
+	}
+	b, _ := json.Marshal(p)
+	var cites dbtypes.NullJSON
+	if cite != nil { // AI 生成了答案：引用整个换掉（重新生成后没有引用时清空旧的）
+		cites, _ = json.Marshal(cite)
+	} else {
+		cites = it.Citations
+	}
+	n, err := s.q.UpdateOfficialImportItemFill(ctx, dbq.UpdateOfficialImportItemFillParams{Payload: b, Citations: cites,
+		Confidence: filledConfidence(it, p), ID: it.ID})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return apperr.New(apperr.Conflict, "这一条已经核对过了")
+	}
+	return nil
+}
+
+// FillImportItem 「生成答案 / 提取采分点」：给一道还没核对的题补上（缺答案的 AI 生成，有答案缺采分点的从答案提），返回补好的条目。
+// 失败时返回原因（缺分值且同题型没有可参考的、模型输出不合格等），原因同时记在条目上。
+func (s *Service) FillImportItem(ctx context.Context, projectID, itemID uint64) (ImportItem, error) {
+	it, err := s.q.GetOfficialImportItem(ctx, itemID)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && it.ProjectID != projectID) {
+		return ImportItem{}, apperr.NotFoundErr()
+	}
+	if err != nil {
+		return ImportItem{}, err
+	}
+	if it.Status != dbq.OfficialImportItemsStatusPending {
+		return ImportItem{}, apperr.New(apperr.Conflict, "这一条已经核对过了")
+	}
+	if it.ItemType != dbq.OfficialImportItemsItemTypeQuestion {
+		return ImportItem{}, apperr.New(apperr.BadRequest, "只有题目可以生成答案")
+	}
+	var p QuestionPayload
+	if err := json.Unmarshal(it.Payload, &p); err != nil {
+		return ImportItem{}, apperr.New(apperr.BadRequest, "题目格式不正确")
+	}
+	if !needsFill(p) {
+		return ImportItem{}, apperr.New(apperr.BadRequest, "这道题已经有答案和采分点了")
+	}
+	defaults, err := s.defaultScores(ctx, projectID)
+	if err != nil {
+		return ImportItem{}, err
+	}
+	if err := s.fillItem(ctx, it, defaults); err != nil {
+		return ImportItem{}, syncFillError(err)
+	}
+	it, err = s.q.GetOfficialImportItem(ctx, itemID)
+	if err != nil {
+		return ImportItem{}, err
+	}
+	return toImportItem(it), nil
+}
+
+// syncFillError：同步接口没有重试，模型平台的原始错误（超时、限流）转成「生成失败」，不变成 500。
+func syncFillError(err error) error {
+	var ae *apperr.Error
+	if errors.As(err, &ae) {
+		return err
+	}
+	return apperr.New(apperr.AIFailed, "AI 暂时不可用，请稍后再试").Wrap(err)
+}
+
+// pendingFills 是一份资料里还没核对、缺答案或采分点的题。
+func (s *Service) pendingFills(ctx context.Context, fileID uint64) ([]dbq.OfficialImportItem, error) {
+	rows, err := s.q.ListOfficialImportItems(ctx, fileID)
+	if err != nil {
+		return nil, err
+	}
+	var out []dbq.OfficialImportItem
+	for _, r := range rows {
+		if r.Status != dbq.OfficialImportItemsStatusPending || r.ItemType != dbq.OfficialImportItemsItemTypeQuestion {
+			continue
+		}
+		var p QuestionPayload
+		if json.Unmarshal(r.Payload, &p) == nil && needsFill(p) {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+
+// FillImportFile 「一键补全」：这份资料里还没核对、缺答案或采分点的题都补上，在 Worker 里排队执行，进度见资料卡。
+func (s *Service) FillImportFile(ctx context.Context, projectID, fileID uint64) (ImportFile, error) {
+	f, err := s.importFile(ctx, projectID, fileID)
+	if err != nil {
+		return ImportFile{}, err
+	}
+	if f.Status != dbq.OfficialImportFilesStatusParsed {
+		return ImportFile{}, apperr.New(apperr.Conflict, "资料还没解析完")
+	}
+	if f.FillStatus == dbq.OfficialImportFilesFillStatusRunning {
+		return ImportFile{}, apperr.New(apperr.Conflict, "正在补全，请稍候")
+	}
+	todo, err := s.pendingFills(ctx, fileID)
+	if err != nil {
+		return ImportFile{}, err
+	}
+	if len(todo) == 0 {
+		return ImportFile{}, apperr.New(apperr.BadRequest, "没有缺答案或采分点的题")
+	}
+	n, err := s.q.StartOfficialImportFill(ctx, dbq.StartOfficialImportFillParams{FillTotal: uint32(len(todo)), ID: fileID})
+	if err != nil {
+		return ImportFile{}, err
+	}
+	if n == 0 {
+		return ImportFile{}, apperr.New(apperr.Conflict, "正在补全，请稍候")
+	}
+	if err := s.enqueueFill(ctx, fileID); err != nil {
+		_ = s.q.FinishOfficialImportFill(ctx, fileID)
+		return ImportFile{}, err
+	}
+	d, err := s.ImportItems(ctx, projectID, fileID)
+	if err != nil {
+		return ImportFile{}, err
+	}
+	return d.File, nil
+}
+
+// enqueueFill 排一键补全任务；没有队列时同步执行（本地与测试）。
+func (s *Service) enqueueFill(ctx context.Context, fileID uint64) error {
+	if s.imports.Queue == nil || s.imports.NewFillTask == nil {
+		return s.ProcessImportFill(ctx, fileID)
+	}
+	t, err := s.imports.NewFillTask(fileID)
+	if err != nil {
+		return err
+	}
+	_, err = s.imports.Queue.EnqueueContext(ctx, t)
+	return err
+}
+
+// ProcessImportFill 执行一键补全（Worker 调用，可重复执行：已补好的题不再补，重试时接着补剩下的）。
+// 单题失败不影响其余，原因记在条目上；全部处理完把状态改回 idle。
+func (s *Service) ProcessImportFill(ctx context.Context, fileID uint64) error {
+	f, err := s.q.GetOfficialImportFile(ctx, fileID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if f.FillStatus != dbq.OfficialImportFilesFillStatusRunning {
+		return nil
+	}
+	todo, err := s.pendingFills(ctx, fileID)
+	if err != nil {
+		return err
+	}
+	defaults, err := s.defaultScores(ctx, f.ProjectID)
+	if err != nil {
+		return err
+	}
+	total := max(int(f.FillTotal), len(todo))
+	var mu sync.Mutex
+	done, failed := total-len(todo), 0
+	progress := func(ok bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		done++
+		if !ok {
+			failed++
+		}
+		_ = s.q.SetOfficialImportFillProgress(ctx, dbq.SetOfficialImportFillProgressParams{FillDone: uint32(done), FillFailed: uint32(failed), ID: fileID})
+	}
+	if err := s.q.SetOfficialImportFillProgress(ctx, dbq.SetOfficialImportFillProgressParams{FillDone: uint32(done), ID: fileID}); err != nil {
+		return err
+	}
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(importAIParallel)
+	for _, it := range todo {
+		g.Go(func() error {
+			err := s.fillItem(gctx, it, defaults)
+			if err != nil && gctx.Err() == nil {
+				s.d.Log.WarnContext(gctx, "official import fill failed", "file_id", fileID, "item_id", it.ID, "err", err)
+			}
+			if gctx.Err() == nil {
+				progress(err == nil)
+			}
+			return nil
+		})
+	}
+	_ = g.Wait()
+	if err := ctx.Err(); err != nil {
+		return err // 超时或被取消：交给重试，接着补剩下的
+	}
+	return s.q.FinishOfficialImportFill(ctx, fileID)
+}
+
 // RecoverImports 把卡在解析中超过一小时的资料重新排队（Worker 重启丢任务时）。
 func (s *Service) RecoverImports(ctx context.Context) error {
 	ids, err := s.q.ListStaleOfficialImports(ctx, s.now().UTC().Add(-time.Hour))
@@ -836,6 +1332,16 @@ func (s *Service) RecoverImports(ctx context.Context) error {
 	}
 	for _, id := range ids {
 		if err := s.enqueueImport(ctx, id); err != nil {
+			return err
+		}
+	}
+	// 一键补全一小时没有进度的，同样重新排队。
+	fills, err := s.q.ListStaleOfficialImportFills(ctx, s.now().UTC().Add(-time.Hour))
+	if err != nil {
+		return err
+	}
+	for _, id := range fills {
+		if err := s.enqueueFill(ctx, id); err != nil {
 			return err
 		}
 	}

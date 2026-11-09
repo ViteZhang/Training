@@ -84,7 +84,7 @@ func (h *Handlers) canProject(c *gin.Context, projectID int64) bool {
 }
 
 func toGenProject(p official.Project) gen.AdminOfficialProject {
-	out := gen.AdminOfficialProject{Id: int64(p.ID), School: p.School, Major: p.Major, SubjectCode: p.SubjectCode, SubjectName: p.SubjectName, BankId: int64(p.BankID),
+	out := gen.AdminOfficialProject{Id: int64(p.ID), CatalogCourseId: optID(p.CatalogCourseID), School: p.School, Major: p.Major, SubjectCode: p.SubjectCode, SubjectName: p.SubjectName, BankId: int64(p.BankID),
 		Stage: gen.OfficialStage(p.Stage), EditorIds: make([]int64, len(p.EditorIDs)), Materials: make([]gen.OfficialMaterial, len(p.Materials)), KpCount: p.KPCount,
 		QuestionCount: p.QuestionCount, ExamCount: p.ExamCount, Version: p.Version, Subscribers: p.Subscribers, CreatedAt: p.CreatedAt}
 	for i, id := range p.EditorIDs {
@@ -124,7 +124,7 @@ func (h *Handlers) ListAdminDemand(c *gin.Context) {
 	out := make([]gen.AdminDemand, len(ds))
 	for i, d := range ds {
 		out[i] = gen.AdminDemand{SubjectCode: d.Code, Users: d.Users, AvgQuestions: d.AvgQuestions, WeekNew: d.WeekNew, WithTarget: d.WithTarget, PaidRate: float32(d.PaidRate),
-			AvgReview: d.AvgReview, ProjectId: optID(d.ProjectID), ProjectStage: opt(d.ProjectStage), Unplanned: d.Unplanned}
+			AvgReview: d.AvgReview, ProjectId: optID(d.ProjectID), ProjectStage: opt(d.ProjectStage), Unplanned: d.Unplanned, School: ptr(d.School)}
 	}
 	c.JSON(http.StatusOK, items(out))
 }
@@ -134,7 +134,11 @@ func (h *Handlers) MarkAdminDemand(c *gin.Context, code string) {
 	if !bind(c, &body) {
 		return
 	}
-	if err := h.deps.Official.MarkUnplanned(c.Request.Context(), currentAdmin(c).ID, code, body.Unplanned); err != nil {
+	school := ""
+	if body.School != nil {
+		school = *body.School
+	}
+	if err := h.deps.Official.MarkUnplanned(c.Request.Context(), currentAdmin(c).ID, school, code, body.Unplanned); err != nil {
 		_ = c.Error(err)
 		return
 	}
@@ -170,7 +174,14 @@ func (h *Handlers) CreateOfficialProject(c *gin.Context) {
 	if body.EditorIds != nil {
 		editors = ids(*body.EditorIds)
 	}
-	id, err := h.deps.Official.CreateProject(c.Request.Context(), currentAdmin(c).ID, body.School, body.Major, body.SubjectCode, body.SubjectName, editors)
+	// T50：从考试科目立项；旧版后台只传院校、代码、名称。
+	var id uint64
+	var err error
+	if body.CatalogCourseId != nil {
+		id, err = h.deps.Official.CreateProjectFromCourse(c.Request.Context(), currentAdmin(c).ID, uint64(*body.CatalogCourseId), editors)
+	} else {
+		id, err = h.deps.Official.CreateProject(c.Request.Context(), currentAdmin(c).ID, deref(body.School), deref(body.Major), deref(body.SubjectCode), deref(body.SubjectName), editors)
+	}
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -509,12 +520,17 @@ func (h *Handlers) GenerateOfficialAnswer(c *gin.Context, projectID int64) {
 	}
 	out := gen.OfficialAnswerCandidate{Answer: a.Answer, Points: toGenPoints(a.Points)}
 	out.Citations = make([]struct {
-		Heading     string `json:"heading"`
-		ReferenceId int64  `json:"reference_id"`
-		Title       string `json:"title"`
+		Heading     string                                        `json:"heading"`
+		Material    *gen.OfficialAnswerCandidateCitationsMaterial `json:"material,omitempty"`
+		ReferenceId int64                                         `json:"reference_id"`
+		Title       string                                        `json:"title"`
 	}, len(a.Citations))
 	for i, x := range a.Citations {
 		out.Citations[i].Heading, out.Citations[i].ReferenceId, out.Citations[i].Title = x.Heading, int64(x.ReferenceID), x.Title
+		if x.Material != "" {
+			m := gen.OfficialAnswerCandidateCitationsMaterial(x.Material)
+			out.Citations[i].Material = &m
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"answer": a.Answer, "points": out.Points, "citations": out.Citations, "snapshot_id": a.SnapshotID, "snapshot": a.Snapshot})
 }

@@ -5273,13 +5273,16 @@ paths:
     get:
       tags: [profile]
       operationId: listCatalogCourses
-      summary: 1.1 按院校列出专业与专业课，标出有没有官方题库
+      summary: 1.1 按院校列出考试科目，标出有没有官方题库
       description: |
         受 onboarding_route 开关控制。official_status：available 有官方题库 / producing 生产中 / none 暂无；
         官方题库开关对当前用户关闭时一律为 none（增补「功能开关」）。有官方题库时带 official 摘要（1.1a）。
+        include_national 为真时（T50 新版 App）另外列出全国统考科目（scope = national）；本校已有同代码自命题卷的统考科目不列。
+        院校不在库里时也可以调用，只会返回统考科目。
       parameters:
         - { name: school, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
         - { name: exam_year, in: query, required: false, schema: { type: integer } }
+        - { name: include_national, in: query, required: false, schema: { type: boolean }, description: 同时列出全国统考科目（T50） }
       responses:
         "200":
           description: OK
@@ -5712,7 +5715,7 @@ paths:
       tags:
       - admin
       operationId: listAdminDemand
-      summary: 7.10 需求洞察（按专业课代码统计自建用户）
+      summary: 7.10 需求洞察（按「院校 + 专业课代码」统计自建用户；全国统考只按代码，院校为空串）
       x-roles:
       - content_lead
       - analyst
@@ -5761,6 +5764,10 @@ paths:
               properties:
                 unplanned: &id005_2
                   type: boolean
+                school:
+                  type: string
+                  maxLength: 64
+                  description: 院校（T50 起按院校 + 代码标记）；全国统考或院校未知时不传或传空串
       responses:
         '204':
           description: 完成
@@ -5775,7 +5782,9 @@ paths:
       x-roles: [admin, content_lead]
       security: [{ adminAuth: [] }]
       parameters:
-        - { name: q, in: query, required: false, schema: { type: string, maxLength: 64 }, description: 按院校、课程名或代码搜索 }
+        - { name: q, in: query, required: false, schema: { type: string, maxLength: 64 }, description: 按院校、科目名或代码搜索（统考科目也按登记的院校搜） }
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [school, national] }, description: 命题方式 }
+        - { name: discipline, in: query, required: false, schema: { type: string, maxLength: 16 } }
       responses:
         "200":
           description: OK
@@ -5824,6 +5833,65 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+  /admin/catalog/disciplines:
+    get:
+      tags: [admin]
+      operationId: adminListCatalogDisciplines
+      summary: 考试科目可选的学科（学科门类，固定选项）
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { type: string } }
+  /admin/catalog/courses/{courseId}/schools:
+    get:
+      tags: [admin]
+      operationId: adminListCatalogCourseSchools
+      summary: 登记使用这门全国统考的院校
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: courseId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { type: string } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [admin]
+      operationId: adminSetCatalogCourseSchools
+      summary: 整体替换登记使用这门全国统考的院校
+      description: 只有全国统考科目能登记院校。登记是选填的：没登记的院校在 1.1 选到这个学科时也能看到统考科目。
+      x-roles: [admin, content_lead]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: courseId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [schools]
+              properties:
+                schools: { type: array, maxItems: 500, items: { type: string, minLength: 1, maxLength: 64 } }
+      responses:
+        "204": { description: 完成 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /admin/catalog/pending:
     get:
       tags: [admin]
@@ -5860,7 +5928,9 @@ paths:
       tags: [admin]
       operationId: adminResolveCatalogPending
       summary: 处理待入库：一键入库 / 合并到已有课程 / 忽略
-      description: 入库或合并后，当初手动添加这门课的用户关联到库里的课（官方题库上线时能收到通知）。
+      description: |
+        入库或合并后，当初手动添加这门课的用户关联到库里的课（官方题库上线时能收到通知）。
+        合并到全国统考科目时，同时把这所院校登记为使用该统考（T50）。
       x-roles: [admin, content_lead]
       security: [{ adminAuth: [] }]
       parameters:
@@ -6261,12 +6331,14 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-              - school
-              - major
-              - subject_code
-              - subject_name
+              description: |
+                T50 起从考试科目立项：传 catalog_course_id，院校、代码、名称取自考试科目，一门考试科目只能立一个项目；
+                全国统考科目的院校记为「全国统考」。旧版后台不传 catalog_course_id 时须填院校、代码、名称，按它们找到考试科目挂上。
               properties:
+                catalog_course_id:
+                  type: integer
+                  format: int64
+                  description: 考试科目
                 school:
                   type: string
                   maxLength: 64
@@ -6292,6 +6364,8 @@ paths:
                 $ref: '#/components/schemas/AdminOfficialProject'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /admin/official/projects/{projectId}:
     get:
       tags:
@@ -6462,8 +6536,12 @@ paths:
       summary: 上传资料并标类型（真题卷 / 参考书目录 / 有授权的讲义），或粘贴文字、表格导入（CSV）
       description: |
         format 为 text 或 csv 时直接带 text，马上开始解析；pdf / docx / image 返回 upload_url，客户端直传后调用 confirm。
-        表格导入的表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型；
-        题型、分值、题干必填，真题年份必填；缺参考答案、采分点时由 AI 补全。
+        md（Markdown，T52）可以上传 .md 文件（带 size，UTF-8 编码），也可以直接带 text 粘贴；解析前去掉排版标记（标题符号、加粗、链接网址、图片），
+        表格逐行转成文字。粘贴的 text 也做同样的处理。
+        表格导入的表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型、限选分组、适用专业；
+        题型、分值、题干必填，真题年份必填。限选分组（如「第一组」）与适用专业选填：填了是限选题，不填是必答题（T51）。
+        真题卷里按专业分组的题（「第一组：请选择文艺学专业的考生作答」）解析时自动标成限选题。
+        auto_answer 为 true 时解析过程中缺参考答案、采分点的题由 AI 补全；默认不补，解析后由编辑逐题「生成答案 / 提取采分点」或整份「一键补全」（T49）。
       x-roles: [content_lead, content_editor]
       security: [{ adminAuth: [] }]
       parameters:
@@ -6477,15 +6555,45 @@ paths:
               required: [kind, format]
               properties:
                 kind: { type: string, enum: [exam, catalog, handout, table] }
-                format: { type: string, enum: [pdf, docx, image, text, csv] }
+                format: { type: string, enum: [pdf, docx, image, text, csv, md] }
                 file_name: { type: string, maxLength: 255 }
                 size: { type: integer, format: int64, description: 文件字节数（上传文件时） }
                 text: { type: string, maxLength: 1200000, description: 粘贴的文字或 CSV }
                 exam_year: { type: integer, description: 真题卷年份（识别不出时用它） }
                 is_recollection: { type: boolean, description: 回忆版 }
+                auto_answer: { type: boolean, description: 缺答案时由 AI 生成（解析时就补全答案与采分点；默认 false） }
       responses:
         "200":
           description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfficialImportFile" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/official/projects/{projectId}/framework:
+    post:
+      tags: [admin]
+      operationId: adminCreateOfficialFramework
+      summary: 用项目已关联的资料生成知识框架（T54）
+      description: |
+        新建一份「参考书目录」解析记录（kind = catalog），AI 按它生成知识点候选，在核对区逐条接受。
+        考纲用全文，教材、讲义只用章节标题；经验总结不能生成（400）；资料没关联到本项目 404；没有发布原文 400。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [edition_id]
+              properties:
+                edition_id: { type: integer, format: int64, minimum: 1, description: 项目已关联的资料版本 }
+      responses:
+        "200":
+          description: 已开始生成
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OfficialImportFile" }
@@ -6529,12 +6637,124 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+  /admin/official/projects/{projectId}/imports/{fileId}/reject-duplicates:
+    post:
+      tags: [admin]
+      operationId: adminRejectOfficialImportDuplicates
+      summary: 一键驳回这份资料里标为重复、还没核对的题（T52）
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: fileId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rejected]
+                properties:
+                  rejected: { type: integer, description: 驳回的条数 }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/official/projects/{projectId}/imports/{fileId}/fill:
+    post:
+      tags: [admin]
+      operationId: adminFillOfficialImport
+      summary: 一键补全：这份资料里还没核对、缺答案或采分点的题都补上（T49）
+      description: |
+        在后台排队执行，进度见 OfficialImportFile.fill；单题失败不影响其余，原因记在条目的 fill_error 上。
+        缺答案的 AI 生成参考答案（主观题连同采分点，优先引用项目关联的官方教材，payload.answer_ai = true）；有答案缺采分点的从答案提采分点。
+        主观题没有分值时参考同项目同题型最常见的分值（payload.score_inferred = true）。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: fileId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: 已开始补全
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfficialImportFile" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/official/projects/{projectId}/import-items/{itemId}/fill:
+    post:
+      tags: [admin]
+      operationId: adminFillOfficialImportItem
+      summary: 生成答案 / 提取采分点：给一道还没核对的题补上（T49）
+      description: |
+        缺答案的 AI 生成参考答案（主观题连同采分点，客观题只要答案），标 payload.answer_ai，带引用（书名、章节、原文、页码）；
+        有答案缺采分点的从答案提采分点。主观题没有分值时参考同项目同题型最常见的分值（payload.score_inferred），
+        同题型一道有分值的都没有时返回 400（detail.reason = score_missing），请先「修改」填分值。
+        生成失败返回 400 / 502（AI_FAILED），原因同时记在条目的 fill_error 上。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: itemId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: 补好的条目
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfficialImportItem" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/official/projects/{projectId}/imports/{fileId}/regenerate:
+    post:
+      tags: [admin]
+      operationId: adminRegenerateOfficialImport
+      summary: 整份按关联教材重新生成：这份资料里还没核对、答案由 AI 生成的题都重新生成（T53）
+      description: |
+        先导入、后关联教材时用。与一键补全共用后台任务与进度（OfficialImportFile.fill），缺答案、缺采分点的题一起补上。
+        只换 AI 生成的答案（payload.answer_ai），原文给的答案不动；原文给的采分点保留。单题失败时原来的答案不变，原因记在 fill_error 上。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: fileId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: 已开始重新生成
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfficialImportFile" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/official/projects/{projectId}/import-items/{itemId}/regenerate:
+    post:
+      tags: [admin]
+      operationId: adminRegenerateOfficialImportItem
+      summary: 按关联教材重新生成一道题的 AI 答案（T53）
+      description: |
+        只能用于还没核对、答案由 AI 生成的题（answer_ai = true）；原文给的采分点保留。
+        失败返回 400 / 502（AI_FAILED），原来的答案不变，原因记在 fill_error 上。
+      x-roles: [content_lead, content_editor]
+      security: [{ adminAuth: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: itemId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: 重新生成后的条目
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfficialImportItem" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /admin/official/projects/{projectId}/import-items/{itemId}/review:
     post:
       tags: [admin]
       operationId: adminReviewOfficialImportItem
       summary: 逐条接受（可带修改后的内容）或驳回；接受的生成草稿并提交 7.13 审核
-      description: 采分点合计不等于分值时不能接受（detail.reason = rubric_sum）。
+      description: 主观题还没有采分点时不能接受（detail.reason = needs_fill）；采分点合计不等于分值时不能接受（detail.reason = rubric_sum）。
       x-roles: [content_lead, content_editor]
       security: [{ adminAuth: [] }]
       parameters:
@@ -8969,6 +9189,7 @@ components:
         method: {type: string, enum: [auto, explicit]}
         catalog_version: {type: string}
         available: {type: boolean}
+        kind: {type: string, enum: [textbook, handout, syllabus, experience], description: 资料类型（T55，项目关联列表才有）}
     AnswerEvidenceSource:
       type: object
       properties:
@@ -9364,9 +9585,12 @@ components:
           maxLength: 128
         kind:
           type: string
+          description: 资料类型（T55）：textbook 教材、handout 讲义（答案的知识依据）；syllabus 考纲（只定考点范围）；experience 经验总结（只参考答题结构与侧重点，上传即视为已获授权）
           enum:
           - textbook
           - handout
+          - syllabus
+          - experience
         discipline:
           type: string
           minLength: 1
@@ -9593,9 +9817,12 @@ components:
           maxLength: 128
         kind:
           type: string
+          description: 资料类型（T55）：textbook 教材、handout 讲义（答案的知识依据）；syllabus 考纲（只定考点范围）；experience 经验总结（只参考答题结构与侧重点，上传即视为已获授权）
           enum:
           - textbook
           - handout
+          - syllabus
+          - experience
         discipline:
           type: string
           minLength: 1
@@ -9650,9 +9877,12 @@ components:
           maxLength: 128
         kind:
           type: string
+          description: 资料类型（T55）：textbook 教材、handout 讲义（答案的知识依据）；syllabus 考纲（只定考点范围）；experience 经验总结（只参考答题结构与侧重点，上传即视为已获授权）
           enum:
           - textbook
           - handout
+          - syllabus
+          - experience
         discipline:
           type: string
           minLength: 1
@@ -9694,9 +9924,12 @@ components:
           maxLength: 128
         kind:
           type: string
+          description: 资料类型（T55）：textbook 教材、handout 讲义（答案的知识依据）；syllabus 考纲（只定考点范围）；experience 经验总结（只参考答题结构与侧重点，上传即视为已获授权）
           enum:
           - textbook
           - handout
+          - syllabus
+          - experience
         discipline:
           type: string
           minLength: 1
@@ -10489,7 +10722,7 @@ components:
         answer_tier: { $ref: "#/components/schemas/AnswerTier" }
         reference_only:
           type: boolean
-          description: 按 AI 参考答案批改（4.7b）：分数仅供参考、不计入预估分；确认答案后，之后的批改会计入
+          description: 这次作答不计入预估分（11 月 4 日以前按 AI 参考答案批改的）。11 月 4 日起按 AI 参考答案批改照常计入，不再返回（T49）
         answer_confirmed: { type: boolean, description: 题目的 AI 参考答案已经被确认（4.7b 不再显示「这份参考答案对吗？」） }
     DisputeRequest:
       type: object
@@ -12377,6 +12610,9 @@ components:
         project_stage: *id001_6
         unplanned: &id007_4
           type: boolean
+        school:
+          type: string
+          description: 院校；全国统考或院校未知时为空串（T50）
     OfficialStage:
       type: string
       enum:
@@ -12424,6 +12660,10 @@ components:
       - created_at
       properties:
         id: *id003_6
+        catalog_course_id:
+          type: integer
+          format: int64
+          description: 考试科目（T50 之前的旧立项可能没有）
         school: *id001_6
         major: *id001_6
         subject_code: *id001_6
@@ -12462,6 +12702,9 @@ components:
         payload: &id005_5
           type: object
           additionalProperties: true
+          description: |
+            知识点或题目的内容。题目的 group 是限选分组 { label（如「第一组」，32 字以内）, majors（适用专业）}，
+            没有 group 是必答题（T51）。用户添加官方题库时，限选题只复制与报考方向匹配的那一组。
     OfficialReferenceKind:
       type: string
       enum:
@@ -12528,6 +12771,10 @@ components:
                 type: string
               heading:
                 type: string
+              material:
+                type: string
+                enum: [textbook, handout, syllabus, experience]
+                description: 资料类型（T55）；没有是教材
     OfficialPoint:
       type: object
       required:
@@ -13294,12 +13541,16 @@ components:
 
     CatalogCourse:
       type: object
-      required: [id, school, major, discipline, subject_name, textbooks, official_status]
+      description: 考试科目（T50）：一套卷子一条，院校 + 学科 + 考试代码 + 科目名称；专业只是选填的适用专业
+      required: [id, scope, school, major, majors, discipline, subject_name, textbooks, official_status]
       properties:
         id: { type: integer, format: int64 }
-        school: { type: string }
-        major: { type: string }
-        discipline: { type: string, description: 学科，如 哲学、文学 }
+        scope: { type: string, enum: [school, national], description: 命题方式：院校自命题 / 全国统考 }
+        school: { type: string, description: 院校；全国统考为空串 }
+        major: { type: string, description: 旧字段：适用专业的第一个，旧版 App 显示用 }
+        majors: { type: array, items: { type: string }, description: 适用专业（选填，只用来展示） }
+        registered: { type: boolean, description: 全国统考科目：查询的院校在后台登记了使用这门统考 }
+        discipline: { type: string, description: 学科（学科门类），如 哲学、教育学 }
         subject_name: { type: string }
         subject_code: { type: string }
         textbooks: { type: array, items: { type: string } }
@@ -13320,10 +13571,16 @@ components:
         added_subject_id: { type: integer, format: int64, description: 已添加到哪门专业课；没添加时没有 }
     CatalogCourseInput:
       type: object
-      required: [school, major, subject_name]
+      description: |
+        考试科目（T50）。scope 默认 school；自命题必须填院校，统考不填院校（填了也忽略）。discipline 必须是
+        GET /admin/catalog/disciplines 里的一项。去重：自命题按院校 + 代码 + 年份，统考按代码 + 年份，没有代码时按名称。
+        majors 是选填的适用专业；旧版后台只传 major 时当作一个适用专业。
+      required: [subject_name]
       properties:
-        school: { type: string, minLength: 1, maxLength: 64 }
-        major: { type: string, minLength: 1, maxLength: 64 }
+        scope: { type: string, enum: [school, national] }
+        school: { type: string, maxLength: 64 }
+        major: { type: string, maxLength: 64 }
+        majors: { type: array, maxItems: 20, items: { type: string, minLength: 1, maxLength: 64 } }
         discipline: { type: string, maxLength: 16 }
         subject_name: { type: string, minLength: 1, maxLength: 64 }
         subject_code: { type: string, maxLength: 16 }
@@ -13334,10 +13591,12 @@ components:
       allOf:
         - $ref: "#/components/schemas/CatalogCourse"
         - type: object
-          required: [status, chosen_count]
+          required: [status, chosen_count, school_count]
           properties:
             status: { type: string, enum: [active, hidden] }
             chosen_count: { type: integer, description: 在 1.1 选了这门课的人数 }
+            school_count: { type: integer, description: 全国统考科目：登记使用它的院校数 }
+            project_id: { type: integer, format: int64, description: 官方题库立项；没立项时没有 }
     TrialUsage:
       type: object
       required: [limit, used, remaining]
@@ -13438,7 +13697,7 @@ components:
         id: { type: integer, format: int64 }
         kind: { type: string, enum: [exam, catalog, handout, table] }
         file_name: { type: string }
-        format: { type: string, enum: [pdf, docx, image, text, csv] }
+        format: { type: string, enum: [pdf, docx, image, text, csv, md] }
         status: { type: string, enum: [uploading, parsing, parsed, failed] }
         fail_reason: { type: string }
         question_count: { type: integer }
@@ -13448,6 +13707,16 @@ components:
         created_at: { type: string, format: date-time }
         upload_url: { type: string, description: 直传地址（新建文件时） }
         upload_headers: { type: object, additionalProperties: { type: string } }
+        auto_answer: { type: boolean, description: 上传时勾选了「缺答案时由 AI 生成」 }
+        fill:
+          type: object
+          description: 一键补全的进度（T49）
+          required: [status, total, done, failed]
+          properties:
+            status: { type: string, enum: [idle, running] }
+            total: { type: integer }
+            done: { type: integer, description: 已处理的题数（含失败） }
+            failed: { type: integer }
     OfficialImportItem:
       type: object
       required: [id, item_type, seq, payload, confidence, status, rubric_mismatch]
@@ -13455,21 +13724,59 @@ components:
         id: { type: integer, format: int64 }
         item_type: { type: string, enum: [question, knowledge_point] }
         seq: { type: integer }
-        payload: { type: object, additionalProperties: true, description: 结构同 7.12 草稿 }
+        payload:
+          type: object
+          additionalProperties: true
+          description: |
+            结构同 7.12 草稿。题目另有：answer_ai（参考答案由 AI 生成，发布后用户端显示「AI 参考答案」，照常计入预估分）、
+            score_inferred（原文没有分值，参考同项目同题型的给分填上，请核对）、
+            group（限选题：{ label: 组名如「第一组」, majors: 适用专业 }；没有是必答题，T51）。
         citations:
           type: array
           items:
             type: object
             properties:
               reference_id: { type: integer, format: int64 }
-              title: { type: string }
-              heading: { type: string }
+              title: { type: string, description: 书名或资料名 }
+              heading: { type: string, description: 章节 }
+              kind: { type: string, description: official_textbook 官方教材 }
+              quote: { type: string, description: 引用的原文段落 }
+              claim: { type: string, description: 这段原文支撑答案里的哪个观点 }
+              page: { type: integer, description: 资料页码 }
+              printed_page: { type: string, description: 教材印刷页码 }
+              material: { type: string, enum: [textbook, handout, syllabus, experience], description: 资料类型（T55）；没有是教材 }
         source_text: { type: string, description: 原文片段（高亮） }
         page: { type: integer }
         confidence: { type: string, enum: [high, medium, low] }
         status: { type: string, enum: [pending, accepted, rejected] }
         draft_id: { type: integer, format: int64 }
         rubric_mismatch: { type: boolean, description: 采分点合计不等于分值（标红） }
+        needs_fill: { type: boolean, description: 还缺答案或采分点（可以「生成答案 / 提取采分点」） }
+        fill_error: { type: string, description: 上次补全失败的原因 }
+        duplicate_of:
+          type: string
+          description: |
+            重复说明（T52），如「与《2025 真题.pdf》第 3 题相同」「与已发布的官方题相同」；只标还没核对的题，标了的置信度为 low。
+            同一年份下题干相同，或同题型且题干互相重合 90% 以上算重复；比对已发布的官方题、未发布的新增题目草稿、项目里各份资料还没驳回的解析题。
+        seen_years:
+          type: array
+          items: { type: integer }
+          description: 别的年份也考过同一题（不算重复，只做提示）
+        answer_ai: { type: boolean, description: 答案由 AI 生成（还没核对的可以按关联教材重新生成，T53） }
+        answer_basis:
+          type: object
+          description: AI 生成的答案没有引用教材时的原因（T53）；引用了教材或答案是原文给的时没有
+          required: [reason, message]
+          properties:
+            reason:
+              type: string
+              enum: [no_textbook, unavailable, no_hits, not_relevant, not_cited, citation_rejected, retrieval_failed]
+              description: |
+                no_textbook 项目没有关联教材；unavailable 关联的教材都不能检索（details 逐本写原因）；no_hits 没检索到相关段落；
+                not_relevant 检索到的段落与本题不相关；not_cited AI 没有引用检索到的段落；citation_rejected 引用核对没通过，已改按通用知识生成；
+                retrieval_failed 检索出错（超时等），可稍后重新生成
+            message: { type: string, description: 给编辑看的说明 }
+            details: { type: array, items: { type: string }, description: 逐本说明，如「《文学理论教程》 第五版：还没有可检索的索引」 }
     SubjectInput:
       type: object
       required: [name, full_score]
@@ -13478,9 +13785,9 @@ components:
         code: { type: string, maxLength: 16, nullable: true }
         full_score: { type: integer, enum: [100, 150, 300] }
         target_score: { type: integer, minimum: 0, nullable: true, description: 不设目标传 null }
-        catalog_course_id: { type: integer, format: int64, description: 1.1 从院校专业课库选的课（新 1.1） }
-        school: { type: string, maxLength: 64, description: 1.1 手动添加时的院校；库里没有的课进后台「待入库」 }
-        major: { type: string, maxLength: 64 }
+        catalog_course_id: { type: integer, format: int64, description: 1.1 从考试科目库选的科目（新 1.1） }
+        school: { type: string, maxLength: 64, description: 1.1 的目标院校（选全国统考科目时也传）；手动添加、库里没有的课进后台「待入库」 }
+        major: { type: string, maxLength: 64, description: 选填的专业，只用来展示和统计，不影响匹配题库 }
     SubjectPatch:
       type: object
       properties:
@@ -13693,8 +14000,8 @@ components:
     AnswerTier:
       type: string
       description: |
-        参考答案的来源档位（PRD 11.16）：来自你的资料 / 你已确认 / AI 参考答案（待确认）/ AI 出题自带的答案 / 缺答案。
-        只有 material、confirmed、ai_question 计入预估分；ai 可以批改，结果标「仅供参考」。
+        参考答案的来源档位（PRD 11.16）：来自你的资料 / 你已确认 / AI 参考答案 / AI 出题自带的答案 / 缺答案。
+        除 missing 外都计入预估分（11 月 4 日起 ai 也计入，T49）；ai 包括做到时 AI 生成的，和官方题库由 AI 生成、经编辑审核的，可以确认或修改。
       enum: [material, confirmed, ai, ai_question, missing]
     AnswerMatch:
       type: string
@@ -13805,7 +14112,8 @@ components:
         next_cursor: { type: string }
     QuestionGroup:
       type: object
-      description: 按专业分组的论述题所在的组，只答报考专业那一组
+      description: |
+        限选题所在的组（按专业分组的题，只答报考专业那一组，回答非报考专业不得分）；题目没有 group 是必答题（T51）
       required: [label]
       properties:
         label: { type: string, description: 如「第一组」 }
@@ -14110,7 +14418,7 @@ components:
         question_count: { type: integer }
         kp_count: { type: integer }
         needs_review_count: { type: integer }
-        missing_answer_count: { type: integer, description: 缺答案的题数（3.1 提醒条「N 题缺答案」，含只有 AI 参考答案、还没确认的） }
+        missing_answer_count: { type: integer, description: 缺答案的题数（3.1 提醒条「N 题缺答案」，含只有 AI 参考答案、还没确认的；官方题库经编辑审核的 AI 参考答案不算） }
         material_count: { type: integer }
         paper_count: { type: integer }
         mastery_distribution:

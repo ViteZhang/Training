@@ -297,6 +297,7 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 		return h.Textbooks.RecoverIndexes(ctx)
 	})
 	mux.HandleFunc(TypeOfficialImport, h.handleOfficialImport)
+	mux.HandleFunc(TypeOfficialImportFill, h.handleOfficialImportFill)
 	mux.HandleFunc(TypeOfficialImportRecover, func(ctx context.Context, _ *asynq.Task) error {
 		if h.Official == nil {
 			return nil

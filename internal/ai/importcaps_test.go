@@ -66,3 +66,17 @@ func TestStructureDropsBadItemsOnly(t *testing.T) {
 		t.Fatalf("剔除的块：%v", out.Dropped)
 	}
 }
+
+// 模型遇到古文翻译、标点、病句修改题时会自造题型（北师大 708 真题合集实测），应归为 other，不能让整批 Schema 不通过、整份解析失败。
+func TestStructureUnknownQTypeBecomesOther(t *testing.T) {
+	in := StructureIn{Blocks: []Block{{ID: 1, Page: 1, Text: "1. 请用现代汉语翻译下面文中大字正文部分"}, {ID: 2, Page: 1, Text: "2. 名词解释：六书"}}}
+	out, err := Structure.validate(in, `{"items":[
+		{"block":1,"kind":"question","qtype":"translation","stem":"请用现代汉语翻译下面文中大字正文部分","page":1,"confidence":0.9},
+		{"block":2,"kind":"question","qtype":" Term ","stem":"名词解释：六书","page":1,"confidence":0.9}]}`)
+	if err != nil {
+		t.Fatalf("自造题型应归为 other：%v", err)
+	}
+	if out.Items[0].QType != "other" || out.Items[1].QType != "term" {
+		t.Fatalf("题型应为 other、term：%+v", out.Items)
+	}
+}

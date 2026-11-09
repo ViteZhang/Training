@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"strconv"
+	"strings"
 
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
@@ -197,7 +198,73 @@ func (u userContent) kpUnmodified(k dbq.ListUserKPCopiesRow) bool {
 }
 
 func (u userContent) questionUnmodified(x dbq.ListUserQuestionCopiesRow) bool {
-	return x.OfficialHash.Valid && hashOf(string(x.Qtype), x.Stem, x.Answer.String, rubricText(u.qRubric[x.ID])) == x.OfficialHash.String
+	return x.OfficialHash.Valid && questionHashOf(string(x.Qtype), x.Stem, x.Answer.String, rubricText(u.qRubric[x.ID]), x.AnswerOrigin,
+		groupKey(x.GroupLabel, x.GroupMajors)) == x.OfficialHash.String
+}
+
+// otherGroups 是与报考方向不匹配、不复制给这位用户的限选题（T51；回答非报考专业不得分）：
+// 同一年（没有年份的算一组）的限选题里有与方向匹配的组时，其他组都不要；一组都对不上时全部保留，免得整年的论述题都没了。
+// 没填报考方向时全部保留，与用户自己导入时选「不区分方向」一致。
+func otherGroups(qs []dbq.ListOfficialQuestionsRow, mine string) map[uint64]bool {
+	out := map[uint64]bool{}
+	if strings.TrimSpace(mine) == "" {
+		return out
+	}
+	year := func(x dbq.ListOfficialQuestionsRow) int {
+		if x.ExamYear.Valid {
+			return int(x.ExamYear.Int16)
+		}
+		return -1
+	}
+	matched := map[int]bool{}
+	for _, x := range qs {
+		if x.GroupLabel.String != "" && importer.MatchMajors(mine, x.GroupMajors.String) {
+			matched[year(x)] = true
+		}
+	}
+	for _, x := range qs {
+		if x.GroupLabel.String != "" && matched[year(x)] && !importer.MatchMajors(mine, x.GroupMajors.String) {
+			out[x.ID] = true
+		}
+	}
+	return out
+}
+
+// ResyncSubject 报考方向改了以后，重新对这门专业课上添加的官方题库：限选题换成新方向的那一组（T51）。
+// 不匹配的组下线（作答记录保留），改回来时恢复。
+func (s *Service) ResyncSubject(ctx context.Context, userID, subjectID uint64) error {
+	banks, err := s.q.SubscriptionsOfSubject(ctx, dbq.SubscriptionsOfSubjectParams{OwnerUserID: userID, SubjectID: subjectID})
+	if err != nil {
+		return err
+	}
+	for _, b := range banks {
+		if _, err := s.Sync(ctx, userID, b, true); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ResyncUser 对这位用户添加的全部官方题库重新对一遍（导入时在核对页选了报考方向之后用，T51）。
+func (s *Service) ResyncUser(ctx context.Context, userID uint64) error {
+	subs, err := s.q.ListMySubscriptions(ctx, userID)
+	if err != nil {
+		return err
+	}
+	for _, sb := range subs {
+		if _, err := s.Sync(ctx, userID, sb.BankID, true); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// copyOrigin 是用户副本的答案来源：官方题的答案由 AI 生成的，副本也记 ai_generated，用户端显示「AI 参考答案」（T49）；其余记 official。
+func copyOrigin(o dbq.NullQuestionsAnswerOrigin) dbq.NullQuestionsAnswerOrigin {
+	if o.Valid && o.QuestionsAnswerOrigin == dbq.QuestionsAnswerOriginAiGenerated {
+		return o
+	}
+	return dbq.NullQuestionsAnswerOrigin{QuestionsAnswerOrigin: dbq.QuestionsAnswerOriginOfficial, Valid: true}
 }
 
 // SyncResult 是一次对账的结果。
@@ -227,6 +294,11 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 		if err != nil {
 			return err
 		}
+		mine, err := q.GetSubjectMyMajors(ctx, dbq.GetSubjectMyMajorsParams{ID: sub.SubjectID, OwnerUserID: userID})
+		if err != nil {
+			return err
+		}
+		skip := otherGroups(oc.questions, mine.String)
 		owner := sql.NullInt64{Int64: int64(userID), Valid: true}
 		linked := map[uint64]dbq.ListUserKPCopiesRow{}
 		byName := map[string]dbq.ListUserKPCopiesRow{}
@@ -327,8 +399,8 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 		for _, o := range oc.questions {
 			officialQs[o.ID] = true
 			u, ok := linkedQ[o.ID]
-			if o.Status != dbq.QuestionsStatusActive {
-				// 下线的归档，不再出题。
+			if o.Status != dbq.QuestionsStatusActive || skip[o.ID] {
+				// 下线的、不是报考方向那一组的限选题归档，不再出题。
 				if ok && u.Status == dbq.QuestionsStatusActive {
 					if err := q.SetUserQuestionStatus(ctx, dbq.SetUserQuestionStatusParams{Status: dbq.QuestionsStatusOffline, ID: u.ID, OwnerUserID: owner}); err != nil {
 						return err
@@ -340,8 +412,8 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 			oh := oc.questionHash(o)
 			if !ok {
 				id, err := q.InsertUserQuestionCopy(ctx, dbq.InsertUserQuestionCopyParams{OwnerUserID: owner, BankID: ub.ID, Qtype: o.Qtype, Stem: o.Stem, Options: o.Options,
-					Answer: o.Answer, Analysis: o.Analysis, Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem),
-					OfficialQuestionID: sql.NullInt64{Int64: int64(o.ID), Valid: true}, OfficialHash: nullStr(oh)})
+					Answer: o.Answer, AnswerOrigin: copyOrigin(o.AnswerOrigin), Analysis: o.Analysis, Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem),
+					OfficialQuestionID: sql.NullInt64{Int64: int64(o.ID), Valid: true}, OfficialHash: nullStr(oh), GroupLabel: o.GroupLabel, GroupMajors: o.GroupMajors})
 				if err != nil {
 					return err
 				}
@@ -364,8 +436,9 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 				res.Skipped++
 				continue
 			}
-			if err := q.UpdateUserQuestionCopy(ctx, dbq.UpdateUserQuestionCopyParams{Qtype: o.Qtype, Stem: o.Stem, Options: o.Options, Answer: o.Answer, Analysis: o.Analysis,
-				Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem), OfficialHash: nullStr(oh), ID: u.ID, OwnerUserID: owner}); err != nil {
+			if err := q.UpdateUserQuestionCopy(ctx, dbq.UpdateUserQuestionCopyParams{Qtype: o.Qtype, Stem: o.Stem, Options: o.Options, Answer: o.Answer, AnswerOrigin: copyOrigin(o.AnswerOrigin), Analysis: o.Analysis,
+				Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem), OfficialHash: nullStr(oh), GroupLabel: o.GroupLabel, GroupMajors: o.GroupMajors,
+				ID: u.ID, OwnerUserID: owner}); err != nil {
 				return err
 			}
 			if err := q.DeleteUserQuestionRubric(ctx, dbq.DeleteUserQuestionRubricParams{QuestionID: sql.NullInt64{Int64: int64(u.ID), Valid: true}, OwnerUserID: owner}); err != nil {

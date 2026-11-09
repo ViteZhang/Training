@@ -7,6 +7,7 @@ package dbq
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"peetraining-server/internal/dbtypes"
@@ -66,6 +67,7 @@ type Querier interface {
 	AdminInsertManualOrder(ctx context.Context, arg AdminInsertManualOrderParams) (int64, error)
 	AdminListApplicationGroups(ctx context.Context, arg AdminListApplicationGroupsParams) ([]AdminListApplicationGroupsRow, error)
 	AdminListBatches(ctx context.Context, arg AdminListBatchesParams) ([]AdminListBatchesRow, error)
+	// 后台考试科目列表：按命题方式、学科筛选，按院校、科目名、代码搜索（统考科目还按登记的院校搜）。
 	AdminListCatalogCourses(ctx context.Context, arg AdminListCatalogCoursesParams) ([]AdminListCatalogCoursesRow, error)
 	AdminListDisputes(ctx context.Context, arg AdminListDisputesParams) ([]AdminListDisputesRow, error)
 	// 反馈是用户写给客服的，列表显示内容；截图与关联资料要授权才能看。
@@ -120,6 +122,8 @@ type Querier interface {
 	BumpQuestionReport(ctx context.Context, arg BumpQuestionReportParams) error
 	CancelUserDeletion(ctx context.Context, id uint64) (int64, error)
 	CatalogCoursesOfProject(ctx context.Context, id uint64) ([]uint64, error)
+	// 去重：同一院校（统考为空串）、同一年份下同名的科目；有一方没填代码时算重复。
+	CatalogCoursesSameName(ctx context.Context, arg CatalogCoursesSameNameParams) ([]CatalogCoursesSameNameRow, error)
 	CatalogDiscipline(ctx context.Context, arg CatalogDisciplineParams) (string, error)
 	ClearExportObject(ctx context.Context, arg ClearExportObjectParams) error
 	CompleteAnswerCandidate(ctx context.Context, arg CompleteAnswerCandidateParams) error
@@ -181,7 +185,8 @@ type Querier interface {
 	DecideReviewTask(ctx context.Context, arg DecideReviewTaskParams) (int64, error)
 	DeleteAdminSession(ctx context.Context, tokenHash string) error
 	DeleteAdminSessionsFor(ctx context.Context, adminID uint64) error
-	DeleteDemandMark(ctx context.Context, subjectCode string) error
+	DeleteCatalogSchoolExams(ctx context.Context, courseID uint64) error
+	DeleteDemandMark(ctx context.Context, arg DeleteDemandMarkParams) error
 	DeleteExpiredAdminSessions(ctx context.Context, expiresAt time.Time) error
 	DeleteFlagUsers(ctx context.Context, flagKey string) error
 	DeleteImportAnswersOfMaterial(ctx context.Context, arg DeleteImportAnswersOfMaterialParams) error
@@ -257,11 +262,14 @@ type Querier interface {
 	FailPaperHandwriting(ctx context.Context, arg FailPaperHandwritingParams) error
 	FailVoiceTranscription(ctx context.Context, arg FailVoiceTranscriptionParams) error
 	FillQuestionExamInfo(ctx context.Context, arg FillQuestionExamInfoParams) error
+	// 旧版后台立项只传院校、代码、名称：找到对应的考试科目挂上。院校写「全国统考」的找统考科目。
+	FindCatalogCourseForProject(ctx context.Context, arg FindCatalogCourseForProjectParams) (uint64, error)
 	// 按「父节点 + 层级 + 名称」找已有知识点，导入时同名节点复用，树不重复（parent_id 可空，用 <=> 比较）。
 	FindKPByName(ctx context.Context, arg FindKPByNameParams) (uint64, error)
 	FindOfficialFirstSession(ctx context.Context, ownerUserID uint64) (uint64, error)
 	FinishEssayGrading(ctx context.Context, arg FinishEssayGradingParams) error
 	FinishExportJob(ctx context.Context, arg FinishExportJobParams) error
+	FinishOfficialImportFill(ctx context.Context, id uint64) error
 	FinishPaperGrading(ctx context.Context, arg FinishPaperGradingParams) error
 	FinishPracticeSession(ctx context.Context, arg FinishPracticeSessionParams) error
 	GetAIAnswerReports(ctx context.Context, arg GetAIAnswerReportsParams) (uint16, error)
@@ -374,6 +382,8 @@ type Querier interface {
 	GetSubject(ctx context.Context, arg GetSubjectParams) (GetSubjectRow, error)
 	// 题库：知识点、题目、资料（T13）。每条查询都带 owner_user_id 归属条件。
 	GetSubjectBank(ctx context.Context, arg GetSubjectBankParams) (GetSubjectBankRow, error)
+	// 报考方向（T51）：复制官方题库时限选题只留与它匹配的组。
+	GetSubjectMyMajors(ctx context.Context, arg GetSubjectMyMajorsParams) (sql.NullString, error)
 	GetSubscription(ctx context.Context, arg GetSubscriptionParams) (BankSubscription, error)
 	GetSurveyResponse(ctx context.Context, ownerUserID uint64) (SurveyResponse, error)
 	GetTextbook(ctx context.Context, id uint64) (Textbook, error)
@@ -429,6 +439,7 @@ type Querier interface {
 	InsertAnswerPairing(ctx context.Context, arg InsertAnswerPairingParams) error
 	InsertAttempt(ctx context.Context, arg InsertAttemptParams) (int64, error)
 	InsertCatalogCourse(ctx context.Context, arg InsertCatalogCourseParams) (int64, error)
+	InsertCatalogSchoolExam(ctx context.Context, arg InsertCatalogSchoolExamParams) error
 	InsertComposedPaper(ctx context.Context, arg InsertComposedPaperParams) (int64, error)
 	InsertContentAccessGrant(ctx context.Context, arg InsertContentAccessGrantParams) error
 	InsertContentAccessLog(ctx context.Context, arg InsertContentAccessLogParams) error
@@ -468,6 +479,8 @@ type Querier interface {
 	InsertOfficialImportItem(ctx context.Context, arg InsertOfficialImportItemParams) error
 	InsertOfficialKP(ctx context.Context, arg InsertOfficialKPParams) (int64, error)
 	InsertOfficialProject(ctx context.Context, arg InsertOfficialProjectParams) (int64, error)
+	// answer_origin：official 团队给的答案；ai_generated 由 AI 生成、经编辑审核（用户端显示「AI 参考答案」，T49）。
+	// group_label / group_majors：限选题（按专业分组的题，T51）；为空是必答题。
 	InsertOfficialQuestion(ctx context.Context, arg InsertOfficialQuestionParams) (int64, error)
 	InsertOfficialQuestionKP(ctx context.Context, arg InsertOfficialQuestionKPParams) error
 	InsertOfficialReferenceSegment(ctx context.Context, arg InsertOfficialReferenceSegmentParams) error
@@ -561,11 +574,14 @@ type Querier interface {
 	ListBankQuestionsForDedupe(ctx context.Context, arg ListBankQuestionsForDedupeParams) ([]ListBankQuestionsForDedupeRow, error)
 	// 题目列表（3.1b）：一次取出题库全部题目及作答概况，在服务端筛选、排序与分页（单个题库通常几百到几千题）。
 	ListBankQuestionsFull(ctx context.Context, arg ListBankQuestionsFullParams) ([]ListBankQuestionsFullRow, error)
-	// 1.1 按院校列出专业与专业课；带出官方题库立项（院校相同，代码相同，没有代码时名称相同）。
+	// 1.1 按院校列出考试科目：本校自命题的；include_national 时再加上全国统考科目（本校已有同代码自命题卷的不列，免得选错），
+	// registered 表示这所院校在后台登记了使用这门统考。官方题库立项按考试科目 id 关联；T50 之前的旧立项按院校 + 代码匹配。
 	ListCatalogCoursesBySchool(ctx context.Context, arg ListCatalogCoursesBySchoolParams) ([]ListCatalogCoursesBySchoolRow, error)
 	ListCatalogPending(ctx context.Context) ([]CatalogPendingCourse, error)
+	// 登记使用这门统考的院校。
+	ListCatalogSchoolExams(ctx context.Context, courseID uint64) ([]string, error)
 	ListContentAccessLogs(ctx context.Context, arg ListContentAccessLogsParams) ([]ListContentAccessLogsRow, error)
-	ListDemandMarks(ctx context.Context) ([]string, error)
+	ListDemandMarks(ctx context.Context) ([]ListDemandMarksRow, error)
 	ListDirectionStems(ctx context.Context, directionID sql.NullInt64) ([]string, error)
 	ListDueAnnouncements(ctx context.Context, scheduledAt sql.NullTime) ([]ListDueAnnouncementsRow, error)
 	ListEssayAITopics(ctx context.Context, arg ListEssayAITopicsParams) ([]EssayAiTopic, error)
@@ -646,6 +662,14 @@ type Querier interface {
 	// 练习、作答、错题本（T17）。每条查询都带归属条件。
 	// 选题池：题库里在用的题、主知识点、错题本状态。
 	ListPracticePool(ctx context.Context, arg ListPracticePoolParams) ([]ListPracticePoolRow, error)
+	// 同一项目里题目草稿，给缺分值的题参考同题型的默认给分。
+	ListProjectDraftQuestionPayloads(ctx context.Context, projectID uint64) ([]json.RawMessage, error)
+	// 同一项目里各资料解析出的题目，给缺分值的题参考同题型的默认给分。
+	ListProjectImportQuestionPayloads(ctx context.Context, projectID uint64) ([]json.RawMessage, error)
+	// T52 查重：项目里还没驳回的解析题（各份资料的），与资料名一起。
+	ListProjectImportQuestions(ctx context.Context, projectID uint64) ([]ListProjectImportQuestionsRow, error)
+	// T52 查重：项目里还没发布、没退回的新增题目草稿（7.12 手工录的与核对接受的）。
+	ListProjectQuestionDrafts(ctx context.Context, projectID uint64) ([]ListProjectQuestionDraftsRow, error)
 	ListProjectTextbooks(ctx context.Context, projectID uint64) ([]ListProjectTextbooksRow, error)
 	// ---------- 用户添加官方题库（11.15） ----------
 	ListPublishedOfficialBanks(ctx context.Context) ([]ListPublishedOfficialBanksRow, error)
@@ -674,6 +698,7 @@ type Querier interface {
 	ListScoreEstimates(ctx context.Context, arg ListScoreEstimatesParams) ([]ListScoreEstimatesRow, error)
 	ListSessionAttempts(ctx context.Context, arg ListSessionAttemptsParams) ([]ListSessionAttemptsRow, error)
 	ListSessionRecites(ctx context.Context, arg ListSessionRecitesParams) ([]ListSessionRecitesRow, error)
+	ListStaleOfficialImportFills(ctx context.Context, updatedAt time.Time) ([]uint64, error)
 	ListStaleOfficialImports(ctx context.Context, updatedAt time.Time) ([]uint64, error)
 	ListStats(ctx context.Context, arg ListStatsParams) ([]ListStatsRow, error)
 	ListStemsByCacheKey(ctx context.Context, cacheKey sql.NullString) ([]string, error)
@@ -757,6 +782,8 @@ type Querier interface {
 	NotifyOfficialLaunch(ctx context.Context, arg NotifyOfficialLaunchParams) (int64, error)
 	// 1.1a 官方题库摘要：版本、真题年份数、知识点数、模拟卷套数、题数。
 	OfficialBankSummary(ctx context.Context, id uint64) (OfficialBankSummaryRow, error)
+	// 一门考试科目只立一个项目（T50）。
+	OfficialProjectOfCourse(ctx context.Context, catalogCourseID sql.NullInt64) (uint64, error)
 	OwnsMaterial(ctx context.Context, arg OwnsMaterialParams) (bool, error)
 	PausePaperSession(ctx context.Context, arg PausePaperSessionParams) error
 	PendingVoiceTranscription(ctx context.Context, arg PendingVoiceTranscriptionParams) error
@@ -812,8 +839,8 @@ type Querier interface {
 	SaveTextbookRevision(ctx context.Context, arg SaveTextbookRevisionParams) (int64, error)
 	SealTextbookImport(ctx context.Context, arg SealTextbookImportParams) error
 	// T44 院校专业课库与引导分流。
-	// 1.1 搜索院校：按名称包含匹配，课多的排前面。
-	SearchCatalogSchools(ctx context.Context, q_ interface{}) ([]SearchCatalogSchoolsRow, error)
+	// 1.1 搜索院校：按名称包含匹配，课多的排前面。课数 = 本校自命题科目 + 本校登记使用的统考科目（T50）。
+	SearchCatalogSchools(ctx context.Context, arg SearchCatalogSchoolsParams) ([]SearchCatalogSchoolsRow, error)
 	SearchKPs(ctx context.Context, arg SearchKPsParams) ([]SearchKPsRow, error)
 	SearchMaterialPages(ctx context.Context, arg SearchMaterialPagesParams) ([]SearchMaterialPagesRow, error)
 	SearchQuestions(ctx context.Context, arg SearchQuestionsParams) ([]SearchQuestionsRow, error)
@@ -844,6 +871,7 @@ type Querier interface {
 	SetMaterialObjectKey(ctx context.Context, arg SetMaterialObjectKeyParams) error
 	SetOfficialDraftPayload(ctx context.Context, arg SetOfficialDraftPayloadParams) error
 	SetOfficialDraftStatus(ctx context.Context, arg SetOfficialDraftStatusParams) error
+	SetOfficialImportFillProgress(ctx context.Context, arg SetOfficialImportFillProgressParams) error
 	SetOfficialImportParsed(ctx context.Context, arg SetOfficialImportParsedParams) error
 	SetOfficialImportStatus(ctx context.Context, arg SetOfficialImportStatusParams) error
 	SetOfficialProjectStage(ctx context.Context, arg SetOfficialProjectStageParams) error
@@ -867,6 +895,8 @@ type Querier interface {
 	// 自动判断只在用户没改过时生效（essay_set_by = 'user' 后不再自动改）。
 	SetSubjectEssayAuto(ctx context.Context, arg SetSubjectEssayAutoParams) error
 	SetSubjectMajors(ctx context.Context, arg SetSubjectMajorsParams) error
+	// 1.1 选填的报考专业记为报考方向，已经有方向的不覆盖（T51）。
+	SetSubjectMajorsIfEmpty(ctx context.Context, arg SetSubjectMajorsIfEmptyParams) error
 	SetSubjectTextbookSelections(ctx context.Context, arg SetSubjectTextbookSelectionsParams) error
 	// PRD v3 1.3、6.9：参考教材（选填）。
 	SetSubjectTextbooks(ctx context.Context, arg SetSubjectTextbooksParams) error
@@ -879,11 +909,14 @@ type Querier interface {
 	SetTrialSaved(ctx context.Context, arg SetTrialSavedParams) error
 	SetUserQuestionStatus(ctx context.Context, arg SetUserQuestionStatusParams) error
 	SetUserSeed(ctx context.Context, arg SetUserSeedParams) (int64, error)
+	// 开始一键补全；已经在补全的不重复开始。
+	StartOfficialImportFill(ctx context.Context, arg StartOfficialImportFillParams) (int64, error)
 	StartTextbookIndex(ctx context.Context, arg StartTextbookIndexParams) error
 	// 某天（北京时间，[from, to)）的新增、活跃、作答、解析、付费与收入。
 	StatDay(ctx context.Context, arg StatDayParams) (StatDayRow, error)
 	// ---------- 需求洞察（7.10，只用统计） ----------
-	// 按专业课代码聚合：自建用户数、平均题数、本周新增、填了目标院校的人数、付费人数（只有计数）。
+	// 按「院校 + 专业课代码」聚合（T50）：选了全国统考科目的不分院校，院校记为空串；没记院校的旧专业课也是空串。
+	// 自建用户数、平均题数、本周新增、填了目标院校的人数、付费人数（只有计数）。
 	StatDemand(ctx context.Context, weekStart time.Time) ([]StatDemandRow, error)
 	// 新用户漏斗（全部用户）：注册 → 导入第一份资料 → 完成首次训练 → 7 日后仍在练 → 付费。
 	StatFunnel(ctx context.Context, arg StatFunnelParams) (StatFunnelRow, error)
@@ -894,6 +927,8 @@ type Querier interface {
 	SubmitEssay(ctx context.Context, arg SubmitEssayParams) error
 	SubmitOfficialDraft(ctx context.Context, arg SubmitOfficialDraftParams) (int64, error)
 	SubmitPaperSession(ctx context.Context, arg SubmitPaperSessionParams) error
+	// 报考方向改了以后，重新对这门专业课上的官方题库（T51）。
+	SubscriptionsOfSubject(ctx context.Context, arg SubscriptionsOfSubjectParams) ([]uint64, error)
 	SumInviterDays(ctx context.Context, inviterID uint64) (int64, error)
 	// 聚合表里某指标在一段时间的和（如活跃用户日累计、收入）。
 	SumStat(ctx context.Context, arg SumStatParams) (string, error)
@@ -920,6 +955,9 @@ type Querier interface {
 	UpdateMaterialStatus(ctx context.Context, arg UpdateMaterialStatusParams) error
 	// 草稿和被退回的可以改；改完回到草稿。
 	UpdateOfficialDraft(ctx context.Context, arg UpdateOfficialDraftParams) (int64, error)
+	// T49 解析后补答案与采分点（单题、整份一键补全）。
+	// 补全结果写回条目；只改还没核对的条目。
+	UpdateOfficialImportItemFill(ctx context.Context, arg UpdateOfficialImportItemFillParams) (int64, error)
 	UpdateOfficialKP(ctx context.Context, arg UpdateOfficialKPParams) error
 	UpdateOfficialProject(ctx context.Context, arg UpdateOfficialProjectParams) error
 	UpdateOfficialQuestion(ctx context.Context, arg UpdateOfficialQuestionParams) error

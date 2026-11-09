@@ -10,7 +10,7 @@ import (
 )
 
 // PRD v3 4.4、4.7b、11.6、11.16（10 月 26 日更新）：还没有答案的题，提交时先生成 AI 参考答案再批改；
-// 按 AI 参考答案批改的作答不计入预估分，确认答案后之后的批改计入，确认前的不追溯。
+// 11 月 4 日起按 AI 参考答案批改的作答照常计入预估分（T49）；此前标了不计入的作答不追溯。
 func TestAIReferenceAnswer(t *testing.T) {
 	f := setup(t)
 	ctx := context.Background()
@@ -47,8 +47,15 @@ func TestAIReferenceAnswer(t *testing.T) {
 	var ref int
 	_ = f.db.QueryRow("SELECT answer_origin FROM questions WHERE id = ?", q.ID).Scan(&origin)
 	_ = f.db.QueryRow("SELECT reference_only FROM attempts WHERE id = ?", g.AttemptID).Scan(&ref)
-	if origin != "ai_generated" || ref != 1 {
-		t.Fatalf("答案缓存在题目上，这次作答不计入预估分：%s %d", origin, ref)
+	if origin != "ai_generated" || ref != 0 {
+		t.Fatalf("答案缓存在题目上，这次作答计入预估分：%s %d", origin, ref)
+	}
+	if g0, err := f.pr.Grading(ctx, uid, g.ID); err != nil || g0.ReferenceOnly {
+		t.Errorf("新的批改不再标「不计入」：%v %+v", err, g0.ReferenceOnly)
+	}
+	// 模拟 11 月 4 日以前的作答：当时标了不计入预估分。
+	if _, err := f.db.Exec("UPDATE attempts SET reference_only = 1 WHERE id = ?", g.AttemptID); err != nil {
+		t.Fatal(err)
 	}
 	var snapshotID uint64
 	if err := f.db.QueryRow("SELECT answer_snapshot_id FROM questions WHERE id=?", q.ID).Scan(&snapshotID); err != nil || snapshotID != g.Rubric.AnswerSnapshotID {
@@ -59,7 +66,7 @@ func TestAIReferenceAnswer(t *testing.T) {
 	if err != nil || g2.Rubric.AnswerTier != "ai" || aiUsed() != 1 {
 		t.Fatalf("第二次作答沿用缓存的答案：%v %+v %d", err, g2.Rubric, aiUsed())
 	}
-	// 用户确认答案（3.3b、4.7b）：之后的批改计入，之前的不追溯。
+	// 用户确认答案（3.3b、4.7b）：档位变为「你已确认」；以前标了不计入的不追溯。
 	if _, err := f.db.Exec("UPDATE questions SET answer_origin = 'user_confirmed', ai_answer_outcome = 'confirmed' WHERE id = ?", q.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +78,7 @@ func TestAIReferenceAnswer(t *testing.T) {
 	if ref != 1 {
 		t.Error("确认前的批改不追溯计入")
 	}
-	if old, err := f.pr.Grading(ctx, uid, g.ID); err != nil || !old.AnswerConfirmed {
+	if old, err := f.pr.Grading(ctx, uid, g.ID); err != nil || !old.AnswerConfirmed || !old.ReferenceOnly {
 		t.Errorf("4.7b 重新打开：答案已确认，不再问「这份参考答案对吗？」：%v %+v", err, old.AnswerConfirmed)
 	}
 
@@ -82,7 +89,7 @@ func TestAIReferenceAnswer(t *testing.T) {
 		t.Fatalf("历史批改依据被改写：%+v %v", old.Rubric, err)
 	}
 
-	// 客观题缺答案：作答时由 AI 给答案与解析，判分不计入预估分。
+	// 客观题缺答案：作答时由 AI 给答案与解析，判分照常计入预估分。
 	cs, err := f.pr.Create(ctx, uid, practice.CreateInput{SubjectID: sid, Kind: practice.KindTypeDrill, QType: "single_choice"})
 	if err != nil {
 		t.Fatal(err)
@@ -96,8 +103,8 @@ func TestAIReferenceAnswer(t *testing.T) {
 		t.Fatalf("客观题由 AI 给答案后判分：%+v %d", r, aiUsed())
 	}
 	_ = f.db.QueryRow("SELECT reference_only FROM attempts WHERE id = ?", r.AttemptID).Scan(&ref)
-	if ref != 1 {
-		t.Error("按 AI 答案判分的客观题不计入预估分")
+	if ref != 0 {
+		t.Error("按 AI 答案判分的客观题计入预估分")
 	}
 	// AI 答案被报错 3 次撤回，回到「缺答案」。
 	for i := 0; i < 3; i++ {

@@ -121,7 +121,7 @@ func TestStructureEachSplitsFailedBatch(t *testing.T) {
 		}
 		return out, nil
 	}
-	items, err := structureEach(context.Background(), blocks, call)
+	items, err := StructureEach(context.Background(), blocks, call)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestStructureEachIsolatesBadBlock(t *testing.T) {
 		}
 		return out, nil
 	}
-	items, err := structureEach(context.Background(), blocks, call)
+	items, err := StructureEach(context.Background(), blocks, call)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +177,7 @@ func TestStructureEachPropagatesPlatformError(t *testing.T) {
 		calls++
 		return nil, apperr.New(apperr.TooManyRequests, "请求太频繁")
 	}
-	if _, err := structureEach(context.Background(), []ai.Block{{ID: 1}, {ID: 2}}, call); err == nil {
+	if _, err := StructureEach(context.Background(), []ai.Block{{ID: 1}, {ID: 2}}, call); err == nil {
 		t.Fatal("平台错误应返回给任务整体重试")
 	}
 	if calls != 1 {
@@ -191,7 +191,7 @@ func TestRuleFallback(t *testing.T) {
 		1: {ID: 1, Page: 3, Year: 2010, No: "1", QType: "short_answer", Score: 10, Section: "二、简答（每題 10 分）说出以下各语的出处，并简要分析其含义：", Text: "1.興於詩，立於禮，成於樂."},
 		2: {ID: 2, Page: 3, Whole: true, Text: "整页原文"},
 	}
-	got := ruleFallback([]int{1, 2, 9}, blocks)
+	got := RuleFallback([]int{1, 2, 9}, blocks)
 	if len(got) != 1 {
 		t.Fatalf("应只兜底第 1 块：%+v", got)
 	}

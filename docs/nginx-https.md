@@ -1,5 +1,7 @@
 # 现有 Nginx 接入 Training API 与 HTTPS
 
+> 2026-11 起：Nginx 在阿里云 47.95.34.95，Training API 已迁到京东云，Nginx 经 WireGuard 隧道（10.88.0.0/24）反代到京东云上的 API；DNS 指向阿里云 47.95.34.95。本文下面是迁移前同机部署的写法，涉及 `training-api:8080`、`dreamer-net` 和旧 IP 的地方以服务器实际配置为准，见 [runbook「生产拓扑」](runbook.md)。
+
 本说明基于你提供的 nginx.conf 和基础服务 Compose。现有 `dreamer-nginx` 已映射宿主机 `80:80`、`443:443`，并加入 `dreamer-net`。Training API 只在 Docker 网络中使用 `training-api:8080`，不需要新增宿主机端口映射，也不需要启动第二个 Nginx。Java 服务容器的 8080 与 API 容器的 8080 互不冲突。
 
 生产域名已确定为 `training.dreamerlab.cn`，使用你现有的 `dreamerlab.cn` 主域名。本文和 `deploy/nginx/training.conf` 中的域名、证书文件名已统一。

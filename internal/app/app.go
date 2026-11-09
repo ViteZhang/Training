@@ -188,7 +188,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 			AppleBundleID: cfg.Pay.AppleBundleID, Log: log}),
 	}
 	base.Admin = admin.New(admin.Deps{DB: db, Redis: rdb, SMS: clients.SMS, OSS: clients.OSS, Params: ps, Quota: qs, Notify: base.Notify, Payment: base.Payment,
-		Import: imp, Log: log, Invalidate: []admin.Invalidator{ps, fl}, LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock})
+		Import: imp, Log: log, Invalidate: []admin.Invalidator{ps, fl}, LogCodes: !cfg.IsProduction() && cfg.SMS.Provider == config.ProviderMock, FixedCode: cfg.SMS.AdminFixedCode})
 	base.Textbooks = textbook.New(db)
 	base.Textbooks.ConfigureIndexes(textbook.IndexDeps{Embedding: ai.NewEmbedder(cfg.Textbook).WithAudit(engine), Vector: vector.New(cfg.Textbook.VectorURL, cfg.Textbook.VectorAPIKey), Params: ps, Queue: queue, Production: cfg.IsProduction(), VectorConfigured: cfg.Textbook.VectorURL != ""})
 	base.Textbooks.ConfigureImports(textbook.ImportDeps{OSS: clients.OSS, AI: engine, Renderer: ocr.NewPDFium(nil), Queue: queue, Params: ps})
@@ -196,7 +196,8 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	engine.SetAnswerEvidenceProvider(base.Textbooks)
 	base.AnswerUpdates = answerupdate.New(db, engine, qs, queue)
 	base.Official = official.New(official.Deps{DB: db, AI: engine, Log: log, Params: ps, OpsWebhook: cfg.OpsWebhookURL, AdminBaseURL: cfg.AdminBaseURL})
-	base.Official.ConfigureImports(official.ImportDeps{OSS: clients.OSS, OCR: clients.OCR, PDF: clients.PDF, Queue: queue, NewTask: jobs.NewOfficialImportTask})
+	base.Official.ConfigureImports(official.ImportDeps{OSS: clients.OSS, OCR: clients.OCR, PDF: clients.PDF, Queue: queue, NewTask: jobs.NewOfficialImportTask,
+		NewFillTask: jobs.NewOfficialImportFillTask})
 	return base, nil
 }
 

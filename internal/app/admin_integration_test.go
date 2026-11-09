@@ -548,3 +548,49 @@ func TestIntegrationAdminConfig(t *testing.T) {
 		t.Errorf("改配置有操作记录：%d", code)
 	}
 }
+
+// 后台两步验证固定验证码（ADMIN_2FA_FIXED_CODE）：不发短信，所有后台账号用同一个固定码；密码错误仍不能登录。
+func TestIntegrationAdminFixedCode(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.SMS.AdminFixedCode = "000000"
+	ctx := context.Background()
+	log := logx.New(io.Discard, slog.LevelDebug)
+	if err := Migrate(ctx, cfg, log, "up"); err != nil {
+		t.Fatal(err)
+	}
+	b, err := Open(ctx, cfg, log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	b.Redis.FlushDB(ctx)
+	handler, err := b.Handler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+	f := &adminFx{t: t, b: b, srv: srv}
+	if _, err := b.Admin.CreateAdmin(ctx, "fixed1", "fixed1", "13700000009", "Init-pass-2026", []admin.Role{admin.RoleAdmin}, false); err != nil {
+		t.Fatal(err)
+	}
+
+	if code, _ := f.do("POST", "/api/v1/admin/auth/login", "", `{"username":"fixed1","password":"wrong-password"}`); code != 401 {
+		t.Errorf("密码错误：%d", code)
+	}
+	code, body := f.do("POST", "/api/v1/admin/auth/login", "", `{"username":"fixed1","password":"Init-pass-2026"}`)
+	var ch gen.AdminChallenge
+	_ = json.Unmarshal([]byte(body), &ch)
+	if code != 200 {
+		t.Fatalf("登录第一步：%d %s", code, body)
+	}
+	if _, sent := b.Cloud.SMS.(interface{ LastCode(string) (string, bool) }).LastCode("13700000009"); sent {
+		t.Error("固定验证码时不应发短信")
+	}
+	if code, _ := f.do("POST", "/api/v1/admin/auth/verify", "", fmt.Sprintf(`{"challenge_id":%q,"code":"111111"}`, ch.ChallengeId)); code != 400 {
+		t.Errorf("错误验证码：%d", code)
+	}
+	if code, body := f.do("POST", "/api/v1/admin/auth/verify", "", fmt.Sprintf(`{"challenge_id":%q,"code":"000000"}`, ch.ChallengeId)); code != 200 {
+		t.Fatalf("固定验证码登录：%d %s", code, body)
+	}
+}

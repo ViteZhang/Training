@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -95,8 +96,35 @@ var Structure = &Cap[StructureIn, StructureOut]{
 				"confidence": {"type": "number", "minimum": 0, "maximum": 1},
 				"is_recollection": {"type": "boolean", "nullable": true}
 			}}}}}`},
-	Check: checkStructure,
-	Mock:  mockStructure,
+	Normalize: normalizeQTypes,
+	Check:     checkStructure,
+	Mock:      mockStructure,
+}
+
+// normalizeQTypes 把模型自造的题型（如 "translation"、"punctuation"，遇到古文翻译、标点、病句修改题时常见）改成 other：
+// 题型枚举不符会让 Schema 整批不通过，重试一次多半照旧，整份资料就解析失败了；题干等其余内容是好的。
+func normalizeQTypes(v any) any {
+	root, ok := v.(map[string]any)
+	if !ok {
+		return v
+	}
+	items, _ := root["items"].([]any)
+	for _, it := range items {
+		obj, ok := it.(map[string]any)
+		if !ok {
+			continue
+		}
+		q, ok := obj["qtype"].(string)
+		if !ok {
+			continue
+		}
+		q = strings.ToLower(strings.TrimSpace(q))
+		if q != "" && !slices.Contains(QTypes, q) {
+			q = "other"
+		}
+		obj["qtype"] = q
+	}
+	return v
 }
 
 // checkStructure 逐条校验，不合格的条目剔除并记进 Dropped，其余照常保留（一批几十道题，不能因为一条整批作废）；
@@ -298,12 +326,14 @@ type GenerateAnswerIn struct {
 	Evidence   []EvidenceFragment `json:"evidence,omitempty"`
 	Coverage   string             `json:"coverage,omitempty"`
 	EditionIDs []uint64           `json:"-"`
-	Subject    string             `json:"subject"`
-	QType      string             `json:"qtype"`
-	Stem       string             `json:"stem"`
-	Score      float64            `json:"score"`
-	Textbooks  []string           `json:"textbooks,omitempty"`
-	Context    []AnswerContext    `json:"context,omitempty"`
+	// Basis 是检索教材的结果说明（T53），由 PrepareAnswer 填写，不交给模型。
+	Basis     *AnswerBasis    `json:"-"`
+	Subject   string          `json:"subject"`
+	QType     string          `json:"qtype"`
+	Stem      string          `json:"stem"`
+	Score     float64         `json:"score"`
+	Textbooks []string        `json:"textbooks,omitempty"`
+	Context   []AnswerContext `json:"context,omitempty"`
 }
 
 // AnswerContext 是一段用户资料（或官方参考素材）的原文。
@@ -315,7 +345,9 @@ type AnswerContext struct {
 }
 
 type GenerateAnswerOut struct {
-	Snapshot             *AnswerSnapshot  `json:"-"`
+	Snapshot *AnswerSnapshot `json:"-"`
+	// Basis 不为空是答案没有引用教材：说明原因（T53）。
+	Basis                *AnswerBasis     `json:"-"`
 	Citations            []AnswerCitation `json:"citations"`
 	UsesGeneralKnowledge bool             `json:"uses_general_knowledge"`
 	Answer               string           `json:"answer"`
@@ -323,7 +355,7 @@ type GenerateAnswerOut struct {
 }
 
 var GenerateAnswer = &Cap[GenerateAnswerIn, GenerateAnswerOut]{
-	Def: Def{Name: "answer_generate", Version: "v3", Tier: "strong", Temperature: 0.3, Schema: `{
+	Def: Def{Name: "answer_generate", Version: "v4", Tier: "strong", Temperature: 0.3, Schema: `{
 		"type": "object", "required": ["answer", "points", "citations", "uses_general_knowledge"],
 		"properties": {
 			"answer": {"type": "string", "minLength": 1},

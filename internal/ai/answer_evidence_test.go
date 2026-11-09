@@ -125,3 +125,97 @@ func TestPartialEvidenceDoesNotInventGeneralKnowledgeSupplement(t *testing.T) {
 		t.Fatal("partial coverage must not imply unused general knowledge", out.Snapshot)
 	}
 }
+
+// T53 没有引用教材时说明原因。
+type basisEvidence struct{ basis *AnswerBasis }
+
+func (b basisEvidence) PrepareAnswer(_ context.Context, _ uint64, in GenerateAnswerIn) (GenerateAnswerIn, error) {
+	in.Basis = b.basis
+	return in, nil
+}
+func (basisEvidence) ValidateAnswerSources(context.Context, *dbq.Queries, []AnswerSource) error {
+	return nil
+}
+
+func TestAnswerBasisExplainsMissingCitations(t *testing.T) {
+	// 检索失败：关联了教材时记 retrieval_failed；没关联（用户端）不记。
+	e := NewEngine(Config{UseMock: true})
+	e.SetAnswerEvidenceProvider(failingEvidence{})
+	out, _, err := e.GenerateReferenceAnswer(context.Background(), 0, GenerateAnswerIn{Stem: "意境", Score: 5, EditionIDs: []uint64{1}})
+	if err != nil || out.Basis == nil || out.Basis.Reason != BasisRetrievalFailed {
+		t.Fatalf("检索失败：%+v %v", out.Basis, err)
+	}
+	out, _, _ = e.GenerateReferenceAnswer(context.Background(), 1, GenerateAnswerIn{Stem: "意境", Score: 5})
+	if out.Basis != nil {
+		t.Fatalf("没关联教材的用户端不记原因：%+v", out.Basis)
+	}
+	// 检索那一步给的原因原样带出来。
+	e.SetAnswerEvidenceProvider(basisEvidence{&AnswerBasis{Reason: BasisUnavailable, Details: []string{"《甲》：还没有可检索的索引"}}})
+	out, _, _ = e.GenerateReferenceAnswer(context.Background(), 0, GenerateAnswerIn{Stem: "意境", Score: 5, EditionIDs: []uint64{1}})
+	if out.Basis == nil || out.Basis.Reason != BasisUnavailable || len(out.Basis.Details) != 1 {
+		t.Fatalf("不能检索：%+v", out.Basis)
+	}
+	// 引用核对没通过 → citation_rejected；通过了没有原因。
+	for _, supported := range []bool{true, false} {
+		e := NewEngine(Config{Client: &evidenceClient{supported: supported}})
+		out, _, err := e.GenerateReferenceAnswer(context.Background(), 1, GenerateAnswerIn{Stem: "文学", Score: 5, Coverage: "sufficient", Evidence: []EvidenceFragment{{ID: "textbook:1:1", Kind: "official_textbook", Text: "文学具有审美性质。"}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if supported && out.Basis != nil || !supported && (out.Basis == nil || out.Basis.Reason != BasisCitationRejected) {
+			t.Fatalf("引用核对 %v：%+v", supported, out.Basis)
+		}
+	}
+	// 给了段落、模型没引用 → not_cited。
+	e = NewEngine(Config{UseMock: true})
+	out, _, _ = e.GenerateReferenceAnswer(context.Background(), 1, GenerateAnswerIn{Stem: "文学", Score: 5, Coverage: "sufficient", Evidence: []EvidenceFragment{{ID: "textbook:1:1", Kind: "official_textbook", Text: "文学具有审美性质。"}}})
+	if out.Basis == nil || out.Basis.Reason != BasisNotCited {
+		t.Fatalf("没引用：%+v", out.Basis)
+	}
+	for _, r := range []string{BasisNoTextbook, BasisUnavailable, BasisNoHits, BasisNotRelevant, BasisNotCited, BasisCitationRejected, BasisRetrievalFailed} {
+		if BasisMessage(r) == BasisMessage("") {
+			t.Errorf("%s 没有说明", r)
+		}
+	}
+}
+
+// T55：只引用了考纲、经验总结时，仍说明没有引用教材；类型名交给提示词。
+type syllabusClient struct{}
+
+func (syllabusClient) Complete(_ context.Context, r cloudai.Request) (cloudai.Response, error) {
+	var out any
+	switch r.Capability {
+	case "answer_citation_check":
+		out = CitationCheckOut{true}
+	default:
+		out = GenerateAnswerOut{Answer: "意境是情景交融的艺术境界。", Points: []RubricPoint{{Content: "意境是情景交融的艺术境界。", Score: 5, Keywords: []string{"情景交融"}}},
+			Citations: []AnswerCitation{{"textbook:9:1", "考查意境的内涵", "意境是情景交融的艺术境界。"}}}
+	}
+	data, _ := json.Marshal(out)
+	return cloudai.Response{Content: string(data)}, nil
+}
+
+func TestSyllabusCitationIsNotTextbook(t *testing.T) {
+	e := NewEngine(Config{Client: syllabusClient{}})
+	ev := []EvidenceFragment{{ID: "textbook:9:1", Kind: "official_textbook", Material: "syllabus", Text: "考查意境的内涵与特征。"}}
+	out, _, err := e.GenerateReferenceAnswer(context.Background(), 0, GenerateAnswerIn{Stem: "意境", Score: 5, Evidence: ev, EditionIDs: []uint64{9},
+		Basis: &AnswerBasis{Reason: BasisNoTextbook}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Snapshot.Sources) != 1 || out.Snapshot.Sources[0].Material != "syllabus" {
+		t.Fatalf("考纲引用保留：%+v", out.Snapshot.Sources)
+	}
+	if out.Basis == nil || out.Basis.Reason != BasisNoTextbook || !out.Snapshot.UsesGeneralKnowledge {
+		t.Fatalf("只引用考纲仍说明没有教材：%+v %v", out.Basis, out.Snapshot.UsesGeneralKnowledge)
+	}
+	names := map[string]string{"": "教材", "handout": "讲义", "syllabus": "考纲", "experience": "经验总结"}
+	for m, want := range names {
+		if got := (EvidenceFragment{Kind: "official_textbook", Material: m}).MaterialName(); got != want {
+			t.Errorf("%q → %s", m, got)
+		}
+	}
+	if (EvidenceFragment{Kind: "official_textbook", Material: "experience"}).IsKnowledge() || !(EvidenceFragment{Kind: "official_textbook", Material: "handout"}).IsKnowledge() {
+		t.Error("只有教材讲义算知识依据")
+	}
+}

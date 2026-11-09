@@ -23,7 +23,7 @@ SELECT
   (SELECT COUNT(*) FROM papers p WHERE p.bank_id = ? AND p.owner_user_id = ?) AS paper_count,
   -- 3.1 提醒条「N 题缺答案」：还没有答案或只有待确认的 AI 参考答案（PRD v3 11.16）；AI 出的变式题自带答案，不算
   (SELECT COUNT(*) FROM questions q WHERE q.bank_id = ? AND q.owner_user_id = ? AND q.status = 'active' AND q.source <> 'ai_generated'
-    AND (IFNULL(q.answer, '') = '' OR q.answer_origin = 'ai_generated')) AS missing_answer_count
+    AND (IFNULL(q.answer, '') = '' OR (q.answer_origin = 'ai_generated' AND q.source <> 'official'))) AS missing_answer_count
 `
 
 type BankCountsParams struct {

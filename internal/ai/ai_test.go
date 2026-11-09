@@ -132,8 +132,8 @@ func TestRetryThenFail(t *testing.T) {
 		t.Fatalf("%v %+v", err, out)
 	}
 
-	// Schema 不合格（缺 confidence、题型不在枚举里）
-	for _, bad := range []string{`{"items":[{"block":1,"kind":"question","page":1}]}`, `{"items":[{"block":1,"kind":"question","qtype":"poem","stem":"意境","page":1,"confidence":1}]}`, `not json`} {
+	// Schema 不合格（缺 confidence、kind 不在枚举里）；自造的题型归为 other，不算不合格（见 TestStructureUnknownQTypeBecomesOther）
+	for _, bad := range []string{`{"items":[{"block":1,"kind":"question","page":1}]}`, `{"items":[{"block":1,"kind":"poem","qtype":"term","stem":"意境","page":1,"confidence":1}]}`, `not json`} {
 		m.Set(Structure.Name, bad)
 		if _, _, err := Structure.Run(context.Background(), e, 1, sampleBlocks()); !errors.Is(err, ErrInvalidOutput) {
 			t.Errorf("%s：应判不合格，got %v", bad, err)

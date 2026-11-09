@@ -21,3 +21,24 @@ func TestCourseKey(t *testing.T) {
 		}
 	}
 }
+
+func TestExamSubjectKey(t *testing.T) {
+	cases := []struct {
+		scope, school, code, name string
+		year                      int
+		want                      string
+	}{
+		{ScopeSchool, "四川大学", "812", "西方哲学史", 0, "school|四川大学|812|0"},
+		{ScopeSchool, "四川大学", "", "西方哲学史", 2027, "school|四川大学|n:西方哲学史|2027"},
+		// 统考不属于任何院校：传了院校也忽略。
+		{ScopeNational, "北京师范大学", "333", "教育综合", 0, "national||333|0"},
+	}
+	for _, c := range cases {
+		if got := ExamSubjectKey(c.scope, c.school, c.code, c.name, c.year); got != c.want {
+			t.Errorf("ExamSubjectKey(%q,%q,%q,%q,%d) = %q, want %q", c.scope, c.school, c.code, c.name, c.year, got, c.want)
+		}
+	}
+	if !ValidDiscipline("教育学") || ValidDiscipline("中国语言文学") || ValidDiscipline("") {
+		t.Error("学科只能是固定的学科门类")
+	}
+}

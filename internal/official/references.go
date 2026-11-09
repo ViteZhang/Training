@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
+	"peetraining-server/internal/rules"
 	"peetraining-server/internal/store"
 )
 
@@ -177,11 +179,19 @@ func (s *Service) DeleteReference(ctx context.Context, projectID, referenceID ui
 	return nil
 }
 
-// Citation 是生成答案时引用的段落。
+// Citation 是生成答案时引用的段落（字段不带 json 标签：official_import_items.citations 里一直按字段名存）。
+// Quote 是引用的原文，Page / PrintedPage 是资料页码与教材印刷页码，核对区直接显示（T49）。
 type Citation struct {
 	ReferenceID uint64
 	Title       string
 	Heading     string
+	Kind        string `json:",omitempty"`
+	Quote       string `json:",omitempty"`
+	Claim       string `json:",omitempty"`
+	Page        int    `json:",omitempty"`
+	PrintedPage string `json:",omitempty"`
+	// Material 是资料类型（textbook / handout / syllabus / experience，T55）；空是教材。
+	Material string `json:",omitempty"`
 }
 
 // AnswerCandidate 是 AI 给官方题生成的参考答案、采分点与出处。
@@ -191,16 +201,37 @@ type AnswerCandidate struct {
 	Answer     string
 	Points     []Point
 	Citations  []Citation
+	// Basis 不为空是答案没有引用教材，说明原因（T53）。
+	Basis *ai.AnswerBasis
 }
 
 // AnswerCandidates 给官方题生成参考答案与采分点：相关的官方参考素材段落 → 教材书名 → 通用知识（PRD v3 7.11、11.16 第 5 条）。
 // 结果只返回给编辑，编辑核对后写进草稿走审核，不直接入库。
 func (s *Service) AnswerCandidates(ctx context.Context, projectID uint64, qtype, stem string, score float64) (AnswerCandidate, error) {
+	return s.answerCandidates(ctx, projectID, qtype, stem, nil, score, nil)
+}
+
+// answerCandidates 同 AnswerCandidates；客观题带上选项，只要答案、不要采分点（T49）。
+// keep 是题目已有的采分点（表格里填了采分点、没填答案）：保留编辑给的，不用 AI 生成的。
+// 依据快照按原题干与最终的采分点记哈希，接受时与草稿内容一致，引用才保留下来。
+func (s *Service) answerCandidates(ctx context.Context, projectID uint64, qtype, stem string, options []ai.Option, score float64, keep []Point) (AnswerCandidate, error) {
 	p, err := s.projectExists(ctx, projectID)
 	if err != nil {
 		return AnswerCandidate{}, err
 	}
-	in := ai.GenerateAnswerIn{Subject: p.SubjectName, QType: qtype, Stem: stem, Score: score}
+	subjective := ai.Subjective(qtype)
+	prompt := stem
+	if len(options) > 0 {
+		lines := []string{stem}
+		for _, o := range options {
+			lines = append(lines, o.Key+". "+o.Text)
+		}
+		prompt = strings.Join(lines, "\n")
+	}
+	if !subjective {
+		score = 0
+	}
+	in := ai.GenerateAnswerIn{Subject: p.SubjectName, QType: qtype, Stem: prompt, Score: score}
 	links, err := s.q.ListProjectTextbooks(ctx, projectID)
 	if err != nil {
 		return AnswerCandidate{}, err
@@ -212,21 +243,49 @@ func (s *Service) AnswerCandidates(ctx context.Context, projectID uint64, qtype,
 	if err != nil {
 		return AnswerCandidate{}, apperr.New(apperr.AIFailed, "AI 生成参考答案失败，请稍后再试").Wrap(err)
 	}
-	pts := make([]Point, len(out.Points))
-	for i, x := range out.Points {
-		pts[i] = Point{Content: x.Content, Score: x.Score, Keywords: x.Keywords}
+	var pts []Point
+	switch {
+	case subjective && len(keep) > 0:
+		pts = keep
+	case subjective:
+		pts = make([]Point, len(out.Points))
+		for i, x := range out.Points {
+			pts[i] = Point{Content: x.Content, Score: x.Score, Keywords: x.Keywords}
+		}
 	}
 	id, err := s.saveOfficialEvidence(ctx, projectID, qtype, stem, out, pts)
 	if err != nil {
 		return AnswerCandidate{}, err
 	}
-	cites := []Citation{}
-	if out.Snapshot != nil {
-		for _, v := range out.Snapshot.Sources {
-			cites = append(cites, Citation{ReferenceID: v.BookID, Title: v.Title, Heading: v.Heading})
-		}
+	c := AnswerCandidate{Answer: out.Answer, Points: pts, Citations: citationsOf(out.Snapshot), SnapshotID: id, Snapshot: out.Snapshot, Basis: out.Basis}
+	// 「没有引用教材」只看教材、讲义的引用（T55）。
+	knowledge := slices.ContainsFunc(c.Citations, func(x Citation) bool { return x.Material == "" || rules.IsKnowledgeMaterial(x.Material) })
+	if !knowledge && len(links) == 0 {
+		c.Basis = &ai.AnswerBasis{Reason: ai.BasisNoTextbook}
 	}
-	return AnswerCandidate{Answer: out.Answer, Points: pts, Citations: cites, SnapshotID: id, Snapshot: out.Snapshot}, nil
+	if knowledge {
+		c.Basis = nil
+	}
+	return c, nil
+}
+
+// citationsOf 把依据快照里的来源转成引用：书名、章节、引用原文与页码。
+func citationsOf(snap *ai.AnswerSnapshot) []Citation {
+	cites := []Citation{}
+	if snap == nil {
+		return cites
+	}
+	for _, v := range snap.Sources {
+		c := Citation{ReferenceID: v.BookID, Title: v.Title, Heading: v.Heading, Kind: v.Kind, Quote: v.Quote, Claim: v.Claim, Page: v.Page, Material: v.Material}
+		if v.SourcePage != nil {
+			c.Page = *v.SourcePage
+		}
+		if v.PrintedPage != nil {
+			c.PrintedPage = *v.PrintedPage
+		}
+		cites = append(cites, c)
+	}
+	return cites
 }
 
 func cutRunes(s string, n int) string {

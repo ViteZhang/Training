@@ -193,7 +193,7 @@ func (q *Queries) ListLegacyTextbookSegments(ctx context.Context, referenceID ui
 }
 
 const listProjectTextbooks = `-- name: ListProjectTextbooks :many
-SELECT e.id, e.book_id, e.edition, e.publisher, e.publication_year, e.isbn, e.license_note, e.authorized, e.scope_note, e.status, e.current_revision_id, e.created_by, e.request_key, e.request_hash, e.created_at, e.version, e.current_generation_id, e.license_expires_at, e.excerpts_enabled,b.title,b.author,b.version AS catalog_version FROM official_project_textbooks p JOIN textbook_editions e ON e.id=p.edition_id JOIN textbooks b ON b.id=e.book_id WHERE p.project_id=? ORDER BY e.id
+SELECT e.id, e.book_id, e.edition, e.publisher, e.publication_year, e.isbn, e.license_note, e.authorized, e.scope_note, e.status, e.current_revision_id, e.created_by, e.request_key, e.request_hash, e.created_at, e.version, e.current_generation_id, e.license_expires_at, e.excerpts_enabled,b.title,b.author,b.kind,b.version AS catalog_version FROM official_project_textbooks p JOIN textbook_editions e ON e.id=p.edition_id JOIN textbooks b ON b.id=e.book_id WHERE p.project_id=? ORDER BY e.id
 `
 
 type ListProjectTextbooksRow struct {
@@ -218,6 +218,7 @@ type ListProjectTextbooksRow struct {
 	ExcerptsEnabled     bool
 	Title               string
 	Author              string
+	Kind                string
 	CatalogVersion      uint64
 }
 
@@ -252,6 +253,7 @@ func (q *Queries) ListProjectTextbooks(ctx context.Context, projectID uint64) ([
 			&i.ExcerptsEnabled,
 			&i.Title,
 			&i.Author,
+			&i.Kind,
 			&i.CatalogVersion,
 		); err != nil {
 			return nil, err
@@ -303,7 +305,7 @@ func (q *Queries) LockLegacyTextbookReference(ctx context.Context, id uint64) (L
 }
 
 const lockOfficialProject = `-- name: LockOfficialProject :one
-SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at, textbook_link_version FROM official_projects WHERE id=? FOR UPDATE
+SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at, textbook_link_version, catalog_course_id FROM official_projects WHERE id=? FOR UPDATE
 `
 
 func (q *Queries) LockOfficialProject(ctx context.Context, id uint64) (OfficialProject, error) {
@@ -323,6 +325,7 @@ func (q *Queries) LockOfficialProject(ctx context.Context, id uint64) (OfficialP
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TextbookLinkVersion,
+		&i.CatalogCourseID,
 	)
 	return i, err
 }

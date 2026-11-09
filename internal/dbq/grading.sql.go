@@ -142,7 +142,7 @@ func (q *Queries) DropPartialWrongBook(ctx context.Context, arg DropPartialWrong
 }
 
 const getGrading = `-- name: GetGrading :one
-SELECT g.id, g.owner_user_id, g.attempt_id, g.kind, g.trigger_reason, g.parent_grading_id, g.status, g.rubric_version, g.rubric_snapshot, g.score, g.full_score, g.point_results, g.loss, g.suggestions, g.model, g.prompt_version, g.quota_charged, g.fail_reason, g.idempotency_key, g.created_at, g.finished_at, a.question_id, a.answer_text, a.timed, a.answered_at, a.practice_session_id
+SELECT g.id, g.owner_user_id, g.attempt_id, g.kind, g.trigger_reason, g.parent_grading_id, g.status, g.rubric_version, g.rubric_snapshot, g.score, g.full_score, g.point_results, g.loss, g.suggestions, g.model, g.prompt_version, g.quota_charged, g.fail_reason, g.idempotency_key, g.created_at, g.finished_at, a.question_id, a.answer_text, a.timed, a.answered_at, a.practice_session_id, a.reference_only
 FROM gradings g JOIN attempts a ON a.id = g.attempt_id
 WHERE g.id = ? AND g.owner_user_id = ?
 `
@@ -179,6 +179,7 @@ type GetGradingRow struct {
 	Timed             bool
 	AnsweredAt        time.Time
 	PracticeSessionID sql.NullInt64
+	ReferenceOnly     bool
 }
 
 func (q *Queries) GetGrading(ctx context.Context, arg GetGradingParams) (GetGradingRow, error) {
@@ -211,6 +212,7 @@ func (q *Queries) GetGrading(ctx context.Context, arg GetGradingParams) (GetGrad
 		&i.Timed,
 		&i.AnsweredAt,
 		&i.PracticeSessionID,
+		&i.ReferenceOnly,
 	)
 	return i, err
 }

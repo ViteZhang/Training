@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
@@ -26,21 +27,22 @@ import (
 
 // Project 是一个官方题库项目。
 type Project struct {
-	ID            uint64
-	School        string
-	Major         string
-	SubjectCode   string
-	SubjectName   string
-	BankID        uint64
-	Stage         string
-	EditorIDs     []uint64
-	Materials     []Material
-	KPCount       int
-	QuestionCount int
-	ExamCount     int
-	Version       string
-	Subscribers   int
-	CreatedAt     time.Time
+	ID              uint64
+	CatalogCourseID uint64 // 考试科目；T50 之前的旧立项可能为 0
+	School          string
+	Major           string
+	SubjectCode     string
+	SubjectName     string
+	BankID          uint64
+	Stage           string
+	EditorIDs       []uint64
+	Materials       []Material
+	KPCount         int
+	QuestionCount   int
+	ExamCount       int
+	Version         string
+	Subscribers     int
+	CreatedAt       time.Time
 }
 
 // Material 是授权资料清单的一项：须有授权或为公开真题（7.11）。
@@ -69,7 +71,7 @@ func (s *Service) Projects(ctx context.Context) ([]Project, error) {
 	}
 	out := make([]Project, len(rows))
 	for i, r := range rows {
-		p := Project{ID: r.ID, School: r.School, Major: r.Major, SubjectCode: r.SubjectCode, SubjectName: r.SubjectName, BankID: uint64(r.BankID.Int64), Stage: string(r.Stage),
+		p := Project{ID: r.ID, CatalogCourseID: uint64(r.CatalogCourseID.Int64), School: r.School, Major: r.Major, SubjectCode: r.SubjectCode, SubjectName: r.SubjectName, BankID: uint64(r.BankID.Int64), Stage: string(r.Stage),
 			EditorIDs: decodeIDs(r.EditorIds), KPCount: int(r.KpCount), QuestionCount: int(r.QuestionCount), ExamCount: int(r.ExamCount), Version: str(r.Version),
 			Subscribers: int(r.Subscribers), CreatedAt: r.CreatedAt, Materials: []Material{}}
 		_ = json.Unmarshal(r.AuthorizedMaterials, &p.Materials)
@@ -94,24 +96,76 @@ func (s *Service) Project(ctx context.Context, id uint64) (Project, error) {
 	return Project{}, apperr.NotFoundErr()
 }
 
-// CreateProject 立项（7.10「立项做官方题库」或 7.11 新建）：同时建好官方题库。
+// CreateProject 立项（7.10「立项做官方题库」、7.11 新建、7.16 申请收录）：按院校、代码、名称立项，同时建好官方题库。
+// 旧版后台走这里：能找到对应的考试科目、且它还没立项时挂上（院校写「全国统考」的找统考科目）。
 func (s *Service) CreateProject(ctx context.Context, adminID uint64, school, major, code, name string, editors []uint64) (uint64, error) {
-	if strings.TrimSpace(school) == "" || strings.TrimSpace(major) == "" || strings.TrimSpace(code) == "" || strings.TrimSpace(name) == "" {
-		return 0, apperr.New(apperr.BadRequest, "院校、专业、专业课代码和名称都要填")
+	school, major, code, name = strings.TrimSpace(school), strings.TrimSpace(major), strings.TrimSpace(code), strings.TrimSpace(name)
+	if school == "" || code == "" || name == "" {
+		return 0, apperr.New(apperr.BadRequest, "院校、专业课代码和名称都要填")
 	}
+	var course uint64
+	cid, err := s.q.FindCatalogCourseForProject(ctx, dbq.FindCatalogCourseForProjectParams{School: school, Code: nullStr(code), Name: name, National: school == NationalSchool})
+	if err == nil {
+		if _, err := s.q.OfficialProjectOfCourse(ctx, sql.NullInt64{Int64: int64(cid), Valid: true}); errors.Is(err, sql.ErrNoRows) {
+			course = cid
+		} else if err != nil {
+			return 0, err
+		}
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return 0, err
+	}
+	return s.createProject(ctx, adminID, course, school, major, code, name, editors)
+}
+
+// CreateProjectFromCourse 从考试科目立项（T50）：院校、代码、名称取自考试科目，一门考试科目只能立一个项目；
+// 全国统考科目的院校记为「全国统考」，所有院校的考生共用这一套题库。
+func (s *Service) CreateProjectFromCourse(ctx context.Context, adminID, courseID uint64, editors []uint64) (uint64, error) {
+	cc, err := s.q.AdminGetCatalogCourse(ctx, courseID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, apperr.New(apperr.BadRequest, "考试科目不存在")
+	}
+	if err != nil {
+		return 0, err
+	}
+	if _, err := s.q.OfficialProjectOfCourse(ctx, sql.NullInt64{Int64: int64(cc.ID), Valid: true}); err == nil {
+		return 0, apperr.New(apperr.Conflict, "这门考试科目已经立项了")
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return 0, err
+	}
+	if !cc.SubjectCode.Valid || cc.SubjectCode.String == "" {
+		return 0, apperr.New(apperr.BadRequest, "考试科目还没有考试代码，先在考试科目库补上")
+	}
+	school := cc.School
+	if cc.Scope == dbq.CatalogCoursesScopeNational {
+		school = NationalSchool
+	}
+	return s.createProject(ctx, adminID, cc.ID, school, cc.Major, cc.SubjectCode.String, cc.SubjectName, editors)
+}
+
+func (s *Service) createProject(ctx context.Context, adminID, courseID uint64, school, major, code, name string, editors []uint64) (uint64, error) {
 	ids, _ := json.Marshal(nonNil(editors))
+	tag := strings.TrimSpace(school + " " + major)
+	// 需求洞察的「未规划」标记：统考按代码（院校为空串），自命题按院校 + 代码；旧标记只有代码。
+	markSchool := school
+	if school == NationalSchool {
+		markSchool = ""
+	}
 	var id int64
 	err := store.WithTx(ctx, s.d.DB, func(q *dbq.Queries) error {
-		bank, err := q.InsertOfficialBank(ctx, dbq.InsertOfficialBankParams{Title: school + " " + code + " " + name, SchoolMajorTag: nullStr(school + " " + major), SubjectCode: nullStr(code)})
+		bank, err := q.InsertOfficialBank(ctx, dbq.InsertOfficialBankParams{Title: school + " " + code + " " + name, SchoolMajorTag: nullStr(tag), SubjectCode: nullStr(code)})
 		if err != nil {
 			return err
 		}
-		id, err = q.InsertOfficialProject(ctx, dbq.InsertOfficialProjectParams{School: school, Major: major, SubjectCode: code, SubjectName: name,
+		id, err = q.InsertOfficialProject(ctx, dbq.InsertOfficialProjectParams{CatalogCourseID: sql.NullInt64{Int64: int64(courseID), Valid: courseID > 0},
+			School: school, Major: major, SubjectCode: code, SubjectName: name,
 			BankID: sql.NullInt64{Int64: bank, Valid: true}, EditorIds: ids, CreatedBy: sql.NullInt64{Int64: int64(adminID), Valid: true}})
 		if err != nil {
 			return err
 		}
-		return q.DeleteDemandMark(ctx, code)
+		if err := q.DeleteDemandMark(ctx, dbq.DeleteDemandMarkParams{School: "", SubjectCode: code}); err != nil || markSchool == "" {
+			return err
+		}
+		return q.DeleteDemandMark(ctx, dbq.DeleteDemandMarkParams{School: markSchool, SubjectCode: code})
 	})
 	return uint64(id), err
 }
@@ -194,8 +248,9 @@ func (s *Service) Items(ctx context.Context, projectID uint64) ([]Item, error) {
 
 // ---------- 7.10 需求洞察（只用统计） ----------
 
-// Demand 是一门专业课（按代码聚合）的需求。
+// Demand 是一门专业课（按「院校 + 代码」聚合，T50）的需求；School 为空串表示全国统考或院校未知。
 type Demand struct {
+	School       string
 	Code         string
 	Users        int
 	AvgQuestions int
@@ -208,7 +263,8 @@ type Demand struct {
 	Unplanned    bool
 }
 
-// Demands 按专业课代码列出自建用户数等统计（只有计数，不读用户资料内容）。threshold 是达到立项门槛的人数。
+// Demands 按「院校 + 专业课代码」列出自建用户数等统计（只有计数，不读用户资料内容）。
+// 立项匹配：同院校同代码；院校为空串的行优先匹配全国统考立项。
 func (s *Service) Demands(ctx context.Context, weekStart time.Time) ([]Demand, error) {
 	rows, err := s.q.StatDemand(ctx, weekStart)
 	if err != nil {
@@ -224,15 +280,28 @@ func (s *Service) Demands(ctx context.Context, weekStart time.Time) ([]Demand, e
 	}
 	out := make([]Demand, 0, len(rows))
 	for _, r := range rows {
-		d := Demand{Code: r.Code.String, Users: int(r.Users), AvgQuestions: int(r.AvgQuestions), WeekNew: int(r.WeekNew), WithTarget: int(r.WithTarget), AvgReview: int(r.AvgReview),
-			Unplanned: slices.Contains(marks, r.Code.String)}
+		d := Demand{School: str(r.School), Code: r.Code.String, Users: int(r.Users), AvgQuestions: int(r.AvgQuestions), WeekNew: int(r.WeekNew), WithTarget: int(r.WithTarget),
+			AvgReview: int(r.AvgReview)}
+		for _, m := range marks {
+			d.Unplanned = d.Unplanned || (m.SubjectCode == d.Code && m.School == d.School)
+		}
 		if r.Users > 0 {
 			d.PaidRate = float64(r.Paid) / float64(r.Users)
 		}
+		want := d.School
+		if want == "" {
+			want = NationalSchool
+		}
 		for _, p := range projects {
-			if p.SubjectCode == d.Code {
+			if p.SubjectCode == d.Code && p.School == want {
 				d.ProjectID, d.ProjectStage = p.ID, string(p.Stage)
 				break
+			}
+		}
+		// 院校未知的旧专业课：没有统考立项时退回按代码匹配（T50 之前的做法）。
+		for _, p := range projects {
+			if d.ProjectID == 0 && d.School == "" && p.SubjectCode == d.Code {
+				d.ProjectID, d.ProjectStage = p.ID, string(p.Stage)
 			}
 		}
 		out = append(out, d)
@@ -240,12 +309,13 @@ func (s *Service) Demands(ctx context.Context, weekStart time.Time) ([]Demand, e
 	return out, nil
 }
 
-// MarkUnplanned 标为未规划 / 取消标记（7.10）。
-func (s *Service) MarkUnplanned(ctx context.Context, adminID uint64, code string, unplanned bool) error {
+// MarkUnplanned 标为未规划 / 取消标记（7.10），按「院校 + 代码」；全国统考或院校未知时 school 为空串。
+func (s *Service) MarkUnplanned(ctx context.Context, adminID uint64, school, code string, unplanned bool) error {
+	school = strings.TrimSpace(school)
 	if unplanned {
-		return s.q.UpsertDemandMark(ctx, dbq.UpsertDemandMarkParams{SubjectCode: code, MarkedBy: sql.NullInt64{Int64: int64(adminID), Valid: true}})
+		return s.q.UpsertDemandMark(ctx, dbq.UpsertDemandMarkParams{School: school, SubjectCode: code, MarkedBy: sql.NullInt64{Int64: int64(adminID), Valid: true}})
 	}
-	return s.q.DeleteDemandMark(ctx, code)
+	return s.q.DeleteDemandMark(ctx, dbq.DeleteDemandMarkParams{School: school, SubjectCode: code})
 }
 
 // ---------- 7.12 内容生产 ----------
@@ -400,6 +470,14 @@ func (s *Service) validateDraft(ctx context.Context, bankID uint64, entityType, 
 		}
 		if ai.Subjective(p.QType) && len(p.Rubric) == 0 {
 			return apperr.New(apperr.BadRequest, "主观题要有采分点")
+		}
+		if g := p.Group; g != nil {
+			if l := utf8.RuneCountInString(strings.TrimSpace(g.Label)); l == 0 || l > 32 {
+				return apperr.New(apperr.BadRequest, "限选题要写组名（如「第一组」，32 字以内）")
+			}
+			if utf8.RuneCountInString(g.Majors) > 255 {
+				return apperr.New(apperr.BadRequest, "限选题的适用专业太长")
+			}
 		}
 	default:
 		return apperr.New(apperr.BadRequest, "暂只支持知识点和题目")
@@ -622,7 +700,8 @@ func (c content) payloadOf(entityType string, id uint64) json.RawMessage {
 		if x.ID != id {
 			continue
 		}
-		p := QuestionPayload{AnswerSnapshotID: uint64(x.AnswerSnapshotID.Int64), QType: string(x.Qtype), Stem: x.Stem, Answer: x.Answer.String, Analysis: x.Analysis.String, Rubric: pts(c.qRubric[x.ID]), KPNames: []string{}}
+		p := QuestionPayload{AnswerSnapshotID: uint64(x.AnswerSnapshotID.Int64), QType: string(x.Qtype), Stem: x.Stem, Answer: x.Answer.String, Analysis: x.Analysis.String, Rubric: pts(c.qRubric[x.ID]), KPNames: []string{},
+			AnswerAI: x.AnswerOrigin.Valid && x.AnswerOrigin.QuestionsAnswerOrigin == dbq.QuestionsAnswerOriginAiGenerated, Group: groupOf(x.GroupLabel, x.GroupMajors)}
 		_ = json.Unmarshal(x.Options, &p.Options)
 		if x.Score.Valid {
 			v, _ := strconv.ParseFloat(x.Score.String, 64)
@@ -1175,16 +1254,18 @@ func (s *Service) apply(ctx context.Context, q *dbq.Queries, bankID uint64, enti
 		year = sql.NullInt16{Int16: int16(*p.ExamYear), Valid: true}
 	}
 	id := entityID
+	gl, gm := groupCols(p.Group)
 	if changeType == "add" {
 		nid, err := q.InsertOfficialQuestion(ctx, dbq.InsertOfficialQuestionParams{BankID: bankID, Qtype: dbq.QuestionsQtype(p.QType), Stem: p.Stem, Options: opts,
-			Answer: nullStr(p.Answer), Analysis: nullStr(p.Analysis), Score: scoreStr(p.Score), ExamYear: year, ContentHash: importer.ContentHash(p.Stem)})
+			Answer: nullStr(p.Answer), AnswerOrigin: answerOrigin(p), Analysis: nullStr(p.Analysis), Score: scoreStr(p.Score), ExamYear: year, ContentHash: importer.ContentHash(p.Stem),
+			GroupLabel: gl, GroupMajors: gm})
 		if err != nil {
 			return 0, err
 		}
 		id = uint64(nid)
 	} else {
-		if err := q.UpdateOfficialQuestion(ctx, dbq.UpdateOfficialQuestionParams{Qtype: dbq.QuestionsQtype(p.QType), Stem: p.Stem, Options: opts, Answer: nullStr(p.Answer),
-			Analysis: nullStr(p.Analysis), Score: scoreStr(p.Score), ExamYear: year, ContentHash: importer.ContentHash(p.Stem), ID: id, BankID: bankID}); err != nil {
+		if err := q.UpdateOfficialQuestion(ctx, dbq.UpdateOfficialQuestionParams{Qtype: dbq.QuestionsQtype(p.QType), Stem: p.Stem, Options: opts, Answer: nullStr(p.Answer), AnswerOrigin: answerOrigin(p),
+			Analysis: nullStr(p.Analysis), Score: scoreStr(p.Score), ExamYear: year, ContentHash: importer.ContentHash(p.Stem), GroupLabel: gl, GroupMajors: gm, ID: id, BankID: bankID}); err != nil {
 			return 0, err
 		}
 		if err := q.DeleteOfficialQuestionRubric(ctx, sql.NullInt64{Int64: int64(id), Valid: true}); err != nil {

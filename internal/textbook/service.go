@@ -93,7 +93,7 @@ func (s *Service) Get(ctx context.Context, id uint64) (Book, error) {
 	return out, mapError(err)
 }
 func (s *Service) List(ctx context.Context, f Filter) ([]Book, int64, error) {
-	if f.Page < 1 || f.Page > 100000 || f.PageSize < 1 || f.PageSize > 50 || (f.Kind != "" && f.Kind != "textbook" && f.Kind != "handout") {
+	if f.Page < 1 || f.Page > 100000 || f.PageSize < 1 || f.PageSize > 50 || (f.Kind != "" && !rules.IsMaterialKind(f.Kind)) {
 		return nil, 0, apperr.New(apperr.BadRequest, "筛选条件不正确")
 	}
 	out := []Book{}
@@ -127,7 +127,7 @@ func (s *Service) Create(ctx context.Context, actor uint64, key string, m rules.
 	if err != nil {
 		return Book{}, err
 	}
-	e, err = rules.NormalizeTextbookEdition(e)
+	e, err = rules.NormalizeTextbookEdition(rules.ExperienceEdition(m.Kind, e))
 	if err != nil {
 		return Book{}, err
 	}
@@ -243,7 +243,11 @@ func (s *Service) AddEdition(ctx context.Context, book, actor uint64, key string
 	if err := rules.ValidateTextbookRequestKey(key); err != nil {
 		return Book{}, err
 	}
-	e, err := rules.NormalizeTextbookEdition(e)
+	b, err := dbq.New(s.db).GetTextbook(ctx, book)
+	if err != nil {
+		return Book{}, mapError(err)
+	}
+	e, err = rules.NormalizeTextbookEdition(rules.ExperienceEdition(b.Kind, e))
 	if err != nil {
 		return Book{}, err
 	}

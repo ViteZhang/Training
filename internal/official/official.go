@@ -62,6 +62,57 @@ type QuestionPayload struct {
 	ExamYear         *int        `json:"exam_year,omitempty"`
 	KPNames          []string    `json:"kp_names"`
 	Rubric           []Point     `json:"rubric"`
+	// AnswerAI 表示参考答案由 AI 生成（T49）：经编辑审核发布后，用户端显示「AI 参考答案」，照常计入预估分。
+	AnswerAI bool `json:"answer_ai,omitempty"`
+	// ScoreInferred 表示分值是补答案时参考同项目同题型的给分填上的（原文没有分值），请编辑核对。
+	ScoreInferred bool `json:"score_inferred,omitempty"`
+	// 以下三项只在 7.17 核对区用，接受时去掉、不进草稿（T53）：
+	// AnswerBasis 是 AI 生成的答案没有引用教材的原因；RubricKept 是采分点是原文给的（重新生成时保留）；
+	// Regenerate 是编辑点了「按关联教材重新生成」、还没生成完。
+	AnswerBasis *ai.AnswerBasis `json:"answer_basis,omitempty"`
+	RubricKept  bool            `json:"rubric_kept,omitempty"`
+	Regenerate  bool            `json:"regenerate,omitempty"`
+	// Group 不为空是限选题（T51）：按专业分组的题（「第一组：请选择文艺学专业的考生作答」，回答非报考专业不得分），
+	// 只有报考这些专业的考生要答；为空是必答题。
+	Group *QuestionGroup `json:"group,omitempty"`
+}
+
+// QuestionGroup 是限选题所在的组。
+type QuestionGroup struct {
+	Label  string `json:"label"`            // 如「第一组」
+	Majors string `json:"majors,omitempty"` // 这一组适用的专业，如「文艺学、比较文学与世界文学」
+}
+
+// groupCols 是写进 questions.group_label / group_majors 的值；必答题都为空。
+func groupCols(g *QuestionGroup) (sql.NullString, sql.NullString) {
+	if g == nil || strings.TrimSpace(g.Label) == "" {
+		return sql.NullString{}, sql.NullString{}
+	}
+	return nullStr(strings.TrimSpace(g.Label)), nullStr(strings.TrimSpace(g.Majors))
+}
+
+// groupOf 从 questions 的两列还原分组。
+func groupOf(label, majors sql.NullString) *QuestionGroup {
+	if label.String == "" {
+		return nil
+	}
+	return &QuestionGroup{Label: label.String, Majors: majors.String}
+}
+
+// groupKey 计入内容哈希：限选题的组变了，副本跟着更新；必答题为空串，哈希与以前一致。
+func groupKey(label, majors sql.NullString) string {
+	if label.String == "" {
+		return ""
+	}
+	return label.String + "\x00" + majors.String
+}
+
+// answerOrigin 是官方题的答案来源：AI 生成的记 ai_generated，其余是团队给的 official。
+func answerOrigin(p QuestionPayload) dbq.NullQuestionsAnswerOrigin {
+	if p.AnswerAI && strings.TrimSpace(p.Answer) != "" {
+		return dbq.NullQuestionsAnswerOrigin{QuestionsAnswerOrigin: dbq.QuestionsAnswerOriginAiGenerated, Valid: true}
+	}
+	return dbq.NullQuestionsAnswerOrigin{QuestionsAnswerOrigin: dbq.QuestionsAnswerOriginOfficial, Valid: true}
 }
 
 // Deps 是创建服务的依赖。
@@ -188,7 +239,20 @@ func (c content) kpHash(k dbq.ListOfficialKPsRow) string {
 }
 
 func (c content) questionHash(x dbq.ListOfficialQuestionsRow) string {
-	return hashOf(string(x.Qtype), x.Stem, x.Answer.String, rubricText(contents(c.qRubric[x.ID])))
+	return questionHashOf(string(x.Qtype), x.Stem, x.Answer.String, rubricText(contents(c.qRubric[x.ID])), x.AnswerOrigin, groupKey(x.GroupLabel, x.GroupMajors))
+}
+
+// questionHashOf 是题目内容的哈希。答案是 AI 生成的、限选题的分组才多算一项，团队给的答案、必答题的哈希与以前一致，
+// 已同步的副本不会因此被判为有变化。
+func questionHashOf(qtype, stem, answer, rubric string, origin dbq.NullQuestionsAnswerOrigin, group string) string {
+	parts := []string{qtype, stem, answer, rubric}
+	if origin.Valid && origin.QuestionsAnswerOrigin == dbq.QuestionsAnswerOriginAiGenerated {
+		parts = append(parts, "ai_generated")
+	}
+	if group != "" {
+		parts = append(parts, "group:"+group)
+	}
+	return hashOf(parts...)
 }
 
 // isDuplicate 判断唯一键冲突（MySQL 1062）。
