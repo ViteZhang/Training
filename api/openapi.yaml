@@ -6705,6 +6705,8 @@ paths:
         有答案缺采分点的从答案提采分点。主观题没有分值时参考同项目同题型最常见的分值（payload.score_inferred），
         同题型一道有分值的都没有时返回 400（detail.reason = score_missing），请先「修改」填分值。
         生成失败返回 400 / 502（AI_FAILED），原因同时记在条目的 fill_error 上。
+        生产环境在 Worker 里生成（检索教材加生成常超过一分钟）：立即返回 filling = true 的条目，生成完或失败后 filling 变回 false，
+        失败原因记在 fill_error 上；生成中再点、接受返回 409。
       x-roles: [content_lead, content_editor]
       security: [{ adminAuth: [] }]
       parameters:
@@ -6712,7 +6714,7 @@ paths:
         - { name: itemId, in: path, required: true, schema: { type: integer, format: int64 } }
       responses:
         "200":
-          description: 补好的条目
+          description: 补好的条目；在 Worker 里生成时是 filling = true 的条目
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OfficialImportItem" }
@@ -6749,6 +6751,7 @@ paths:
       description: |
         只能用于还没核对、答案由 AI 生成的题（answer_ai = true）；原文给的采分点保留。
         失败返回 400 / 502（AI_FAILED），原来的答案不变，原因记在 fill_error 上。
+        生产环境与「生成答案」一样在 Worker 里生成：立即返回 filling = true 的条目。
       x-roles: [content_lead, content_editor]
       security: [{ adminAuth: [] }]
       parameters:
@@ -6756,7 +6759,7 @@ paths:
         - { name: itemId, in: path, required: true, schema: { type: integer, format: int64 } }
       responses:
         "200":
-          description: 重新生成后的条目
+          description: 重新生成后的条目；在 Worker 里生成时是 filling = true 的条目
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OfficialImportItem" }
@@ -13767,6 +13770,7 @@ components:
         rubric_mismatch: { type: boolean, description: 采分点合计不等于分值（标红） }
         needs_fill: { type: boolean, description: 还缺答案或采分点（可以「生成答案 / 提取采分点」） }
         fill_error: { type: string, description: 上次补全失败的原因 }
+        filling: { type: boolean, description: 单题「生成答案 / 重新生成」已排队、还没生成完（核对区显示「生成中」，排队超过 15 分钟算中断，可以再点） }
         duplicate_of:
           type: string
           description: |

@@ -298,6 +298,7 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 	})
 	mux.HandleFunc(TypeOfficialImport, h.handleOfficialImport)
 	mux.HandleFunc(TypeOfficialImportFill, h.handleOfficialImportFill)
+	mux.HandleFunc(TypeOfficialImportItemFill, h.handleOfficialImportItemFill)
 	mux.HandleFunc(TypeOfficialImportRecover, func(ctx context.Context, _ *asynq.Task) error {
 		if h.Official == nil {
 			return nil

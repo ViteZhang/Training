@@ -197,7 +197,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	base.AnswerUpdates = answerupdate.New(db, engine, qs, queue)
 	base.Official = official.New(official.Deps{DB: db, AI: engine, Log: log, Params: ps, OpsWebhook: cfg.OpsWebhookURL, AdminBaseURL: cfg.AdminBaseURL})
 	base.Official.ConfigureImports(official.ImportDeps{OSS: clients.OSS, OCR: clients.OCR, PDF: clients.PDF, Queue: queue, NewTask: jobs.NewOfficialImportTask,
-		NewFillTask: jobs.NewOfficialImportFillTask})
+		NewFillTask: jobs.NewOfficialImportFillTask, NewItemFillTask: jobs.NewOfficialImportItemFillTask})
 	return base, nil
 }
 
