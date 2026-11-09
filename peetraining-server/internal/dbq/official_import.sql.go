@@ -14,12 +14,52 @@ import (
 	"peetraining-server/internal/dbtypes"
 )
 
+const countPublishedOfficialImportDrafts = `-- name: CountPublishedOfficialImportDrafts :one
+SELECT COUNT(*) FROM official_drafts
+WHERE status = 'published' AND id IN (SELECT draft_id FROM official_import_items WHERE file_id = ? AND draft_id IS NOT NULL)
+`
+
+func (q *Queries) CountPublishedOfficialImportDrafts(ctx context.Context, fileID uint64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countPublishedOfficialImportDrafts, fileID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deleteOfficialImportDrafts = `-- name: DeleteOfficialImportDrafts :exec
+DELETE FROM official_drafts WHERE id IN (SELECT draft_id FROM official_import_items WHERE file_id = ? AND draft_id IS NOT NULL)
+`
+
+func (q *Queries) DeleteOfficialImportDrafts(ctx context.Context, fileID uint64) error {
+	_, err := q.db.ExecContext(ctx, deleteOfficialImportDrafts, fileID)
+	return err
+}
+
+const deleteOfficialImportFile = `-- name: DeleteOfficialImportFile :exec
+DELETE FROM official_import_files WHERE id = ?
+`
+
+// 解析出的题随外键级联删除。
+func (q *Queries) DeleteOfficialImportFile(ctx context.Context, id uint64) error {
+	_, err := q.db.ExecContext(ctx, deleteOfficialImportFile, id)
+	return err
+}
+
 const deleteOfficialImportItems = `-- name: DeleteOfficialImportItems :exec
 DELETE FROM official_import_items WHERE file_id = ? AND status = 'pending'
 `
 
 func (q *Queries) DeleteOfficialImportItems(ctx context.Context, fileID uint64) error {
 	_, err := q.db.ExecContext(ctx, deleteOfficialImportItems, fileID)
+	return err
+}
+
+const deleteOfficialImportReviewTasks = `-- name: DeleteOfficialImportReviewTasks :exec
+DELETE FROM review_tasks WHERE draft_id IN (SELECT draft_id FROM official_import_items WHERE file_id = ? AND draft_id IS NOT NULL)
+`
+
+func (q *Queries) DeleteOfficialImportReviewTasks(ctx context.Context, fileID uint64) error {
+	_, err := q.db.ExecContext(ctx, deleteOfficialImportReviewTasks, fileID)
 	return err
 }
 
@@ -471,6 +511,40 @@ func (q *Queries) ListStaleOfficialImports(ctx context.Context, updatedAt time.T
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockOfficialImportFile = `-- name: LockOfficialImportFile :one
+SELECT id, project_id, kind, file_name, object_key, size_bytes, content, exam_year, is_recollection, status, fail_reason, question_count, kp_count, created_by, created_at, updated_at, auto_answer, fill_status, fill_total, fill_done, fill_failed, format FROM official_import_files WHERE id = ? FOR UPDATE
+`
+
+func (q *Queries) LockOfficialImportFile(ctx context.Context, id uint64) (OfficialImportFile, error) {
+	row := q.db.QueryRowContext(ctx, lockOfficialImportFile, id)
+	var i OfficialImportFile
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Kind,
+		&i.FileName,
+		&i.ObjectKey,
+		&i.SizeBytes,
+		&i.Content,
+		&i.ExamYear,
+		&i.IsRecollection,
+		&i.Status,
+		&i.FailReason,
+		&i.QuestionCount,
+		&i.KpCount,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AutoAnswer,
+		&i.FillStatus,
+		&i.FillTotal,
+		&i.FillDone,
+		&i.FillFailed,
+		&i.Format,
+	)
+	return i, err
 }
 
 const reviewOfficialImportItem = `-- name: ReviewOfficialImportItem :execrows

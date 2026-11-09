@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"regexp"
 	"slices"
@@ -31,6 +32,7 @@ import (
 	"peetraining-server/internal/dbtypes"
 	"peetraining-server/internal/extract"
 	"peetraining-server/internal/importer"
+	"peetraining-server/internal/store"
 )
 
 // 后台 AI 解析导入（PRD v3 增补 7.17，T47）：团队上传真题卷、参考书目录、有授权的讲义，AI 解析出题目与知识点，
@@ -186,6 +188,46 @@ func (s *Service) importFile(ctx context.Context, projectID, fileID uint64) (dbq
 		return f, apperr.NotFoundErr()
 	}
 	return f, err
+}
+
+// DeleteImportFile 删除一份导入的资料，连同解析出的题、核对时生成的草稿与审核任务（重新导入前清理）。
+// 有题已经发布到题库时不删：发布的内容要走下线流程。正在解析、补全的后台任务发现资料不在了会自行结束。
+func (s *Service) DeleteImportFile(ctx context.Context, projectID, fileID uint64) error {
+	var key string
+	err := store.WithTx(ctx, s.d.DB, func(q *dbq.Queries) error {
+		f, err := q.LockOfficialImportFile(ctx, fileID)
+		if errors.Is(err, sql.ErrNoRows) || (err == nil && f.ProjectID != projectID) {
+			return apperr.NotFoundErr()
+		}
+		if err != nil {
+			return err
+		}
+		n, err := q.CountPublishedOfficialImportDrafts(ctx, fileID)
+		if err != nil {
+			return err
+		}
+		if n > 0 {
+			return apperr.New(apperr.Conflict, fmt.Sprintf("这份资料里有 %d 道题已经发布到题库，不能删除", n))
+		}
+		if err := q.DeleteOfficialImportReviewTasks(ctx, fileID); err != nil {
+			return err
+		}
+		if err := q.DeleteOfficialImportDrafts(ctx, fileID); err != nil {
+			return err
+		}
+		key = f.ObjectKey.String
+		return q.DeleteOfficialImportFile(ctx, fileID)
+	})
+	if err != nil {
+		return err
+	}
+	// 原文件删不掉不影响结果，只是 OSS 里多留一个文件。
+	if key != "" && s.imports.OSS != nil {
+		if err := s.imports.OSS.Delete(ctx, key); err != nil {
+			slog.WarnContext(ctx, "删除导入原文件失败", "file_id", fileID, "err", err)
+		}
+	}
+	return nil
 }
 
 // ConfirmImportFile 确认文件已上传，开始解析。

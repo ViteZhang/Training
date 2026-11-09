@@ -152,6 +152,7 @@ type Querier interface {
 	CountOfficialFirstSessions(ctx context.Context, ownerUserID uint64) (int64, error)
 	// 还没确认入库的题（3.8 提示先去确认）：最近一个任务的 ID 用来跳到核对页。
 	CountPendingImportQuestions(ctx context.Context, arg CountPendingImportQuestionsParams) (CountPendingImportQuestionsRow, error)
+	CountPublishedOfficialImportDrafts(ctx context.Context, fileID uint64) (int64, error)
 	// 待背诵：有原文表述可背的知识点，从没背过或背诵复习日已到（与 4.14 背诵队列一致）。
 	CountReciteDue(ctx context.Context, arg CountReciteDueParams) (int64, error)
 	// 3.3b：按这份 AI 参考答案批改过的次数（不计入预估分）。
@@ -201,7 +202,11 @@ type Querier interface {
 	// 重跑取文本时删掉多出来的旧页（这次页数变少）。
 	DeleteMaterialPagesAfter(ctx context.Context, arg DeleteMaterialPagesAfterParams) error
 	DeleteOfficialDraft(ctx context.Context, arg DeleteOfficialDraftParams) (int64, error)
+	DeleteOfficialImportDrafts(ctx context.Context, fileID uint64) error
+	// 解析出的题随外键级联删除。
+	DeleteOfficialImportFile(ctx context.Context, id uint64) error
 	DeleteOfficialImportItems(ctx context.Context, fileID uint64) error
+	DeleteOfficialImportReviewTasks(ctx context.Context, fileID uint64) error
 	DeleteOfficialKP(ctx context.Context, arg DeleteOfficialKPParams) error
 	DeleteOfficialKPRubric(ctx context.Context, kpID sql.NullInt64) error
 	DeleteOfficialQuestionKPs(ctx context.Context, questionID uint64) error
@@ -747,6 +752,7 @@ type Querier interface {
 	LockImportAnswer(ctx context.Context, arg LockImportAnswerParams) (ImportItem, error)
 	LockKPForSplit(ctx context.Context, arg LockKPForSplitParams) (uint64, error)
 	LockLegacyTextbookReference(ctx context.Context, id uint64) (LockLegacyTextbookReferenceRow, error)
+	LockOfficialImportFile(ctx context.Context, id uint64) (OfficialImportFile, error)
 	LockOfficialProject(ctx context.Context, id uint64) (OfficialProject, error)
 	LockQuestionAnswer(ctx context.Context, arg LockQuestionAnswerParams) (Question, error)
 	LockQuotaCounter(ctx context.Context, arg LockQuotaCounterParams) (QuotaCounter, error)
