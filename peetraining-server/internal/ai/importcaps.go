@@ -319,6 +319,86 @@ func splitPoints(answer string, score float64) []RubricPoint {
 	return pts
 }
 
+// stripMarkdownBold 去掉模型常加的 Markdown 加粗（「**诗可以兴**：」）：后台和 App 都按纯文本显示，
+// 而且采分点原句、引用观点里一般不带星号，留着会对不上答案原文。
+func stripMarkdownBold(out *GenerateAnswerOut) {
+	out.Answer = strings.ReplaceAll(out.Answer, "**", "")
+	for i := range out.Points {
+		out.Points[i].Content = strings.ReplaceAll(out.Points[i].Content, "**", "")
+		for j, k := range out.Points[i].Keywords {
+			out.Points[i].Keywords[j] = strings.ReplaceAll(k, "**", "")
+		}
+	}
+	for i := range out.Citations {
+		out.Citations[i].Claim = strings.ReplaceAll(out.Citations[i].Claim, "**", "")
+	}
+}
+
+// pointInAnswer 判断采分点是不是出自答案：逐字能找到（忽略空白、结尾标点），
+// 或者是答案里一段话的略写（省掉引文、把分项并成一句，二字片段 85% 以上在答案里）。关键词另外要求逐字出现。
+func pointInAnswer(answer, content string) bool {
+	if strings.Contains(answer, content) || ContainsVerbatim(answer, strings.TrimRight(content, "。；;！？!?，,、 ")) {
+		return true
+	}
+	return Overlap(content, answer) >= 0.85
+}
+
+// repairKeywords 去掉答案里找不到的关键词（模型常把关键词改写或缩写）；一个都不剩时取采分点原句的开头。
+// 采分点原句已校验在答案里，开头几个字一定能在答案里逐字找到。
+func repairKeywords(answer string, pts []RubricPoint) {
+	for i := range pts {
+		kept := pts[i].Keywords[:0]
+		for _, kw := range pts[i].Keywords {
+			if strings.Contains(answer, kw) {
+				kept = append(kept, kw)
+			}
+		}
+		if len(kept) == 0 {
+			kw := []rune(strings.TrimRight(pts[i].Content, "。；;！？，,"))
+			if len(kw) > 6 {
+				kw = kw[:6]
+			}
+			if len(kw) > 0 {
+				kept = append(kept, string(kw))
+			}
+		}
+		pts[i].Keywords = kept
+	}
+}
+
+// fitPointScores 把采分点分值按比例调到合计等于题目分值（模型常差一两分），取到 0.5 分，差额补在分值最大的一条上。
+// 调不出每条都大于 0 的结果时返回 false，交给重试。
+func fitPointScores(pts []RubricPoint, score float64) bool {
+	sum := 0.0
+	for _, p := range pts {
+		sum += p.Score
+	}
+	if math.Abs(sum-score) <= 0.01 {
+		return true
+	}
+	if sum <= 0 || len(pts) == 0 || float64(len(pts))*0.5 > score {
+		return false
+	}
+	scaled := make([]float64, len(pts))
+	total, big := 0.0, 0
+	for i, p := range pts {
+		v := math.Max(0.5, math.Round(p.Score/sum*score*2)/2)
+		scaled[i] = v
+		total += v
+		if v > scaled[big] {
+			big = i
+		}
+	}
+	scaled[big] += score - total
+	if scaled[big] < 0.5 {
+		return false
+	}
+	for i := range pts {
+		pts[i].Score = scaled[i]
+	}
+	return true
+}
+
 // GenerateAnswerIn 是缺答案时生成参考答案与采分点的输入（1.7b、3.3b、4.4，标「AI 参考答案 · 待确认」）。
 // 生成时依次参考：用户同课资料里的相关原文（Context）→ 用户填的参考教材（Textbooks，只给书名）→ 通用知识（PRD v3 11.16 第 5 条）。
 // 官方题库的题，Context 是后台录入的官方参考素材（7.11），Sources 给出处，答案优先引用并标明。
@@ -361,27 +441,22 @@ var GenerateAnswer = &Cap[GenerateAnswerIn, GenerateAnswerOut]{
 			"answer": {"type": "string", "minLength": 1},
 			"points": ` + rubricPoints + `,"citations":{"type":"array","maxItems":16,"items":{"type":"object","required":["source_id","quote","claim"],"properties":{"source_id":{"type":"string"},"quote":{"type":"string","minLength":1,"maxLength":1500},"claim":{"type":"string","minLength":1}}}},"uses_general_knowledge":{"type":"boolean"}}}`},
 	Check: func(in GenerateAnswerIn, out *GenerateAnswerOut) error {
+		stripMarkdownBold(out)
 		if err := validateAnswerCitations(in, out); err != nil {
 			return err
 		}
 		for _, point := range out.Points {
-			if !strings.Contains(out.Answer, point.Content) {
+			if !pointInAnswer(out.Answer, point.Content) {
 				return fmt.Errorf("采分点不是答案原句")
 			}
-			for _, kw := range point.Keywords {
-				if !strings.Contains(out.Answer, kw) {
-					return fmt.Errorf("关键词不在答案中")
-				}
-			}
 		}
-		if in.Score > 0 {
+		repairKeywords(out.Answer, out.Points)
+		if in.Score > 0 && !fitPointScores(out.Points, in.Score) {
 			sum := 0.0
 			for _, p := range out.Points {
 				sum += p.Score
 			}
-			if math.Abs(sum-in.Score) > 0.01 {
-				return fmt.Errorf("采分点合计 %.1f 不等于题目分值 %.1f", sum, in.Score)
-			}
+			return fmt.Errorf("采分点合计 %.1f 不等于题目分值 %.1f", sum, in.Score)
 		}
 		return nil
 	},
