@@ -402,6 +402,10 @@ type Querier interface {
 	GetTextbookRevision(ctx context.Context, arg GetTextbookRevisionParams) (TextbookRevision, error)
 	GetTextbookRevisionIdentity(ctx context.Context, arg GetTextbookRevisionIdentityParams) (GetTextbookRevisionIdentityRow, error)
 	GetTextbookRevisionRequest(ctx context.Context, arg GetTextbookRevisionRequestParams) (TextbookRevision, error)
+	// 取一节原文（sections 数组下标从 0 开始），用于核对检索命中的片段。
+	GetTextbookRevisionSection(ctx context.Context, arg GetTextbookRevisionSectionParams) (json.RawMessage, error)
+	// 检索只需要校验内容哈希与校对状态，不读整本书的 sections（多本书检索时整本读取太慢）。
+	GetTextbookRevisionState(ctx context.Context, arg GetTextbookRevisionStateParams) (GetTextbookRevisionStateRow, error)
 	GetTrial(ctx context.Context, arg GetTrialParams) (Trial, error)
 	GetTrialByKey(ctx context.Context, arg GetTrialByKeyParams) (Trial, error)
 	// T45 体验一道题、通用体验题与 AI 出题（每条用户内容查询都带 owner_user_id）。
