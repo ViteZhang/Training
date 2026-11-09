@@ -29,6 +29,8 @@ type SearchHit struct {
 	FulltextRank int     `json:"fulltext_rank"`
 	VectorRank   int     `json:"vector_rank"`
 	FusionScore  float64 `json:"fusion_score"`
+	// VectorScore 是向量相似度（余弦）；没有向量命中时为 0。各本书同一套嵌入，可跨书比较，合并多本书的段落时用（不对外输出）。
+	VectorScore float64 `json:"-"`
 }
 type SearchResult struct {
 	GenerationID uint64      `json:"generation_id"`
@@ -40,6 +42,11 @@ type SearchResult struct {
 
 // SearchRevision 为后台显式试用入口；APP 必须先取得已匹配的发布快照，不能调用此草稿入口。
 func (s *Service) SearchRevision(ctx context.Context, book, edition, revision, generation uint64, query string) (SearchResult, error) {
+	return s.searchRevision(ctx, book, edition, revision, generation, query, nil)
+}
+
+// searchRevision 的 embedding 是已经算好的检索问题向量：一次检索多本书时只算一次；为空时现算。
+func (s *Service) searchRevision(ctx context.Context, book, edition, revision, generation uint64, query string, embedding []float64) (SearchResult, error) {
 	out := SearchResult{GenerationID: generation, Fusion: "rrf-v1", Hits: []SearchHit{}, Notice: "召回片段仅作检索诊断；相关性、依据充分性及答案引用由答案生成链路另行校验。"}
 	if utf8.RuneCountInString(query) > 1800 || strings.TrimSpace(query) == "" {
 		return out, apperr.New(apperr.BadRequest, "检索问题需为 1–1800 字")
@@ -83,18 +90,22 @@ func (s *Service) SearchRevision(ctx context.Context, book, edition, revision, g
 	if err != nil {
 		return out, err
 	}
-	embeddings, err := s.indexes.Embedding.Embed(ctx, []string{query})
-	if err != nil {
-		return out, err
+	if embedding == nil {
+		embeddings, err := s.indexes.Embedding.Embed(ctx, []string{query})
+		if err != nil {
+			return out, err
+		}
+		embedding = embeddings[0]
 	}
 	if s.indexes.Vector == nil {
 		return out, errors.New("向量服务未配置")
 	}
-	hits, err := s.indexes.Vector.Search(ctx, g.CollectionName, indexScope(g), embeddings[0], p.RecallK)
+	hits, err := s.indexes.Vector.Search(ctx, g.CollectionName, indexScope(g), embedding, p.RecallK)
 	if err != nil {
 		return out, err
 	}
 	ft, vec := []uint32{}, []uint32{}
+	scores := map[uint32]float64{}
 	for _, h := range fulltext {
 		ft = append(ft, h.Ordinal)
 	}
@@ -103,6 +114,7 @@ func (s *Service) SearchRevision(ctx context.Context, book, edition, revision, g
 			return out, errors.New("向量结果无效")
 		}
 		vec = append(vec, uint32(h.ID))
+		scores[uint32(h.ID)] = h.Score
 	}
 	used := 0
 	for _, rank := range rules.FuseTextbookRanks(ft, vec) {
@@ -126,7 +138,7 @@ func (s *Service) SearchRevision(ctx context.Context, book, edition, revision, g
 			continue
 		}
 		used += int(chunk.EndRune - chunk.StartRune)
-		out.Hits = append(out.Hits, SearchHit{Ordinal: chunk.Ordinal, SectionNo: chunk.SectionNo, StartRune: chunk.StartRune, EndRune: chunk.EndRune, Heading: chunk.Heading, Text: chunk.Body, TextHash: chunk.TextHash, SourcePage: sec.SourcePage, PrintedPage: sec.PrintedPage, FulltextRank: rank.FulltextRank, VectorRank: rank.VectorRank, FusionScore: rank.Score})
+		out.Hits = append(out.Hits, SearchHit{Ordinal: chunk.Ordinal, SectionNo: chunk.SectionNo, StartRune: chunk.StartRune, EndRune: chunk.EndRune, Heading: chunk.Heading, Text: chunk.Body, TextHash: chunk.TextHash, SourcePage: sec.SourcePage, PrintedPage: sec.PrintedPage, FulltextRank: rank.FulltextRank, VectorRank: rank.VectorRank, FusionScore: rank.Score, VectorScore: scores[chunk.Ordinal]})
 		if len(out.Hits) >= p.ResultK {
 			break
 		}

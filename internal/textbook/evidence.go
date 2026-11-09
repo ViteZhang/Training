@@ -16,6 +16,8 @@ import (
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/flags"
 	"peetraining-server/internal/rules"
+
+	"golang.org/x/sync/errgroup"
 )
 
 func (s *Service) ConfigureEvidence(engine *ai.Engine, f *flags.Service) {
@@ -227,17 +229,22 @@ func (s *Service) PrepareAnswer(ctx context.Context, user uint64, in ai.Generate
 		return kind
 	}
 	caps[rules.MaterialTextbook] = 16 - caps[rules.MaterialSyllabus] - caps[rules.MaterialExperience]
-	picked := map[string][]ai.EvidenceFragment{}
+	// 关联的每本书都检索（并发），再按相似度从所有书的段落里取名额内的前几段。
+	// 以前按关联顺序一本本取、名额满了后面的书就不查，关联多本书时相关的那本常常轮不到。
+	results := s.searchEditions(ctx, editions, query)
+	type candidate struct {
+		fragment ai.EvidenceFragment
+		score    float64
+		order    int
+	}
+	candidates := map[string][]candidate{}
 	knowledgeLinked, knowledgeSearched := knowledgeDown, 0
-	for _, e := range editions {
+	for i, e := range editions {
 		g := group(e.Kind)
 		if g == rules.MaterialTextbook {
 			knowledgeLinked++
 		}
-		if len(picked[g]) >= caps[g] {
-			continue
-		}
-		result, err := s.SearchRevision(ctx, e.BookID, e.ID, uint64(e.CurrentRevisionID.Int64), uint64(e.CurrentGenerationID.Int64), query)
+		result, err := results[i].result, results[i].err
 		if err != nil {
 			details = append(details, e.Title+"："+errText(err))
 			continue
@@ -245,11 +252,24 @@ func (s *Service) PrepareAnswer(ctx context.Context, user uint64, in ai.Generate
 		if g == rules.MaterialTextbook {
 			knowledgeSearched++
 		}
-		for _, h := range result.Hits {
+		score := bookOrderScores(result.Hits)
+		for j, h := range result.Hits {
+			candidates[g] = append(candidates[g], candidate{order: len(candidates[g]), score: score[j], fragment: ai.EvidenceFragment{ID: fmt.Sprintf("textbook:%d:%d", result.GenerationID, h.Ordinal), Kind: "official_textbook", Material: e.Kind, Title: e.Title, Author: e.Author, Edition: e.Edition, Text: h.Text, BookID: e.BookID, EditionID: e.ID, RevisionID: uint64(e.CurrentRevisionID.Int64), GenerationID: result.GenerationID, Ordinal: h.Ordinal, SectionNo: h.SectionNo, StartRune: h.StartRune, EndRune: h.EndRune, TextHash: h.TextHash, Heading: h.Heading, SourcePage: h.SourcePage, PrintedPage: h.PrintedPage}})
+		}
+	}
+	picked := map[string][]ai.EvidenceFragment{}
+	for g, list := range candidates {
+		sort.SliceStable(list, func(a, b int) bool {
+			if list[a].score != list[b].score {
+				return list[a].score > list[b].score
+			}
+			return list[a].order < list[b].order
+		})
+		for _, c := range list {
 			if len(picked[g]) >= caps[g] {
 				break
 			}
-			picked[g] = append(picked[g], ai.EvidenceFragment{ID: fmt.Sprintf("textbook:%d:%d", result.GenerationID, h.Ordinal), Kind: "official_textbook", Material: e.Kind, Title: e.Title, Author: e.Author, Edition: e.Edition, Text: h.Text, BookID: e.BookID, EditionID: e.ID, RevisionID: uint64(e.CurrentRevisionID.Int64), GenerationID: result.GenerationID, Ordinal: h.Ordinal, SectionNo: h.SectionNo, StartRune: h.StartRune, EndRune: h.EndRune, TextHash: h.TextHash, Heading: h.Heading, SourcePage: h.SourcePage, PrintedPage: h.PrintedPage})
+			picked[g] = append(picked[g], c.fragment)
 		}
 	}
 	evidence := append(append(picked[rules.MaterialTextbook], picked[rules.MaterialSyllabus]...), picked[rules.MaterialExperience]...)
@@ -284,6 +304,51 @@ func (s *Service) PrepareAnswer(ctx context.Context, user uint64, in ai.Generate
 	}
 	in.Coverage = selection.Coverage
 	return in, nil
+}
+
+type editionSearch struct {
+	result SearchResult
+	err    error
+}
+
+// searchEditions 并发检索每本书（最多同时 4 本），检索问题的向量只算一次；结果与 editions 一一对应。
+func (s *Service) searchEditions(ctx context.Context, editions []dbq.ListPublishedTextbookEditionsRow, query string) []editionSearch {
+	out := make([]editionSearch, len(editions))
+	var embedding []float64
+	if len(editions) > 1 && s.indexes.Embedding != nil {
+		// 算不出来时不中断：每本书检索时再各自算，失败原因记到那本书上。
+		if v, err := s.indexes.Embedding.Embed(ctx, []string{query}); err == nil && len(v) == 1 {
+			embedding = v[0]
+		}
+	}
+	var g errgroup.Group
+	g.SetLimit(4)
+	for i, e := range editions {
+		g.Go(func() error {
+			r, err := s.searchRevision(ctx, e.BookID, e.ID, uint64(e.CurrentRevisionID.Int64), uint64(e.CurrentGenerationID.Int64), query, embedding)
+			out[i] = editionSearch{r, err}
+			return nil
+		})
+	}
+	_ = g.Wait()
+	return out
+}
+
+// bookOrderScores 是一本书各段落参与跨书排序的分数：向量相似度，但不超过它前面的段落，
+// 保持书内（全文 + 向量融合后）的顺序；只有全文命中的段落沿用前一段的分数。
+func bookOrderScores(hits []SearchHit) []float64 {
+	out := make([]float64, len(hits))
+	floor := 0.0
+	for _, h := range hits {
+		floor = max(floor, h.VectorScore)
+	}
+	for i, h := range hits {
+		if h.VectorRank > 0 {
+			floor = min(floor, h.VectorScore)
+		}
+		out[i] = floor
+	}
+	return out
 }
 
 // unavailableEditions 是明确关联、但不在可检索列表里的版本及原因（未发布、授权不可用、还没有索引）。
