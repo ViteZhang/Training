@@ -315,7 +315,7 @@ func assembleStructured(blocks []ai.Block, items []ai.QItem) ([]ai.QItem, int) {
 				failed++ // 整页块规则拆不开，只能算没能识别
 				continue
 			}
-			it.Confidence = min(it.Confidence, fallbackConfidence)
+			it.Confidence = min(it.Confidence, FallbackConfidence)
 			its = []ai.QItem{it}
 		}
 		ordered = append(ordered, its...)
@@ -323,9 +323,9 @@ func assembleStructured(blocks []ai.Block, items []ai.QItem) ([]ai.QItem, int) {
 	return ordered, failed
 }
 
-// structureBatch 结构化一批块：模型给整批的输出不合格（题干改写、条目缺失）时拆半重试，见 structureEach。
+// structureBatch 结构化一批块：模型给整批的输出不合格（题干改写、条目缺失）时拆半重试，见 StructureEach。
 func (s *Service) structureBatch(ctx context.Context, job dbq.GetImportJobRow, blocks []ai.Block) ([]ai.QItem, error) {
-	return structureEach(ctx, blocks, func(ctx context.Context, bs []ai.Block) ([]ai.QItem, error) {
+	return StructureEach(ctx, blocks, func(ctx context.Context, bs []ai.Block) ([]ai.QItem, error) {
 		out, meta, err := ai.Structure.Run(ctx, s.ai, job.OwnerUserID, ai.StructureIn{Subject: job.SubjectName, Blocks: bs})
 		if err != nil {
 			return nil, err
@@ -335,14 +335,14 @@ func (s *Service) structureBatch(ctx context.Context, job dbq.GetImportJobRow, b
 		for _, b := range bs {
 			byID[b.ID] = b
 		}
-		return append(out.Items, ruleFallback(out.Dropped, byID)...), nil
+		return append(out.Items, RuleFallback(out.Dropped, byID)...), nil
 	})
 }
 
-// structureEach 把块交给 call 结构化；整批被判不合格（AIFailed）时拆成两半各自重试，
+// StructureEach 把块交给 call 结构化；整批被判不合格（AIFailed）时拆成两半各自重试，
 // 逐层定位到具体哪一块，不让一条写坏就丢掉整批几十道题。单块仍不合格就跳过这块，
 // 由调用方的覆盖检查与规则兜底接住；平台错误（非 AIFailed）原样返回，由任务整体重试。
-func structureEach(ctx context.Context, blocks []ai.Block, call func(ctx context.Context, blocks []ai.Block) ([]ai.QItem, error)) ([]ai.QItem, error) {
+func StructureEach(ctx context.Context, blocks []ai.Block, call func(ctx context.Context, blocks []ai.Block) ([]ai.QItem, error)) ([]ai.QItem, error) {
 	items, err := call(ctx, blocks)
 	if err == nil {
 		return items, nil
@@ -354,22 +354,22 @@ func structureEach(ctx context.Context, blocks []ai.Block, call func(ctx context
 		return nil, nil
 	}
 	mid := len(blocks) / 2
-	left, err := structureEach(ctx, blocks[:mid], call)
+	left, err := StructureEach(ctx, blocks[:mid], call)
 	if err != nil {
 		return nil, err
 	}
-	right, err := structureEach(ctx, blocks[mid:], call)
+	right, err := StructureEach(ctx, blocks[mid:], call)
 	if err != nil {
 		return nil, err
 	}
 	return append(left, right...), nil
 }
 
-// fallbackConfidence 低于 LowConfidence：用原文兜底的题都进「待确认」，由用户核对题型与题干。
-const fallbackConfidence = 0.5
+// FallbackConfidence 低于 LowConfidence：用原文兜底的题都进「待确认」，由用户核对题型与题干。
+const FallbackConfidence = 0.5
 
-// ruleFallback 把模型输出没过校验的块按规则整理成题（原文照录），不让这几道题丢掉。
-func ruleFallback(dropped []int, blocks map[int]ai.Block) []ai.QItem {
+// RuleFallback 把模型输出没过校验的块按规则整理成题（原文照录），不让这几道题丢掉。
+func RuleFallback(dropped []int, blocks map[int]ai.Block) []ai.QItem {
 	var out []ai.QItem
 	for _, id := range dropped {
 		b, ok := blocks[id]
@@ -377,7 +377,7 @@ func ruleFallback(dropped []int, blocks map[int]ai.Block) []ai.QItem {
 			continue
 		}
 		if it, ok := ai.RuleItem(b); ok {
-			it.Confidence = min(it.Confidence, fallbackConfidence)
+			it.Confidence = min(it.Confidence, FallbackConfidence)
 			out = append(out, it)
 		}
 	}
