@@ -209,33 +209,44 @@ func (e *Engine) GenerateReferenceAnswer(ctx context.Context, user uint64, in Ge
 	}
 	return out, meta, nil
 }
+
+// validateAnswerCitations 只留下站得住的引用：来源在本次给的原文里、引文能在原文里逐字找到（忽略空白：教材文本是识别出来的，
+// 模型抄引文时常去掉换行）、支撑的观点出自答案或采分点。站不住的一条去掉，不让整题失败；
+// 一条都不剩时由 GenerateReferenceAnswer 改按通用知识生成并说明原因，留下的还要经过引文支撑核验。
 func validateAnswerCitations(in GenerateAnswerIn, out *GenerateAnswerOut) error {
-	if len(out.Citations) > 16 {
-		return fmt.Errorf("引用过多")
-	}
+	kept := out.Citations[:0]
 	for _, c := range out.Citations {
-		if strings.TrimSpace(c.Quote) == "" || strings.TrimSpace(c.Claim) == "" || len([]rune(c.Quote)) > 1500 {
-			return fmt.Errorf("引文或支持观点为空/超限")
-		}
-		var source *EvidenceFragment
-		for i := range in.Evidence {
-			if in.Evidence[i].ID == c.SourceID {
-				source = &in.Evidence[i]
-				break
-			}
-		}
-		if source == nil || !strings.Contains(source.Text, c.Quote) {
-			return fmt.Errorf("引用不属于本次原文集合或不是逐字子串")
-		}
-		found := strings.Contains(out.Answer, c.Claim)
-		for _, p := range out.Points {
-			found = found || strings.Contains(p.Content, c.Claim)
-		}
-		if !found {
-			return fmt.Errorf("引用观点不在答案或采分点中")
+		if citationValid(in, out, c) && len(kept) < 16 {
+			kept = append(kept, c)
 		}
 	}
+	out.Citations = kept
 	return nil
+}
+
+func citationValid(in GenerateAnswerIn, out *GenerateAnswerOut, c AnswerCitation) bool {
+	if strings.TrimSpace(c.Quote) == "" || strings.TrimSpace(c.Claim) == "" || len([]rune(c.Quote)) > 1500 {
+		return false
+	}
+	var source *EvidenceFragment
+	for i := range in.Evidence {
+		if in.Evidence[i].ID == c.SourceID {
+			source = &in.Evidence[i]
+			break
+		}
+	}
+	if source == nil || !ContainsVerbatim(source.Text, c.Quote) {
+		return false
+	}
+	if pointInAnswer(out.Answer, c.Claim) {
+		return true
+	}
+	for _, p := range out.Points {
+		if pointInAnswer(p.Content, c.Claim) {
+			return true
+		}
+	}
+	return false
 }
 
 type SelectEvidenceIn struct {

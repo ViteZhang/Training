@@ -67,9 +67,23 @@ func (c *evidenceClient) Complete(_ context.Context, r cloudai.Request) (cloudai
 func TestCitationValidationRejectsInventedAndUnsupportedFields(t *testing.T) {
 	in := GenerateAnswerIn{Evidence: []EvidenceFragment{{ID: "allowed", Text: "文学具有审美性质。"}}}
 	for _, c := range []AnswerCitation{{"invented", "文学", "文学"}, {"allowed", "假的引文", "文学"}, {"allowed", "文学", "答案里没有的观点"}} {
-		if validateAnswerCitations(in, &GenerateAnswerOut{Answer: "文学", Citations: []AnswerCitation{c}}) == nil {
+		out := &GenerateAnswerOut{Answer: "文学", Citations: []AnswerCitation{c}}
+		if validateAnswerCitations(in, out); len(out.Citations) != 0 {
 			t.Fatal(c)
 		}
+	}
+}
+
+// 站不住的引用只去掉那一条；引文跨了识别文本的换行也算逐字。
+func TestCitationValidationDropsOnlyBadOnes(t *testing.T) {
+	in := GenerateAnswerIn{Evidence: []EvidenceFragment{{ID: "t1", Text: "六书是汉字的\n造字条例。"}}}
+	out := &GenerateAnswerOut{Answer: "六书是汉字的造字条例。", Citations: []AnswerCitation{
+		{"t1", "六书是汉字的造字条例。", "六书是汉字的造字条例。"},
+		{"t1", "编造的引文", "六书是汉字的造字条例。"},
+		{"t2", "六书", "六书是汉字的造字条例。"},
+	}}
+	if err := validateAnswerCitations(in, out); err != nil || len(out.Citations) != 1 || out.Citations[0].Quote != "六书是汉字的造字条例。" {
+		t.Fatal(err, out.Citations)
 	}
 }
 func TestAnswerCitationSupportFailureRegeneratesEntireAnswer(t *testing.T) {
