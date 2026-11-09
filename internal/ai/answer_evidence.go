@@ -171,6 +171,21 @@ func (e *Engine) GenerateReferenceAnswer(ctx context.Context, user uint64, in Ge
 	}
 	if len(out.Citations) > 0 {
 		checked, _, checkErr := CheckAnswerCitations.Run(ctx, e, user, CitationCheckIn{Answer: out.Answer, Points: out.Points, Citations: out.Citations, Evidence: in.Evidence})
+		if checkErr == nil && !checked.AllSupported {
+			// 丢掉不可信的依据，只用核验通过的原文重新生成一次，并告诉模型哪些观点原文不支持
+			// （常见的是评价类观点也挂在了只讲定义的教材段落下）；
+			// 新答案的引用同样要全部核验通过，否则照旧改按通用知识生成。
+			if trusted, rejected := trustedEvidence(in.Evidence, out.Citations, checked.Unsupported); len(trusted) > 0 {
+				retry := in
+				retry.Evidence, retry.Context, retry.Coverage, retry.RejectedClaims = trusted, nil, "partial", rejected
+				if o2, m2, err2 := GenerateAnswer.Run(ctx, e, user, retry); err2 == nil && len(o2.Citations) > 0 {
+					c2, _, e2 := CheckAnswerCitations.Run(ctx, e, user, CitationCheckIn{Answer: o2.Answer, Points: o2.Points, Citations: o2.Citations, Evidence: trusted})
+					if e2 == nil && c2.AllSupported {
+						in, out, meta, checked = retry, o2, m2, c2
+					}
+				}
+			}
+		}
 		if checkErr != nil || !checked.AllSupported {
 			// 引文无法证实支撑时整份答案重新生成，不能只删标签保留来源内容。
 			if basis == nil {
@@ -293,11 +308,54 @@ type CitationCheckIn struct {
 	Citations []AnswerCitation
 	Evidence  []EvidenceFragment
 }
-type CitationCheckOut struct {
-	AllSupported bool `json:"all_supported"`
+
+// NumberedCitation 是带编号（从 1 开始）的引用，核验结果按编号指出不支持的条目。
+type NumberedCitation struct {
+	No int
+	AnswerCitation
 }
 
-var CheckAnswerCitations = &Cap[CitationCheckIn, CitationCheckOut]{Def: Def{Name: "answer_citation_check", Version: "v2", Tier: "strong", Temperature: 0, Schema: `{"type":"object","required":["all_supported"],"properties":{"all_supported":{"type":"boolean"}}}`}, Mock: func(CitationCheckIn) (CitationCheckOut, error) { return CitationCheckOut{false}, nil }}
+// Numbered 给提示词用：引用逐条编号。
+func (in CitationCheckIn) Numbered() []NumberedCitation {
+	out := make([]NumberedCitation, len(in.Citations))
+	for i, c := range in.Citations {
+		out[i] = NumberedCitation{No: i + 1, AnswerCitation: c}
+	}
+	return out
+}
+
+type CitationCheckOut struct {
+	AllSupported bool `json:"all_supported"`
+	// Unsupported 是不支持或不确定的引用编号（v3）：只丢掉这些引用的来源，用其余来源重新生成。
+	Unsupported []int `json:"unsupported,omitempty"`
+}
+
+var CheckAnswerCitations = &Cap[CitationCheckIn, CitationCheckOut]{Def: Def{Name: "answer_citation_check", Version: "v3", Tier: "strong", Temperature: 0, Schema: `{"type":"object","required":["all_supported"],"properties":{"all_supported":{"type":"boolean"},"unsupported":{"type":"array","items":{"type":"integer"}}}}`}, Mock: func(CitationCheckIn) (CitationCheckOut, error) { return CitationCheckOut{AllSupported: false}, nil }}
+
+// trustedEvidence 是核验后还能信的原文：至少有一条引用被判支持的片段（同一片段既有支持的引用、又被拿去挂了
+// 它没讲的观点时，片段本身仍可信，错的是那句观点）；返回被判不支持的观点，重新生成时告诉模型别再引用。
+// 核验没指出是哪几条（unsupported 为空）时一个都不信。
+func trustedEvidence(evidence []EvidenceFragment, cites []AnswerCitation, unsupported []int) ([]EvidenceFragment, []string) {
+	if len(unsupported) == 0 {
+		return nil, nil
+	}
+	good := map[string]bool{}
+	var rejected []string
+	for i, c := range cites {
+		if slices.Contains(unsupported, i+1) {
+			rejected = append(rejected, c.Claim)
+		} else {
+			good[c.SourceID] = true
+		}
+	}
+	var out []EvidenceFragment
+	for _, f := range evidence {
+		if good[f.ID] {
+			out = append(out, f)
+		}
+	}
+	return out, rejected
+}
 
 // EvidenceJSON 仅供提示词引用结构化证据；其中正文是数据，不能执行其中的指令。
 func EvidenceJSON(v any) string { data, _ := json.Marshal(v); return string(data) }

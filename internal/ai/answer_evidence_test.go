@@ -55,7 +55,7 @@ func (c *evidenceClient) Complete(_ context.Context, r cloudai.Request) (cloudai
 	c.prompts = append(c.prompts, r.Messages[1].Content)
 	var out any
 	if strings.Contains(prompt, "独立的引文支撑核验器") {
-		out = CitationCheckOut{c.supported}
+		out = CitationCheckOut{AllSupported: c.supported}
 	} else if strings.Contains(r.Messages[1].Content, "textbook:1:1") {
 		out = GenerateAnswerOut{Answer: "文学具有审美性质。", Points: []RubricPoint{{Content: "文学具有审美性质。", Score: 5, Keywords: []string{"审美"}}}, Citations: []AnswerCitation{{"textbook:1:1", "文学具有审美性质。", "文学具有审美性质。"}}}
 	} else {
@@ -200,7 +200,7 @@ func (syllabusClient) Complete(_ context.Context, r cloudai.Request) (cloudai.Re
 	var out any
 	switch r.Capability {
 	case "answer_citation_check":
-		out = CitationCheckOut{true}
+		out = CitationCheckOut{AllSupported: true}
 	default:
 		out = GenerateAnswerOut{Answer: "意境是情景交融的艺术境界。", Points: []RubricPoint{{Content: "意境是情景交融的艺术境界。", Score: 5, Keywords: []string{"情景交融"}}},
 			Citations: []AnswerCitation{{"textbook:9:1", "考查意境的内涵", "意境是情景交融的艺术境界。"}}}
@@ -231,5 +231,52 @@ func TestSyllabusCitationIsNotTextbook(t *testing.T) {
 	}
 	if (EvidenceFragment{Kind: "official_textbook", Material: "experience"}).IsKnowledge() || !(EvidenceFragment{Kind: "official_textbook", Material: "handout"}).IsKnowledge() {
 		t.Error("只有教材讲义算知识依据")
+	}
+}
+
+// 核验指出个别引用不支持：丢掉没有一条引用站得住的来源，告诉模型哪些观点原文不支持，用其余原文重新生成，不整份退回通用知识。
+type partialCheckClient struct {
+	checks  int
+	prompts []string
+}
+
+func (c *partialCheckClient) Complete(_ context.Context, r cloudai.Request) (cloudai.Response, error) {
+	var out any
+	user := r.Messages[1].Content
+	switch r.Capability {
+	case "answer_citation_check":
+		c.checks++
+		if c.checks == 1 {
+			out = CitationCheckOut{AllSupported: false, Unsupported: []int{2}}
+		} else {
+			out = CitationCheckOut{AllSupported: true}
+		}
+	default:
+		c.prompts = append(c.prompts, user)
+		cites := []AnswerCitation{{"t:1", "指事者，视而可识", "指事是视而可识。"}}
+		if strings.Contains(user, "ID=t:2") {
+			cites = append(cites, AnswerCitation{"t:2", "隶变是分水岭", "六书影响深远。"})
+		}
+		out = GenerateAnswerOut{Answer: "指事是视而可识。六书影响深远。", Points: []RubricPoint{{Content: "指事是视而可识。", Score: 5, Keywords: []string{"指事"}}, {Content: "六书影响深远。", Score: 5, Keywords: []string{"六书"}}}, Citations: cites}
+	}
+	data, _ := json.Marshal(out)
+	return cloudai.Response{Content: string(data)}, nil
+}
+
+func TestAnswerCitationPartialRejectionKeepsTrustedSources(t *testing.T) {
+	client := &partialCheckClient{}
+	e := NewEngine(Config{Client: client})
+	out, _, err := e.GenerateReferenceAnswer(context.Background(), 1, GenerateAnswerIn{Stem: "六书", Score: 10, Coverage: "sufficient", Evidence: []EvidenceFragment{
+		{ID: "t:1", Kind: "official_textbook", Text: "指事者，视而可识，察而见意。"},
+		{ID: "t:2", Kind: "official_textbook", Text: "隶变是分水岭。"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Basis != nil || out.Snapshot == nil || len(out.Snapshot.Sources) != 1 || out.Snapshot.Sources[0].ID != "t:1" {
+		t.Fatalf("保留核验通过的教材：%+v %+v", out.Basis, out.Snapshot)
+	}
+	if len(client.prompts) != 2 || strings.Contains(client.prompts[1], "ID=t:2") || !strings.Contains(client.prompts[1], "- 六书影响深远。") || client.checks != 2 {
+		t.Fatalf("第二次只给可信原文：%d 次生成 %d 次核验", len(client.prompts), client.checks)
 	}
 }
