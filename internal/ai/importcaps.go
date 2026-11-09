@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -95,8 +96,35 @@ var Structure = &Cap[StructureIn, StructureOut]{
 				"confidence": {"type": "number", "minimum": 0, "maximum": 1},
 				"is_recollection": {"type": "boolean", "nullable": true}
 			}}}}}`},
-	Check: checkStructure,
-	Mock:  mockStructure,
+	Normalize: normalizeQTypes,
+	Check:     checkStructure,
+	Mock:      mockStructure,
+}
+
+// normalizeQTypes 把模型自造的题型（如 "translation"、"punctuation"，遇到古文翻译、标点、病句修改题时常见）改成 other：
+// 题型枚举不符会让 Schema 整批不通过，重试一次多半照旧，整份资料就解析失败了；题干等其余内容是好的。
+func normalizeQTypes(v any) any {
+	root, ok := v.(map[string]any)
+	if !ok {
+		return v
+	}
+	items, _ := root["items"].([]any)
+	for _, it := range items {
+		obj, ok := it.(map[string]any)
+		if !ok {
+			continue
+		}
+		q, ok := obj["qtype"].(string)
+		if !ok {
+			continue
+		}
+		q = strings.ToLower(strings.TrimSpace(q))
+		if q != "" && !slices.Contains(QTypes, q) {
+			q = "other"
+		}
+		obj["qtype"] = q
+	}
+	return v
 }
 
 // checkStructure 逐条校验，不合格的条目剔除并记进 Dropped，其余照常保留（一批几十道题，不能因为一条整批作废）；
