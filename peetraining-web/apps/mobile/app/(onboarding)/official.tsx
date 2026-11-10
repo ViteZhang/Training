@@ -1,4 +1,4 @@
-// 1.1a 匹配到官方题库（PRD v3 增补，设计稿 n_official_found）：院校专业、官方题库版本、真题年份数、知识点数、模拟卷套数，
+// 1.1a 匹配到官方题库（PRD v3 增补，设计稿 n_official_found）：院校专业、官方题库版本、真题年份数、知识点数（官方模拟卷还没做，套数为 0 时不显示，D40），
 // 「所有用户免费使用，不需要上传任何资料」；同时选了没有官方题库的课时在下方列出，点进 1.1c。
 // 主按钮「添加官方题库」→ 添加到对应的专业课 → 1.2 设目标分（不再先做一道真题，1.1b 不进）；次按钮「不用，我导入自己的资料」→ 1.4。
 // 已经添加过（上次点过、接口返回 409）当作成功，直接往下走。
@@ -85,7 +85,7 @@ export default function OfficialFound() {
               <View style={styles.stats}>
                 <Stat value={o.exam_year_count} label="年真题" />
                 <Stat value={o.kp_count} label="知识点" />
-                <Stat value={o.paper_count} label="套模拟卷" />
+                {o.paper_count > 0 ? <Stat value={o.paper_count} label="套模拟卷" /> : null}
               </View>
               <View style={styles.items}>
                 {['每道真题都有参考答案和采分点', '考情分析、知识框架、背诵内容', '所有用户免费使用，不需要上传任何资料'].map((t) => (
