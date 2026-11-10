@@ -293,8 +293,10 @@ func (q *Queries) ListBankExamKeys(ctx context.Context, arg ListBankExamKeysPara
 const listBankExamQuestions = `-- name: ListBankExamQuestions :many
 
 SELECT id, qtype, score, exam_year, is_recollection, source_material_id, LEFT(stem, 200) AS stem, group_label, group_majors
-FROM questions WHERE bank_id = ? AND owner_user_id = ? AND source = 'exam' AND status = 'active'
-ORDER BY exam_year, id
+FROM questions q WHERE q.bank_id = ? AND q.owner_user_id = ? AND q.status = 'active'
+  AND ((q.source = 'official' AND q.exam_year IS NOT NULL) OR (q.source = 'exam' AND (q.exam_year IS NULL OR NOT EXISTS (SELECT 1 FROM questions o
+    WHERE o.bank_id = q.bank_id AND o.owner_user_id = q.owner_user_id AND o.source = 'official' AND o.status = 'active' AND o.exam_year = q.exam_year))))
+ORDER BY q.exam_year, q.id
 `
 
 type ListBankExamQuestionsParams struct {
@@ -315,6 +317,8 @@ type ListBankExamQuestionsRow struct {
 }
 
 // 考情分析、知识图谱、作文知识库（T14）。每条查询都带 owner_user_id。
+// 考情分析、组卷画像用的真题。T57：官方题库的真题（有年份的）也算；某一年有官方真题时只用官方的
+// （PRD 11.15「添加了官方题库的课程，考情分析和组卷优先用官方的命题画像」）。
 func (q *Queries) ListBankExamQuestions(ctx context.Context, arg ListBankExamQuestionsParams) ([]ListBankExamQuestionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listBankExamQuestions, arg.BankID, arg.OwnerUserID)
 	if err != nil {

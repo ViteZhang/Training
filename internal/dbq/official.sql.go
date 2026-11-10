@@ -1642,7 +1642,7 @@ func (q *Queries) ListUserKPCopies(ctx context.Context, arg ListUserKPCopiesPara
 }
 
 const listUserQuestionCopies = `-- name: ListUserQuestionCopies :many
-SELECT id, official_question_id, qtype, stem, answer, answer_origin, analysis, reference_text, status, official_hash, group_label, group_majors FROM questions WHERE bank_id = ? AND owner_user_id = ? AND official_question_id IS NOT NULL
+SELECT id, official_question_id, qtype, stem, answer, answer_origin, analysis, reference_text, status, official_hash, group_label, group_majors, exam_year FROM questions WHERE bank_id = ? AND owner_user_id = ? AND official_question_id IS NOT NULL
 `
 
 type ListUserQuestionCopiesParams struct {
@@ -1663,6 +1663,7 @@ type ListUserQuestionCopiesRow struct {
 	OfficialHash       sql.NullString
 	GroupLabel         sql.NullString
 	GroupMajors        sql.NullString
+	ExamYear           sql.NullInt16
 }
 
 func (q *Queries) ListUserQuestionCopies(ctx context.Context, arg ListUserQuestionCopiesParams) ([]ListUserQuestionCopiesRow, error) {
@@ -1687,6 +1688,7 @@ func (q *Queries) ListUserQuestionCopies(ctx context.Context, arg ListUserQuesti
 			&i.OfficialHash,
 			&i.GroupLabel,
 			&i.GroupMajors,
+			&i.ExamYear,
 		); err != nil {
 			return nil, err
 		}
@@ -2047,7 +2049,8 @@ func (q *Queries) UnlinkUserKP(ctx context.Context, arg UnlinkUserKPParams) erro
 }
 
 const unlinkUserQuestion = `-- name: UnlinkUserQuestion :exec
-UPDATE questions SET official_question_id = NULL, official_hash = NULL, source = IF(source = 'official', 'exercise', source) WHERE id = ? AND owner_user_id = ?
+UPDATE questions SET official_question_id = NULL, official_hash = NULL,
+  source = IF(source = 'official', IF(exam_year IS NULL, 'exercise', 'exam'), source) WHERE id = ? AND owner_user_id = ?
 `
 
 type UnlinkUserQuestionParams struct {
@@ -2055,6 +2058,7 @@ type UnlinkUserQuestionParams struct {
 	OwnerUserID sql.NullInt64
 }
 
+// 移除官方题库时用户改过的题留下来：有年份的官方真题变成用户自己的真题（T57，仍在真题卷里），其他的变成习题。
 func (q *Queries) UnlinkUserQuestion(ctx context.Context, arg UnlinkUserQuestionParams) error {
 	_, err := q.db.ExecContext(ctx, unlinkUserQuestion, arg.ID, arg.OwnerUserID)
 	return err

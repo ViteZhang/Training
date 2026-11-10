@@ -421,7 +421,7 @@ func (s *Service) Confirm(ctx context.Context, userID, jobID uint64, itemIDs []u
 			}
 		}
 		for y := range years {
-			ok, err := s.buildPaper(ctx, q, job, y)
+			ok, err := buildPaper(ctx, q, job, y)
 			if err != nil {
 				return err
 			}
@@ -705,7 +705,7 @@ var qtypeOrder = []string{"single_choice", "multi_choice", "true_false", "fill_b
 // buildPaper 按年份把真题组成真题卷（PRD 11.6）：满分取专业课满分；收录题目的分值合计小于满分时记缺题说明，成绩按比例换算。
 // 题目没有分值的年份不组卷（无法计分）。返回是否组了卷。
 // 按专业分组的论述题只计一组（回答非报考专业不得分）：取与报考方向匹配的组，没设方向时取收录的第一组并在说明里写明。
-func (s *Service) buildPaper(ctx context.Context, q *dbq.Queries, job dbq.GetImportJobRow, year int) (bool, error) {
+func buildPaper(ctx context.Context, q *dbq.Queries, job dbq.GetImportJobRow, year int) (bool, error) {
 	owner := sql.NullInt64{Int64: int64(job.OwnerUserID), Valid: true}
 	y := sql.NullInt16{Int16: int16(year), Valid: true}
 	all, err := q.ListExamQuestionsByYear(ctx, dbq.ListExamQuestionsByYearParams{BankID: job.BankID, OwnerUserID: owner, ExamYear: y})

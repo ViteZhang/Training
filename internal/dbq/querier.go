@@ -567,6 +567,8 @@ type Querier interface {
 	// 题库里已有的真题（内容哈希 + 年份），补全时跳过与它们重复的旧题。
 	ListBankExamKeys(ctx context.Context, arg ListBankExamKeysParams) ([]ListBankExamKeysRow, error)
 	// 考情分析、知识图谱、作文知识库（T14）。每条查询都带 owner_user_id。
+	// 考情分析、组卷画像用的真题。T57：官方题库的真题（有年份的）也算；某一年有官方真题时只用官方的
+	// （PRD 11.15「添加了官方题库的课程，考情分析和组卷优先用官方的命题画像」）。
 	ListBankExamQuestions(ctx context.Context, arg ListBankExamQuestionsParams) ([]ListBankExamQuestionsRow, error)
 	ListBankFilterKPLinks(ctx context.Context, arg ListBankFilterKPLinksParams) ([]ListBankFilterKPLinksRow, error)
 	// 同一门课以前导入过的答案（答案文件、真题汇编后附的答案），按年份 + 题号配对。
@@ -578,6 +580,7 @@ type Querier interface {
 	// 1.7c 补充答案文件的配对对象：题库里还缺答案或只有 AI 参考答案的题。
 	ListBankMissingAnswerQuestions(ctx context.Context, arg ListBankMissingAnswerQuestionsParams) ([]ListBankMissingAnswerQuestionsRow, error)
 	// 整卷与模拟考试（T21）。每条查询都带归属条件。
+	// 真题卷收录用户自己导入的真题（source = exam）和官方题库的真题（source = official，T57）。
 	ListBankPapers(ctx context.Context, arg ListBankPapersParams) ([]ListBankPapersRow, error)
 	ListBankQuestionKPLinks(ctx context.Context, arg ListBankQuestionKPLinksParams) ([]ListBankQuestionKPLinksRow, error)
 	ListBankQuestionsForDedupe(ctx context.Context, arg ListBankQuestionsForDedupeParams) ([]ListBankQuestionsForDedupeRow, error)
@@ -604,6 +607,7 @@ type Querier interface {
 	// 冲刺卡至当年初试结束、考季卡至次年初试结束（PRD 13.2）。
 	ListExamEndsFrom(ctx context.Context, firstExamEnd time.Time) ([]ExamDate, error)
 	// 组真题卷：某年份的真题（回忆版不计入，PRD 3.8），按题型、原题号排序。
+	// T57：官方题库的真题也收；这一年有官方真题时只用官方的（编辑审核过、题目完整），免得同一年的题算两遍。
 	ListExamQuestionsByYear(ctx context.Context, arg ListExamQuestionsByYearParams) ([]ListExamQuestionsByYearRow, error)
 	// 从资料导入、却缺年份或缺分值的题（多是切题规则认不出试卷标题时导入的真题），按资料原文重新识别补全（3.8）。
 	ListExamRepairCandidates(ctx context.Context, arg ListExamRepairCandidatesParams) ([]ListExamRepairCandidatesRow, error)
@@ -815,6 +819,7 @@ type Querier interface {
 	// 官方采分点有实质变化时，对应背诵重新进入复习（PRD 11.15）。
 	ReciteReviewAgain(ctx context.Context, arg ReciteReviewAgainParams) error
 	// 知识点在真题中出现的次数（3.1、3.8；回忆版不计入）。
+	// T57：官方题库的真题（有年份的）也计入；某一年有官方真题时，用户自己导入的那一年的真题不再计，免得同一道题算两次。
 	RecountKPExamCounts(ctx context.Context, arg RecountKPExamCountsParams) error
 	// 参数依次：资料 ID（题目来源）、资料 ID（知识点来源）、资料 ID、所有者。
 	RecountMaterial(ctx context.Context, arg RecountMaterialParams) error
@@ -947,6 +952,7 @@ type Querier interface {
 	TouchAdminLogin(ctx context.Context, arg TouchAdminLoginParams) error
 	TouchUserActive(ctx context.Context, arg TouchUserActiveParams) error
 	UnlinkUserKP(ctx context.Context, arg UnlinkUserKPParams) error
+	// 移除官方题库时用户改过的题留下来：有年份的官方真题变成用户自己的真题（T57，仍在真题卷里），其他的变成习题。
 	UnlinkUserQuestion(ctx context.Context, arg UnlinkUserQuestionParams) error
 	UpdateAdmin(ctx context.Context, arg UpdateAdminParams) (int64, error)
 	UpdateAdminPassword(ctx context.Context, arg UpdateAdminPasswordParams) error

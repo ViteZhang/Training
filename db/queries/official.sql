@@ -238,7 +238,7 @@ UPDATE knowledge_points SET official_kp_id = NULL, official_hash = NULL, officia
 DELETE FROM knowledge_points WHERE id = ? AND owner_user_id = ?;
 
 -- name: ListUserQuestionCopies :many
-SELECT id, official_question_id, qtype, stem, answer, answer_origin, analysis, reference_text, status, official_hash, group_label, group_majors FROM questions WHERE bank_id = ? AND owner_user_id = ? AND official_question_id IS NOT NULL;
+SELECT id, official_question_id, qtype, stem, answer, answer_origin, analysis, reference_text, status, official_hash, group_label, group_majors, exam_year FROM questions WHERE bank_id = ? AND owner_user_id = ? AND official_question_id IS NOT NULL;
 
 -- name: InsertUserQuestionCopy :execlastid
 INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, reference_text, score, source, exam_year, content_hash, official_question_id, official_hash,
@@ -266,7 +266,9 @@ UPDATE subjects SET my_majors = ? WHERE id = ? AND owner_user_id = ? AND (my_maj
 UPDATE questions SET status = ? WHERE id = ? AND owner_user_id = ?;
 
 -- name: UnlinkUserQuestion :exec
-UPDATE questions SET official_question_id = NULL, official_hash = NULL, source = IF(source = 'official', 'exercise', source) WHERE id = ? AND owner_user_id = ?;
+-- 移除官方题库时用户改过的题留下来：有年份的官方真题变成用户自己的真题（T57，仍在真题卷里），其他的变成习题。
+UPDATE questions SET official_question_id = NULL, official_hash = NULL,
+  source = IF(source = 'official', IF(exam_year IS NULL, 'exercise', 'exam'), source) WHERE id = ? AND owner_user_id = ?;
 
 -- name: DeleteUserQuestion :exec
 DELETE FROM questions WHERE id = ? AND owner_user_id = ?;
