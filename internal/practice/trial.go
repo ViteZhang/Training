@@ -774,7 +774,30 @@ func (s *Service) SetSampleStatus(ctx context.Context, adminID, id uint64, statu
 const maxSampleBatch = 10
 
 // GenerateSamples 按方向用 AI 批量生成体验题初稿，全部进待审核。生成失败的跳过，返回成功的条数。
-func (s *Service) GenerateSamples(ctx context.Context, adminID, directionID uint64, qtype string, score float64, count int, textbook string) (int, error) {
+// SampleMaterials 取批量出题关联的官方资料库教材：书名与按方向检索的原文片段（textbook.Service.SampleMaterial）。
+type SampleMaterials interface {
+	SampleMaterial(ctx context.Context, editionIDs []uint64, query string) (names, excerpts []string, err error)
+}
+
+// SetSampleMaterials 接上官方资料库；教材服务在 practice 之后创建，所以单独注入。
+func (s *Service) SetSampleMaterials(m SampleMaterials) { s.materials = m }
+
+// sampleExcerptsPerQuestion 是每道题交给 AI 的原文片段数；各题从不同位置开始取，同一批题考到教材的不同内容。
+const sampleExcerptsPerQuestion = 4
+
+// sampleExcerpts 取第 i 道题用的片段：从 i*2 开始轮转取 sampleExcerptsPerQuestion 段。
+func sampleExcerpts(all []string, i int) []string {
+	if len(all) <= sampleExcerptsPerQuestion {
+		return all
+	}
+	out := make([]string, 0, sampleExcerptsPerQuestion)
+	for k := range sampleExcerptsPerQuestion {
+		out = append(out, all[(i*2+k)%len(all)])
+	}
+	return out
+}
+
+func (s *Service) GenerateSamples(ctx context.Context, adminID, directionID uint64, qtype string, score float64, count int, textbook string, editionIDs []uint64) (int, error) {
 	d, err := s.q.GetSampleDirection(ctx, directionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, apperr.NotFoundErr()
@@ -790,14 +813,31 @@ func (s *Service) GenerateSamples(ctx context.Context, adminID, directionID uint
 	if err != nil {
 		return 0, err
 	}
-	var books []string
+	var books, excerpts []string
 	if textbook = strings.TrimSpace(textbook); textbook != "" {
 		books = []string{textbook}
 	}
+	subject := d.Discipline + " · " + d.Name
+	if len(editionIDs) > 0 {
+		if s.materials == nil {
+			return 0, apperr.New(apperr.BadRequest, "官方资料库未接入，不能关联教材")
+		}
+		names, found, err := s.materials.SampleMaterial(ctx, editionIDs, d.Discipline+" "+d.Name)
+		if err != nil {
+			return 0, err
+		}
+		excerpts = found
+		for _, n := range names {
+			if !slices.Contains(books, n) {
+				books = append(books, n)
+			}
+		}
+		textbook = strings.Join(books, "；")
+	}
 	made := 0
 	var lastErr error
-	for range count {
-		out, _, err := ai.SampleQuestion.Run(ctx, s.ai, 0, ai.SampleQuestionIn{Subject: d.Discipline + " · " + d.Name, Textbooks: books, QType: qtype, Score: score, Avoid: avoid})
+	for i := range count {
+		out, _, err := ai.SampleQuestion.Run(ctx, s.ai, 0, ai.SampleQuestionIn{Subject: subject, Textbooks: books, QType: qtype, Score: score, Avoid: avoid, Excerpts: sampleExcerpts(excerpts, i)})
 		if err != nil {
 			lastErr = err
 			continue

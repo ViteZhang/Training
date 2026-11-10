@@ -6114,7 +6114,12 @@ paths:
                 qtype: { type: string, enum: [term, short_answer, discussion] }
                 score: { type: number, minimum: 1, maximum: 300 }
                 count: { type: integer, minimum: 1, maximum: 10 }
-                textbook: { type: string, maxLength: 128 }
+                textbook: { type: string, maxLength: 128, description: 参考教材名称（未上传到官方资料库的教材手填；选了 edition_ids 时可不填） }
+                edition_ids:
+                  type: array
+                  maxItems: 3
+                  description: 关联官方资料库里已发布的资料版本（GET /admin/textbooks 的 editions[].id）；按方向检索原文片段交给 AI 出题，题目的参考教材记为这些书名
+                  items: { type: integer, format: int64 }
       responses:
         "200":
           description: OK

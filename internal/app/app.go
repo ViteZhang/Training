@@ -193,6 +193,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	base.Textbooks.ConfigureIndexes(textbook.IndexDeps{Embedding: ai.NewEmbedder(cfg.Textbook).WithAudit(engine), Vector: vector.New(cfg.Textbook.VectorURL, cfg.Textbook.VectorAPIKey), Params: ps, Queue: queue, Production: cfg.IsProduction(), VectorConfigured: cfg.Textbook.VectorURL != ""})
 	base.Textbooks.ConfigureImports(textbook.ImportDeps{OSS: clients.OSS, AI: engine, Renderer: ocr.NewPDFium(nil), Queue: queue, Params: ps})
 	base.Textbooks.ConfigureEvidence(engine, fl)
+	base.Practice.SetSampleMaterials(base.Textbooks)
 	engine.SetAnswerEvidenceProvider(base.Textbooks)
 	base.AnswerUpdates = answerupdate.New(db, engine, qs, queue)
 	base.Official = official.New(official.Deps{DB: db, AI: engine, Log: log, Params: ps, OpsWebhook: cfg.OpsWebhookURL, AdminBaseURL: cfg.AdminBaseURL})
