@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import NoOfficial from '../../app/(onboarding)/no-official';
+import OfficialFound from '../../app/(onboarding)/official';
 import Apply from '../../app/apply';
 import Samples from '../../app/trial/samples';
 import TrialPage from '../../app/trial/[id]';
@@ -287,5 +288,35 @@ describe('1.9b 体验结果', () => {
     await wrap(<TrialPage />);
     expect(await screen.findByText('提交批改（不扣额度）')).toBeTruthy();
     expect(screen.queryByText('对象符合认识')).toBeNull();
+  });
+});
+
+describe('1.1a 匹配到官方题库', () => {
+  const course = (added: number | null) => ({
+    id: 9, subject_code: '812', subject_name: '西方哲学史', official_status: 'available',
+    official: { bank_id: 7, version: 1, exam_year_count: 10, kp_count: 120, paper_count: 3, added_subject_id: added },
+  });
+  beforeEach(() => {
+    saveDraft({ examYear: 2027, school: '四川大学', major: '哲学', picked: [9], noOfficial: [], after: undefined });
+    mockResponses['GET /subjects'] = () => ({ status: 200, data: { items: [{ id: 5, name: '西方哲学史', code: '812', catalog_course_id: 9, is_essay: false }] } });
+    mockResponses['GET /catalog/courses'] = () => ({ status: 200, data: { items: [course(null)] } });
+  });
+
+  it('添加后直接进 1.2，不再先做一道真题', async () => {
+    await wrap(<OfficialFound />);
+    expect(await screen.findByText('添加官方题库')).toBeTruthy();
+    expect(screen.queryByText(/先做一道真题/)).toBeNull();
+    await fireEvent.press(screen.getByText('添加官方题库'));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/(onboarding)/target'));
+    expect(mockCalls.some((c) => c.method === 'PUT' && c.path === '/official-banks/{bankId}/subscription')).toBe(true);
+    expect(mockCalls.some((c) => c.path === '/onboarding/official-first')).toBe(false);
+    expect(mockCalls.find((c) => c.method === 'PATCH' && c.path === '/me')?.init).toEqual({ body: { onboarding_step: '1.2' } });
+  });
+
+  it('已经添加过（409）也往下走', async () => {
+    mockResponses['PUT /official-banks/{bankId}/subscription'] = () => ({ status: 409, error: { code: 'CONFLICT', message: '已经添加过这个官方题库' } });
+    await wrap(<OfficialFound />);
+    await fireEvent.press(await screen.findByText('添加官方题库'));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/(onboarding)/target'));
   });
 });
