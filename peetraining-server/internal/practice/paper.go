@@ -346,7 +346,7 @@ func (s *Service) ComposePaper(ctx context.Context, userID, subjectID uint64, ki
 		}
 		k := kps[uint64(it.PrimaryKp)]
 		cands = append(cands, rules.PaperCandidate{QuestionID: int64(it.ID), KPID: it.PrimaryKp, SectionID: int64(sectionOf(uint64(it.PrimaryKp))),
-			QType: rules.QType(it.Qtype), ExamKP: k.ExamCount > 0, M: it.m, DoneInPaper: doneSet[it.ID] && it.Source == dbq.QuestionsSourceExam, DaysSinceDone: days})
+			QType: rules.QType(it.Qtype), ExamKP: k.ExamCount > 0, M: it.m, DoneInPaper: doneSet[it.ID] && (it.Source == dbq.QuestionsSourceExam || it.Source == dbq.QuestionsSourceOfficial), DaysSinceDone: days})
 	}
 	secs := structureOf(real.Structure)
 	slots := make([]rules.PaperSlot, len(secs))

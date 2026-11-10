@@ -157,7 +157,7 @@ func (s *Service) RepairExamInfo(ctx context.Context, userID, subjectID uint64) 
 		}
 		sort.Ints(res.Years)
 		for _, y := range res.Years {
-			ok, err := s.buildPaper(ctx, q, job, y)
+			ok, err := buildPaper(ctx, q, job, y)
 			if err != nil {
 				return err
 			}
@@ -203,7 +203,7 @@ func (s *Service) RebuildRealExamPapers(ctx context.Context, userID, subjectID u
 				continue
 			}
 			seen[year] = true
-			if _, err := s.buildPaper(ctx, q, job, year); err != nil {
+			if _, err := buildPaper(ctx, q, job, year); err != nil {
 				return err
 			}
 		}
@@ -305,4 +305,21 @@ func stemForMatch(stem string) string {
 		keep = append(keep, t)
 	}
 	return reLeadNo.ReplaceAllString(strings.Join(keep, "\n"), "")
+}
+
+// BuildRealExamPapers 在事务 q 里按年份重组一位用户一门课的真题卷（T57：添加、同步、移除官方题库后调用）。
+// 规则与导入后组卷相同；某一年有官方真题时只用官方的。
+func BuildRealExamPapers(ctx context.Context, q *dbq.Queries, userID, bankID, subjectID uint64, fullScore uint16, years []int) error {
+	job := dbq.GetImportJobRow{OwnerUserID: userID, BankID: bankID, SubjectID: sql.NullInt64{Int64: int64(subjectID), Valid: true}, SubjectFullScore: fullScore}
+	seen := map[int]bool{}
+	for _, year := range years {
+		if year <= 0 || seen[year] {
+			continue
+		}
+		seen[year] = true
+		if _, err := buildPaper(ctx, q, job, year); err != nil {
+			return err
+		}
+	}
+	return nil
 }

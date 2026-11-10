@@ -119,9 +119,9 @@ const getPaper = `-- name: GetPaper :one
 SELECT p.id, p.owner_user_id, p.bank_id, p.kind, p.title, p.exam_year, p.full_score, p.actual_score, p.duration_minutes, p.structure, p.missing_note, p.source_material_id, p.created_at, b.subject_id FROM papers p JOIN banks b ON b.id = p.bank_id WHERE p.id = ? AND p.owner_user_id = ?
   AND (p.kind <> 'real_exam' OR (
     EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
-      WHERE pq.paper_id = p.id AND q.source = 'exam' AND q.exam_year = p.exam_year)
+      WHERE pq.paper_id = p.id AND q.source IN ('exam', 'official') AND q.exam_year = p.exam_year)
     AND NOT EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
-      WHERE pq.paper_id = p.id AND (q.source <> 'exam' OR q.exam_year <> p.exam_year OR q.exam_year IS NULL))
+      WHERE pq.paper_id = p.id AND (q.source NOT IN ('exam', 'official') OR q.exam_year <> p.exam_year OR q.exam_year IS NULL))
   ))
 `
 
@@ -490,9 +490,9 @@ func (q *Queries) LastAttemptDays(ctx context.Context, ownerUserID uint64) ([]La
 const latestRealExamPaper = `-- name: LatestRealExamPaper :one
 SELECT id, owner_user_id, bank_id, kind, title, exam_year, full_score, actual_score, duration_minutes, structure, missing_note, source_material_id, created_at FROM papers p WHERE p.bank_id = ? AND p.owner_user_id = ? AND p.kind = 'real_exam'
   AND EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
-    WHERE pq.paper_id = p.id AND q.source = 'exam' AND q.exam_year = p.exam_year)
+    WHERE pq.paper_id = p.id AND q.source IN ('exam', 'official') AND q.exam_year = p.exam_year)
   AND NOT EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
-    WHERE pq.paper_id = p.id AND (q.source <> 'exam' OR q.exam_year <> p.exam_year OR q.exam_year IS NULL))
+    WHERE pq.paper_id = p.id AND (q.source NOT IN ('exam', 'official') OR q.exam_year <> p.exam_year OR q.exam_year IS NULL))
 ORDER BY p.exam_year DESC, p.id DESC LIMIT 1
 `
 
@@ -530,9 +530,9 @@ FROM papers p
 WHERE p.bank_id = ? AND p.owner_user_id = ?
   AND (p.kind <> 'real_exam' OR (
     EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
-      WHERE pq.paper_id = p.id AND q.source = 'exam' AND q.exam_year = p.exam_year)
+      WHERE pq.paper_id = p.id AND q.source IN ('exam', 'official') AND q.exam_year = p.exam_year)
     AND NOT EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
-      WHERE pq.paper_id = p.id AND (q.source <> 'exam' OR q.exam_year <> p.exam_year OR q.exam_year IS NULL))
+      WHERE pq.paper_id = p.id AND (q.source NOT IN ('exam', 'official') OR q.exam_year <> p.exam_year OR q.exam_year IS NULL))
   ))
 ORDER BY p.kind = 'real_exam' DESC, p.exam_year DESC, p.id DESC
 `
@@ -561,6 +561,7 @@ type ListBankPapersRow struct {
 }
 
 // 整卷与模拟考试（T21）。每条查询都带归属条件。
+// 真题卷收录用户自己导入的真题（source = exam）和官方题库的真题（source = official，T57）。
 func (q *Queries) ListBankPapers(ctx context.Context, arg ListBankPapersParams) ([]ListBankPapersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listBankPapers, arg.BankID, arg.OwnerUserID)
 	if err != nil {
@@ -674,7 +675,7 @@ func (q *Queries) ListPaperHistory(ctx context.Context, arg ListPaperHistoryPara
 const listPaperQuestions = `-- name: ListPaperQuestions :many
 SELECT pq.seq, pq.question_id, pq.section, pq.score, q.qtype, q.source FROM paper_questions pq
 JOIN questions q ON q.id = pq.question_id JOIN papers p ON p.id = pq.paper_id
-WHERE pq.paper_id = ? AND q.owner_user_id = ? AND (p.kind <> 'real_exam' OR (q.source = 'exam' AND q.exam_year = p.exam_year))
+WHERE pq.paper_id = ? AND q.owner_user_id = ? AND (p.kind <> 'real_exam' OR (q.source IN ('exam', 'official') AND q.exam_year = p.exam_year))
 ORDER BY pq.seq
 `
 

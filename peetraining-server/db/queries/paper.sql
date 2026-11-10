@@ -1,4 +1,5 @@
 -- 整卷与模拟考试（T21）。每条查询都带归属条件。
+-- 真题卷收录用户自己导入的真题（source = exam）和官方题库的真题（source = official，T57）。
 
 -- name: ListBankPapers :many
 SELECT p.*, (SELECT COUNT(*) FROM paper_questions pq WHERE pq.paper_id = p.id) AS question_count,
@@ -7,9 +8,9 @@ FROM papers p
 WHERE p.bank_id = ? AND p.owner_user_id = ?
   AND (p.kind <> 'real_exam' OR (
     EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
-      WHERE pq.paper_id = p.id AND q.source = 'exam' AND q.exam_year = p.exam_year)
+      WHERE pq.paper_id = p.id AND q.source IN ('exam', 'official') AND q.exam_year = p.exam_year)
     AND NOT EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
-      WHERE pq.paper_id = p.id AND (q.source <> 'exam' OR q.exam_year <> p.exam_year OR q.exam_year IS NULL))
+      WHERE pq.paper_id = p.id AND (q.source NOT IN ('exam', 'official') OR q.exam_year <> p.exam_year OR q.exam_year IS NULL))
   ))
 ORDER BY p.kind = 'real_exam' DESC, p.exam_year DESC, p.id DESC;
 
@@ -17,23 +18,23 @@ ORDER BY p.kind = 'real_exam' DESC, p.exam_year DESC, p.id DESC;
 SELECT p.*, b.subject_id FROM papers p JOIN banks b ON b.id = p.bank_id WHERE p.id = ? AND p.owner_user_id = ?
   AND (p.kind <> 'real_exam' OR (
     EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
-      WHERE pq.paper_id = p.id AND q.source = 'exam' AND q.exam_year = p.exam_year)
+      WHERE pq.paper_id = p.id AND q.source IN ('exam', 'official') AND q.exam_year = p.exam_year)
     AND NOT EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
-      WHERE pq.paper_id = p.id AND (q.source <> 'exam' OR q.exam_year <> p.exam_year OR q.exam_year IS NULL))
+      WHERE pq.paper_id = p.id AND (q.source NOT IN ('exam', 'official') OR q.exam_year <> p.exam_year OR q.exam_year IS NULL))
   ));
 
 -- name: ListPaperQuestions :many
 SELECT pq.seq, pq.question_id, pq.section, pq.score, q.qtype, q.source FROM paper_questions pq
 JOIN questions q ON q.id = pq.question_id JOIN papers p ON p.id = pq.paper_id
-WHERE pq.paper_id = ? AND q.owner_user_id = ? AND (p.kind <> 'real_exam' OR (q.source = 'exam' AND q.exam_year = p.exam_year))
+WHERE pq.paper_id = ? AND q.owner_user_id = ? AND (p.kind <> 'real_exam' OR (q.source IN ('exam', 'official') AND q.exam_year = p.exam_year))
 ORDER BY pq.seq;
 
 -- name: LatestRealExamPaper :one
 SELECT * FROM papers p WHERE p.bank_id = ? AND p.owner_user_id = ? AND p.kind = 'real_exam'
   AND EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
-    WHERE pq.paper_id = p.id AND q.source = 'exam' AND q.exam_year = p.exam_year)
+    WHERE pq.paper_id = p.id AND q.source IN ('exam', 'official') AND q.exam_year = p.exam_year)
   AND NOT EXISTS (SELECT 1 FROM paper_questions pq JOIN questions q ON q.id = pq.question_id
-    WHERE pq.paper_id = p.id AND (q.source <> 'exam' OR q.exam_year <> p.exam_year OR q.exam_year IS NULL))
+    WHERE pq.paper_id = p.id AND (q.source NOT IN ('exam', 'official') OR q.exam_year <> p.exam_year OR q.exam_year IS NULL))
 ORDER BY p.exam_year DESC, p.id DESC LIMIT 1;
 
 -- name: InsertComposedPaper :execlastid
