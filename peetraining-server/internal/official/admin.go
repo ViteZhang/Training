@@ -724,8 +724,13 @@ func (c content) payloadOf(entityType string, id uint64) json.RawMessage {
 	return nil
 }
 
-// Decide 审核：通过、退回（必须填原因）、直接修改后通过。
+// Decide 审核：通过、退回（必须填原因）、直接修改后通过。不能审核自己提交的内容。
 func (s *Service) Decide(ctx context.Context, reviewerID, taskID uint64, decision, reason string, edited json.RawMessage) error {
+	return s.DecideBy(ctx, reviewerID, false, taskID, decision, reason, edited)
+}
+
+// DecideBy 同 Decide；allowSelf 为 true 时可以审核自己提交的内容（管理员账号）。
+func (s *Service) DecideBy(ctx context.Context, reviewerID uint64, allowSelf bool, taskID uint64, decision, reason string, edited json.RawMessage) error {
 	t, err := s.q.GetReviewTask(ctx, taskID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return apperr.NotFoundErr()
@@ -733,7 +738,7 @@ func (s *Service) Decide(ctx context.Context, reviewerID, taskID uint64, decisio
 	if err != nil {
 		return err
 	}
-	if t.EditorID == reviewerID {
+	if t.EditorID == reviewerID && !allowSelf {
 		return apperr.New(apperr.Forbidden, "不能审核自己提交的内容")
 	}
 	draftStatus := dbq.OfficialDraftsStatusApproved

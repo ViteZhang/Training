@@ -7190,7 +7190,7 @@ paths:
       x-roles: *id002_3
       security:
       - adminAuth: []
-      description: 退回必须填原因；修改后通过要带 edited_payload；不能审核自己提交的。
+      description: 退回必须填原因；修改后通过要带 edited_payload；不能审核自己提交的（管理员账号除外）。
       parameters:
       - name: reviewId
         in: path
