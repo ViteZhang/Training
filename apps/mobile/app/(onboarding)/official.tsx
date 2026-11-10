@@ -1,6 +1,7 @@
 // 1.1a 匹配到官方题库（PRD v3 增补，设计稿 n_official_found）：院校专业、官方题库版本、真题年份数、知识点数、模拟卷套数，
 // 「所有用户免费使用，不需要上传任何资料」；同时选了没有官方题库的课时在下方列出，点进 1.1c。
-// 主按钮「添加官方题库，先做一道真题」→ 添加到对应的专业课并取首题 → 1.1b；次按钮「不用，我导入自己的资料」→ 1.4。
+// 主按钮「添加官方题库」→ 添加到对应的专业课 → 1.2 设目标分（不再先做一道真题，1.1b 不进）；次按钮「不用，我导入自己的资料」→ 1.4。
+// 已经添加过（上次点过、接口返回 409）当作成功，直接往下走。
 import { ApiError } from '@training/api-client';
 import { radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,7 +11,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, ErrorState, Icon, Loading, Screen, Tag, Text, toast } from '@/components';
 import { useCatalogCourses } from '@/features/official/api';
 import { setStep } from '@/features/onboarding/api';
-import { loadDraft } from '@/features/onboarding/draft';
+import { loadDraft, saveDraft } from '@/features/onboarding/draft';
 import { Footer, StepHeader } from '@/features/onboarding/ui';
 import { track } from '@/lib/analytics';
 import { api, unwrap } from '@/lib/api';
@@ -29,24 +30,30 @@ export default function OfficialFound() {
   const start = async () => {
     setBusy(true);
     try {
-      let firstBank: number | undefined;
+      let added = 0;
       for (const c of official) {
         const bank = c.official!;
         const subject = subjects.data?.items.find((s) => s.catalog_course_id === c.id);
         if (!subject) continue;
         if (!bank.added_subject_id) {
-          await unwrap(api.PUT('/official-banks/{bankId}/subscription', { params: { path: { bankId: bank.bank_id } }, body: { subject_id: subject.id } }));
-          track('official_add', { entry: 'onboarding' });
+          try {
+            await unwrap(api.PUT('/official-banks/{bankId}/subscription', { params: { path: { bankId: bank.bank_id } }, body: { subject_id: subject.id } }));
+            track('official_add', { entry: 'onboarding' });
+          } catch (e) {
+            // 上次已经加上了（列表还没刷新），不算失败
+            if (!(e instanceof ApiError && e.status === 409)) throw e;
+          }
         }
-        firstBank ??= bank.bank_id;
+        added++;
       }
-      if (!firstBank) throw new Error('没有可添加的官方题库');
-      await qc.invalidateQueries({ queryKey: ['catalog'] });
-      const session = await unwrap(api.POST('/onboarding/official-first', { body: { bank_id: firstBank } }));
-      router.push({ pathname: '/(onboarding)/official-first', params: { sessionId: String(session.id) } });
+      if (!added) throw new Error('没有可添加的官方题库');
+      saveDraft({ after: '/(tabs)/bank' });
+      await setStep('1.2');
+      router.push('/(onboarding)/target');
     } catch (e) {
       toast(e instanceof ApiError ? e.message : '添加失败，请重试');
     } finally {
+      await Promise.all([qc.invalidateQueries({ queryKey: ['catalog'] }), qc.invalidateQueries({ queryKey: ['subjects'] })]);
       setBusy(false);
     }
   };
@@ -102,7 +109,7 @@ export default function OfficialFound() {
         ))}
       </ScrollView>
       <Footer>
-        <Button title="添加官方题库，先做一道真题" loading={busy} disabled={official.length === 0} onPress={() => void start()} />
+        <Button title="添加官方题库" loading={busy} disabled={official.length === 0} onPress={() => void start()} />
         <Button title="不用，我导入自己的资料" kind="text" disabled={busy} onPress={() => void importOwn()} />
       </Footer>
     </Screen>
