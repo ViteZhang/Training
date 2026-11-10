@@ -283,6 +283,11 @@ export default function KPCard() {
                 ) : null}
               </View>
             ) : null}
+            {k.reference ? (
+              <Text variant="small" style={styles.sourceRow}>
+                出处：{k.reference}
+              </Text>
+            ) : null}
           </InfoCard>
         ) : null}
 

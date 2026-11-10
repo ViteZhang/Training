@@ -185,6 +185,58 @@ describe('3.1b 题目与 3.3 详情', () => {
     await fireEvent.changeText(screen.getByLabelText('第 1 个采分点的分值'), '2');
     expect(screen.getByText('采分点分值合计要等于题目分值 5 分')).toBeTruthy();
   });
+
+  it('官方题：标「官方 · 年份 真题」「官方答案」，显示出处与解析，不显示「来源未记录」；编辑时提示不再跟随官方更新（T56）', async () => {
+    mockParams = { id: '12' };
+    mockResponses['GET /questions/{questionId}'] = () => ({
+      status: 200,
+      data: {
+        id: 12,
+        qtype: 'short_answer',
+        stem: '简述善本',
+        score: 10,
+        source: 'official',
+        exam_year: 2026,
+        answer: '善本的三性',
+        answer_origin: 'official',
+        answer_tier: 'official',
+        analysis: '善本以三性为标准',
+        reference: '郭英德《中国古典文献学的理论与方法》善本',
+        origin_tags: ['official'],
+        rubric_points: [{ id: 1, seq: 1, content: '善本的三性', score: 10, origin: 'official' }],
+        rubric_version: 1,
+        knowledge_points: [{ id: 6, name: '善本', is_primary: true }],
+        attempts: [],
+        in_wrong_book: false,
+        needs_review: false,
+      },
+    });
+    mockResponses['GET /questions/{questionId}/answer-evidence'] = () => ({ status: 200, data: { snapshot: null } });
+    await wrap(<QuestionScreen />);
+    expect(await screen.findByText('官方 · 2026 真题')).toBeTruthy();
+    expect(screen.getByText('官方答案')).toBeTruthy();
+    expect(screen.getByText('出处：郭英德《中国古典文献学的理论与方法》善本')).toBeTruthy();
+    expect(screen.getByText('善本以三性为标准')).toBeTruthy();
+    await waitFor(() => expect(mockCalls.some((c) => c.path === '/questions/{questionId}/answer-evidence')).toBe(true));
+    expect(screen.queryByText('历史答案 · 来源未记录')).toBeNull();
+    await fireEvent.press(screen.getByText('编辑'));
+    expect(screen.getByText('这是官方题库的题，改了以后这道题保留你的版本，官方题库更新时不再覆盖。')).toBeTruthy();
+  });
+
+  it('官方题的 AI 答案不给「补充答案文件」', async () => {
+    mockParams = { id: '13' };
+    mockResponses['GET /questions/{questionId}'] = () => ({
+      status: 200,
+      data: {
+        id: 13, qtype: 'short_answer', stem: '六书', score: 10, source: 'official', exam_year: 2026, answer: '指事象形', answer_origin: 'ai_generated',
+        answer_tier: 'ai', origin_tags: ['official'], rubric_points: [], rubric_version: 1, knowledge_points: [], attempts: [], in_wrong_book: false, needs_review: false,
+      },
+    });
+    mockResponses['GET /questions/{questionId}/answer-evidence'] = () => ({ status: 200, data: { snapshot: null } });
+    await wrap(<QuestionScreen />);
+    expect(await screen.findByText('下面是官方题库由 AI 生成、经编辑审核的参考答案；觉得不对，可以改成你的答案。')).toBeTruthy();
+    expect(screen.queryByText('补充答案文件 ›')).toBeNull();
+  });
 });
 
 describe('3.1c 资料与 3.1d 删除', () => {

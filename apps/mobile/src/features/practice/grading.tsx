@@ -144,6 +144,7 @@ export function SubjectiveInput({
 export function gradingBasis(q: PracticeQuestion) {
   if (q.answer_tier === 'ai') return '这道题按 AI 参考答案批改';
   if (q.answer_tier === 'missing') return '这道题还没有答案，提交时 AI 先生成参考答案再批改';
+  if (q.answer_tier === 'official') return q.rubric_count > 0 ? `按官方的 ${q.rubric_count} 个采分点批改` : '按官方答案批改';
   return q.rubric_count > 0 ? `按你资料里的 ${q.rubric_count} 个采分点批改` : '按参考答案批改';
 }
 
@@ -162,7 +163,11 @@ export function GradingProgress({ q }: { q: PracticeQuestion }) {
         steps={
           q.answer_tier === 'missing'
             ? ['生成 AI 参考答案', '提取你的答案要点，比对采分点', '生成修改建议']
-            : ['提取你的答案要点', q.answer_tier === 'ai' ? '比对 AI 参考答案的采分点' : `比对你资料里的 ${q.rubric_count || 1} 个采分点`, '生成修改建议']
+            : [
+                '提取你的答案要点',
+                q.answer_tier === 'ai' ? '比对 AI 参考答案的采分点' : q.answer_tier === 'official' ? `比对官方的 ${q.rubric_count || 1} 个采分点` : `比对你资料里的 ${q.rubric_count || 1} 个采分点`,
+                '生成修改建议',
+              ]
         }
         current={step}
         eta={q.answer_tier === 'missing' ? '大约需要 15 秒' : '大约需要 5 秒'}
@@ -199,8 +204,11 @@ export function GradingResultView({
   onDispute,
   onRegrade,
   regrading,
+  question,
 }: {
   g: GradingResult;
+  /** 这道题的解析与出处（T56）：展开参考答案时一起显示 */
+  question?: { analysis?: string; reference?: string };
   kpId?: number;
   /** 「看规范写法」去 4.13 */
   norm?: { subjectId: number; qtype: string };
@@ -324,7 +332,9 @@ export function GradingResultView({
           {showRef ? (
             <View>
               <Text variant="caption" color={colors.ink} style={styles.refText}>{g.reference_answer}</Text>
-              <RecordAnswerEvidence kind="grading" id={g.grading_id} />
+              {question?.analysis ? <Text variant="caption" style={styles.refText}>解析：{question.analysis}</Text> : null}
+              {question?.reference ? <Text variant="small">出处：{question.reference}</Text> : null}
+              <RecordAnswerEvidence kind="grading" id={g.grading_id} hideEmpty={!!question?.reference} />
             </View>
           ) : null}
         </View>
@@ -458,7 +468,7 @@ export function DisputeSheet({ g, visible, onClose, onDone }: { g: GradingResult
             style={styles.info}
           >
             <Text variant="small" color={colors.blueInk} style={styles.flex}>
-              采分点{g.rubric_ref ? `来自你的资料「${g.rubric_ref.file_name}」` : '来自你的资料'}，可以直接改，改完这道题按新采分点重批，不消耗批改次数
+              采分点{g.rubric_source === 'official' ? '来自官方题库' : g.rubric_ref ? `来自你的资料「${g.rubric_ref.file_name}」` : '来自你的资料'}，可以直接改，改完这道题按新采分点重批，不消耗批改次数
             </Text>
             <Text variant="caption" color={colors.blueInk} style={styles.bold}>
               去修改 ›

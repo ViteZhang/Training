@@ -1,6 +1,6 @@
 // 3.1b 题目：按题型筛选（显示各题型题数）、按来源筛选、按章节或最近排序；每题显示得分或状态、所属板块章节、做过几次；
 // AI 出题注明由哪个知识点生成。「多选」后可以批量删除（如不是自己报考专业的题）。
-// 按答案状态筛选（PRD 11.16）：来自你的资料 / 你已确认 / AI 答案待确认 / 缺答案；缺答案时给「补充答案文件」（→ 1.7c）。
+// 按答案状态筛选（PRD 11.16）：来自你的资料 / 你已确认 / AI 答案待确认 / 官方答案（T56）/ 缺答案；缺答案时给「补充答案文件」（→ 1.7c）。
 import { ApiError, type Schemas } from '@training/api-client';
 import { colors, radius, semantic } from '@training/ui-tokens';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,9 +15,9 @@ import { bankKeys, sourceLabel, sourceNames, statusTagNames } from './api';
 
 type Source = Schemas['QuestionSource'] | 'all';
 const sources: Source[] = ['all', 'exam', 'exercise', 'unconfirmed', 'ai_generated'];
-type AnswerFilter = 'all' | 'material' | 'confirmed' | 'ai' | 'missing';
-const answerFilters: AnswerFilter[] = ['all', 'material', 'confirmed', 'ai', 'missing'];
-export const answerFilterNames: Record<AnswerFilter, string> = { all: '全部', material: '来自你的资料', confirmed: '你已确认', ai: 'AI 答案待确认', missing: '缺答案' };
+type AnswerFilter = 'all' | 'material' | 'confirmed' | 'ai' | 'official' | 'missing';
+const answerFilters: AnswerFilter[] = ['all', 'material', 'confirmed', 'ai', 'official', 'missing'];
+export const answerFilterNames: Record<AnswerFilter, string> = { all: '全部', material: '来自你的资料', confirmed: '你已确认', ai: 'AI 答案待确认', official: '官方答案', missing: '缺答案' };
 
 function QuestionRow({ q, selecting, selected, onToggle }: { q: Schemas['QuestionSummary']; selecting?: boolean; selected?: boolean; onToggle?: () => void }) {
   const meta = [q.path.join(' · ')];

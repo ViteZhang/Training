@@ -73,10 +73,12 @@ export function AnswerEvidence({ snapshot }: { snapshot: Snapshot | null | undef
   );
 }
 
-export function RecordAnswerEvidence({ kind, id }: { kind: 'question' | 'grading' | 'import'; id: number }) {
+/** hideEmpty：没有生成记录时不显示（官方题库导入的答案、有出处的答案，T56），免得每题都出现「来源未记录」。 */
+export function RecordAnswerEvidence({ kind, id, hideEmpty }: { kind: 'question' | 'grading' | 'import'; id: number; hideEmpty?: boolean }) {
   const query = useAnswerEvidence(kind, id);
-  if (query.isPending) return <Loading rows={1} />;
-  if (query.isError) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
+  if (query.isPending) return hideEmpty ? null : <Loading rows={1} />;
+  if (query.isError) return hideEmpty ? null : <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
+  if (hideEmpty && !query.data.snapshot) return null;
   return <AnswerEvidence snapshot={query.data.snapshot} />;
 }
 

@@ -23,7 +23,7 @@ import { AnswerUpdate } from '@/features/answers/AnswerUpdate';
 
 const lossNames: Record<string, string> = { knowledge: '知识没掌握', norm: '答题不规范', time: '时间不够' };
 // 答案档位的标注（PRD 11.16）
-const tierNames: Partial<Record<Schemas['AnswerTier'], string>> = { material: '来自你的资料', confirmed: '你已确认' };
+const tierNames: Partial<Record<Schemas['AnswerTier'], string>> = { material: '来自你的资料', confirmed: '你已确认', official: '官方答案' };
 
 function Editor({ q, onDone }: { q: QuestionDetail; onDone: () => void }) {
   const qc = useQueryClient();
@@ -60,6 +60,13 @@ function Editor({ q, onDone }: { q: QuestionDetail; onDone: () => void }) {
   };
   return (
     <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      {q.origin_tags.includes('official') || q.source === 'official' ? (
+        <View style={styles.aiNote}>
+          <Text variant="caption" color={colors.blueInk} style={styles.lh2}>
+            这是官方题库的题，改了以后这道题保留你的版本，官方题库更新时不再覆盖。
+          </Text>
+        </View>
+      ) : null}
       <Text variant="bodyStrong">题干</Text>
       <TextInput accessibilityLabel="题干" value={stem} onChangeText={setStem} multiline style={[styles.input, styles.multi]} maxFontSizeMultiplier={layout.maxFontScale} />
       <Text variant="bodyStrong">分值</Text>
@@ -95,6 +102,7 @@ export default function QuestionScreen() {
   const primary = q.knowledge_points.find((k) => k.is_primary) ?? q.knowledge_points[0];
   const tier = q.answer_tier ?? (q.answer ? 'material' : 'missing');
   const ai = tier === 'ai';
+  const official = q.origin_tags.includes('official') || q.source === 'official';
   const subject = subjects.data?.items?.find((x) => x.id === q.subject_id);
   const answerSrc = q.answer_source ?? (q.answer_match === 'original' ? q.source_ref : undefined);
   const openAnswerFile = () => router.push({ pathname: '/import/answers', params: { subject: String(q.subject_id ?? subject?.id ?? '') } });
@@ -175,10 +183,11 @@ export default function QuestionScreen() {
             {ai ? (
               <View style={styles.aiNote}>
                 <Text variant="caption" color={colors.blueInk} style={styles.lh2}>
-                  下面是 AI 生成的参考答案，可以查看引用的教材段落；核对后确认，或改成你的答案。
-
+                  {official
+                    ? '下面是官方题库由 AI 生成、经编辑审核的参考答案；觉得不对，可以改成你的答案。'
+                    : '下面是 AI 生成的参考答案，可以查看引用的教材段落；核对后确认，或改成你的答案。'}
                 </Text>
-                <Button title="补充答案文件 ›" kind="text" size="sm" color={colors.blueInk} style={styles.link} onPress={openAnswerFile} />
+                {official ? null : <Button title="补充答案文件 ›" kind="text" size="sm" color={colors.blueInk} style={styles.link} onPress={openAnswerFile} />}
               </View>
             ) : null}
             <InfoCard label="参考答案" style={ai ? styles.aiCard : undefined} right={ai ? <Tag label="AI 参考答案" tone="ai" /> : tierNames[tier]}>
@@ -204,7 +213,12 @@ export default function QuestionScreen() {
                   ) : null}
                 </View>
               ) : null}
-              {q.answer ? <RecordAnswerEvidence kind="question" id={q.id} /> : null}
+              {q.reference ? (
+                <Text variant="small" style={styles.sourceRow}>
+                  出处：{q.reference}
+                </Text>
+              ) : null}
+              {q.answer ? <RecordAnswerEvidence kind="question" id={q.id} hideEmpty={official || !!q.reference} /> : null}
               {!ai ? (
                 <View style={styles.sourceRow}>
                   <Button title={q.answer ? '修改答案' : '补充 / 修改答案'} kind="text" size="sm" color={semantic.info} style={styles.link} onPress={() => setEditing(true)} />
@@ -213,6 +227,13 @@ export default function QuestionScreen() {
               ) : null}
             </InfoCard>
             {q.answer ? <AnswerUpdate question={q} /> : null}
+            {q.analysis ? (
+              <InfoCard label="解析">
+                <Text variant="body" style={styles.lh}>
+                  {q.analysis}
+                </Text>
+              </InfoCard>
+            ) : null}
             {q.rubric_points.length > 0 ? (
               <InfoCard
                 label="采分点 · 批改依据"
