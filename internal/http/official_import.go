@@ -149,6 +149,8 @@ type importItemJSON struct {
 	AnswerAI       bool                 `json:"answer_ai,omitempty"`
 	Filling        bool                 `json:"filling,omitempty"`
 	AnswerBasis    *answerBasisJSON     `json:"answer_basis,omitempty"`
+	MissingKPs     []string             `json:"missing_kps,omitempty"`
+	ExistingKP     bool                 `json:"existing_kp,omitempty"`
 }
 
 type answerBasisJSON struct {
@@ -165,7 +167,8 @@ func toImportItemJSON(it official.ImportItem) importItemJSON {
 	}
 	out := importItemJSON{ID: it.ID, ItemType: it.ItemType, Seq: it.Seq, Payload: it.Payload, Citations: cs, SourceText: optStr(it.SourceText), Page: it.Page,
 		Confidence: it.Confidence, Status: it.Status, DraftID: optID(it.DraftID), RubricMismatch: it.RubricMismatch, NeedsFill: it.NeedsFill,
-		FillError: optStr(it.FillError), DuplicateOf: optStr(it.Duplicate), SeenYears: it.SeenYears, AnswerAI: it.AnswerAI, Filling: it.Filling}
+		FillError: optStr(it.FillError), DuplicateOf: optStr(it.Duplicate), SeenYears: it.SeenYears, AnswerAI: it.AnswerAI, Filling: it.Filling,
+		MissingKPs: it.MissingKPs, ExistingKP: it.ExistingKP}
 	if b := it.AnswerBasis; b != nil && it.AnswerAI { // 只引用了考纲、经验总结时也说明（T55）
 		out.AnswerBasis = &answerBasisJSON{Reason: b.Reason, Message: ai.BasisMessage(b.Reason), Details: b.Details}
 	}

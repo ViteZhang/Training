@@ -73,6 +73,13 @@ FROM official_import_items i JOIN official_import_files f ON f.id = i.file_id
 WHERE i.project_id = ? AND i.item_type = 'question' AND i.status <> 'rejected'
 ORDER BY i.file_id, i.seq;
 
+-- name: ListProjectImportKPs :many
+-- T56 知识点核对：项目里还没驳回的解析知识点（各份资料的），与资料名一起；题目关联的知识点名称、知识点重名都从这里查。
+SELECT i.id, i.file_id, i.seq, i.status, i.payload, f.file_name
+FROM official_import_items i JOIN official_import_files f ON f.id = i.file_id
+WHERE i.project_id = ? AND i.item_type = 'knowledge_point' AND i.status <> 'rejected'
+ORDER BY i.file_id, i.seq;
+
 -- name: ListProjectQuestionDrafts :many
 -- T52 查重：项目里还没发布、没退回的新增题目草稿（7.12 手工录的与核对接受的）。
 SELECT id, payload FROM official_drafts

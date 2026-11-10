@@ -29,7 +29,7 @@ type QuestionFilter struct {
 	ExamYear *int
 	KPID     *uint64
 	Status   string // mastered / wrong / needs_review / unanswered
-	// AnswerStatus 按答案档位筛选（3.1b）：material / confirmed / ai / missing（PRD v3 11.16）
+	// AnswerStatus 按答案档位筛选（3.1b）：material / confirmed / ai / official / missing（PRD v3 11.16；official 是 T56 加的）
 	AnswerStatus string
 	Sort         string // chapter（按章节）/ recent（最近做过）
 	After        int    // 分页游标：已返回的条数
@@ -68,7 +68,8 @@ func statusTag(q dbq.ListBankQuestionsFullRow, kpState string) string {
 	switch {
 	case q.NeedsReview:
 		return "needs_review"
-	case listTier(q) == rules.AnswerAI:
+	case listTier(q) == rules.AnswerAI && q.Source != dbq.QuestionsSourceOfficial:
+		// 官方题库的 AI 答案经编辑审核，不提示「AI 答案待确认」（与缺答案计数一致，T56）。
 		return "ai_answer"
 	case q.InWrongBook:
 		return "wrong"
@@ -124,7 +125,7 @@ func lastTime(v any) time.Time {
 
 // Questions 返回题目列表与筛选项统计。
 func (s *Service) Questions(ctx context.Context, userID, subjectID uint64, f QuestionFilter) ([]QuestionSummary, Facets, int, error) {
-	if f.AnswerStatus != "" && f.AnswerStatus != "material" && f.AnswerStatus != "confirmed" && f.AnswerStatus != "ai" && f.AnswerStatus != "missing" {
+	if f.AnswerStatus != "" && f.AnswerStatus != "material" && f.AnswerStatus != "confirmed" && f.AnswerStatus != "ai" && f.AnswerStatus != "official" && f.AnswerStatus != "missing" {
 		return nil, Facets{}, 0, apperr.New(apperr.BadRequest, "答案状态不正确")
 	}
 	b, err := s.subject(ctx, userID, subjectID)
@@ -274,6 +275,7 @@ type QuestionDetail struct {
 	Answer          string
 	AnswerOrigin    string
 	Analysis        string
+	Reference       string // 出处（官方题库导入，T56）：有内容就展示
 	Score           *float64
 	Source          string
 	ExamYear        *int
@@ -324,7 +326,7 @@ func (s *Service) Question(ctx context.Context, userID, id uint64) (QuestionDeta
 		return QuestionDetail{}, err
 	}
 	d := QuestionDetail{ID: q.ID, SubjectID: uint64(q.SubjectID.Int64), QType: string(q.Qtype), Stem: q.Stem, Answer: q.Answer.String, Analysis: q.Analysis.String,
-		Score: parseScore(q.Score), Source: string(q.Source), ExamYear: year(q.ExamYear), RubricVersion: int(q.RubricVersion),
+		Reference: q.ReferenceText.String, Score: parseScore(q.Score), Source: string(q.Source), ExamYear: year(q.ExamYear), RubricVersion: int(q.RubricVersion),
 		NeedsReview: q.NeedsReview, OriginTags: []string{},
 		GroupLabel: q.GroupLabel.String, GroupMajors: q.GroupMajors.String, Passage: q.Passage.String, PassageKey: q.PassageKey.String}
 	if q.AnswerOrigin.Valid {

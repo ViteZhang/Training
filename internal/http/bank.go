@@ -268,6 +268,9 @@ func toKPDetail(d bank.KPDetail) gen.KnowledgePointDetail {
 	if d.OriginalText != "" {
 		out.OriginalText = &d.OriginalText
 	}
+	if d.Reference != "" {
+		out.Reference = &d.Reference
+	}
 	if d.AIExplanation != "" {
 		out.AiExplanation = &d.AIExplanation
 	}
@@ -540,6 +543,9 @@ func toQuestionDetail(d bank.QuestionDetail) gen.QuestionDetail {
 	}
 	if d.Analysis != "" {
 		out.Analysis = &d.Analysis
+	}
+	if d.Reference != "" {
+		out.Reference = &d.Reference
 	}
 	if len(d.Options) > 0 {
 		opts := make([]gen.ChoiceOption, len(d.Options))

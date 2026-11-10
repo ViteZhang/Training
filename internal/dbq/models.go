@@ -7848,6 +7848,8 @@ type KnowledgePoint struct {
 	OfficialHash sql.NullString
 	// 新版本新增的知识点在此之前标「新」
 	OfficialNewUntil sql.NullTime
+	// 出处（T56）
+	ReferenceText sql.NullString
 }
 
 // 知识点掌握度与复习排期
@@ -8374,6 +8376,8 @@ type Question struct {
 	AiAnswerReports  uint16
 	Source           QuestionsSource
 	AnswerSnapshotID sql.NullInt64
+	// 出处（T56）
+	ReferenceText sql.NullString
 }
 
 // 题目与知识点多对多

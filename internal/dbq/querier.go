@@ -673,6 +673,8 @@ type Querier interface {
 	ListPracticePool(ctx context.Context, arg ListPracticePoolParams) ([]ListPracticePoolRow, error)
 	// 同一项目里题目草稿，给缺分值的题参考同题型的默认给分。
 	ListProjectDraftQuestionPayloads(ctx context.Context, projectID uint64) ([]json.RawMessage, error)
+	// T56 知识点核对：项目里还没驳回的解析知识点（各份资料的），与资料名一起；题目关联的知识点名称、知识点重名都从这里查。
+	ListProjectImportKPs(ctx context.Context, projectID uint64) ([]ListProjectImportKPsRow, error)
 	// 同一项目里各资料解析出的题目，给缺分值的题参考同题型的默认给分。
 	ListProjectImportQuestionPayloads(ctx context.Context, projectID uint64) ([]json.RawMessage, error)
 	// T52 查重：项目里还没驳回的解析题（各份资料的），与资料名一起。

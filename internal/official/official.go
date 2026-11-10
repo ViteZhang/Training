@@ -48,6 +48,8 @@ type KPPayload struct {
 	Name         string  `json:"name"`
 	OriginalText string  `json:"original_text"`
 	Rubric       []Point `json:"rubric"`
+	// Reference 是出处（T56）：表格导入填写，发布后展示给用户。
+	Reference string `json:"reference,omitempty"`
 }
 
 // QuestionPayload 是题目草稿。
@@ -58,10 +60,12 @@ type QuestionPayload struct {
 	Options          []ai.Option `json:"options,omitempty"`
 	Answer           string      `json:"answer"`
 	Analysis         string      `json:"analysis,omitempty"`
-	Score            *float64    `json:"score,omitempty"`
-	ExamYear         *int        `json:"exam_year,omitempty"`
-	KPNames          []string    `json:"kp_names"`
-	Rubric           []Point     `json:"rubric"`
+	// Reference 是出处（T56）：表格导入填写，发布后展示给用户（不管答案是不是 AI 生成的）。
+	Reference string   `json:"reference,omitempty"`
+	Score     *float64 `json:"score,omitempty"`
+	ExamYear  *int     `json:"exam_year,omitempty"`
+	KPNames   []string `json:"kp_names"`
+	Rubric    []Point  `json:"rubric"`
 	// AnswerAI 表示参考答案由 AI 生成（T49）：经编辑审核发布后，用户端显示「AI 参考答案」，照常计入预估分。
 	AnswerAI bool `json:"answer_ai,omitempty"`
 	// ScoreInferred 表示分值是补答案时参考同项目同题型的给分填上的（原文没有分值），请编辑核对。
@@ -237,22 +241,39 @@ func contents(rs []dbq.ListOfficialRubricRow) []string {
 }
 
 func (c content) kpHash(k dbq.ListOfficialKPsRow) string {
-	return hashOf(k.Name, k.OriginalText.String, rubricText(contents(c.kpRubric[k.ID])))
+	return kpHashOf(k.Name, k.OriginalText.String, rubricText(contents(c.kpRubric[k.ID])), k.ReferenceText.String)
+}
+
+// kpHashOf 是知识点内容的哈希。出处有内容时才多算一项（T56），以前同步的副本哈希不变。
+func kpHashOf(name, original, rubric, reference string) string {
+	parts := []string{name, original, rubric}
+	if reference != "" {
+		parts = append(parts, "ref:"+reference)
+	}
+	return hashOf(parts...)
 }
 
 func (c content) questionHash(x dbq.ListOfficialQuestionsRow) string {
-	return questionHashOf(string(x.Qtype), x.Stem, x.Answer.String, rubricText(contents(c.qRubric[x.ID])), x.AnswerOrigin, groupKey(x.GroupLabel, x.GroupMajors))
+	return questionHashOf(string(x.Qtype), x.Stem, x.Answer.String, rubricText(contents(c.qRubric[x.ID])), x.AnswerOrigin, groupKey(x.GroupLabel, x.GroupMajors),
+		x.Analysis.String, x.ReferenceText.String)
 }
 
 // questionHashOf 是题目内容的哈希。答案是 AI 生成的、限选题的分组才多算一项，团队给的答案、必答题的哈希与以前一致，
 // 已同步的副本不会因此被判为有变化。
-func questionHashOf(qtype, stem, answer, rubric string, origin dbq.NullQuestionsAnswerOrigin, group string) string {
+// 解析、出处（T56）也一样：有内容时才多算，只改了解析或出处的版本也能同步给已添加的用户。
+func questionHashOf(qtype, stem, answer, rubric string, origin dbq.NullQuestionsAnswerOrigin, group, analysis, reference string) string {
 	parts := []string{qtype, stem, answer, rubric}
 	if origin.Valid && origin.QuestionsAnswerOrigin == dbq.QuestionsAnswerOriginAiGenerated {
 		parts = append(parts, "ai_generated")
 	}
 	if group != "" {
 		parts = append(parts, "group:"+group)
+	}
+	if analysis != "" {
+		parts = append(parts, "analysis:"+analysis)
+	}
+	if reference != "" {
+		parts = append(parts, "ref:"+reference)
 	}
 	return hashOf(parts...)
 }

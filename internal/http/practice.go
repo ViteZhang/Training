@@ -67,6 +67,9 @@ func toGenSession(s practice.Session) gen.PracticeSession {
 		if q.Analysis != "" {
 			x.Analysis = ptr(q.Analysis)
 		}
+		if q.Reference != "" {
+			x.Reference = ptr(q.Reference)
+		}
 		if q.Score != nil {
 			x.Score = ptr(float32(*q.Score))
 		}
