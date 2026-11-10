@@ -19,6 +19,17 @@ export function countMajors(items: { school: string; major: string }[]) {
   return new Set(items.map((b) => `${b.school}\u0000${b.major}`)).size;
 }
 
+/**
+ * 目标院校专业（备考设置里填的一句话，如「北京师范大学 · 中国语言文学」）对得上的官方题库：
+ * 院校名出现在里面就算；同院校里专业也对得上的排前面。
+ */
+export function matchTarget<T extends { school: string; major: string }>(items: T[], target?: string | null): T[] {
+  const t = (target ?? '').trim();
+  if (!t) return [];
+  const same = items.filter((b) => b.school && t.includes(b.school));
+  return [...same.filter((b) => b.major && t.includes(b.major)), ...same.filter((b) => !(b.major && t.includes(b.major)))];
+}
+
 export function OfficialNotice({ from }: { from: 'onboarding' | 'bank' }) {
   const on = useFeatureFlag('official_bank');
   const banks = useOfficialBanks(on);

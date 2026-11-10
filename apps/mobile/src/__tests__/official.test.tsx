@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import OfficialBanksPage from '../../app/bank/official';
 import OfficialUpdates, { groupBySchool } from '../../app/official/updates';
-import { countMajors, OfficialNotice } from '../features/official/OfficialNotice';
+import { countMajors, matchTarget, OfficialNotice } from '../features/official/OfficialNotice';
 import { messageHref } from '../features/messages/api';
 
 const mockPush = jest.fn();
@@ -102,6 +102,19 @@ describe('已上线官方题库公告', () => {
     expect(countMajors(items)).toBe(2);
     expect(groupBySchool(items as never, '').map(([s]) => s)).toEqual(['乙大学', '甲大学']);
     expect(groupBySchool(items as never, '文学综合').map(([s, l]) => [s, l.length])).toEqual([['甲大学', 1]]);
+  });
+
+  it('目标院校专业对得上的官方题库：院校相同就算，专业也相同的排前面', () => {
+    expect(matchTarget(items, '甲大学 · 中国古代文学').map((b) => b.bank_id)).toEqual([2, 3]);
+    expect(matchTarget(items, '乙大学 · 历史学').map((b) => b.bank_id)).toEqual([1]);
+    expect(matchTarget(items, '丙大学')).toEqual([]);
+    expect(matchTarget(items, null)).toEqual([]);
+  });
+
+  it('添加官方题库页：目标院校的排最前，标「你的院校」', async () => {
+    mockResponses['GET /profile'] = () => ({ status: 200, data: { target_school_major: '甲大学 · 中国古代文学' } });
+    await wrap(<OfficialBanksPage />);
+    expect(await screen.findAllByText('你的院校')).toHaveLength(2);
   });
 
   it('横幅显示院校专业数和 7 天内更新数，点进列表', async () => {

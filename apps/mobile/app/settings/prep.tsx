@@ -14,6 +14,7 @@ import { stageInfo, stages } from '@/features/onboarding/api';
 import { Chips, OptionCard, Stepper } from '@/features/onboarding/ui';
 import { api, unwrap } from '@/lib/api';
 import { useFeatureFlag } from '@/lib/flags';
+import { matchTarget, useOfficialBanks } from '@/features/official/OfficialNotice';
 import { useUpgradeActions } from '@/features/membership/purchase';
 import { TextbookSheet, textbookSummary } from '@/features/profile/textbooks';
 
@@ -22,6 +23,8 @@ type Profile = Schemas['StudyProfile'];
 export default function PrepSettings() {
   const qc = useQueryClient();
   const applyOn = useFeatureFlag('course_apply');
+  const officialOn = useFeatureFlag('official_bank');
+  const officialBanks = useOfficialBanks(officialOn);
   const profile = useQuery({ queryKey: ['profile'], queryFn: () => unwrap(api.GET('/profile')) });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => unwrap(api.GET('/subjects')) });
   const years = useQuery({ queryKey: ['exam-years'], queryFn: () => unwrap(api.GET('/exam-years')) });
@@ -95,16 +98,38 @@ export default function PrepSettings() {
         </Text>
         <Pressable accessibilityRole="button" onPress={() => setSchoolEdit(p.target_school_major ?? '')}>
           <Card style={styles.row}>
-            <View style={styles.flex}>
+            {/* 院校专业名称较长，单独一行显示，不和标题挤在同一行 */}
+            <View style={[styles.flex, styles.stack]}>
               <Text variant="bodyStrong">院校与专业</Text>
+              <Text variant="body" color={p.target_school_major ? semantic.textPrimary : semantic.textSecondary}>
+                {p.target_school_major ? p.target_school_major.replace(/\s*[·•]\s*/g, ' · ') : '点击填写'}
+              </Text>
               <Text variant="caption">填了以后，有官方题库上线时会提醒你</Text>
             </View>
-            <Text variant="body" color={semantic.textSecondary}>
-              {p.target_school_major ?? '点击填写'}
-            </Text>
             <Icon name="edit" size={16} color={semantic.textSecondary} />
           </Card>
         </Pressable>
+
+        {(() => {
+          // 目标院校已经有官方题库、还没添加时，提示去添加（之前填了院校却不知道怎么关联官方题库）
+          const todo = officialOn ? matchTarget(officialBanks.data?.items ?? [], p.target_school_major).filter((b) => !b.added_subject_id) : [];
+          if (todo.length === 0) return null;
+          const first = todo[0]!;
+          return (
+            <Pressable accessibilityRole="button" accessibilityLabel="去添加官方题库" onPress={() => router.push('/bank/official')}>
+              <Card style={[styles.row, styles.officialCard]}>
+                <View style={[styles.flex, styles.stack]}>
+                  <Text variant="bodyStrong">{first.school}已有官方题库</Text>
+                  <Text variant="caption">
+                    {todo.map((b) => `${b.subject_code ? `${b.subject_code} ` : ''}${b.subject_name}`).join('、')}，添加到你的专业课后就能刷官方真题
+                  </Text>
+                </View>
+                <Text variant="caption" color={semantic.textPrimary}>去添加</Text>
+                <Icon name="chevron" size={16} color={semantic.textSecondary} />
+              </Card>
+            </Pressable>
+          );
+        })()}
 
         {applyOn ? (
           <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/apply', params: { entry: 'settings' } })}>
@@ -357,6 +382,8 @@ const styles = StyleSheet.create({
   stageRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: 2 },
   inlineTag: { alignSelf: 'center' },
   flex: { flex: 1 },
+  stack: { gap: 2, paddingVertical: spacing.xs },
+  officialCard: { backgroundColor: semantic.masteredSoft },
   bookRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 6, paddingHorizontal: 16 },
   bookDivider: { borderTopWidth: 1, borderTopColor: semantic.border },
   note: { marginTop: spacing.xl },
