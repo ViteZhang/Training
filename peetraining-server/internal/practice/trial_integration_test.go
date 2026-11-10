@@ -2,6 +2,8 @@ package practice_test
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"testing"
 
 	"peetraining-server/internal/ai"
@@ -150,8 +152,29 @@ func TestTrial(t *testing.T) {
 	if cat, _ := f.pr.SampleCatalog(ctx); len(cat) != 0 {
 		t.Errorf("待审核的不显示：%+v", cat)
 	}
-	if n, err := f.pr.GenerateSamples(ctx, 0, west, "term", 5, 2, "张志伟《西方哲学史》"); err != nil || n != 2 {
+	if n, err := f.pr.GenerateSamples(ctx, 0, west, "term", 5, 2, "张志伟《西方哲学史》", nil); err != nil || n != 2 {
 		t.Errorf("AI 批量生成：%d %v", n, err)
+	}
+	// 关联官方资料库里已上传的教材：参考教材记为书名，按方向检索原文。
+	if _, err := f.pr.GenerateSamples(ctx, 0, west, "term", 5, 1, "", []uint64{7}); kind(err) != apperr.BadRequest {
+		t.Errorf("没接资料库时关联教材要报错：%v", err)
+	}
+	mats := &fakeSampleMaterials{}
+	f.pr.SetSampleMaterials(mats)
+	if n, err := f.pr.GenerateSamples(ctx, 0, west, "short_answer", 10, 2, "", []uint64{7}); err != nil || n != 2 {
+		t.Errorf("关联教材批量生成：%d %v", n, err)
+	}
+	if !slices.Equal(mats.ids, []uint64{7}) || !strings.Contains(mats.query, "西方哲学") {
+		t.Errorf("检索参数：%v %q", mats.ids, mats.query)
+	}
+	var linked int
+	_ = f.db.QueryRow("SELECT COUNT(*) FROM sample_questions WHERE direction_id = ? AND textbook = ?", west, "西方哲学史 张志伟 第二版").Scan(&linked)
+	if linked != 2 {
+		t.Errorf("关联教材生成的题参考教材记为书名，实际 %d 道", linked)
+	}
+	mats.err = apperr.New(apperr.BadRequest, "所选教材暂不能用于出题")
+	if _, err := f.pr.GenerateSamples(ctx, 0, west, "term", 5, 1, "", []uint64{8}); kind(err) != apperr.BadRequest {
+		t.Errorf("教材不可用要报错：%v", err)
 	}
 	if err := f.pr.SetSampleStatus(ctx, 0, sqid, "online"); err != nil {
 		t.Fatal(err)
@@ -203,4 +226,18 @@ func TestTrial(t *testing.T) {
 	if l3, err := f.pr.LiveSample(ctx, uid, sid); err != nil || l3.ID == l1.ID {
 		t.Errorf("下线后重新生成：%+v %v", l3, err)
 	}
+}
+
+type fakeSampleMaterials struct {
+	ids   []uint64
+	query string
+	err   error
+}
+
+func (m *fakeSampleMaterials) SampleMaterial(_ context.Context, ids []uint64, query string) ([]string, []string, error) {
+	m.ids, m.query = ids, query
+	if m.err != nil {
+		return nil, nil, m.err
+	}
+	return []string{"西方哲学史 张志伟 第二版"}, []string{"【西方哲学史】康德的绝对命令是无条件的道德律令。"}, nil
 }

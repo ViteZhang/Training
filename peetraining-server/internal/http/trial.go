@@ -313,7 +313,13 @@ func (h *Handlers) AdminGenerateSamples(c *gin.Context) {
 	if body.Textbook != nil {
 		book = *body.Textbook
 	}
-	n, err := h.deps.Practice.GenerateSamples(c.Request.Context(), currentAdmin(c).ID, uint64(body.DirectionId), string(body.Qtype), float64(body.Score), body.Count, book)
+	var editions []uint64
+	if body.EditionIds != nil {
+		for _, id := range *body.EditionIds {
+			editions = append(editions, uint64(id))
+		}
+	}
+	n, err := h.deps.Practice.GenerateSamples(c.Request.Context(), currentAdmin(c).ID, uint64(body.DirectionId), string(body.Qtype), float64(body.Score), body.Count, book, editions)
 	if err != nil {
 		_ = c.Error(err)
 		return
