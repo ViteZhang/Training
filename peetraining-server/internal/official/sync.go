@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
@@ -30,7 +31,13 @@ type Bank struct {
 	// AddedTo 是已添加到哪门专业课（0 表示没添加）；Suggested 是代码相同、建议添加的专业课。
 	AddedTo   uint64
 	Suggested uint64
+	// UpdatedAt 是最近一次发布的时间；IsNew 表示 NewWindow 内上线或更新过（App 标「新」）。
+	UpdatedAt time.Time
+	IsNew     bool
 }
+
+// NewWindow 是官方题库标「新」的时长。
+const NewWindow = 7 * 24 * time.Hour
 
 // Banks 列出已发布的官方题库，标出用户添加到了哪门课、建议添加到哪门课（专业课代码相同）。
 func (s *Service) Banks(ctx context.Context, userID uint64) ([]Bank, error) {
@@ -50,10 +57,12 @@ func (s *Service) Banks(ctx context.Context, userID uint64) ([]Bank, error) {
 	if err != nil {
 		return nil, err
 	}
+	now := s.now()
 	out := make([]Bank, 0, len(rows))
 	for _, r := range rows {
 		b := Bank{BankID: r.BankID, Title: r.Title, School: r.School, Major: r.Major, SubjectCode: r.SubjectCode.String, SubjectName: r.SubjectName,
-			Version: str(r.Version), KPCount: int(r.KpCount), QuestionCount: int(r.QuestionCount), AddedTo: added[r.BankID]}
+			Version: str(r.Version), KPCount: int(r.KpCount), QuestionCount: int(r.QuestionCount), AddedTo: added[r.BankID],
+			UpdatedAt: r.UpdatedAt, IsNew: now.Sub(r.UpdatedAt) < NewWindow}
 		for _, sj := range subjects {
 			if sj.Code.Valid && sj.Code.String == r.SubjectCode.String {
 				b.Suggested = sj.ID

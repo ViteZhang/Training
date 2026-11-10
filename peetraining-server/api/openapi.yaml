@@ -5643,8 +5643,8 @@ paths:
       tags:
       - bank
       operationId: listOfficialBanks
-      summary: 可添加的官方题库（题库页「添加官方题库」）
-      description: 受 official_bank 开关控制，关闭时返回 404。suggested_subject_id 是专业课代码相同、建议添加到的专业课。
+      summary: 可添加的官方题库（题库页「添加官方题库」、引导 1.1「已上线官方题库」公告）
+      description: 受 official_bank 开关控制，关闭时返回 404。按最近更新时间倒序；is_new 表示 7 天内上线或更新过。suggested_subject_id 是专业课代码相同、建议添加到的专业课。
       responses:
         '200':
           description: OK
@@ -12590,6 +12590,8 @@ components:
       - version
       - kp_count
       - question_count
+      - updated_at
+      - is_new
       properties:
         bank_id: &id003_6
           type: integer
@@ -12606,6 +12608,13 @@ components:
         question_count: *id002_6
         added_subject_id: *id003_6
         suggested_subject_id: *id003_6
+        updated_at:
+          type: string
+          format: date-time
+          description: 最近一次发布（上线或更新）的时间；列表按它倒序
+        is_new:
+          type: boolean
+          description: 7 天内上线或更新过，App 标「新」
     AdminDemand:
       type: object
       required:
