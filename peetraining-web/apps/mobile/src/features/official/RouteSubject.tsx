@@ -17,6 +17,7 @@ import { ExamYearSelect } from '@/features/profile/ExamYearSelect';
 import { track } from '@/lib/analytics';
 import { api, unwrap } from '@/lib/api';
 import { useCatalogCourses, useCatalogSchools, type CatalogCourse } from './api';
+import { OfficialNotice } from './OfficialNotice';
 
 const MAX_COURSES = 4;
 /** 本校的科目少于这个数时不分学科，直接列出（T50）。 */
@@ -169,6 +170,7 @@ export function RouteSubject() {
     <Screen>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
         <StepHeader step={1} title="你考哪所学校的哪门专业课？" desc="我们会先看看有没有这门课的官方题库。有就能直接刷，没有也能先体验 AI 批改。" />
+        <OfficialNotice from="onboarding" />
 
         <View style={styles.block}>
           <Text variant="caption" color={semantic.textPrimary} style={styles.label}>参加哪一年的考试</Text>

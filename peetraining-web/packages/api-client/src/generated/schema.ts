@@ -4189,8 +4189,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 可添加的官方题库（题库页「添加官方题库」）
-         * @description 受 official_bank 开关控制，关闭时返回 404。suggested_subject_id 是专业课代码相同、建议添加到的专业课。
+         * 可添加的官方题库（题库页「添加官方题库」、引导 1.1「已上线官方题库」公告）
+         * @description 受 official_bank 开关控制，关闭时返回 404。按最近更新时间倒序；is_new 表示 7 天内上线或更新过。suggested_subject_id 是专业课代码相同、建议添加到的专业课。
          */
         get: operations["listOfficialBanks"];
         put?: never;
@@ -5060,7 +5060,7 @@ export interface paths {
         put?: never;
         /**
          * 审核：通过、退回、修改后通过
-         * @description 退回必须填原因；修改后通过要带 edited_payload；不能审核自己提交的。
+         * @description 退回必须填原因；修改后通过要带 edited_payload；不能审核自己提交的（管理员账号除外）。
          */
         post: operations["decideOfficialReview"];
         delete?: never;
@@ -7990,6 +7990,13 @@ export interface components {
             added_subject_id?: number;
             /** Format: int64 */
             suggested_subject_id?: number;
+            /**
+             * Format: date-time
+             * @description 最近一次发布（上线或更新）的时间；列表按它倒序
+             */
+            updated_at: string;
+            /** @description 7 天内上线或更新过，App 标「新」 */
+            is_new: boolean;
         };
         AdminDemand: {
             subject_code: string;

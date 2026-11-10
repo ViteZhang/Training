@@ -2,6 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import OfficialBanksPage from '../../app/bank/official';
+import OfficialUpdates, { groupBySchool } from '../../app/official/updates';
+import { countMajors, matchTarget, OfficialNotice } from '../features/official/OfficialNotice';
 import { messageHref } from '../features/messages/api';
 
 const mockPush = jest.fn();
@@ -82,5 +84,62 @@ describe('添加官方题库（T30）', () => {
     const m = { id: 1, mtype: 'official_bank', title: '', body: '', created_at: '', read: false } as const;
     expect(messageHref({ ...m, page: 'official_banks' } as never)).toBe('/bank/official');
     expect(messageHref({ ...m, page: 'bank', params: { subject_id: 2 } } as never)).toBe('/(tabs)/bank');
+  });
+});
+
+describe('已上线官方题库公告', () => {
+  const items = [
+    bank({ bank_id: 1, school: '乙大学', major: '哲学', subject_code: '812', subject_name: '西方哲学史', updated_at: '2026-11-08T02:00:00Z', is_new: true }),
+    bank({ bank_id: 2, school: '甲大学', major: '中国古代文学', updated_at: '2026-10-01T02:00:00Z', is_new: false }),
+    bank({ bank_id: 3, school: '甲大学', major: '中国古代文学', subject_code: '855', subject_name: '文学综合', updated_at: '2026-09-01T02:00:00Z', is_new: false }),
+  ];
+  beforeEach(() => {
+    mockResponses['GET /feature-flags'] = () => ({ status: 200, data: { flags: { official_bank: true, course_apply: true } } });
+    mockResponses['GET /official-banks'] = () => ({ status: 200, data: { items } });
+  });
+
+  it('院校专业按院校 + 专业去重计数；分组时有「新」的院校在前，可搜索', () => {
+    expect(countMajors(items)).toBe(2);
+    expect(groupBySchool(items as never, '').map(([s]) => s)).toEqual(['乙大学', '甲大学']);
+    expect(groupBySchool(items as never, '文学综合').map(([s, l]) => [s, l.length])).toEqual([['甲大学', 1]]);
+  });
+
+  it('目标院校专业对得上的官方题库：院校相同就算，专业也相同的排前面', () => {
+    expect(matchTarget(items, '甲大学 · 中国古代文学').map((b) => b.bank_id)).toEqual([2, 3]);
+    expect(matchTarget(items, '乙大学 · 历史学').map((b) => b.bank_id)).toEqual([1]);
+    expect(matchTarget(items, '丙大学')).toEqual([]);
+    expect(matchTarget(items, null)).toEqual([]);
+  });
+
+  it('添加官方题库页：目标院校的排最前，标「你的院校」', async () => {
+    mockResponses['GET /profile'] = () => ({ status: 200, data: { target_school_major: '甲大学 · 中国古代文学' } });
+    await wrap(<OfficialBanksPage />);
+    expect(await screen.findAllByText('你的院校')).toHaveLength(2);
+  });
+
+  it('横幅显示院校专业数和 7 天内更新数，点进列表', async () => {
+    await wrap(<OfficialNotice from="onboarding" />);
+    expect(await screen.findByText('已有 2 个院校专业上线官方题库')).toBeTruthy();
+    expect(screen.getByText('近 7 天新上线或更新 1 门课')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('查看已上线的官方题库'));
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/official/updates', params: { from: 'onboarding' } });
+  });
+
+  it('开关关闭时不显示横幅', async () => {
+    mockResponses['GET /feature-flags'] = () => ({ status: 200, data: { flags: {} } });
+    await wrap(<OfficialNotice from="bank" />);
+    await waitFor(() => expect(mockCalls.some((c) => c.path === '/feature-flags')).toBe(true));
+    await waitFor(() => expect(screen.queryByText(/上线官方题库/)).toBeNull());
+  });
+
+  it('列表按院校分组、标新，底部可申请收录', async () => {
+    mockParams.from = 'bank';
+    await wrap(<OfficialUpdates />);
+    expect(await screen.findByText('乙大学')).toBeTruthy();
+    expect(screen.getByText('812 西方哲学史')).toBeTruthy();
+    expect(screen.getAllByText('新')).toHaveLength(1);
+    await fireEvent.press(await screen.findByText('申请收录'));
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/apply', params: { entry: 'bank' } });
+    delete mockParams.from;
   });
 });
