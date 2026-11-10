@@ -158,6 +158,10 @@ func TestOfficialBank(t *testing.T) {
 	if err := s.Decide(ctx, editor, rs[0].ID, "approved", "", nil); kind(err) != apperr.Forbidden {
 		t.Errorf("不能审核自己提交的：%v", err)
 	}
+	// 管理员可以审核自己提交的：越过本人检查，接着按正常规则校验（退回仍须填原因）。
+	if err := s.DecideBy(ctx, editor, true, rs[0].ID, "rejected", "", nil); kind(err) != apperr.BadRequest {
+		t.Errorf("管理员审核自己提交的应越过本人检查：%v", err)
+	}
 	if err := s.Decide(ctx, lead, rs[0].ID, "rejected", "", nil); kind(err) != apperr.BadRequest {
 		t.Errorf("退回必须填原因：%v", err)
 	}
