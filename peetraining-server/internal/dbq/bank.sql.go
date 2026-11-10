@@ -184,7 +184,7 @@ func (q *Queries) DeleteQuestionRubric(ctx context.Context, arg DeleteQuestionRu
 }
 
 const getKP = `-- name: GetKP :one
-SELECT k.id, k.owner_user_id, k.bank_id, k.parent_id, k.level, k.name, k.original_text, k.source_material_id, k.source_page, k.origin, k.needs_review, k.ai_explanation, k.ai_explanation_at, k.exam_count, k.official_kp_id, k.sort_order, k.created_at, k.updated_at, k.official_hash, k.official_new_until, b.subject_id FROM knowledge_points k JOIN banks b ON b.id = k.bank_id
+SELECT k.id, k.owner_user_id, k.bank_id, k.parent_id, k.level, k.name, k.original_text, k.source_material_id, k.source_page, k.origin, k.needs_review, k.ai_explanation, k.ai_explanation_at, k.exam_count, k.official_kp_id, k.sort_order, k.created_at, k.updated_at, k.official_hash, k.official_new_until, k.reference_text, b.subject_id FROM knowledge_points k JOIN banks b ON b.id = k.bank_id
 WHERE k.id = ? AND k.owner_user_id = ?
 `
 
@@ -214,6 +214,7 @@ type GetKPRow struct {
 	UpdatedAt        time.Time
 	OfficialHash     sql.NullString
 	OfficialNewUntil sql.NullTime
+	ReferenceText    sql.NullString
 	SubjectID        sql.NullInt64
 }
 
@@ -242,6 +243,7 @@ func (q *Queries) GetKP(ctx context.Context, arg GetKPParams) (GetKPRow, error) 
 		&i.UpdatedAt,
 		&i.OfficialHash,
 		&i.OfficialNewUntil,
+		&i.ReferenceText,
 		&i.SubjectID,
 	)
 	return i, err
@@ -324,7 +326,7 @@ func (q *Queries) GetMaterialPage(ctx context.Context, arg GetMaterialPageParams
 }
 
 const getQuestionFull = `-- name: GetQuestionFull :one
-SELECT q.id, q.owner_user_id, q.bank_id, q.qtype, q.stem, q.options, q.answer, q.answer_origin, q.analysis, q.score, q.difficulty, q.exam_year, q.question_no, q.is_recollection, q.source_material_id, q.source_page, q.generated_from_kp_id, q.content_hash, q.rubric_version, q.status, q.needs_review, q.review_reasons, q.report_count, q.official_question_id, q.created_at, q.updated_at, q.required_words, q.official_hash, q.passage, q.passage_key, q.group_label, q.group_majors, q.answer_match, q.answer_material_id, q.answer_page, q.ai_answer_at, q.ai_answer_outcome, q.ai_answer_reports, q.source, q.answer_snapshot_id, b.subject_id FROM questions q JOIN banks b ON b.id = q.bank_id
+SELECT q.id, q.owner_user_id, q.bank_id, q.qtype, q.stem, q.options, q.answer, q.answer_origin, q.analysis, q.score, q.difficulty, q.exam_year, q.question_no, q.is_recollection, q.source_material_id, q.source_page, q.generated_from_kp_id, q.content_hash, q.rubric_version, q.status, q.needs_review, q.review_reasons, q.report_count, q.official_question_id, q.created_at, q.updated_at, q.required_words, q.official_hash, q.passage, q.passage_key, q.group_label, q.group_majors, q.answer_match, q.answer_material_id, q.answer_page, q.ai_answer_at, q.ai_answer_outcome, q.ai_answer_reports, q.source, q.answer_snapshot_id, q.reference_text, b.subject_id FROM questions q JOIN banks b ON b.id = q.bank_id
 WHERE q.id = ? AND q.owner_user_id = ?
 `
 
@@ -374,6 +376,7 @@ type GetQuestionFullRow struct {
 	AiAnswerReports    uint16
 	Source             QuestionsSource
 	AnswerSnapshotID   sql.NullInt64
+	ReferenceText      sql.NullString
 	SubjectID          sql.NullInt64
 }
 
@@ -421,6 +424,7 @@ func (q *Queries) GetQuestionFull(ctx context.Context, arg GetQuestionFullParams
 		&i.AiAnswerReports,
 		&i.Source,
 		&i.AnswerSnapshotID,
+		&i.ReferenceText,
 		&i.SubjectID,
 	)
 	return i, err

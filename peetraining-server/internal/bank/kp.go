@@ -65,6 +65,7 @@ type KPDetail struct {
 	Path          []string
 	ParentID      *uint64
 	OriginalText  string
+	Reference     string // 出处（官方题库导入，T56）
 	Source        *Source
 	Origin        string
 	ExamCount     int
@@ -121,7 +122,7 @@ func (s *Service) detail(ctx context.Context, userID, id uint64) (KPDetail, erro
 	if err != nil {
 		return KPDetail{}, err
 	}
-	d := KPDetail{ID: k.ID, Level: string(k.Level), Name: k.Name, OriginalText: k.OriginalText.String, Origin: string(k.Origin),
+	d := KPDetail{ID: k.ID, Level: string(k.Level), Name: k.Name, OriginalText: k.OriginalText.String, Reference: k.ReferenceText.String, Origin: string(k.Origin),
 		ExamCount: int(k.ExamCount), NeedsReview: k.NeedsReview, Official: k.OfficialKpID.Valid, AIExplanation: k.AiExplanation.String,
 		SubjectID: uint64(k.SubjectID.Int64), Mastery: Mastery{State: string(dbq.KpMasteryStateUnlearned)}}
 	if k.ParentID.Valid {

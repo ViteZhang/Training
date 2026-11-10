@@ -860,8 +860,25 @@ func (s *Service) kpPaths(ctx context.Context, projectID uint64) ([][]string, er
 }
 
 // 表格导入的列（增补「导入数据结构」）。院校、专业课名称、来源类型、方向在官方题库项目里已确定，不从表里读。
+// T56：题目表加「解析」「答案来源」；「出处」存进题目、展示给用户；表头有「板块、章节、知识点」而没有「题干」的是知识点表。
 var tableColumns = map[string]string{"年份": "year", "题号": "no", "题型": "qtype", "分值": "score", "题干": "stem", "参考答案": "answer",
-	"采分点": "rubric", "知识点": "kp", "出处": "source", "来源类型": "kind", "限选分组": "group", "适用专业": "group_majors"}
+	"采分点": "rubric", "知识点": "kp", "出处": "source", "来源类型": "kind", "限选分组": "group", "适用专业": "group_majors",
+	"解析": "analysis", "答案来源": "answer_origin", "板块": "section", "章节": "chapter", "原文表述": "original"}
+
+// tableAnswerAI 是「答案来源」列的写法：AI 生成的标「AI 参考答案」，团队给的标「官方答案」，不填按团队答案。
+var tableAnswerAI = map[string]bool{"AI生成": true, "AI": true, "ai": true, "AI 生成": true, "团队": false, "官方": false, "团队答案": false, "官方答案": false, "": false}
+
+// SplitKPNames 拆「知识点」一格里的多个名称（第一个是主知识点）：用「；」、半角分号或换行隔开。
+// 不按顿号拆：知识点名称里本身可能有顿号（如「单义词、多义词与反义词」）。
+func SplitKPNames(cell string) []string {
+	var out []string
+	for _, n := range strings.FieldsFunc(cell, func(r rune) bool { return r == '；' || r == ';' || r == '\n' || r == '\r' }) {
+		if n = strings.TrimSpace(n); n != "" && !slices.Contains(out, n) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
 
 var tableQTypes = map[string]string{"名词解释": "term", "简答": "short_answer", "简答题": "short_answer", "论述": "discussion", "论述题": "discussion",
 	"客观题": "single_choice", "单选": "single_choice", "选择": "single_choice"}
@@ -904,16 +921,19 @@ func (s *Service) parseTable(ctx context.Context, projectID uint64, text string,
 			col[k] = i
 		}
 	}
-	for _, need := range []string{"qtype", "score", "stem"} {
-		if _, ok := col[need]; !ok {
-			return nil, apperr.New(apperr.BadRequest, "表头缺少必填列：题型、分值、题干")
-		}
-	}
 	get := func(row []string, k string) string {
 		if i, ok := col[k]; ok && i < len(row) {
 			return strings.TrimSpace(row[i])
 		}
 		return ""
+	}
+	if isKPTable(col) {
+		return parseKPTable(rows, get)
+	}
+	for _, need := range []string{"qtype", "score", "stem"} {
+		if _, ok := col[need]; !ok {
+			return nil, apperr.New(apperr.BadRequest, "表头缺少必填列：题型、分值、题干（知识点表要有板块、章节、知识点）")
+		}
 	}
 	var out []dbq.InsertOfficialImportItemParams
 	for n, row := range rows[1:] {
@@ -931,15 +951,18 @@ func (s *Service) parseTable(ctx context.Context, projectID uint64, text string,
 			return nil, apperr.New(apperr.BadRequest, fmt.Sprintf("第 %d 行分值要是正整数", line))
 		}
 		score := float64(sc)
-		p := QuestionPayload{QType: qt, Stem: stem, Answer: get(row, "answer"), Score: &score}
+		p := QuestionPayload{QType: qt, Stem: stem, Answer: get(row, "answer"), Analysis: get(row, "analysis"), Reference: cutRunes(get(row, "source"), maxCitationRunes), Score: &score}
+		aiAnswer, ok := tableAnswerAI[get(row, "answer_origin")]
+		if !ok {
+			return nil, apperr.New(apperr.BadRequest, fmt.Sprintf("第 %d 行答案来源只能填「AI生成」或「团队」", line))
+		}
+		p.AnswerAI = aiAnswer && p.Answer != ""
 		if y, err := strconv.Atoi(get(row, "year")); err == nil && y > 1977 {
 			p.ExamYear = &y
 		} else if get(row, "kind") == "真题" {
 			return nil, apperr.New(apperr.BadRequest, fmt.Sprintf("第 %d 行是真题，年份必填", line))
 		}
-		if kp := get(row, "kp"); kp != "" {
-			p.KPNames = []string{kp}
-		}
+		p.KPNames = SplitKPNames(get(row, "kp"))
 		// 选填两列：「限选分组」（如 第一组）与「适用专业」；不填是必答题（T51）。
 		if g := get(row, "group"); g != "" {
 			p.Group = &QuestionGroup{Label: g, Majors: get(row, "group_majors")}
@@ -1013,6 +1036,10 @@ type ImportItem struct {
 	AnswerBasis *ai.AnswerBasis
 	// Filling 是单题「生成答案 / 重新生成」已排队、还没生成完。
 	Filling bool
+	// MissingKPs 是题目关联的知识点里，项目里找不到的名称（T56：先导入知识点表，否则发布时对不上）。
+	MissingKPs []string
+	// ExistingKP 是知识点在题库里已有同名的，接受后按修订处理（T56）。
+	ExistingKP bool
 }
 
 // ImportDetail 是核对区：原文与解析结果。
@@ -1045,6 +1072,9 @@ func (s *Service) ImportItems(ctx context.Context, projectID, fileID uint64) (Im
 		out.Items[i] = it
 	}
 	if err := s.markDuplicates(ctx, f, out.Items); err != nil {
+		return ImportDetail{}, err
+	}
+	if err := s.markKPs(ctx, f, out.Items); err != nil {
 		return ImportDetail{}, err
 	}
 	return out, nil
@@ -1117,7 +1147,21 @@ func (s *Service) ReviewImportItem(ctx context.Context, editorID, projectID, ite
 	}
 	payload := it.Payload
 	if len(edited) > 0 {
-		payload = edited
+		// 后台旧页面「修改」时不认识出处、解析（T56），提交的内容里没有这两项时沿用解析出来的。
+		payload = keepFields(edited, it.Payload, "reference", "analysis")
+	}
+	changeType, entityID := "add", uint64(0)
+	if it.ItemType == dbq.OfficialImportItemsItemTypeKnowledgePoint {
+		// 题库里已有同名知识点：按修订处理，不重复新建（T56；题目按名称关联知识点）。
+		var k KPPayload
+		if err := json.Unmarshal(payload, &k); err != nil {
+			return 0, apperr.New(apperr.BadRequest, "知识点格式不正确")
+		}
+		if id, err := s.officialKPByName(ctx, projectID, k.Name); err != nil {
+			return 0, err
+		} else if id > 0 {
+			changeType, entityID = "revise", id
+		}
 	}
 	if it.ItemType == dbq.OfficialImportItemsItemTypeQuestion {
 		var p QuestionPayload
@@ -1149,7 +1193,7 @@ func (s *Service) ReviewImportItem(ctx context.Context, editorID, projectID, ite
 			return 0, apperr.New(apperr.BadRequest, "采分点合计和分值不一致，先修改").With("reason", "rubric_sum")
 		}
 	}
-	d, err := s.SaveDraft(ctx, editorID, projectID, 0, string(it.ItemType), "add", 0, payload)
+	d, err := s.SaveDraft(ctx, editorID, projectID, 0, string(it.ItemType), changeType, entityID, payload)
 	if err != nil {
 		return 0, err
 	}
@@ -1431,4 +1475,105 @@ func (s *Service) RecoverImports(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// maxCitationRunes 是出处的长度上限（questions.reference_text、knowledge_points.reference_text 是 VARCHAR(1000)）。
+const maxCitationRunes = 1000
+
+// isKPTable 判断表格是不是知识点表（T56）：有板块、章节、知识点三列，没有题干。
+func isKPTable(col map[string]int) bool {
+	for _, k := range []string{"section", "chapter", "kp"} {
+		if _, ok := col[k]; !ok {
+			return false
+		}
+	}
+	_, stem := col["stem"]
+	return !stem
+}
+
+// parseKPTable 解析知识点表（T56）：一行一个知识点，列为 板块、章节、知识点、原文表述、采分点、出处。
+// 知识点名称在项目里唯一（题目按名称关联）；同一张表里重名的只留第一行。题库里已有同名知识点的，核对区标出、接受后按修订处理。
+func parseKPTable(rows [][]string, get func([]string, string) string) ([]dbq.InsertOfficialImportItemParams, error) {
+	var out []dbq.InsertOfficialImportItemParams
+	seen := map[string]int{}
+	for n, row := range rows[1:] {
+		line := n + 2
+		name := get(row, "kp")
+		if name == "" {
+			continue
+		}
+		if first, ok := seen[name]; ok {
+			return nil, apperr.New(apperr.BadRequest, fmt.Sprintf("第 %d 行知识点「%s」与第 %d 行重名", line, cutRunes(name, 20), first))
+		}
+		seen[name] = line
+		p := KPPayload{Section: get(row, "section"), Chapter: get(row, "chapter"), Name: name, OriginalText: get(row, "original"),
+			Reference: cutRunes(get(row, "source"), maxCitationRunes)}
+		if p.Section == "" || p.Chapter == "" {
+			return nil, apperr.New(apperr.BadRequest, fmt.Sprintf("第 %d 行知识点要有板块、章节", line))
+		}
+		if cell := get(row, "rubric"); cell != "" {
+			pts, err := ParseRubricCell(cell)
+			if err != nil {
+				return nil, apperr.New(apperr.BadRequest, fmt.Sprintf("第 %d 行%s", line, err.Error()))
+			}
+			p.Rubric = pts
+		}
+		conf := dbq.OfficialImportItemsConfidenceHigh
+		if len(p.Rubric) == 0 || p.OriginalText == "" {
+			conf = dbq.OfficialImportItemsConfidenceLow // 发布前检查要求知识点有采分点
+		}
+		b, _ := json.Marshal(p)
+		src := p.Section + " / " + p.Chapter + " / " + p.Name
+		if p.Reference != "" {
+			src += "\n出处：" + p.Reference
+		}
+		out = append(out, dbq.InsertOfficialImportItemParams{ItemType: dbq.OfficialImportItemsItemTypeKnowledgePoint, Payload: b,
+			SourceText: nullStr(cutRunes(src, 2000)), Page: uint32(line), Confidence: conf})
+	}
+	if len(out) == 0 {
+		return nil, apperr.New(apperr.BadRequest, "表格里没有知识点")
+	}
+	return out, nil
+}
+
+// keepFields 把 original 里有、edited 里没有的几项补回 edited（edited 是后台「修改」提交的整条内容）。
+func keepFields(edited, original json.RawMessage, keys ...string) json.RawMessage {
+	var e, o map[string]json.RawMessage
+	if json.Unmarshal(edited, &e) != nil || json.Unmarshal(original, &o) != nil {
+		return edited
+	}
+	changed := false
+	for _, k := range keys {
+		if _, ok := e[k]; !ok {
+			if v, ok := o[k]; ok {
+				e[k], changed = v, true
+			}
+		}
+	}
+	if !changed {
+		return edited
+	}
+	b, err := json.Marshal(e)
+	if err != nil {
+		return edited
+	}
+	return b
+}
+
+// officialKPByName 是项目官方题库里已发布的同名知识点（只看「知识点」这一级），没有时返回 0。
+func (s *Service) officialKPByName(ctx context.Context, projectID uint64, name string) (uint64, error) {
+	p, err := s.Project(ctx, projectID)
+	if err != nil {
+		return 0, err
+	}
+	kps, err := s.q.ListOfficialKPs(ctx, p.BankID)
+	if err != nil {
+		return 0, err
+	}
+	for _, k := range kps {
+		if k.Level == dbq.KnowledgePointsLevelPoint && k.Name == strings.TrimSpace(name) {
+			return k.ID, nil
+		}
+	}
+	return 0, nil
 }

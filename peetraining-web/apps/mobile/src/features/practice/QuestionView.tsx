@@ -100,6 +100,7 @@ export function ResultPanel({ q, result, onReport }: { q: PracticeQuestion; resu
           {analysis}
         </Text>
       ) : null}
+      {q.reference ? <Text variant="small">出处：{q.reference}</Text> : null}
       {result.wrongBook === 'added' ? <Text variant="caption" color={semantic.danger}>已加入错题本</Text> : null}
       {result.wrongBook === 'removed' ? <Text variant="caption" color={semantic.mastered}>两次答对，已从错题本移出</Text> : null}
       {!result.synced ? <Text variant="caption" color={semantic.info}>离线作答，联网后自动提交并复核</Text> : null}

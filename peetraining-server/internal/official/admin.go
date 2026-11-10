@@ -686,7 +686,7 @@ func (c content) payloadOf(entityType string, id uint64) json.RawMessage {
 		if !ok {
 			return nil
 		}
-		p := KPPayload{Name: k.Name, OriginalText: k.OriginalText.String, Rubric: pts(c.kpRubric[k.ID])}
+		p := KPPayload{Name: k.Name, OriginalText: k.OriginalText.String, Rubric: pts(c.kpRubric[k.ID]), Reference: k.ReferenceText.String}
 		if ch, ok := names[uint64(k.ParentID.Int64)]; ok {
 			p.Chapter = ch.Name
 			if sec, ok := names[uint64(ch.ParentID.Int64)]; ok {
@@ -700,7 +700,7 @@ func (c content) payloadOf(entityType string, id uint64) json.RawMessage {
 		if x.ID != id {
 			continue
 		}
-		p := QuestionPayload{AnswerSnapshotID: uint64(x.AnswerSnapshotID.Int64), QType: string(x.Qtype), Stem: x.Stem, Answer: x.Answer.String, Analysis: x.Analysis.String, Rubric: pts(c.qRubric[x.ID]), KPNames: []string{},
+		p := QuestionPayload{AnswerSnapshotID: uint64(x.AnswerSnapshotID.Int64), QType: string(x.Qtype), Stem: x.Stem, Answer: x.Answer.String, Analysis: x.Analysis.String, Reference: x.ReferenceText.String, Rubric: pts(c.qRubric[x.ID]), KPNames: []string{},
 			AnswerAI: x.AnswerOrigin.Valid && x.AnswerOrigin.QuestionsAnswerOrigin == dbq.QuestionsAnswerOriginAiGenerated, Group: groupOf(x.GroupLabel, x.GroupMajors)}
 		_ = json.Unmarshal(x.Options, &p.Options)
 		if x.Score.Valid {
@@ -878,14 +878,15 @@ func (s *Service) ReleasePreview(ctx context.Context, projectID uint64) (Preview
 		}
 		out.Changes = append(out.Changes, ch)
 	}
-	out.Checks = checksFor(drafts)
+	out.Checks = checksFor(drafts, c.pointNames())
 	out.Notice = fmt.Sprintf("「%s」官方题库更新到 %s 版：%d 处变更；你修改过的内容不会被覆盖", p.SubjectName, out.NextVersion, len(out.Changes))
 	return out, nil
 }
 
-// checksFor 是发布前的自动检查（发布时在应用后的结果上再查一次）：有变更、知识点都有采分点、主观题都有采分点、
-// 题目关联的知识点都存在。模拟卷结构检查等官方模拟卷上线后再加（D40）。
-func checksFor(drafts []dbq.OfficialDraft) []Check {
+// checksFor 是发布前的自动检查（发布时在应用后的结果上再查一次）：有变更、知识点都有采分点、
+// 题目关联的知识点都存在（T56 补上：以前对不上的关联在发布时直接丢掉）。published 是已发布的知识点名称。
+// 模拟卷结构检查等官方模拟卷上线后再加（D40）。
+func checksFor(drafts []dbq.OfficialDraft, published map[string]bool) []Check {
 	kpNames := map[string]bool{}
 	var noRubric []string
 	for _, d := range drafts {
@@ -900,6 +901,8 @@ func checksFor(drafts []dbq.OfficialDraft) []Check {
 	}
 	checks := []Check{{Name: "有已审核的变更", Passed: len(drafts) > 0}}
 	checks = append(checks, Check{Name: "所有知识点都有采分点", Passed: len(noRubric) == 0, Detail: strings.Join(noRubric, "、")})
+	missing := questionKPCheck(drafts, published)
+	checks = append(checks, Check{Name: "题目关联的知识点都存在", Passed: len(missing) == 0, Detail: strings.Join(missing, "；")})
 	return checks
 }
 
@@ -955,7 +958,11 @@ func (s *Service) Publish(ctx context.Context, adminID, projectID uint64, versio
 	if err != nil {
 		return Version{}, err
 	}
-	for _, c := range checksFor(drafts) {
+	cur, err := loadContent(ctx, s.q, p.BankID)
+	if err != nil {
+		return Version{}, err
+	}
+	for _, c := range checksFor(drafts, cur.pointNames()) {
 		if !c.Passed {
 			return Version{}, apperr.New(apperr.Conflict, "发布前检查没通过："+c.Name+" "+c.Detail)
 		}
@@ -1226,13 +1233,13 @@ func (s *Service) apply(ctx context.Context, q *dbq.Queries, bankID uint64, enti
 		id := entityID
 		if changeType == "add" {
 			nid, err := q.InsertOfficialKP(ctx, dbq.InsertOfficialKPParams{BankID: bankID, ParentID: sql.NullInt64{Int64: int64(parent), Valid: true},
-				Level: dbq.KnowledgePointsLevelPoint, Name: p.Name, OriginalText: nullStr(p.OriginalText), SortOrder: uint32(len(kps))})
+				Level: dbq.KnowledgePointsLevelPoint, Name: p.Name, OriginalText: nullStr(p.OriginalText), ReferenceText: nullStr(p.Reference), SortOrder: uint32(len(kps))})
 			if err != nil {
 				return 0, err
 			}
 			id = uint64(nid)
 		} else {
-			if err := q.UpdateOfficialKP(ctx, dbq.UpdateOfficialKPParams{Name: p.Name, OriginalText: nullStr(p.OriginalText), ID: id, BankID: bankID}); err != nil {
+			if err := q.UpdateOfficialKP(ctx, dbq.UpdateOfficialKPParams{Name: p.Name, OriginalText: nullStr(p.OriginalText), ReferenceText: nullStr(p.Reference), ID: id, BankID: bankID}); err != nil {
 				return 0, err
 			}
 			if err := q.DeleteOfficialKPRubric(ctx, sql.NullInt64{Int64: int64(id), Valid: true}); err != nil {
@@ -1257,15 +1264,16 @@ func (s *Service) apply(ctx context.Context, q *dbq.Queries, bankID uint64, enti
 	gl, gm := groupCols(p.Group)
 	if changeType == "add" {
 		nid, err := q.InsertOfficialQuestion(ctx, dbq.InsertOfficialQuestionParams{BankID: bankID, Qtype: dbq.QuestionsQtype(p.QType), Stem: p.Stem, Options: opts,
-			Answer: nullStr(p.Answer), AnswerOrigin: answerOrigin(p), Analysis: nullStr(p.Analysis), Score: scoreStr(p.Score), ExamYear: year, ContentHash: importer.ContentHash(p.Stem),
-			GroupLabel: gl, GroupMajors: gm})
+			Answer: nullStr(p.Answer), AnswerOrigin: answerOrigin(p), Analysis: nullStr(p.Analysis), ReferenceText: nullStr(p.Reference), Score: scoreStr(p.Score), ExamYear: year,
+			ContentHash: importer.ContentHash(p.Stem), GroupLabel: gl, GroupMajors: gm})
 		if err != nil {
 			return 0, err
 		}
 		id = uint64(nid)
 	} else {
 		if err := q.UpdateOfficialQuestion(ctx, dbq.UpdateOfficialQuestionParams{Qtype: dbq.QuestionsQtype(p.QType), Stem: p.Stem, Options: opts, Answer: nullStr(p.Answer), AnswerOrigin: answerOrigin(p),
-			Analysis: nullStr(p.Analysis), Score: scoreStr(p.Score), ExamYear: year, ContentHash: importer.ContentHash(p.Stem), GroupLabel: gl, GroupMajors: gm, ID: id, BankID: bankID}); err != nil {
+			Analysis: nullStr(p.Analysis), ReferenceText: nullStr(p.Reference), Score: scoreStr(p.Score), ExamYear: year, ContentHash: importer.ContentHash(p.Stem), GroupLabel: gl, GroupMajors: gm,
+			ID: id, BankID: bankID}); err != nil {
 			return 0, err
 		}
 		if err := q.DeleteOfficialQuestionRubric(ctx, sql.NullInt64{Int64: int64(id), Valid: true}); err != nil {

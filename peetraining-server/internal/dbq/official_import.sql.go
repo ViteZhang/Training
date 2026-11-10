@@ -349,6 +349,53 @@ func (q *Queries) ListProjectDraftQuestionPayloads(ctx context.Context, projectI
 	return items, nil
 }
 
+const listProjectImportKPs = `-- name: ListProjectImportKPs :many
+SELECT i.id, i.file_id, i.seq, i.status, i.payload, f.file_name
+FROM official_import_items i JOIN official_import_files f ON f.id = i.file_id
+WHERE i.project_id = ? AND i.item_type = 'knowledge_point' AND i.status <> 'rejected'
+ORDER BY i.file_id, i.seq
+`
+
+type ListProjectImportKPsRow struct {
+	ID       uint64
+	FileID   uint64
+	Seq      uint32
+	Status   OfficialImportItemsStatus
+	Payload  json.RawMessage
+	FileName string
+}
+
+// T56 知识点核对：项目里还没驳回的解析知识点（各份资料的），与资料名一起；题目关联的知识点名称、知识点重名都从这里查。
+func (q *Queries) ListProjectImportKPs(ctx context.Context, projectID uint64) ([]ListProjectImportKPsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectImportKPs, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectImportKPsRow{}
+	for rows.Next() {
+		var i ListProjectImportKPsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FileID,
+			&i.Seq,
+			&i.Status,
+			&i.Payload,
+			&i.FileName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjectImportQuestionPayloads = `-- name: ListProjectImportQuestionPayloads :many
 SELECT payload FROM official_import_items WHERE project_id = ? AND item_type = 'question' AND status <> 'rejected'
 `

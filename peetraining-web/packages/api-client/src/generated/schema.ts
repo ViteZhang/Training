@@ -4701,8 +4701,10 @@ export interface paths {
          * @description format 为 text 或 csv 时直接带 text，马上开始解析；pdf / docx / image 返回 upload_url，客户端直传后调用 confirm。
          *     md（Markdown，T52）可以上传 .md 文件（带 size，UTF-8 编码），也可以直接带 text 粘贴；解析前去掉排版标记（标题符号、加粗、链接网址、图片），
          *     表格逐行转成文字。粘贴的 text 也做同样的处理。
-         *     表格导入的表头：年份、题号、题型、分值、题干、参考答案、采分点（每行一条：要点 + 分值）、知识点、出处、来源类型、限选分组、适用专业；
+         *     表格导入的表头：年份、题号、题型、分值、题干、参考答案、解析、采分点（每行一条：要点 + 分值）、知识点、出处、答案来源、来源类型、限选分组、适用专业；
          *     题型、分值、题干必填，真题年份必填。限选分组（如「第一组」）与适用专业选填：填了是限选题，不填是必答题（T51）。
+         *     T56：知识点可填多个，用「；」隔开，第一个是主知识点；出处存进题目、发布后展示给用户；答案来源填「AI生成」标 AI 参考答案，填「团队」或不填标官方答案。
+         *     表头有板块、章节、知识点而没有题干的是知识点表：板块、章节、知识点、原文表述、采分点、出处，一行一个知识点（同一张表不能重名）。
          *     真题卷里按专业分组的题（「第一组：请选择文艺学专业的考生作答」）解析时自动标成限选题。
          *     auto_answer 为 true 时解析过程中缺参考答案、采分点的题由 AI 补全；默认不补，解析后由编辑逐题「生成答案 / 提取采分点」或整份「一键补全」（T49）。
          */
@@ -4745,7 +4747,11 @@ export interface paths {
         get: operations["adminGetOfficialImport"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * 删除一份导入的资料，连同解析出的题、核对时生成的草稿与审核任务
+         * @description 其中有题已经发布到题库时不能删除（409）。正在解析、补全时也可以删，后台任务发现资料不在了会自行结束。
+         */
+        delete: operations["adminDeleteOfficialImport"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4822,6 +4828,8 @@ export interface paths {
          *     有答案缺采分点的从答案提采分点。主观题没有分值时参考同项目同题型最常见的分值（payload.score_inferred），
          *     同题型一道有分值的都没有时返回 400（detail.reason = score_missing），请先「修改」填分值。
          *     生成失败返回 400 / 502（AI_FAILED），原因同时记在条目的 fill_error 上。
+         *     生产环境在 Worker 里生成（检索教材加生成常超过一分钟）：立即返回 filling = true 的条目，生成完或失败后 filling 变回 false，
+         *     失败原因记在 fill_error 上；生成中再点、接受返回 409。
          */
         post: operations["adminFillOfficialImportItem"];
         delete?: never;
@@ -4864,6 +4872,7 @@ export interface paths {
          * 按关联教材重新生成一道题的 AI 答案（T53）
          * @description 只能用于还没核对、答案由 AI 生成的题（answer_ai = true）；原文给的采分点保留。
          *     失败返回 400 / 502（AI_FAILED），原来的答案不变，原因记在 fill_error 上。
+         *     生产环境与「生成答案」一样在 Worker 里生成：立即返回 filling = true 的条目。
          */
         post: operations["adminRegenerateOfficialImportItem"];
         delete?: never;
@@ -6648,6 +6657,8 @@ export interface components {
             /** @description 客观题正确答案或主观题参考答案（离线判分用，联网后服务端复核） */
             answer?: string;
             analysis?: string;
+            /** @description 出处（T56） */
+            reference?: string;
             score?: number;
             source: components["schemas"]["QuestionSource"];
             exam_year?: number;
@@ -8994,7 +9005,10 @@ export interface components {
             /**
              * @description 结构同 7.12 草稿。题目另有：answer_ai（参考答案由 AI 生成，发布后用户端显示「AI 参考答案」，照常计入预估分）、
              *     score_inferred（原文没有分值，参考同项目同题型的给分填上，请核对）、
-             *     group（限选题：{ label: 组名如「第一组」, majors: 适用专业 }；没有是必答题，T51）。
+             *     group（限选题：{ label: 组名如「第一组」, majors: 适用专业 }；没有是必答题，T51）、
+             *     analysis（解析）、reference（出处，发布后展示给用户，T56）、kp_names（关联的知识点名称，第一个是主知识点）。
+             *     知识点另有 reference（出处，T56）。表格导入的「答案来源」填 AI生成 时 answer_ai 为 true。
+             *     「修改后接受」提交的内容里没有 reference、analysis 时沿用解析出来的。
              */
             payload: {
                 [key: string]: unknown;
@@ -9037,6 +9051,8 @@ export interface components {
             needs_fill?: boolean;
             /** @description 上次补全失败的原因 */
             fill_error?: string;
+            /** @description 单题「生成答案 / 重新生成」已排队、还没生成完（核对区显示「生成中」，排队超过 15 分钟算中断，可以再点） */
+            filling?: boolean;
             /**
              * @description 重复说明（T52），如「与《2025 真题.pdf》第 3 题相同」「与已发布的官方题相同」；只标还没核对的题，标了的置信度为 low。
              *     同一年份下题干相同，或同题型且题干互相重合 90% 以上算重复；比对已发布的官方题、未发布的新增题目草稿、项目里各份资料还没驳回的解析题。
@@ -9044,8 +9060,12 @@ export interface components {
             duplicate_of?: string;
             /** @description 别的年份也考过同一题（不算重复，只做提示） */
             seen_years?: number[];
-            /** @description 答案由 AI 生成（还没核对的可以按关联教材重新生成，T53） */
+            /** @description 答案由 AI 生成（还没核对的可以按关联教材重新生成，T53；表格导入标了 AI生成 的也是，重新生成会覆盖导入的答案） */
             answer_ai?: boolean;
+            /** @description 题目关联的知识点里，项目里找不到的名称（T56）：已发布的、草稿里的、各份资料还没驳回的知识点都没有。先导入知识点表；不处理的话发布前检查不通过 */
+            missing_kps?: string[];
+            /** @description 知识点在题库里已有同名的（T56），接受后按修订处理，不重复新建 */
+            existing_kp?: boolean;
             /** @description AI 生成的答案没有引用教材时的原因（T53）；引用了教材或答案是原文给的时没有 */
             answer_basis?: {
                 /**
@@ -9305,11 +9325,12 @@ export interface components {
          */
         ReviewReason: "low_confidence" | "missing_answer" | "rubric_unconfirmed" | "rubric_sum_mismatch" | "duplicate" | "answer_matched";
         /**
-         * @description 参考答案的来源档位（PRD 11.16）：来自你的资料 / 你已确认 / AI 参考答案 / AI 出题自带的答案 / 缺答案。
+         * @description 参考答案的来源档位（PRD 11.16）：来自你的资料 / 你已确认 / AI 参考答案 / AI 出题自带的答案 / 官方答案 / 缺答案。
          *     除 missing 外都计入预估分（11 月 4 日起 ai 也计入，T49）；ai 包括做到时 AI 生成的，和官方题库由 AI 生成、经编辑审核的，可以确认或修改。
+         *     official 是官方题库导入时标为团队答案的（T56；此前归在 material，显示成「来自你的资料」）。
          * @enum {string}
          */
-        AnswerTier: "material" | "confirmed" | "ai" | "ai_question" | "missing";
+        AnswerTier: "material" | "confirmed" | "ai" | "ai_question" | "official" | "missing";
         /**
          * @description 「来自你的资料」的答案怎么来的：原文自带 / 从你的其他资料匹配 / 1.7c 补充答案文件配对
          * @enum {string}
@@ -9534,6 +9555,8 @@ export interface components {
             parent_id?: number;
             /** @description 原文表述，采分关键词由 rubric_points.keywords 标出 */
             original_text?: string;
+            /** @description 出处（官方题库导入时填写，T56） */
+            reference?: string;
             source?: components["schemas"]["SourceRef"];
             origin: components["schemas"]["Origin"];
             exam_count: number;
@@ -9647,6 +9670,8 @@ export interface components {
             answer?: string;
             answer_origin?: components["schemas"]["Origin"];
             analysis?: string;
+            /** @description 出处（官方题库导入时填写，T56；有内容就展示给用户，与答案是不是 AI 生成无关） */
+            reference?: string;
             score?: number;
             source: components["schemas"]["QuestionSource"];
             exam_year?: number;
@@ -11302,8 +11327,8 @@ export interface operations {
                 /** @description 某知识点（含子节点）下的题 */
                 kp_id?: number;
                 status?: "mastered" | "wrong" | "needs_review" | "unanswered";
-                /** @description 3.1b 按答案状态筛选：来自你的资料 / 你已确认 / AI 答案待确认 / 缺答案 */
-                answer_status?: "material" | "confirmed" | "ai" | "missing";
+                /** @description 3.1b 按答案状态筛选：来自你的资料 / 你已确认 / AI 答案待确认 / 官方答案 / 缺答案（T56 加 official） */
+                answer_status?: "material" | "confirmed" | "ai" | "official" | "missing";
                 sort?: "chapter" | "recent";
                 /** @description 上一页响应里的 next_cursor */
                 cursor?: components["parameters"]["Cursor"];
@@ -17327,6 +17352,29 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    adminDeleteOfficialImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: number;
+                fileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
     adminConfirmOfficialImport: {
         parameters: {
             query?: never;
@@ -17416,7 +17464,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 补好的条目 */
+            /** @description 补好的条目；在 Worker 里生成时是 filling = true 的条目 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17468,7 +17516,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 重新生成后的条目 */
+            /** @description 重新生成后的条目；在 Worker 里生成时是 filling = true 的条目 */
             200: {
                 headers: {
                     [name: string]: unknown;

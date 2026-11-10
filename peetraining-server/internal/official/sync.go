@@ -194,12 +194,12 @@ func loadUser(ctx context.Context, q *dbq.Queries, userID, bankID uint64) (userC
 
 // kpUnmodified 判断用户副本没被改过：当前内容的哈希等于上次同步时的官方哈希。同名合并的（没有哈希）算改过，永不覆盖。
 func (u userContent) kpUnmodified(k dbq.ListUserKPCopiesRow) bool {
-	return k.OfficialHash.Valid && hashOf(k.Name, k.OriginalText.String, rubricText(u.kpRubric[k.ID])) == k.OfficialHash.String
+	return k.OfficialHash.Valid && kpHashOf(k.Name, k.OriginalText.String, rubricText(u.kpRubric[k.ID]), k.ReferenceText.String) == k.OfficialHash.String
 }
 
 func (u userContent) questionUnmodified(x dbq.ListUserQuestionCopiesRow) bool {
 	return x.OfficialHash.Valid && questionHashOf(string(x.Qtype), x.Stem, x.Answer.String, rubricText(u.qRubric[x.ID]), x.AnswerOrigin,
-		groupKey(x.GroupLabel, x.GroupMajors)) == x.OfficialHash.String
+		groupKey(x.GroupLabel, x.GroupMajors), x.Analysis.String, x.ReferenceText.String) == x.OfficialHash.String
 }
 
 // otherGroups 是与报考方向不匹配、不复制给这位用户的限选题（T51；回答非报考专业不得分）：
@@ -338,7 +338,7 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 					continue
 				}
 				id, err := q.InsertUserKPCopy(ctx, dbq.InsertUserKPCopyParams{OwnerUserID: owner, BankID: ub.ID, ParentID: parent, Level: o.Level, Name: o.Name,
-					OriginalText: o.OriginalText, OfficialKpID: sql.NullInt64{Int64: int64(o.ID), Valid: true}, OfficialHash: nullStr(oh), OfficialNewUntil: newUntil,
+					OriginalText: o.OriginalText, ReferenceText: o.ReferenceText, OfficialKpID: sql.NullInt64{Int64: int64(o.ID), Valid: true}, OfficialHash: nullStr(oh), OfficialNewUntil: newUntil,
 					SortOrder: uint32(i)})
 				if err != nil {
 					return err
@@ -359,7 +359,7 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 				continue
 			}
 			rubricChanged := rubricText(uc.kpRubric[u.ID]) != rubricText(contents(oc.kpRubric[o.ID]))
-			if err := q.UpdateUserKPCopy(ctx, dbq.UpdateUserKPCopyParams{Name: o.Name, OriginalText: o.OriginalText, OfficialHash: nullStr(oh), ID: u.ID, OwnerUserID: owner}); err != nil {
+			if err := q.UpdateUserKPCopy(ctx, dbq.UpdateUserKPCopyParams{Name: o.Name, OriginalText: o.OriginalText, ReferenceText: o.ReferenceText, OfficialHash: nullStr(oh), ID: u.ID, OwnerUserID: owner}); err != nil {
 				return err
 			}
 			if rubricChanged {
@@ -412,7 +412,7 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 			oh := oc.questionHash(o)
 			if !ok {
 				id, err := q.InsertUserQuestionCopy(ctx, dbq.InsertUserQuestionCopyParams{OwnerUserID: owner, BankID: ub.ID, Qtype: o.Qtype, Stem: o.Stem, Options: o.Options,
-					Answer: o.Answer, AnswerOrigin: copyOrigin(o.AnswerOrigin), Analysis: o.Analysis, Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem),
+					Answer: o.Answer, AnswerOrigin: copyOrigin(o.AnswerOrigin), Analysis: o.Analysis, ReferenceText: o.ReferenceText, Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem),
 					OfficialQuestionID: sql.NullInt64{Int64: int64(o.ID), Valid: true}, OfficialHash: nullStr(oh), GroupLabel: o.GroupLabel, GroupMajors: o.GroupMajors})
 				if err != nil {
 					return err
@@ -437,7 +437,7 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 				continue
 			}
 			if err := q.UpdateUserQuestionCopy(ctx, dbq.UpdateUserQuestionCopyParams{Qtype: o.Qtype, Stem: o.Stem, Options: o.Options, Answer: o.Answer, AnswerOrigin: copyOrigin(o.AnswerOrigin), Analysis: o.Analysis,
-				Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem), OfficialHash: nullStr(oh), GroupLabel: o.GroupLabel, GroupMajors: o.GroupMajors,
+				ReferenceText: o.ReferenceText, Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem), OfficialHash: nullStr(oh), GroupLabel: o.GroupLabel, GroupMajors: o.GroupMajors,
 				ID: u.ID, OwnerUserID: owner}); err != nil {
 				return err
 			}
