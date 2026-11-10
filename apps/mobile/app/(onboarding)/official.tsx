@@ -51,7 +51,8 @@ export default function OfficialFound() {
       await setStep('1.2');
       router.push('/(onboarding)/target');
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : '添加失败，请重试');
+      // 超时时服务端还在复制（不会因为断开撤销），稍后再点一次返回 409，直接往下走
+      toast(e instanceof ApiError ? (e.isTimeout ? '还在添加，题目较多，请稍等再点一次' : e.message) : '添加失败，请重试');
     } finally {
       await Promise.all([qc.invalidateQueries({ queryKey: ['catalog'] }), qc.invalidateQueries({ queryKey: ['subjects'] })]);
       setBusy(false);
