@@ -1,5 +1,5 @@
 // 添加官方题库（PRD 5.6、11.15，T30）：已发布的官方题库列表，选专业课添加（代码相同的建议添加到那门课）、移除。
-// 顶部是「已上线官方题库」公告横幅，7 天内上线或更新的标「新」。
+// 顶部是「已上线官方题库」公告横幅，7 天内上线或更新的标「新」；目标院校（备考设置）的官方题库排最前，标「你的院校」。
 // 添加后官方知识点与题目进到这门课的题库，标「官方」，和自建的一起练；同名知识点保留你自己的表述。受 official_bank 开关控制。
 import { radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { BottomSheet, Button, Card, ConfirmDialog, EmptyState, ErrorState, Loading, Screen, Tag, Text, toast } from '@/components';
 import { PageHeader } from '@/features/import/ui';
-import { OfficialNotice } from '@/features/official/OfficialNotice';
+import { matchTarget, OfficialNotice } from '@/features/official/OfficialNotice';
 import { api, unwrap } from '@/lib/api';
 import type { Schemas } from '@training/api-client';
 import { track } from '@/lib/analytics';
@@ -19,6 +19,7 @@ export default function OfficialBanksPage() {
   const qc = useQueryClient();
   const banks = useQuery({ queryKey: ['official-banks'], queryFn: () => unwrap(api.GET('/official-banks')) });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => unwrap(api.GET('/subjects')) });
+  const profile = useQuery({ queryKey: ['profile'], queryFn: () => unwrap(api.GET('/profile')) });
   const [adding, setAdding] = useState<Bank>();
   const [removing, setRemoving] = useState<Bank>();
   const refresh = () => {
@@ -49,7 +50,9 @@ export default function OfficialBanksPage() {
 
   if (banks.isPending || subjects.isPending) return <Screen><Loading rows={4} /></Screen>;
   if (banks.isError) return <Screen><ErrorState error={banks.error} onRetry={() => void banks.refetch()} /></Screen>;
-  const list = banks.data.items;
+  // 目标院校的官方题库排在最前，标「你的院校」
+  const mine = matchTarget(banks.data.items, profile.data?.target_school_major);
+  const list = [...mine, ...banks.data.items.filter((b) => !mine.includes(b))];
   const subs = (subjects.data?.items ?? []).filter((s) => !s.is_essay);
   const subjectName = (id?: number) => {
     const s = subs.find((x) => x.id === id);
@@ -69,6 +72,7 @@ export default function OfficialBanksPage() {
               <Text variant="h3" style={styles.flex}>
                 {b.school} {b.subject_code} {b.subject_name}
               </Text>
+              {mine.includes(b) ? <Tag label="你的院校" tone="info" style={styles.center} /> : null}
               {b.is_new ? <Tag label="新" tone="mastered" style={styles.center} /> : null}
               <Tag label="官方" tone="brand" />
             </View>

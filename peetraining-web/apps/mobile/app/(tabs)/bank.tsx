@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, EmptyState, ErrorState, Icon, Loading, Screen, Segmented, Text, UnderlineTabs } from '@/components';
+import { Button, Card, EmptyState, ErrorState, Icon, Loading, Screen, Segmented, Tag, Text, UnderlineTabs } from '@/components';
 import { useOverview, useMaterials } from '@/features/bank/api';
 import { EssayKnowledgeBase } from '@/features/bank/EssayKB';
 import { MaterialList } from '@/features/bank/MaterialList';
@@ -15,6 +15,7 @@ import { SupplementCard } from '@/features/official/SupplementCard';
 import { Segments } from '@/features/import/ui';
 import { api, unwrap } from '@/lib/api';
 import { useFeatureFlag } from '@/lib/flags';
+import { matchTarget, useOfficialBanks } from '@/features/official/OfficialNotice';
 
 type Tab = 'kp' | 'question' | 'material';
 type TreeFilter = 'all' | 'unmastered' | 'exam' | 'needs_review';
@@ -101,6 +102,10 @@ export default function BankTab() {
   const overview = useOverview(subject?.id);
   const official = useFeatureFlag('official_bank');
   const applyOn = useFeatureFlag('course_apply');
+  const profile = useQuery({ queryKey: ['profile'], queryFn: () => unwrap(api.GET('/profile')), enabled: official });
+  const officialBanks = useOfficialBanks(official);
+  // 目标院校有、还没添加的官方题库：入口文案直接提示
+  const todo = matchTarget(officialBanks.data?.items ?? [], profile.data?.target_school_major).filter((b) => !b.added_subject_id);
 
   if (subjects.isLoading) return <Screen edges={['top']}><Loading rows={6} /></Screen>;
   if (subjects.isError) return <Screen edges={['top']}><ErrorState error={subjects.error} onRetry={() => void subjects.refetch()} /></Screen>;
@@ -137,10 +142,10 @@ export default function BankTab() {
             <Text variant="bodyStrong" style={styles.flex}>
               添加官方题库
             </Text>
-            <Text variant="caption">和自建的一起练</Text>
+            {todo.length > 0 ? <Tag label={`你的院校有 ${todo.length} 门`} tone="mastered" style={styles.center} /> : <Text variant="caption">和自建的一起练</Text>}
           </Pressable>
         ) : null}
-        {applyOn && !subject.is_essay && o && !o.has_official ? (
+        {applyOn && !subject.is_essay && o && !o.has_official && todo.length === 0 ? (
           <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/apply', params: { entry: 'bank', subjectId: String(subject.id) } })} style={styles.official}>
             <Text variant="bodyStrong" style={styles.flex}>
               申请收录这门课
@@ -202,6 +207,7 @@ export default function BankTab() {
 }
 
 const styles = StyleSheet.create({
+  center: { alignSelf: 'center' },
   scroll: { paddingBottom: spacing.xl, gap: 14 },
   title: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.sm },
   flex: { flex: 1 },
