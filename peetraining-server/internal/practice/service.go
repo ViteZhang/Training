@@ -60,6 +60,7 @@ type Service struct {
 	queue      Enqueuer
 	gradeTasks PaperGradeTasks
 	score      Estimator
+	materials  SampleMaterials
 	now        func() time.Time
 }
 

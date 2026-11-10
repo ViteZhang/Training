@@ -15,6 +15,8 @@ type SampleQuestionIn struct {
 	QType     string   `json:"qtype"`     // term / short_answer / discussion
 	Score     float64  `json:"score"`
 	Avoid     []string `json:"avoid,omitempty"` // 已有的题干，避免重复
+	// Excerpts 是后台批量生成时从关联的官方资料库教材里检索到的原文片段；有片段时按片段内容出题（v2）。
+	Excerpts []string `json:"excerpts,omitempty"`
 }
 
 type SampleQuestionOut struct {
@@ -25,7 +27,7 @@ type SampleQuestionOut struct {
 
 // SampleQuestion 出一道体验题：题干、参考答案与采分点。采分点合计必须等于分值（差额由校验按比例修正前先判断是否离谱）。
 var SampleQuestion = &Cap[SampleQuestionIn, SampleQuestionOut]{
-	Def: Def{Name: "sample_question", Version: "v1", Tier: "cheap", Temperature: 0.6, Schema: `{
+	Def: Def{Name: "sample_question", Version: "v2", Tier: "cheap", Temperature: 0.6, Schema: `{
 		"type": "object", "required": ["stem", "answer", "points"],
 		"properties": {
 			"stem": {"type": "string", "minLength": 2, "maxLength": 300},
