@@ -292,9 +292,9 @@ describe('1.9b 体验结果', () => {
 });
 
 describe('1.1a 匹配到官方题库', () => {
-  const course = (added: number | null) => ({
+  const course = (added: number | null, papers = 3) => ({
     id: 9, subject_code: '812', subject_name: '西方哲学史', official_status: 'available',
-    official: { bank_id: 7, version: 1, exam_year_count: 10, kp_count: 120, paper_count: 3, added_subject_id: added },
+    official: { bank_id: 7, version: 1, exam_year_count: 10, kp_count: 120, paper_count: papers, added_subject_id: added },
   });
   beforeEach(() => {
     saveDraft({ examYear: 2027, school: '四川大学', major: '哲学', picked: [9], noOfficial: [], after: undefined });
@@ -311,6 +311,18 @@ describe('1.1a 匹配到官方题库', () => {
     expect(mockCalls.some((c) => c.method === 'PUT' && c.path === '/official-banks/{bankId}/subscription')).toBe(true);
     expect(mockCalls.some((c) => c.path === '/onboarding/official-first')).toBe(false);
     expect(mockCalls.find((c) => c.method === 'PATCH' && c.path === '/me')?.init).toEqual({ body: { onboarding_step: '1.2' } });
+  });
+
+  it('没有官方模拟卷时不显示模拟卷套数', async () => {
+    mockResponses['GET /catalog/courses'] = () => ({ status: 200, data: { items: [course(null, 0)] } });
+    await wrap(<OfficialFound />);
+    expect(await screen.findByText('年真题')).toBeTruthy();
+    expect(screen.queryByText('套模拟卷')).toBeNull();
+  });
+
+  it('有官方模拟卷时显示套数', async () => {
+    await wrap(<OfficialFound />);
+    expect(await screen.findByText('套模拟卷')).toBeTruthy();
   });
 
   it('已经添加过（409）也往下走', async () => {
