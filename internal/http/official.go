@@ -40,7 +40,8 @@ func (h *Handlers) ListOfficialBanks(c *gin.Context) {
 	out := make([]gen.OfficialBank, len(bs))
 	for i, b := range bs {
 		out[i] = gen.OfficialBank{BankId: int64(b.BankID), Title: b.Title, School: b.School, Major: b.Major, SubjectCode: b.SubjectCode, SubjectName: b.SubjectName,
-			Version: b.Version, KpCount: b.KPCount, QuestionCount: b.QuestionCount, AddedSubjectId: optID(b.AddedTo), SuggestedSubjectId: optID(b.Suggested)}
+			Version: b.Version, KpCount: b.KPCount, QuestionCount: b.QuestionCount, AddedSubjectId: optID(b.AddedTo), SuggestedSubjectId: optID(b.Suggested),
+			UpdatedAt: b.UpdatedAt, IsNew: b.IsNew}
 	}
 	c.JSON(http.StatusOK, items(out))
 }

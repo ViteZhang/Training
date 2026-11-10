@@ -213,6 +213,9 @@ func TestOfficialBank(t *testing.T) {
 	if err != nil || len(banks) != 1 || banks[0].Suggested != sid || banks[0].AddedTo != 0 {
 		t.Fatalf("可添加的官方题库：%+v %v", banks, err)
 	}
+	if banks[0].UpdatedAt.IsZero() || !banks[0].IsNew {
+		t.Errorf("刚发布的官方题库应带更新时间并标新：%+v", banks[0])
+	}
 	bankID := banks[0].BankID
 	if err := s.Subscribe(ctx, uid, bankID, otherSid); kind(err) != apperr.NotFound {
 		t.Errorf("添加到别人的专业课 404：%v", err)

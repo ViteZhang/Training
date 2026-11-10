@@ -196,10 +196,11 @@ SELECT school, subject_code FROM official_demand_marks;
 SELECT b.id AS bank_id, b.title, b.subject_code, p.id AS project_id, p.school, p.major, p.subject_name,
   CAST(COALESCE((SELECT v.version FROM official_versions v WHERE v.project_id = p.id AND v.rolled_back_at IS NULL ORDER BY v.id DESC LIMIT 1), '') AS CHAR) AS version,
   (SELECT COUNT(*) FROM knowledge_points k WHERE k.bank_id = b.id AND k.owner_user_id IS NULL AND k.level = 'point') AS kp_count,
-  (SELECT COUNT(*) FROM questions q WHERE q.bank_id = b.id AND q.owner_user_id IS NULL AND q.status = 'active') AS question_count
+  (SELECT COUNT(*) FROM questions q WHERE q.bank_id = b.id AND q.owner_user_id IS NULL AND q.status = 'active') AS question_count,
+  CAST((SELECT MAX(v.published_at) FROM official_versions v WHERE v.project_id = p.id AND v.rolled_back_at IS NULL) AS DATETIME(3)) AS updated_at
 FROM banks b JOIN official_projects p ON p.bank_id = b.id
 WHERE b.source = 'official' AND EXISTS (SELECT 1 FROM official_versions v WHERE v.project_id = p.id AND v.rolled_back_at IS NULL)
-ORDER BY b.id;
+ORDER BY updated_at DESC, b.id;
 
 -- name: ListMySubscriptions :many
 SELECT bank_id, subject_id, added_at FROM bank_subscriptions WHERE owner_user_id = ?;
