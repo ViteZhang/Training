@@ -530,16 +530,17 @@ func (q *Queries) InsertOfficialDraft(ctx context.Context, arg InsertOfficialDra
 }
 
 const insertOfficialKP = `-- name: InsertOfficialKP :execlastid
-INSERT INTO knowledge_points (owner_user_id, bank_id, parent_id, level, name, original_text, origin, sort_order) VALUES (NULL, ?, ?, ?, ?, ?, 'official', ?)
+INSERT INTO knowledge_points (owner_user_id, bank_id, parent_id, level, name, original_text, reference_text, origin, sort_order) VALUES (NULL, ?, ?, ?, ?, ?, ?, 'official', ?)
 `
 
 type InsertOfficialKPParams struct {
-	BankID       uint64
-	ParentID     sql.NullInt64
-	Level        KnowledgePointsLevel
-	Name         string
-	OriginalText sql.NullString
-	SortOrder    uint32
+	BankID        uint64
+	ParentID      sql.NullInt64
+	Level         KnowledgePointsLevel
+	Name          string
+	OriginalText  sql.NullString
+	ReferenceText sql.NullString
+	SortOrder     uint32
 }
 
 func (q *Queries) InsertOfficialKP(ctx context.Context, arg InsertOfficialKPParams) (int64, error) {
@@ -549,6 +550,7 @@ func (q *Queries) InsertOfficialKP(ctx context.Context, arg InsertOfficialKPPara
 		arg.Level,
 		arg.Name,
 		arg.OriginalText,
+		arg.ReferenceText,
 		arg.SortOrder,
 	)
 	if err != nil {
@@ -590,23 +592,24 @@ func (q *Queries) InsertOfficialProject(ctx context.Context, arg InsertOfficialP
 }
 
 const insertOfficialQuestion = `-- name: InsertOfficialQuestion :execlastid
-INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, score, source, exam_year, content_hash, group_label, group_majors)
-VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?)
+INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, reference_text, score, source, exam_year, content_hash, group_label, group_majors)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?)
 `
 
 type InsertOfficialQuestionParams struct {
-	BankID       uint64
-	Qtype        QuestionsQtype
-	Stem         string
-	Options      dbtypes.NullJSON
-	Answer       sql.NullString
-	AnswerOrigin NullQuestionsAnswerOrigin
-	Analysis     sql.NullString
-	Score        sql.NullString
-	ExamYear     sql.NullInt16
-	ContentHash  string
-	GroupLabel   sql.NullString
-	GroupMajors  sql.NullString
+	BankID        uint64
+	Qtype         QuestionsQtype
+	Stem          string
+	Options       dbtypes.NullJSON
+	Answer        sql.NullString
+	AnswerOrigin  NullQuestionsAnswerOrigin
+	Analysis      sql.NullString
+	ReferenceText sql.NullString
+	Score         sql.NullString
+	ExamYear      sql.NullInt16
+	ContentHash   string
+	GroupLabel    sql.NullString
+	GroupMajors   sql.NullString
 }
 
 // answer_origin：official 团队给的答案；ai_generated 由 AI 生成、经编辑审核（用户端显示「AI 参考答案」，T49）。
@@ -620,6 +623,7 @@ func (q *Queries) InsertOfficialQuestion(ctx context.Context, arg InsertOfficial
 		arg.Answer,
 		arg.AnswerOrigin,
 		arg.Analysis,
+		arg.ReferenceText,
 		arg.Score,
 		arg.ExamYear,
 		arg.ContentHash,
@@ -771,8 +775,8 @@ func (q *Queries) InsertSubscription(ctx context.Context, arg InsertSubscription
 }
 
 const insertUserKPCopy = `-- name: InsertUserKPCopy :execlastid
-INSERT INTO knowledge_points (owner_user_id, bank_id, parent_id, level, name, original_text, origin, official_kp_id, official_hash, official_new_until, sort_order)
-VALUES (?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?)
+INSERT INTO knowledge_points (owner_user_id, bank_id, parent_id, level, name, original_text, reference_text, origin, official_kp_id, official_hash, official_new_until, sort_order)
+VALUES (?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?)
 `
 
 type InsertUserKPCopyParams struct {
@@ -782,6 +786,7 @@ type InsertUserKPCopyParams struct {
 	Level            KnowledgePointsLevel
 	Name             string
 	OriginalText     sql.NullString
+	ReferenceText    sql.NullString
 	OfficialKpID     sql.NullInt64
 	OfficialHash     sql.NullString
 	OfficialNewUntil sql.NullTime
@@ -796,6 +801,7 @@ func (q *Queries) InsertUserKPCopy(ctx context.Context, arg InsertUserKPCopyPara
 		arg.Level,
 		arg.Name,
 		arg.OriginalText,
+		arg.ReferenceText,
 		arg.OfficialKpID,
 		arg.OfficialHash,
 		arg.OfficialNewUntil,
@@ -808,9 +814,9 @@ func (q *Queries) InsertUserKPCopy(ctx context.Context, arg InsertUserKPCopyPara
 }
 
 const insertUserQuestionCopy = `-- name: InsertUserQuestionCopy :execlastid
-INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, score, source, exam_year, content_hash, official_question_id, official_hash,
+INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, reference_text, score, source, exam_year, content_hash, official_question_id, official_hash,
   group_label, group_majors)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?, ?, ?)
 `
 
 type InsertUserQuestionCopyParams struct {
@@ -822,6 +828,7 @@ type InsertUserQuestionCopyParams struct {
 	Answer             sql.NullString
 	AnswerOrigin       NullQuestionsAnswerOrigin
 	Analysis           sql.NullString
+	ReferenceText      sql.NullString
 	Score              sql.NullString
 	ExamYear           sql.NullInt16
 	ContentHash        string
@@ -841,6 +848,7 @@ func (q *Queries) InsertUserQuestionCopy(ctx context.Context, arg InsertUserQues
 		arg.Answer,
 		arg.AnswerOrigin,
 		arg.Analysis,
+		arg.ReferenceText,
 		arg.Score,
 		arg.ExamYear,
 		arg.ContentHash,
@@ -1033,16 +1041,17 @@ func (q *Queries) ListOfficialDrafts(ctx context.Context, arg ListOfficialDrafts
 
 const listOfficialKPs = `-- name: ListOfficialKPs :many
 
-SELECT id, parent_id, level, name, original_text, sort_order FROM knowledge_points WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY level, sort_order, id
+SELECT id, parent_id, level, name, original_text, reference_text, sort_order FROM knowledge_points WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY level, sort_order, id
 `
 
 type ListOfficialKPsRow struct {
-	ID           uint64
-	ParentID     sql.NullInt64
-	Level        KnowledgePointsLevel
-	Name         string
-	OriginalText sql.NullString
-	SortOrder    uint32
+	ID            uint64
+	ParentID      sql.NullInt64
+	Level         KnowledgePointsLevel
+	Name          string
+	OriginalText  sql.NullString
+	ReferenceText sql.NullString
+	SortOrder     uint32
 }
 
 // ---------- 官方内容 ----------
@@ -1061,6 +1070,7 @@ func (q *Queries) ListOfficialKPs(ctx context.Context, bankID uint64) ([]ListOff
 			&i.Level,
 			&i.Name,
 			&i.OriginalText,
+			&i.ReferenceText,
 			&i.SortOrder,
 		); err != nil {
 			return nil, err
@@ -1185,7 +1195,7 @@ func (q *Queries) ListOfficialQuestionKPs(ctx context.Context, bankID uint64) ([
 }
 
 const listOfficialQuestions = `-- name: ListOfficialQuestions :many
-SELECT id, qtype, stem, options, answer, answer_origin, analysis, score, exam_year, status, answer_snapshot_id, group_label, group_majors FROM questions WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY id
+SELECT id, qtype, stem, options, answer, answer_origin, analysis, reference_text, score, exam_year, status, answer_snapshot_id, group_label, group_majors FROM questions WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY id
 `
 
 type ListOfficialQuestionsRow struct {
@@ -1196,6 +1206,7 @@ type ListOfficialQuestionsRow struct {
 	Answer           sql.NullString
 	AnswerOrigin     NullQuestionsAnswerOrigin
 	Analysis         sql.NullString
+	ReferenceText    sql.NullString
 	Score            sql.NullString
 	ExamYear         sql.NullInt16
 	Status           QuestionsStatus
@@ -1221,6 +1232,7 @@ func (q *Queries) ListOfficialQuestions(ctx context.Context, bankID uint64) ([]L
 			&i.Answer,
 			&i.AnswerOrigin,
 			&i.Analysis,
+			&i.ReferenceText,
 			&i.Score,
 			&i.ExamYear,
 			&i.Status,
@@ -1575,7 +1587,7 @@ func (q *Queries) ListSubscribers(ctx context.Context, bankID uint64) ([]ListSub
 }
 
 const listUserKPCopies = `-- name: ListUserKPCopies :many
-SELECT id, parent_id, level, name, original_text, origin, official_kp_id, official_hash FROM knowledge_points WHERE bank_id = ? AND owner_user_id = ?
+SELECT id, parent_id, level, name, original_text, reference_text, origin, official_kp_id, official_hash FROM knowledge_points WHERE bank_id = ? AND owner_user_id = ?
 `
 
 type ListUserKPCopiesParams struct {
@@ -1584,14 +1596,15 @@ type ListUserKPCopiesParams struct {
 }
 
 type ListUserKPCopiesRow struct {
-	ID           uint64
-	ParentID     sql.NullInt64
-	Level        KnowledgePointsLevel
-	Name         string
-	OriginalText sql.NullString
-	Origin       KnowledgePointsOrigin
-	OfficialKpID sql.NullInt64
-	OfficialHash sql.NullString
+	ID            uint64
+	ParentID      sql.NullInt64
+	Level         KnowledgePointsLevel
+	Name          string
+	OriginalText  sql.NullString
+	ReferenceText sql.NullString
+	Origin        KnowledgePointsOrigin
+	OfficialKpID  sql.NullInt64
+	OfficialHash  sql.NullString
 }
 
 // 用户题库里的全部知识点（含自建的，同名合并要用）。
@@ -1610,6 +1623,7 @@ func (q *Queries) ListUserKPCopies(ctx context.Context, arg ListUserKPCopiesPara
 			&i.Level,
 			&i.Name,
 			&i.OriginalText,
+			&i.ReferenceText,
 			&i.Origin,
 			&i.OfficialKpID,
 			&i.OfficialHash,
@@ -1628,7 +1642,7 @@ func (q *Queries) ListUserKPCopies(ctx context.Context, arg ListUserKPCopiesPara
 }
 
 const listUserQuestionCopies = `-- name: ListUserQuestionCopies :many
-SELECT id, official_question_id, qtype, stem, answer, answer_origin, status, official_hash, group_label, group_majors FROM questions WHERE bank_id = ? AND owner_user_id = ? AND official_question_id IS NOT NULL
+SELECT id, official_question_id, qtype, stem, answer, answer_origin, analysis, reference_text, status, official_hash, group_label, group_majors, exam_year FROM questions WHERE bank_id = ? AND owner_user_id = ? AND official_question_id IS NOT NULL
 `
 
 type ListUserQuestionCopiesParams struct {
@@ -1643,10 +1657,13 @@ type ListUserQuestionCopiesRow struct {
 	Stem               string
 	Answer             sql.NullString
 	AnswerOrigin       NullQuestionsAnswerOrigin
+	Analysis           sql.NullString
+	ReferenceText      sql.NullString
 	Status             QuestionsStatus
 	OfficialHash       sql.NullString
 	GroupLabel         sql.NullString
 	GroupMajors        sql.NullString
+	ExamYear           sql.NullInt16
 }
 
 func (q *Queries) ListUserQuestionCopies(ctx context.Context, arg ListUserQuestionCopiesParams) ([]ListUserQuestionCopiesRow, error) {
@@ -1665,10 +1682,13 @@ func (q *Queries) ListUserQuestionCopies(ctx context.Context, arg ListUserQuesti
 			&i.Stem,
 			&i.Answer,
 			&i.AnswerOrigin,
+			&i.Analysis,
+			&i.ReferenceText,
 			&i.Status,
 			&i.OfficialHash,
 			&i.GroupLabel,
 			&i.GroupMajors,
+			&i.ExamYear,
 		); err != nil {
 			return nil, err
 		}
@@ -2029,7 +2049,8 @@ func (q *Queries) UnlinkUserKP(ctx context.Context, arg UnlinkUserKPParams) erro
 }
 
 const unlinkUserQuestion = `-- name: UnlinkUserQuestion :exec
-UPDATE questions SET official_question_id = NULL, official_hash = NULL, source = IF(source = 'official', 'exercise', source) WHERE id = ? AND owner_user_id = ?
+UPDATE questions SET official_question_id = NULL, official_hash = NULL,
+  source = IF(source = 'official', IF(exam_year IS NULL, 'exercise', 'exam'), source) WHERE id = ? AND owner_user_id = ?
 `
 
 type UnlinkUserQuestionParams struct {
@@ -2037,6 +2058,7 @@ type UnlinkUserQuestionParams struct {
 	OwnerUserID sql.NullInt64
 }
 
+// 移除官方题库时用户改过的题留下来：有年份的官方真题变成用户自己的真题（T57，仍在真题卷里），其他的变成习题。
 func (q *Queries) UnlinkUserQuestion(ctx context.Context, arg UnlinkUserQuestionParams) error {
 	_, err := q.db.ExecContext(ctx, unlinkUserQuestion, arg.ID, arg.OwnerUserID)
 	return err
@@ -2070,20 +2092,22 @@ func (q *Queries) UpdateOfficialDraft(ctx context.Context, arg UpdateOfficialDra
 }
 
 const updateOfficialKP = `-- name: UpdateOfficialKP :exec
-UPDATE knowledge_points SET name = ?, original_text = ? WHERE id = ? AND bank_id = ? AND owner_user_id IS NULL
+UPDATE knowledge_points SET name = ?, original_text = ?, reference_text = ? WHERE id = ? AND bank_id = ? AND owner_user_id IS NULL
 `
 
 type UpdateOfficialKPParams struct {
-	Name         string
-	OriginalText sql.NullString
-	ID           uint64
-	BankID       uint64
+	Name          string
+	OriginalText  sql.NullString
+	ReferenceText sql.NullString
+	ID            uint64
+	BankID        uint64
 }
 
 func (q *Queries) UpdateOfficialKP(ctx context.Context, arg UpdateOfficialKPParams) error {
 	_, err := q.db.ExecContext(ctx, updateOfficialKP,
 		arg.Name,
 		arg.OriginalText,
+		arg.ReferenceText,
 		arg.ID,
 		arg.BankID,
 	)
@@ -2112,25 +2136,26 @@ func (q *Queries) UpdateOfficialProject(ctx context.Context, arg UpdateOfficialP
 }
 
 const updateOfficialQuestion = `-- name: UpdateOfficialQuestion :exec
-UPDATE questions SET qtype = ?, stem = ?, options = ?, answer = ?, answer_origin = ?, analysis = ?, score = ?, exam_year = ?, content_hash = ?,
+UPDATE questions SET qtype = ?, stem = ?, options = ?, answer = ?, answer_origin = ?, analysis = ?, reference_text = ?, score = ?, exam_year = ?, content_hash = ?,
   group_label = ?, group_majors = ?, rubric_version = rubric_version + 1
 WHERE id = ? AND bank_id = ? AND owner_user_id IS NULL
 `
 
 type UpdateOfficialQuestionParams struct {
-	Qtype        QuestionsQtype
-	Stem         string
-	Options      dbtypes.NullJSON
-	Answer       sql.NullString
-	AnswerOrigin NullQuestionsAnswerOrigin
-	Analysis     sql.NullString
-	Score        sql.NullString
-	ExamYear     sql.NullInt16
-	ContentHash  string
-	GroupLabel   sql.NullString
-	GroupMajors  sql.NullString
-	ID           uint64
-	BankID       uint64
+	Qtype         QuestionsQtype
+	Stem          string
+	Options       dbtypes.NullJSON
+	Answer        sql.NullString
+	AnswerOrigin  NullQuestionsAnswerOrigin
+	Analysis      sql.NullString
+	ReferenceText sql.NullString
+	Score         sql.NullString
+	ExamYear      sql.NullInt16
+	ContentHash   string
+	GroupLabel    sql.NullString
+	GroupMajors   sql.NullString
+	ID            uint64
+	BankID        uint64
 }
 
 func (q *Queries) UpdateOfficialQuestion(ctx context.Context, arg UpdateOfficialQuestionParams) error {
@@ -2141,6 +2166,7 @@ func (q *Queries) UpdateOfficialQuestion(ctx context.Context, arg UpdateOfficial
 		arg.Answer,
 		arg.AnswerOrigin,
 		arg.Analysis,
+		arg.ReferenceText,
 		arg.Score,
 		arg.ExamYear,
 		arg.ContentHash,
@@ -2153,21 +2179,23 @@ func (q *Queries) UpdateOfficialQuestion(ctx context.Context, arg UpdateOfficial
 }
 
 const updateUserKPCopy = `-- name: UpdateUserKPCopy :exec
-UPDATE knowledge_points SET name = ?, original_text = ?, official_hash = ? WHERE id = ? AND owner_user_id = ?
+UPDATE knowledge_points SET name = ?, original_text = ?, reference_text = ?, official_hash = ? WHERE id = ? AND owner_user_id = ?
 `
 
 type UpdateUserKPCopyParams struct {
-	Name         string
-	OriginalText sql.NullString
-	OfficialHash sql.NullString
-	ID           uint64
-	OwnerUserID  sql.NullInt64
+	Name          string
+	OriginalText  sql.NullString
+	ReferenceText sql.NullString
+	OfficialHash  sql.NullString
+	ID            uint64
+	OwnerUserID   sql.NullInt64
 }
 
 func (q *Queries) UpdateUserKPCopy(ctx context.Context, arg UpdateUserKPCopyParams) error {
 	_, err := q.db.ExecContext(ctx, updateUserKPCopy,
 		arg.Name,
 		arg.OriginalText,
+		arg.ReferenceText,
 		arg.OfficialHash,
 		arg.ID,
 		arg.OwnerUserID,
@@ -2176,26 +2204,27 @@ func (q *Queries) UpdateUserKPCopy(ctx context.Context, arg UpdateUserKPCopyPara
 }
 
 const updateUserQuestionCopy = `-- name: UpdateUserQuestionCopy :exec
-UPDATE questions SET qtype = ?, stem = ?, options = ?, answer = ?, answer_origin = ?, analysis = ?, score = ?, exam_year = ?, content_hash = ?, official_hash = ?, status = 'active',
+UPDATE questions SET qtype = ?, stem = ?, options = ?, answer = ?, answer_origin = ?, analysis = ?, reference_text = ?, score = ?, exam_year = ?, content_hash = ?, official_hash = ?, status = 'active',
   group_label = ?, group_majors = ?, rubric_version = rubric_version + 1
 WHERE id = ? AND owner_user_id = ?
 `
 
 type UpdateUserQuestionCopyParams struct {
-	Qtype        QuestionsQtype
-	Stem         string
-	Options      dbtypes.NullJSON
-	Answer       sql.NullString
-	AnswerOrigin NullQuestionsAnswerOrigin
-	Analysis     sql.NullString
-	Score        sql.NullString
-	ExamYear     sql.NullInt16
-	ContentHash  string
-	OfficialHash sql.NullString
-	GroupLabel   sql.NullString
-	GroupMajors  sql.NullString
-	ID           uint64
-	OwnerUserID  sql.NullInt64
+	Qtype         QuestionsQtype
+	Stem          string
+	Options       dbtypes.NullJSON
+	Answer        sql.NullString
+	AnswerOrigin  NullQuestionsAnswerOrigin
+	Analysis      sql.NullString
+	ReferenceText sql.NullString
+	Score         sql.NullString
+	ExamYear      sql.NullInt16
+	ContentHash   string
+	OfficialHash  sql.NullString
+	GroupLabel    sql.NullString
+	GroupMajors   sql.NullString
+	ID            uint64
+	OwnerUserID   sql.NullInt64
 }
 
 func (q *Queries) UpdateUserQuestionCopy(ctx context.Context, arg UpdateUserQuestionCopyParams) error {
@@ -2206,6 +2235,7 @@ func (q *Queries) UpdateUserQuestionCopy(ctx context.Context, arg UpdateUserQues
 		arg.Answer,
 		arg.AnswerOrigin,
 		arg.Analysis,
+		arg.ReferenceText,
 		arg.Score,
 		arg.ExamYear,
 		arg.ContentHash,

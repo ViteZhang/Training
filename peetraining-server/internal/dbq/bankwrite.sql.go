@@ -54,7 +54,7 @@ func (q *Queries) FindKPByName(ctx context.Context, arg FindKPByNameParams) (uin
 }
 
 const getBankKP = `-- name: GetBankKP :one
-SELECT id, owner_user_id, bank_id, parent_id, level, name, original_text, source_material_id, source_page, origin, needs_review, ai_explanation, ai_explanation_at, exam_count, official_kp_id, sort_order, created_at, updated_at, official_hash, official_new_until FROM knowledge_points WHERE id = ? AND bank_id = ? AND owner_user_id = ?
+SELECT id, owner_user_id, bank_id, parent_id, level, name, original_text, source_material_id, source_page, origin, needs_review, ai_explanation, ai_explanation_at, exam_count, official_kp_id, sort_order, created_at, updated_at, official_hash, official_new_until, reference_text FROM knowledge_points WHERE id = ? AND bank_id = ? AND owner_user_id = ?
 `
 
 type GetBankKPParams struct {
@@ -87,6 +87,7 @@ func (q *Queries) GetBankKP(ctx context.Context, arg GetBankKPParams) (Knowledge
 		&i.UpdatedAt,
 		&i.OfficialHash,
 		&i.OfficialNewUntil,
+		&i.ReferenceText,
 	)
 	return i, err
 }
@@ -359,9 +360,11 @@ func (q *Queries) InsertRubricPoint(ctx context.Context, arg InsertRubricPointPa
 }
 
 const listExamQuestionsByYear = `-- name: ListExamQuestionsByYear :many
-SELECT id, qtype, question_no, score, source_material_id, group_label, group_majors FROM questions
-WHERE bank_id = ? AND owner_user_id = ? AND source = 'exam' AND exam_year = ? AND status = 'active' AND is_recollection = 0
-ORDER BY CAST(question_no AS UNSIGNED), id
+SELECT id, qtype, question_no, score, source_material_id, group_label, group_majors FROM questions q
+WHERE q.bank_id = ? AND q.owner_user_id = ? AND q.exam_year = ? AND q.status = 'active' AND q.is_recollection = 0
+  AND (q.source = 'official' OR (q.source = 'exam' AND NOT EXISTS (SELECT 1 FROM questions o
+    WHERE o.bank_id = q.bank_id AND o.owner_user_id = q.owner_user_id AND o.source = 'official' AND o.status = 'active' AND o.exam_year = q.exam_year)))
+ORDER BY CAST(q.question_no AS UNSIGNED), q.id
 `
 
 type ListExamQuestionsByYearParams struct {
@@ -381,6 +384,7 @@ type ListExamQuestionsByYearRow struct {
 }
 
 // 组真题卷：某年份的真题（回忆版不计入，PRD 3.8），按题型、原题号排序。
+// T57：官方题库的真题也收；这一年有官方真题时只用官方的（编辑审核过、题目完整），免得同一年的题算两遍。
 func (q *Queries) ListExamQuestionsByYear(ctx context.Context, arg ListExamQuestionsByYearParams) ([]ListExamQuestionsByYearRow, error) {
 	rows, err := q.db.QueryContext(ctx, listExamQuestionsByYear, arg.BankID, arg.OwnerUserID, arg.ExamYear)
 	if err != nil {
@@ -461,7 +465,9 @@ func (q *Queries) MaxKPSort(ctx context.Context, arg MaxKPSortParams) (int64, er
 const recountKPExamCounts = `-- name: RecountKPExamCounts :exec
 UPDATE knowledge_points k SET exam_count = (
   SELECT COUNT(DISTINCT q.id) FROM question_kps qk JOIN questions q ON q.id = qk.question_id
-  WHERE qk.kp_id = k.id AND q.source = 'exam' AND q.is_recollection = 0 AND q.status = 'active')
+  WHERE qk.kp_id = k.id AND q.is_recollection = 0 AND q.status = 'active'
+    AND ((q.source = 'official' AND q.exam_year IS NOT NULL) OR (q.source = 'exam' AND (q.exam_year IS NULL OR NOT EXISTS (SELECT 1 FROM questions o
+      WHERE o.bank_id = q.bank_id AND o.owner_user_id = q.owner_user_id AND o.source = 'official' AND o.status = 'active' AND o.exam_year = q.exam_year)))))
 WHERE k.bank_id = ? AND k.owner_user_id = ?
 `
 
@@ -471,6 +477,7 @@ type RecountKPExamCountsParams struct {
 }
 
 // 知识点在真题中出现的次数（3.1、3.8；回忆版不计入）。
+// T57：官方题库的真题（有年份的）也计入；某一年有官方真题时，用户自己导入的那一年的真题不再计，免得同一道题算两次。
 func (q *Queries) RecountKPExamCounts(ctx context.Context, arg RecountKPExamCountsParams) error {
 	_, err := q.db.ExecContext(ctx, recountKPExamCounts, arg.BankID, arg.OwnerUserID)
 	return err

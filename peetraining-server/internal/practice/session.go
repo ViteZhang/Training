@@ -37,6 +37,7 @@ type Question struct {
 	Options    []Option
 	Answer     string
 	Analysis   string
+	Reference  string // 出处（官方题库导入，T56）
 	Score      *float64
 	Source     string
 	ExamYear   *int
@@ -147,7 +148,7 @@ func (s *Service) Get(ctx context.Context, userID, id uint64) (Session, error) {
 }
 
 func (s *Service) question(ctx context.Context, userID uint64, qr dbq.GetQuestionFullRow, files map[uint64]string) (Question, error) {
-	qu := Question{ID: qr.ID, QType: string(qr.Qtype), Stem: qr.Stem, Answer: qr.Answer.String, Analysis: qr.Analysis.String, Source: string(qr.Source),
+	qu := Question{ID: qr.ID, QType: string(qr.Qtype), Stem: qr.Stem, Answer: qr.Answer.String, Analysis: qr.Analysis.String, Reference: qr.ReferenceText.String, Source: string(qr.Source),
 		GroupLabel: qr.GroupLabel.String, GroupMajors: qr.GroupMajors.String, Passage: qr.Passage.String, PassageKey: qr.PassageKey.String}
 	if qr.Options != nil {
 		_ = json.Unmarshal(qr.Options, &qu.Options)

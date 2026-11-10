@@ -15,6 +15,8 @@ const (
 	AnswerAI AnswerTier = "ai"
 	// AnswerAIQuestion 是 AI 出的变式题自带的答案：只基于用户确认过的知识点与采分点生成，与题库原题同样计分（10/26 与产品确认）。
 	AnswerAIQuestion AnswerTier = "ai_question"
+	// AnswerOfficial 官方答案：官方题库导入时标为团队答案的（T56）。此前归在「来自你的资料」，用户没导入过资料也看到这个说法。
+	AnswerOfficial AnswerTier = "official"
 	// AnswerMissing 还没有任何答案。
 	AnswerMissing AnswerTier = "missing"
 )
@@ -33,6 +35,8 @@ func TierOf(answer, origin, source string) AnswerTier {
 		return AnswerConfirmed
 	case "ai_generated":
 		return AnswerAI
+	case "official":
+		return AnswerOfficial
 	}
 	return AnswerMaterial
 }

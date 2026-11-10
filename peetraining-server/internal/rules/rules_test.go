@@ -795,7 +795,7 @@ func TestAnswerTier(t *testing.T) {
 		{"", "imported", "exam", AnswerMissing, false},
 		{"  ", "", "exam", AnswerMissing, false},
 		{"答案", "imported", "exam", AnswerMaterial, true},
-		{"答案", "official", "official", AnswerMaterial, true},
+		{"答案", "official", "official", AnswerOfficial, true}, // T56：官方团队答案单独一档，不再显示「来自你的资料」
 		{"答案", "", "exercise", AnswerMaterial, true},
 		{"答案", "user_confirmed", "exam", AnswerConfirmed, true},
 		{"答案", "ai_generated", "exam", AnswerAI, true},

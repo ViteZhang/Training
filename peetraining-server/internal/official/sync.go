@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -154,9 +155,37 @@ func (s *Service) Unsubscribe(ctx context.Context, userID, bankID uint64) error 
 				}
 			}
 		}
-		_, err = q.DeleteSubscription(ctx, dbq.DeleteSubscriptionParams{OwnerUserID: userID, BankID: bankID})
-		return err
+		if _, err := q.DeleteSubscription(ctx, dbq.DeleteSubscriptionParams{OwnerUserID: userID, BankID: bankID}); err != nil {
+			return err
+		}
+		// 官方真题没了：那几年的真题卷改用用户自己导入的真题（没有就清空），考频重算（T57）。
+		years := map[int]bool{}
+		for _, x := range uc.questions {
+			if x.ExamYear.Valid {
+				years[int(x.ExamYear.Int16)] = true
+			}
+		}
+		return rebuildExamData(ctx, q, userID, sub.SubjectID, ub.ID, years)
 	})
+}
+
+// rebuildExamData 在官方内容变化后重组这几年的真题卷、重算知识点考频（T57：官方真题进真题卷、计入考频，真题卷的成绩参与估分）。
+func rebuildExamData(ctx context.Context, q *dbq.Queries, userID, subjectID, bankID uint64, years map[int]bool) error {
+	if len(years) > 0 {
+		sub, err := q.GetSubject(ctx, dbq.GetSubjectParams{ID: subjectID, OwnerUserID: userID})
+		if err != nil {
+			return err
+		}
+		ys := make([]int, 0, len(years))
+		for y := range years {
+			ys = append(ys, y)
+		}
+		sort.Ints(ys)
+		if err := importer.BuildRealExamPapers(ctx, q, userID, bankID, subjectID, sub.FullScore, ys); err != nil {
+			return err
+		}
+	}
+	return q.RecountKPExamCounts(ctx, dbq.RecountKPExamCountsParams{BankID: bankID, OwnerUserID: sql.NullInt64{Int64: int64(userID), Valid: true}})
 }
 
 // userContent 是用户题库里与官方有关联的副本与它们的采分点。
@@ -194,12 +223,12 @@ func loadUser(ctx context.Context, q *dbq.Queries, userID, bankID uint64) (userC
 
 // kpUnmodified 判断用户副本没被改过：当前内容的哈希等于上次同步时的官方哈希。同名合并的（没有哈希）算改过，永不覆盖。
 func (u userContent) kpUnmodified(k dbq.ListUserKPCopiesRow) bool {
-	return k.OfficialHash.Valid && hashOf(k.Name, k.OriginalText.String, rubricText(u.kpRubric[k.ID])) == k.OfficialHash.String
+	return k.OfficialHash.Valid && kpHashOf(k.Name, k.OriginalText.String, rubricText(u.kpRubric[k.ID]), k.ReferenceText.String) == k.OfficialHash.String
 }
 
 func (u userContent) questionUnmodified(x dbq.ListUserQuestionCopiesRow) bool {
 	return x.OfficialHash.Valid && questionHashOf(string(x.Qtype), x.Stem, x.Answer.String, rubricText(u.qRubric[x.ID]), x.AnswerOrigin,
-		groupKey(x.GroupLabel, x.GroupMajors)) == x.OfficialHash.String
+		groupKey(x.GroupLabel, x.GroupMajors), x.Analysis.String, x.ReferenceText.String) == x.OfficialHash.String
 }
 
 // otherGroups 是与报考方向不匹配、不复制给这位用户的限选题（T51；回答非报考专业不得分）：
@@ -338,7 +367,7 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 					continue
 				}
 				id, err := q.InsertUserKPCopy(ctx, dbq.InsertUserKPCopyParams{OwnerUserID: owner, BankID: ub.ID, ParentID: parent, Level: o.Level, Name: o.Name,
-					OriginalText: o.OriginalText, OfficialKpID: sql.NullInt64{Int64: int64(o.ID), Valid: true}, OfficialHash: nullStr(oh), OfficialNewUntil: newUntil,
+					OriginalText: o.OriginalText, ReferenceText: o.ReferenceText, OfficialKpID: sql.NullInt64{Int64: int64(o.ID), Valid: true}, OfficialHash: nullStr(oh), OfficialNewUntil: newUntil,
 					SortOrder: uint32(i)})
 				if err != nil {
 					return err
@@ -359,7 +388,7 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 				continue
 			}
 			rubricChanged := rubricText(uc.kpRubric[u.ID]) != rubricText(contents(oc.kpRubric[o.ID]))
-			if err := q.UpdateUserKPCopy(ctx, dbq.UpdateUserKPCopyParams{Name: o.Name, OriginalText: o.OriginalText, OfficialHash: nullStr(oh), ID: u.ID, OwnerUserID: owner}); err != nil {
+			if err := q.UpdateUserKPCopy(ctx, dbq.UpdateUserKPCopyParams{Name: o.Name, OriginalText: o.OriginalText, ReferenceText: o.ReferenceText, OfficialHash: nullStr(oh), ID: u.ID, OwnerUserID: owner}); err != nil {
 				return err
 			}
 			if rubricChanged {
@@ -412,7 +441,7 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 			oh := oc.questionHash(o)
 			if !ok {
 				id, err := q.InsertUserQuestionCopy(ctx, dbq.InsertUserQuestionCopyParams{OwnerUserID: owner, BankID: ub.ID, Qtype: o.Qtype, Stem: o.Stem, Options: o.Options,
-					Answer: o.Answer, AnswerOrigin: copyOrigin(o.AnswerOrigin), Analysis: o.Analysis, Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem),
+					Answer: o.Answer, AnswerOrigin: copyOrigin(o.AnswerOrigin), Analysis: o.Analysis, ReferenceText: o.ReferenceText, Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem),
 					OfficialQuestionID: sql.NullInt64{Int64: int64(o.ID), Valid: true}, OfficialHash: nullStr(oh), GroupLabel: o.GroupLabel, GroupMajors: o.GroupMajors})
 				if err != nil {
 					return err
@@ -437,7 +466,7 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 				continue
 			}
 			if err := q.UpdateUserQuestionCopy(ctx, dbq.UpdateUserQuestionCopyParams{Qtype: o.Qtype, Stem: o.Stem, Options: o.Options, Answer: o.Answer, AnswerOrigin: copyOrigin(o.AnswerOrigin), Analysis: o.Analysis,
-				Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem), OfficialHash: nullStr(oh), GroupLabel: o.GroupLabel, GroupMajors: o.GroupMajors,
+				ReferenceText: o.ReferenceText, Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem), OfficialHash: nullStr(oh), GroupLabel: o.GroupLabel, GroupMajors: o.GroupMajors,
 				ID: u.ID, OwnerUserID: owner}); err != nil {
 				return err
 			}
@@ -476,6 +505,20 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 			} else if err := q.UnlinkUserQuestion(ctx, dbq.UnlinkUserQuestionParams{ID: x.ID, OwnerUserID: owner}); err != nil {
 				return err
 			}
+		}
+		years := map[int]bool{}
+		for _, o := range oc.questions {
+			if o.ExamYear.Valid {
+				years[int(o.ExamYear.Int16)] = true
+			}
+		}
+		for _, x := range uc.questions {
+			if x.ExamYear.Valid {
+				years[int(x.ExamYear.Int16)] = true
+			}
+		}
+		if err := rebuildExamData(ctx, q, userID, sub.SubjectID, ub.ID, years); err != nil {
+			return err
 		}
 		if res.Skipped > 0 && !initial {
 			// 用户改过的不覆盖，提示「官方内容已更新，是否查看」（11.15）。

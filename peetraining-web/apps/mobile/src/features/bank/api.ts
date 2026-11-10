@@ -66,6 +66,8 @@ export const sourceNames: Record<Schemas['QuestionSource'], string> = { exam: '�
 /** 题目来源的展示：真题带年份。 */
 export function sourceLabel(source: Schemas['QuestionSource'], year?: number) {
   if (source === 'exam' && year) return `${year} 真题`;
+  // 官方题库的真题标「官方」与年份（增补 1.1b，T56）
+  if (source === 'official' && year) return `官方 · ${year} 真题`;
   if (year && (source === 'exercise' || source === 'unconfirmed')) return `${year} 年 · ${sourceNames[source]}`;
   return sourceNames[source];
 }

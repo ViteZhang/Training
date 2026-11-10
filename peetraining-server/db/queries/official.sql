@@ -44,28 +44,28 @@ UPDATE official_projects SET stage = ? WHERE id = ?;
 -- ---------- 官方内容 ----------
 
 -- name: ListOfficialKPs :many
-SELECT id, parent_id, level, name, original_text, sort_order FROM knowledge_points WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY level, sort_order, id;
+SELECT id, parent_id, level, name, original_text, reference_text, sort_order FROM knowledge_points WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY level, sort_order, id;
 
 -- name: InsertOfficialKP :execlastid
-INSERT INTO knowledge_points (owner_user_id, bank_id, parent_id, level, name, original_text, origin, sort_order) VALUES (NULL, ?, ?, ?, ?, ?, 'official', ?);
+INSERT INTO knowledge_points (owner_user_id, bank_id, parent_id, level, name, original_text, reference_text, origin, sort_order) VALUES (NULL, ?, ?, ?, ?, ?, ?, 'official', ?);
 
 -- name: UpdateOfficialKP :exec
-UPDATE knowledge_points SET name = ?, original_text = ? WHERE id = ? AND bank_id = ? AND owner_user_id IS NULL;
+UPDATE knowledge_points SET name = ?, original_text = ?, reference_text = ? WHERE id = ? AND bank_id = ? AND owner_user_id IS NULL;
 
 -- name: DeleteOfficialKP :exec
 DELETE FROM knowledge_points WHERE id = ? AND bank_id = ? AND owner_user_id IS NULL;
 
 -- name: ListOfficialQuestions :many
-SELECT id, qtype, stem, options, answer, answer_origin, analysis, score, exam_year, status, answer_snapshot_id, group_label, group_majors FROM questions WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY id;
+SELECT id, qtype, stem, options, answer, answer_origin, analysis, reference_text, score, exam_year, status, answer_snapshot_id, group_label, group_majors FROM questions WHERE bank_id = ? AND owner_user_id IS NULL ORDER BY id;
 
 -- name: InsertOfficialQuestion :execlastid
 -- answer_origin：official 团队给的答案；ai_generated 由 AI 生成、经编辑审核（用户端显示「AI 参考答案」，T49）。
 -- group_label / group_majors：限选题（按专业分组的题，T51）；为空是必答题。
-INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, score, source, exam_year, content_hash, group_label, group_majors)
-VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?);
+INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, reference_text, score, source, exam_year, content_hash, group_label, group_majors)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?);
 
 -- name: UpdateOfficialQuestion :exec
-UPDATE questions SET qtype = ?, stem = ?, options = ?, answer = ?, answer_origin = ?, analysis = ?, score = ?, exam_year = ?, content_hash = ?,
+UPDATE questions SET qtype = ?, stem = ?, options = ?, answer = ?, answer_origin = ?, analysis = ?, reference_text = ?, score = ?, exam_year = ?, content_hash = ?,
   group_label = ?, group_majors = ?, rubric_version = rubric_version + 1
 WHERE id = ? AND bank_id = ? AND owner_user_id IS NULL;
 
@@ -218,14 +218,14 @@ SELECT owner_user_id, subject_id FROM bank_subscriptions WHERE bank_id = ?;
 
 -- name: ListUserKPCopies :many
 -- 用户题库里的全部知识点（含自建的，同名合并要用）。
-SELECT id, parent_id, level, name, original_text, origin, official_kp_id, official_hash FROM knowledge_points WHERE bank_id = ? AND owner_user_id = ?;
+SELECT id, parent_id, level, name, original_text, reference_text, origin, official_kp_id, official_hash FROM knowledge_points WHERE bank_id = ? AND owner_user_id = ?;
 
 -- name: InsertUserKPCopy :execlastid
-INSERT INTO knowledge_points (owner_user_id, bank_id, parent_id, level, name, original_text, origin, official_kp_id, official_hash, official_new_until, sort_order)
-VALUES (?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?);
+INSERT INTO knowledge_points (owner_user_id, bank_id, parent_id, level, name, original_text, reference_text, origin, official_kp_id, official_hash, official_new_until, sort_order)
+VALUES (?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?);
 
 -- name: UpdateUserKPCopy :exec
-UPDATE knowledge_points SET name = ?, original_text = ?, official_hash = ? WHERE id = ? AND owner_user_id = ?;
+UPDATE knowledge_points SET name = ?, original_text = ?, reference_text = ?, official_hash = ? WHERE id = ? AND owner_user_id = ?;
 
 -- name: LinkUserKP :exec
 -- 同名知识点合并：保留用户自己的表述和采分点，只记下对应的官方知识点（PRD 11.15）。
@@ -238,15 +238,15 @@ UPDATE knowledge_points SET official_kp_id = NULL, official_hash = NULL, officia
 DELETE FROM knowledge_points WHERE id = ? AND owner_user_id = ?;
 
 -- name: ListUserQuestionCopies :many
-SELECT id, official_question_id, qtype, stem, answer, answer_origin, status, official_hash, group_label, group_majors FROM questions WHERE bank_id = ? AND owner_user_id = ? AND official_question_id IS NOT NULL;
+SELECT id, official_question_id, qtype, stem, answer, answer_origin, analysis, reference_text, status, official_hash, group_label, group_majors, exam_year FROM questions WHERE bank_id = ? AND owner_user_id = ? AND official_question_id IS NOT NULL;
 
 -- name: InsertUserQuestionCopy :execlastid
-INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, score, source, exam_year, content_hash, official_question_id, official_hash,
+INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, reference_text, score, source, exam_year, content_hash, official_question_id, official_hash,
   group_label, group_majors)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'official', ?, ?, ?, ?, ?, ?);
 
 -- name: UpdateUserQuestionCopy :exec
-UPDATE questions SET qtype = ?, stem = ?, options = ?, answer = ?, answer_origin = ?, analysis = ?, score = ?, exam_year = ?, content_hash = ?, official_hash = ?, status = 'active',
+UPDATE questions SET qtype = ?, stem = ?, options = ?, answer = ?, answer_origin = ?, analysis = ?, reference_text = ?, score = ?, exam_year = ?, content_hash = ?, official_hash = ?, status = 'active',
   group_label = ?, group_majors = ?, rubric_version = rubric_version + 1
 WHERE id = ? AND owner_user_id = ?;
 
@@ -266,7 +266,9 @@ UPDATE subjects SET my_majors = ? WHERE id = ? AND owner_user_id = ? AND (my_maj
 UPDATE questions SET status = ? WHERE id = ? AND owner_user_id = ?;
 
 -- name: UnlinkUserQuestion :exec
-UPDATE questions SET official_question_id = NULL, official_hash = NULL, source = IF(source = 'official', 'exercise', source) WHERE id = ? AND owner_user_id = ?;
+-- 移除官方题库时用户改过的题留下来：有年份的官方真题变成用户自己的真题（T57，仍在真题卷里），其他的变成习题。
+UPDATE questions SET official_question_id = NULL, official_hash = NULL,
+  source = IF(source = 'official', IF(exam_year IS NULL, 'exercise', 'exam'), source) WHERE id = ? AND owner_user_id = ?;
 
 -- name: DeleteUserQuestion :exec
 DELETE FROM questions WHERE id = ? AND owner_user_id = ?;

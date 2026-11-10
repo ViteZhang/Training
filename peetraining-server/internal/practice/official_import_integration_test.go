@@ -305,6 +305,8 @@ func TestOfficialImportFill(t *testing.T) {
 			}
 		}
 		p := pl(it)
+		// T56：这个项目还没有知识点，AI 归类出的知识点名称对不上（核对区标 missing_kps），编辑去掉后再接受，否则发布前检查不通过。
+		p.KPNames = nil
 		if it.ID == items(base.ID)[0].ID {
 			p.AnswerAI = false // 编辑改成团队给的答案
 			p.Answer = "逻格斯是赫拉克利特提出的万物运动变化的尺度。"
@@ -358,7 +360,7 @@ func TestOfficialImportFill(t *testing.T) {
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if len(tiers) != 3 || tiers["逻格斯"] != rules.AnswerMaterial || tiers["简述洛克的白板说"] != rules.AnswerAI {
+	if len(tiers) != 3 || tiers["逻格斯"] != rules.AnswerOfficial || tiers["简述洛克的白板说"] != rules.AnswerAI {
 		t.Errorf("用户副本的答案档位：%+v", tiers)
 	}
 	for stem, tier := range tiers {
