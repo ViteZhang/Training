@@ -128,7 +128,12 @@ func (s *Service) copyQuestionEvidence(ctx context.Context, q *dbq.Queries, sour
 		return err
 	}
 	if err = s.d.AI.ValidateAnswerSnapshot(ctx, q, &snapshot); err != nil {
-		return apperr.New(apperr.Conflict, "官方内容依据已变化，请稍后重试")
+		// 教材下架、授权到期、索引重建后原依据对不上了：只是不再带这条依据，题目和答案照常复制。
+		// 以前整套添加因此失败，还返回 409，App 当成「已经添加过」往下走，题库实际是空的。
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return q.SetQuestionAnswerSnapshot(ctx, dbq.SetQuestionAnswerSnapshotParams{ID: question, OwnerUserID: sql.NullInt64{Int64: int64(user), Valid: true}})
 	}
 	id, err := q.CreateAnswerSnapshot(ctx, dbq.CreateAnswerSnapshotParams{OwnerUserID: sql.NullInt64{Int64: int64(user), Valid: true}, AnswerHash: row.AnswerHash, Payload: row.Payload, CreatedAt: s.now().UTC()})
 	if err != nil {

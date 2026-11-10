@@ -104,13 +104,21 @@ func (s *Service) Subscribe(ctx context.Context, userID, bankID, subjectID uint6
 	if err := s.q.InsertSubscription(ctx, dbq.InsertSubscriptionParams{OwnerUserID: userID, BankID: bankID, SubjectID: subjectID}); err != nil {
 		return err
 	}
+	// 整套复制逐条写库，题多时（生产跨机房访问数据库）要几十秒。不跟着请求取消：
+	// App 等不及断开后这里照样复制完，用户再点一次得到「已经添加过」，直接往下走；
+	// 否则断开会让事务回滚、订阅被撤掉，每次重试都从头再来、永远失败。
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), SubscribeTimeout)
+	defer cancel()
 	if _, err := s.Sync(ctx, userID, bankID, true); err != nil {
 		// 复制失败时撤掉订阅，用户可以重试；已复制的部分一并清掉。
-		_ = s.Unsubscribe(context.WithoutCancel(ctx), userID, bankID)
+		_ = s.Unsubscribe(ctx, userID, bankID)
 		return err
 	}
 	return nil
 }
+
+// SubscribeTimeout 是添加官方题库时整套复制最多等多久。
+const SubscribeTimeout = 5 * time.Minute
 
 // Unsubscribe 移除官方题库（11.15「可随时移除」）：没改过的官方副本连同作答记录删除；用户改过的留下来，变成用户自己的内容。
 func (s *Service) Unsubscribe(ctx context.Context, userID, bankID uint64) error {
