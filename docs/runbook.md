@@ -213,7 +213,7 @@ PAY_PROVIDER=disabled
    # 返回 200 且手机收到短信；失败时：docker compose logs --since 10m api | grep "sms send failed"
    ```
 
-5. 测试账号：`18600010001`～`18600010010` 默认是测试账号，获取验证码时不发短信，直接输入 `000000` 登录；不占每日 10 次的限额，60 秒冷却照常。要改名单在 `.env` 设 `SMS_TEST_PHONES=<逗号分隔的手机号>`，要关闭设 `SMS_TEST_PHONES=off`，改完 `docker compose up -d`。测试账号的验证码是公开的，不要用来存真实资料。
+5. 测试账号：`18600010001`～`18600010020` 默认是测试账号，获取验证码时不发短信，直接输入 `000000` 登录；不占每日 10 次的限额，60 秒冷却照常。要改名单在 `.env` 设 `SMS_TEST_PHONES=<逗号分隔的手机号>`，要关闭设 `SMS_TEST_PHONES=off`，改完 `docker compose up -d`。测试账号的验证码是公开的，不要用来存真实资料。
 6. 管理后台两步验证（2026-11-07 起）：所有后台账号登录时不发短信，第二步验证码固定输入 `000000`（账号密码照常校验，15 分钟内错 5 次照常锁定）。要换固定码在 `.env` 设 `ADMIN_2FA_FIXED_CODE=<6 位数字>`，要恢复真实短信设 `ADMIN_2FA_FIXED_CODE=off`，改完 `docker compose up -d`。
 
 #### OSS、文字识别、内容安全（资料上传与解析）
