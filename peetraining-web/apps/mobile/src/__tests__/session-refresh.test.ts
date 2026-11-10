@@ -137,3 +137,12 @@ test('导入核对页让 AI 生成参考答案单独放宽超时', () => {
   expect(apiRequestTimeoutMs(new Request('https://example.test/api/v1/import-items/42'))).toBe(API_REQUEST_TIMEOUT_MS);
   expect(apiRequestTimeoutMs(new Request('https://example.test/api/v1/import-items/42', { method: 'POST' }))).toBe(API_REQUEST_TIMEOUT_MS);
 });
+
+test('添加官方题库要整套复制，等待时间比常规接口长', () => {
+  const { apiRequestTimeoutMs, OFFICIAL_SUBSCRIBE_TIMEOUT_MS, API_REQUEST_TIMEOUT_MS } = require('../lib/api');
+  expect(apiRequestTimeoutMs(new Request('https://example.test/api/v1/official-banks/3/subscription', { method: 'PUT' })))
+    .toBe(OFFICIAL_SUBSCRIBE_TIMEOUT_MS);
+  expect(OFFICIAL_SUBSCRIBE_TIMEOUT_MS).toBeGreaterThan(API_REQUEST_TIMEOUT_MS);
+  expect(apiRequestTimeoutMs(new Request('https://example.test/api/v1/official-banks/3/subscription', { method: 'DELETE' }))).toBe(API_REQUEST_TIMEOUT_MS);
+  expect(apiRequestTimeoutMs(new Request('https://example.test/api/v1/official-banks'))).toBe(API_REQUEST_TIMEOUT_MS);
+});

@@ -1,6 +1,7 @@
 // 添加官方题库（PRD 5.6、11.15，T30）：已发布的官方题库列表，选专业课添加（代码相同的建议添加到那门课）、移除。
 // 顶部是「已上线官方题库」公告横幅，7 天内上线或更新的标「新」；目标院校（备考设置）的官方题库排最前，标「你的院校」。
 // 添加后官方知识点与题目进到这门课的题库，标「官方」，和自建的一起练；同名知识点保留你自己的表述。受 official_bank 开关控制。
+import { ApiError } from '@training/api-client';
 import { radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
@@ -28,15 +29,24 @@ export default function OfficialBanksPage() {
     void qc.invalidateQueries({ queryKey: ['today'] });
   };
   const add = useMutation({
-    mutationFn: (v: { bank: Bank; subjectId: number }) =>
-      unwrap(api.PUT('/official-banks/{bankId}/subscription', { params: { path: { bankId: v.bank.bank_id } }, body: { subject_id: v.subjectId } })),
+    mutationFn: async (v: { bank: Bank; subjectId: number }) => {
+      try {
+        await unwrap(api.PUT('/official-banks/{bankId}/subscription', { params: { path: { bankId: v.bank.bank_id } }, body: { subject_id: v.subjectId } }));
+      } catch (e) {
+        // 上次等不及断开了，服务端照样添加完：再点一次返回 409，当作已添加
+        if (!(e instanceof ApiError && e.status === 409)) throw e;
+      }
+    },
     onSuccess: () => {
       track('official_bank_add');
       toast('已添加，官方内容标了「官方」');
       setAdding(undefined);
       refresh();
     },
-    onError: () => toast('添加失败，请重试'),
+    onError: (e) => {
+      toast(e instanceof ApiError && e.isTimeout ? '还在添加，题目较多，稍后刷新看看' : '添加失败，请重试');
+      refresh();
+    },
   });
   const remove = useMutation({
     mutationFn: (b: Bank) => unwrap(api.DELETE('/official-banks/{bankId}/subscription', { params: { path: { bankId: b.bank_id } } })),
