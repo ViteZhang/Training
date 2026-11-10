@@ -3,6 +3,7 @@ package http
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -391,7 +392,10 @@ func (h *Handlers) DecideOfficialReview(c *gin.Context, reviewID int64) {
 	if body.EditedPayload != nil {
 		edited = fromMap(*body.EditedPayload)
 	}
-	if err := h.deps.Official.Decide(c.Request.Context(), currentAdmin(c).ID, uint64(reviewID), string(body.Decision), deref(body.Reason), edited); err != nil {
+	// 管理员可以审核自己提交的内容；内容负责人、内容编辑仍须由别人审核。
+	a := currentAdmin(c)
+	allowSelf := slices.Contains(a.Roles, admin.RoleAdmin)
+	if err := h.deps.Official.DecideBy(c.Request.Context(), a.ID, allowSelf, uint64(reviewID), string(body.Decision), deref(body.Reason), edited); err != nil {
 		_ = c.Error(err)
 		return
 	}
