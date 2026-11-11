@@ -94,9 +94,9 @@ export default function QuestionScreen() {
   const q = question.data;
   const primary = q.knowledge_points.find((k) => k.is_primary) ?? q.knowledge_points[0];
   const tier = q.answer_tier ?? (q.answer ? 'material' : 'missing');
-  const ai = tier === 'ai';
-  // 官方题库的题：答案与采分点由官方维护，不提供编辑入口
+  // 官方题库的题：答案与采分点由官方维护，不提供编辑入口；AI 生成的答案经编辑审核，按官方答案显示
   const official = q.origin_tags.includes('official') || q.source === 'official';
+  const ai = tier === 'ai' && !official;
   const editing = wantEdit && !official;
   const subject = subjects.data?.items?.find((x) => x.id === q.subject_id);
   const answerSrc = q.answer_source ?? (q.answer_match === 'original' ? q.source_ref : undefined);
@@ -175,7 +175,7 @@ export default function QuestionScreen() {
                 {o.key}. {o.text}
               </Text>
             ))}
-            {ai && !official ? (
+            {ai ? (
               <View style={styles.aiNote}>
                 <Text variant="caption" color={colors.blueInk} style={styles.lh2}>
                   下面是 AI 生成的参考答案，可以查看引用的教材段落；核对后确认，或改成你的答案。
@@ -183,7 +183,7 @@ export default function QuestionScreen() {
                 <Button title="补充答案文件 ›" kind="text" size="sm" color={colors.blueInk} style={styles.link} onPress={openAnswerFile} />
               </View>
             ) : null}
-            <InfoCard label="参考答案" style={ai ? styles.aiCard : undefined} right={ai ? <Tag label="AI 参考答案" tone="ai" /> : tierNames[tier]}>
+            <InfoCard label="参考答案" style={ai ? styles.aiCard : undefined} right={ai ? <Tag label="AI 参考答案" tone="ai" /> : tierNames[official && tier === 'ai' ? 'official' : tier]}>
               <Text variant="body" style={styles.lh}>
                 {q.answer ?? '这道题还没有答案。做到时 AI 会给参考答案；也可以补充答案文件，或点「补充 / 修改答案」自己填'}
               </Text>
@@ -231,8 +231,8 @@ export default function QuestionScreen() {
               <InfoCard
                 label="采分点 · 批改依据"
                 right={
-                  <Text variant="small" color={ai ? colors.lavenderInk : q.rubric_points.every((r) => r.origin === 'user_confirmed') ? semantic.mastered : colors.orange}>
-                    {ai ? 'AI 生成' : q.rubric_points.every((r) => r.origin === 'user_confirmed') ? '已确认' : '待确认'} · 合计 {rubricTotal(q.rubric_points)} 分
+                  <Text variant="small" color={ai ? colors.lavenderInk : official || q.rubric_points.every((r) => r.origin === 'user_confirmed') ? semantic.mastered : colors.orange}>
+                    {ai ? 'AI 生成' : official ? '官方' : q.rubric_points.every((r) => r.origin === 'user_confirmed') ? '已确认' : '待确认'} · 合计 {rubricTotal(q.rubric_points)} 分
                   </Text>
                 }
               >
@@ -276,7 +276,7 @@ export default function QuestionScreen() {
             <Button title="删除这道题" kind="text" color={semantic.danger} style={styles.left} onPress={() => setRemoving(true)} />
           </ScrollView>
           <View style={styles.footer}>
-            {ai && !official ? (
+            {ai ? (
               <View style={styles.actions}>
                 <Button title="我来改" kind="secondary" onPress={() => setEditing(true)} style={styles.flex} />
                 <Button title="答案没问题，确认" loading={confirming} onPress={() => void confirmAI()} style={styles.flex} />
