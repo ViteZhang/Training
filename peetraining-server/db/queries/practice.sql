@@ -19,8 +19,14 @@ SELECT * FROM practice_sessions WHERE id = ? AND owner_user_id = ?;
 SELECT * FROM practice_sessions WHERE id = ? AND owner_user_id = ? FOR UPDATE;
 
 -- name: LatestInProgressSession :one
+-- 最近一组进行中的刷题（不含背诵）：背诵会话存的是知识点，不能当刷题打开，也不能挡住今日训练的断点续练。
 SELECT * FROM practice_sessions
-WHERE owner_user_id = ? AND subject_id = ? AND status = 'in_progress'
+WHERE owner_user_id = ? AND subject_id = ? AND status = 'in_progress' AND kind <> 'recite'
+ORDER BY started_at DESC, id DESC LIMIT 1;
+
+-- name: LatestInProgressRecite :one
+SELECT * FROM practice_sessions
+WHERE owner_user_id = ? AND subject_id = ? AND status = 'in_progress' AND kind = 'recite'
 ORDER BY started_at DESC, id DESC LIMIT 1;
 
 -- name: SetSessionCursor :exec
