@@ -231,7 +231,7 @@ func (s *Service) CreateRecite(ctx context.Context, userID, subjectID, retryOf u
 			return ReciteSession{}, apperr.New(apperr.BadRequest, "这一轮没有没记住的")
 		}
 	} else {
-		cur, err := s.q.LatestInProgressSession(ctx, dbq.LatestInProgressSessionParams{OwnerUserID: userID, SubjectID: sub})
+		cur, err := s.q.LatestInProgressRecite(ctx, dbq.LatestInProgressReciteParams{OwnerUserID: userID, SubjectID: sub})
 		if err == nil && cur.Kind == dbq.PracticeSessionsKindRecite && rules.DayOf(cur.StartedAt) == s.today() {
 			return s.GetRecite(ctx, userID, cur.ID)
 		}

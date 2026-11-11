@@ -314,7 +314,7 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 	}
 	// 还没有任何答案的题：先生成 AI 参考答案再批改（计入每日 AI 出题额度），按它批改的结果仅供参考（4.7b）。
 	if qr, err = s.ensureAnswer(ctx, userID, qr, true); err != nil {
-		return Grading{}, err
+		return Grading{}, importer.SyncAIError(err)
 	}
 	snap, err := s.snapshot(ctx, userID, qr)
 	if err != nil {
@@ -381,7 +381,9 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 	}
 	out, meta, err := s.grade(ctx, userID, s.subjectName(ctx, userID, qr), qr, snap, answer)
 	if err != nil {
-		return Grading{}, err
+		// 同步批改没有后台重试：模型平台超时、限流或内容安全服务出错时，返回「批改失败，未扣次数」让 App 显示重试，
+		// 不要变成 500「服务暂时出了点问题」或 503「该功能暂未启用」。
+		return Grading{}, importer.SyncAIError(err)
 	}
 	p, err := s.params.Rules(ctx)
 	if err != nil {
@@ -542,7 +544,7 @@ func (s *Service) regrade(ctx context.Context, userID uint64, old Grading, trigg
 	}
 	out, meta, err := s.grade(ctx, userID, s.subjectName(ctx, userID, qr), qr, snap, old.AnswerText)
 	if err != nil {
-		return Grading{}, err
+		return Grading{}, importer.SyncAIError(err)
 	}
 	p, err := s.params.Rules(ctx)
 	if err != nil {
