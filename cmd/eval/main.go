@@ -202,7 +202,7 @@ func run(ctx context.Context, o opts) (bool, error) {
 			override[c] = ai.Meta{Version: o.prompt}
 		}
 	}
-	engine := ai.NewEngine(ai.Config{Client: clients.AI, Fallback: fallback, UseMock: cfg.AI.Provider == config.ProviderMock, Models: models,
+	engine := ai.NewEngine(ai.Config{Client: clients.AI, ModelFallbacks: ai.ModelFallbacks(cfg.AI), Fallback: fallback, UseMock: cfg.AI.Provider == config.ProviderMock, Models: models,
 		Prices: ai.PricesFrom(cfg.AI), Override: override, OnCall: st.add})
 	file := filepath.Join(dir, "private", capability+".jsonl")
 	base := filepath.Join(dir, "private")
