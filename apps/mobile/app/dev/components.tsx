@@ -14,10 +14,10 @@ import {
   EmptyState,
   ErrorState,
   Logo,
+  LogoLoader,
   ProgressBar,
   QuotaSheet,
   Screen,
-  Skeleton,
   Tag,
   Text,
   toast,
@@ -74,8 +74,8 @@ export default function ComponentsDemo() {
 
       <Card style={styles.section}>
         <Text variant="h2">五种状态</Text>
-        <Text variant="bodyStrong">加载中（骨架屏）</Text>
-        <Skeleton />
+        <Text variant="bodyStrong">加载中（Logo 进度环）</Text>
+        <LogoLoader />
         <Text variant="bodyStrong">空状态</Text>
         <EmptyState title="还没有导入资料" desc="先导入一份真题或讲义，AI 帮你建好题库" actionText="导入第一份资料" onAction={() => toast('去导入')} />
         <Text variant="bodyStrong">网络错误</Text>
