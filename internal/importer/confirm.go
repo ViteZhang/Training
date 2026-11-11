@@ -243,10 +243,10 @@ func rubricEqual(a, b []ai.RubricPoint) bool {
 
 func fmtScore(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
 
-// syncAIError 把同步接口里模型平台的原始错误（超时、限流、审核服务不可用）转成「生成失败」提示。
+// SyncAIError 把同步接口里模型平台的原始错误（超时、限流、审核服务不可用）转成「生成失败」提示。
 // ai.Cap.Run 原样返回这类错误，是为了让 Asynq 任务稍后重试；同步接口没有重试，原样返回会变成 500「服务暂时出了点问题」，
 // 用户分不清是否扣了次数。业务错误（额度、冲突、模型输出不合格）保持原样。
-func syncAIError(err error) error {
+func SyncAIError(err error) error {
 	if _, ok := apperr.As(err); ok {
 		return err
 	}
@@ -288,7 +288,7 @@ func (s *Service) GenerateAnswer(ctx context.Context, userID, itemID uint64) (It
 	}
 	out, _, err := s.ai.GenerateReferenceAnswer(ctx, userID, in)
 	if err != nil {
-		return Item{}, syncAIError(err)
+		return Item{}, SyncAIError(err)
 	}
 	q.Answer, q.AnswerOrigin, q.AnswerMatch, q.AnswerMaterialID, q.AnswerPage = out.Answer, "ai_generated", "", 0, 0
 	if ai.Subjective(q.QType) {

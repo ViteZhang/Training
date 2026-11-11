@@ -536,6 +536,8 @@ type Querier interface {
 	LatestDoneGrading(ctx context.Context, arg LatestDoneGradingParams) (Grading, error)
 	// 你上次的写法：最近一次批改完的同题型作答。
 	LatestGradingOfQType(ctx context.Context, arg LatestGradingOfQTypeParams) (LatestGradingOfQTypeRow, error)
+	LatestInProgressRecite(ctx context.Context, arg LatestInProgressReciteParams) (PracticeSession, error)
+	// 最近一组进行中的刷题（不含背诵）：背诵会话存的是知识点，不能当刷题打开，也不能挡住今日训练的断点续练。
 	LatestInProgressSession(ctx context.Context, arg LatestInProgressSessionParams) (PracticeSession, error)
 	LatestRealExamPaper(ctx context.Context, arg LatestRealExamPaperParams) (Paper, error)
 	LatestReferenceOnlyAttempt(ctx context.Context, arg LatestReferenceOnlyAttemptParams) (LatestReferenceOnlyAttemptRow, error)
