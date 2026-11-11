@@ -35,6 +35,48 @@ func fail() func() (cloudai.Response, error) {
 
 const explainJSON = `{"explanation":"意境是情景交融、虚实相生的艺术境界，答题时写全三个特征。"}`
 
+// 中转站的单个模型被下架或暂时不可用时，先在同一平台换模型，不要直接跳到备用平台。
+func TestModelFallbackWithinRelay(t *testing.T) {
+	cfg := config.AIConfig{Provider: "relay", PreferStrong: true,
+		ModelStrong: "deepseek-flash", ModelCheap: "deepseek-flash",
+		RelayModelStrong: "deepseek-v4-flash-0731", RelayModelCheap: "deepseek-v4-flash-0731",
+		RelayModelFallbacks: []string{"deepseek-v4.1-flash", "gemini-3.8-flash"}}
+	relay, official := &scripted{}, &scripted{}
+	models, fb := Routing(cfg, official)
+	e := NewEngine(Config{Client: relay, Fallback: fb, Models: models, ModelFallbacks: ModelFallbacks(cfg)})
+
+	// 主模型 503 → 第一个备用模型成功，不碰备用平台。
+	relay.results = []func() (cloudai.Response, error){fail(), ok(explainJSON)}
+	_, meta, err := Explain.Run(context.Background(), e, 0, ExplainIn{Name: "意境"})
+	if err != nil || meta.Model != "deepseek-v4.1-flash" {
+		t.Fatalf("同平台换模型：%+v %v", meta, err)
+	}
+	if len(relay.models) != 2 || relay.models[1] != "deepseek-v4.1-flash" || len(official.models) != 0 {
+		t.Errorf("请求的模型：中转 %v 备用平台 %v", relay.models, official.models)
+	}
+
+	// 换模型后输出不合格重试时仍用该模型，不要退回已失败的主模型。
+	relay.models, official.models = nil, nil
+	relay.results = []func() (cloudai.Response, error){fail(), ok(`{"bad":1}`), ok(explainJSON)}
+	if _, meta, err := Explain.Run(context.Background(), e, 0, ExplainIn{Name: "意境"}); err != nil || meta.Model != "deepseek-v4.1-flash" {
+		t.Fatalf("换模型后重试：%+v %v", meta, err)
+	}
+	if len(relay.models) != 3 || relay.models[2] != "deepseek-v4.1-flash" || len(official.models) != 0 {
+		t.Errorf("重试时的模型：中转 %v 备用平台 %v", relay.models, official.models)
+	}
+
+	// 所有中转模型都失败 → 才切备用平台。
+	relay.models, official.models = nil, nil
+	relay.results = []func() (cloudai.Response, error){fail(), fail(), fail()}
+	official.results = []func() (cloudai.Response, error){ok(explainJSON)}
+	if _, meta, err := Explain.Run(context.Background(), e, 0, ExplainIn{Name: "意境"}); err != nil || meta.Model != "deepseek-flash" {
+		t.Fatalf("切备用平台：%+v %v", meta, err)
+	}
+	if len(relay.models) != 3 || len(official.models) != 1 {
+		t.Errorf("全部失败后的顺序：中转 %v 备用平台 %v", relay.models, official.models)
+	}
+}
+
 func TestRoutingPreferStrongAndFallback(t *testing.T) {
 	cfg := config.AIConfig{Provider: "relay", ModelStrong: "qwen-max", ModelCheap: "qwen-plus", PreferStrong: true,
 		RelayModelStrong: "gpt-5.5", RelayModelCheap: "gpt-5.4-mini"}
