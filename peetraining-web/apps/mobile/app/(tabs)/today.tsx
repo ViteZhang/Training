@@ -1,4 +1,5 @@
 // 2.1 今日首页：按服务端给的状态四选一，优先级：还没导入资料（2.1c）→ 题库整理中（2.1b）→ 今日已完成（2.1d）→ 正常（2.1）。
+// 2026-11-11 起首页只管「今天做什么」和分数：背诵、错题本、整卷、导入这些自选入口都在训练页和题库页，这里不再重复。
 // 计划、阶段、主推、掌握分布都由服务端算好，这里只展示（CLAUDE.md 必须遵守第 3 条）。
 import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
@@ -10,9 +11,7 @@ import { useUnreadCount } from '@/features/messages/api';
 import { isRunning, useActiveImportJobs } from '@/features/import/api';
 import { stageInfo } from '@/features/onboarding/api';
 import { useHome, useTodaySummary } from '@/features/today/api';
-import { BanksCard, DoneCard, EntryGrid, entryTones, EstimateCard, FalseMasteryCard, PlanCard, PushCard } from '@/features/today/Cards';
-import { usePracticeHome } from '@/features/practice/api';
-import { useStartRecite } from '@/features/recite/api';
+import { BanksCard, DoneCard, EstimateCard, FalseMasteryCard, PlanCard, PushCard } from '@/features/today/Cards';
 import { StagePromptSheet, TargetSheet } from '@/features/today/Sheets';
 import { useFeatureFlag } from '@/lib/flags';
 import { api, unwrap } from '@/lib/api';
@@ -57,48 +56,6 @@ function Tip({ color, title, desc }: { color: string; title: string; desc: strin
         ：{desc}
       </Text>
     </View>
-  );
-}
-
-/** 首页底部快捷入口（设计稿 2.1）：背诵、错题本、整卷、导入资料，数字取训练首页与整卷列表。 */
-function Entries({ subjectId }: { subjectId?: number }) {
-  const practice = usePracticeHome(subjectId);
-  const papers = useQuery({
-    queryKey: ['papers', subjectId ?? 0],
-    queryFn: () => unwrap(api.GET('/subjects/{subjectId}/papers', { params: { path: { subjectId: subjectId! } } })),
-    enabled: !!subjectId,
-  });
-  const recite = useStartRecite();
-  const p = practice.data;
-  const real = papers.data?.real_exam ?? [];
-  const sid = subjectId ? String(subjectId) : undefined;
-  return (
-    <EntryGrid
-      items={[
-        {
-          icon: 'book',
-          title: '背诵',
-          desc: p?.recite_due !== undefined ? (p.recite_due > 0 ? `${p.recite_due} 条待背` : '今天没有到期的') : '挖空 · 默写',
-          tone: entryTones.recite,
-          onPress: () => subjectId && recite.mutate({ subject_id: subjectId }),
-        },
-        {
-          icon: 'wrong',
-          title: '错题本',
-          desc: p?.wrong_book ? (p.wrong_book.total > 0 ? `${p.wrong_book.total} 题` : '还没有错题') : '按失分原因查看',
-          tone: entryTones.wrong,
-          onPress: () => router.push({ pathname: '/practice/wrong', params: { subjectId: sid } }),
-        },
-        {
-          icon: 'paper',
-          title: '整卷',
-          desc: papers.data?.real_exam ? (real.length > 0 ? `已做 ${real.filter((x) => x.status === 'done').length} / ${real.length} 套` : '还没有真题卷') : '真题卷 · 模拟考试',
-          tone: entryTones.paper,
-          onPress: () => router.push({ pathname: '/paper/list', params: { subjectId: sid } }),
-        },
-        { icon: 'import', title: '导入资料', desc: '追加题目或资料', tone: entryTones.neutral, onPress: () => router.push('/import') },
-      ]}
-    />
   );
 }
 
@@ -182,7 +139,7 @@ export default function TodayTab() {
             <Text variant="bodyStrong" style={styles.bold}>
               专业课预估分
             </Text>
-            <Text variant="caption">题库整理好后，做完一套导入的真题卷就能估分</Text>
+            <Text variant="caption">题库整理好后，做完一套真题卷就能估分</Text>
           </View>
           <Card tone="fill" style={styles.card}>
             <View style={styles.dots} accessibilityElementsHidden>
@@ -227,8 +184,7 @@ export default function TodayTab() {
         {h.state === 'done' ? <DoneCard home={h} summary={summary.data} /> : h.plan ? <PlanCard plan={h.plan} /> : null}
         {h.state !== 'done' && h.stage_push ? <PushCard push={h.stage_push} /> : null}
         <BanksCard banks={h.banks} />
-        <FalseMasteryCard count={h.false_mastery_count} />
-        <Entries subjectId={list.find((x) => !x.is_essay)?.id} />
+        <FalseMasteryCard count={h.false_mastery_count} subjectId={list.find((x) => !x.is_essay)?.id} />
       </ScrollView>
       {prompt}
       {target}

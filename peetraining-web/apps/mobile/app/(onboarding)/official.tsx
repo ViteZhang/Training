@@ -32,7 +32,7 @@ export default function OfficialFound() {
   // 添加后有限选题分组、报考方向对不上的课，逐门请用户选方向，选完再进 1.2
   const [picks, setPicks] = useState<GroupPick[]>([]);
   const next = async () => {
-    saveDraft({ after: '/(tabs)/bank' });
+    saveDraft({ after: '/(tabs)/today' });
     await setStep('1.2');
     router.push('/(onboarding)/target');
   };

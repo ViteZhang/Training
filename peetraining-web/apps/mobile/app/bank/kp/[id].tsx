@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { ActionList, BottomSheet, Button, Card, ConfirmDialog, ErrorState, InfoCard, Loading, NavBar, RubricLine, Screen, Tag, Text, toast } from '@/components';
 import { MasteryPill } from '@/features/bank/MasteryPill';
+import { usePracticeQuestions } from '@/features/practice/api';
 import { bankKeys, relationNames, sourceLabel, useKP, type KPDetail } from '@/features/bank/api';
 import { qtypeNames } from '@/features/import/api';
 import { Segments } from '@/features/import/ui';
@@ -205,8 +206,9 @@ function MergePicker({ kp, query, setQuery, onPick }: { kp: KPDetail; query: str
 }
 
 export default function KPCard() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, subjectId } = useLocalSearchParams<{ id: string; subjectId?: string }>();
   const kpId = Number(id);
+  const check = usePracticeQuestions();
   const qc = useQueryClient();
   const kp = useKP(kpId);
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -333,14 +335,26 @@ export default function KPCard() {
             自评只作参考：在两个不同日期答对相关题目后，才会标记为「已掌握」
           </Text>
         </View>
-        <Button title="来一题检验" onPress={() => toast('检验练习在训练模块上线后开放')} />
+        {k.related_questions.length > 0 ? (
+          <Button
+            title="来一题检验"
+            loading={check.pending}
+            onPress={() => {
+              // 从相关题目里随机挑一道
+              const pick = k.related_questions[Math.floor(Math.random() * k.related_questions.length)]!;
+              void check.run([pick.id], subjectId ? Number(subjectId) : undefined);
+            }}
+          />
+        ) : (
+          <Text variant="small" style={styles.centerText}>这个知识点还没有相关题目，暂时不能检验</Text>
+        )}
       </ScrollView>
       <MoreActions kp={k} sheet={sheet} setSheet={setSheet} />
     </Screen>
   );
 }
-
 const styles = StyleSheet.create({
+  centerText: { textAlign: 'center' },
   scroll: { paddingBottom: spacing.xl, gap: 12 },
   gap: { gap: spacing.sm },
   gap2: { gap: 2 },

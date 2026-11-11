@@ -7,6 +7,7 @@ import { colors, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
+import { usePracticeQuestions } from '@/features/practice/api';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Button, Card, ConfirmDialog, ErrorState, GroupNote, InfoCard, Loading, PassageCard, RubricLine, Screen, Tag, Text, toast } from '@/components';
 import { bankKeys, shortDate, sourceLabel, useQuestion, type QuestionDetail } from '@/features/bank/api';
@@ -89,6 +90,7 @@ export default function QuestionScreen() {
   const [confirming, setConfirming] = useState(false);
   const subjects = useSubjects();
 
+  const retry = usePracticeQuestions();
   if (question.isLoading) return <Screen><Loading rows={6} /></Screen>;
   if (question.isError || !question.data) return <Screen><ErrorState error={question.error} onRetry={() => void question.refetch()} /></Screen>;
   const q = question.data;
@@ -282,7 +284,7 @@ export default function QuestionScreen() {
                 <Button title="答案没问题，确认" loading={confirming} onPress={() => void confirmAI()} style={styles.flex} />
               </View>
             ) : (
-              <Button title="再练这道题" onPress={() => toast('练习在训练模块上线后开放')} />
+              <Button title="再练这道题" loading={retry.pending} onPress={() => void retry.run([q.id], q.subject_id ?? subject?.id)} />
             )}
           </View>
         </>

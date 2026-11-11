@@ -89,6 +89,14 @@ describe('2.1 今日首页', () => {
     expect(mockPush).toHaveBeenCalledWith('/messages');
   });
 
+  it('免费版批改次数不够做完计划里的主观题时，提前说明', async () => {
+    const items = [1, 2, 3].map((i) => ({ group: 'review', kp_id: i, subject_id: 7, question_id: i, qtype: 'term', minutes: 1.5, done: false }));
+    mockResponses['GET /home'] = () => ({ status: 200, data: home({ plan: plan({ items }) }) });
+    mockResponses['GET /quota'] = () => ({ status: 200, data: { is_member: false, items: [{ quota_type: 'grading', used: 2, limit: 3, period: 'day' }] } });
+    await wrap(<TodayTab />);
+    expect(await screen.findByText(/今天计划里还有 3 道主观题，今天还能批改 1 道/)).toBeTruthy();
+  });
+
   it('做了一部分：显示已做条目数与还剩的时间，「继续训练」接到背诵；都做完了进今日总结', async () => {
     const part = plan({
       done_minutes: 20, remaining_minutes: 13.2, item_count: 11, done_count: 5,
@@ -115,7 +123,7 @@ describe('2.1 今日首页', () => {
     await wrap(<TodayTab />);
     expect(await screen.findByLabelText('预估分 98 到 106')).toBeTruthy();
     expect(screen.getByText(/还差约 9 分 · 主要差在论述题/)).toBeTruthy();
-    expect(screen.getByText('依据你导入的 2 套真题卷实测和近 20 道主观题估算')).toBeTruthy();
+    expect(screen.getByText('依据你做过的 2 套真题卷实测和近 20 道主观题估算')).toBeTruthy();
     expect(screen.getByText(/今天 \+2 分/)).toBeTruthy();
     expect(screen.queryByText('做完一套整卷后生成预估分')).toBeNull();
     await fireEvent.press(screen.getByText('提分看板'));
@@ -127,7 +135,7 @@ describe('2.1 今日首页', () => {
       basis_papers: 2, basis_questions: 20, ai_confirmed_questions: 3, pending_answer_papers: 1 };
     mockResponses['GET /home'] = () => ({ status: 200, data: home({ estimates: [est] }) });
     await wrap(<TodayTab />);
-    expect(await screen.findByText('依据你导入的 2 套真题卷实测和近 20 道主观题估算，其中 3 题按你确认过的 AI 答案评分；另有 1 套卷缺答案，暂不参与估分')).toBeTruthy();
+    expect(await screen.findByText('依据你做过的 2 套真题卷实测和近 20 道主观题估算，其中 3 题按你确认过的 AI 答案评分；另有 1 套卷缺答案，暂不参与估分')).toBeTruthy();
   });
 
   it('还没导入资料（2.1c）', async () => {

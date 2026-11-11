@@ -1,6 +1,7 @@
 import type { Schemas } from '@training/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { toast } from '@/components';
 import { api, unwrap } from '@/lib/api';
 import { cachedSession, cacheSession } from './offline';
@@ -71,6 +72,35 @@ export function useStartPractice() {
     },
     onError: (e) => toast(e instanceof Error && e.message ? e.message : '没能开始练习，请重试'),
   });
+}
+
+/**
+ * 只练指定的几道题（题目详情「再练这道题」、知识点卡片「来一题检验」）。
+ * 不知道是哪门课时（从批改结果、总结页进来的知识点卡片）先读第一道题拿到课程。
+ */
+export function usePracticeQuestions() {
+  const start = useStartPractice();
+  const [resolving, setResolving] = useState(false);
+  const run = async (questionIds: number[], subjectId?: number) => {
+    if (questionIds.length === 0 || start.isPending || resolving) return;
+    let sid = subjectId;
+    if (!sid) {
+      setResolving(true);
+      try {
+        sid = (await unwrap(api.GET('/questions/{questionId}', { params: { path: { questionId: questionIds[0]! } } }))).subject_id;
+      } catch {
+        sid = undefined;
+      } finally {
+        setResolving(false);
+      }
+    }
+    if (!sid) {
+      toast('没能开始练习，请重试');
+      return;
+    }
+    start.mutate({ subject_id: sid, kind: 'custom', config: { question_ids: questionIds, count: questionIds.length, only_unmastered: false, ai_fill: false } });
+  };
+  return { run, pending: start.isPending || resolving };
 }
 
 /**

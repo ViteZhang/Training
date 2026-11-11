@@ -69,7 +69,7 @@ export default function TrainTab() {
         <Text variant="bodyStrong" style={styles.title16}>
           整卷 · 模拟考试
         </Text>
-        <Text variant="small">按你导入的真题卷限时作答</Text>
+        <Text variant="small">按真题卷限时作答，交卷后逐题批改</Text>
       </View>
       <Icon name="chevron" size={16} color={semantic.textSecondary} />
     </Pressable>
