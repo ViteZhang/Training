@@ -94,6 +94,31 @@ func (q *Queries) CountSessionsSince(ctx context.Context, arg CountSessionsSince
 	return count, err
 }
 
+const countSessionsStartedSince = `-- name: CountSessionsStartedSince :one
+SELECT COUNT(*) FROM practice_sessions
+WHERE owner_user_id = ? AND subject_id = ? AND kind = ? AND started_at >= ?
+`
+
+type CountSessionsStartedSinceParams struct {
+	OwnerUserID uint64
+	SubjectID   sql.NullInt64
+	Kind        PracticeSessionsKind
+	StartedAt   time.Time
+}
+
+// 某类练习从某个时刻起开过几组（不论是否结束）。
+func (q *Queries) CountSessionsStartedSince(ctx context.Context, arg CountSessionsStartedSinceParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSessionsStartedSince,
+		arg.OwnerUserID,
+		arg.SubjectID,
+		arg.Kind,
+		arg.StartedAt,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const finishPracticeSession = `-- name: FinishPracticeSession :exec
 UPDATE practice_sessions SET status = 'finished', summary = ?, finished_at = ? WHERE id = ? AND owner_user_id = ?
 `
@@ -372,6 +397,38 @@ func (q *Queries) InsertPracticeSession(ctx context.Context, arg InsertPracticeS
 		return 0, err
 	}
 	return result.LastInsertId()
+}
+
+const latestInProgressDaily = `-- name: LatestInProgressDaily :one
+SELECT id, owner_user_id, subject_id, title, config, question_ids, cursor_index, status, summary, started_at, finished_at, kind FROM practice_sessions
+WHERE owner_user_id = ? AND subject_id = ? AND status = 'in_progress' AND kind = 'daily'
+ORDER BY started_at DESC, id DESC LIMIT 1
+`
+
+type LatestInProgressDailyParams struct {
+	OwnerUserID uint64
+	SubjectID   sql.NullInt64
+}
+
+// 这门课最近一组进行中的今日训练：只认今日训练，别的练习（题型专项、自定义）开着也不挡断点续练。
+func (q *Queries) LatestInProgressDaily(ctx context.Context, arg LatestInProgressDailyParams) (PracticeSession, error) {
+	row := q.db.QueryRowContext(ctx, latestInProgressDaily, arg.OwnerUserID, arg.SubjectID)
+	var i PracticeSession
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerUserID,
+		&i.SubjectID,
+		&i.Title,
+		&i.Config,
+		&i.QuestionIds,
+		&i.CursorIndex,
+		&i.Status,
+		&i.Summary,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Kind,
+	)
+	return i, err
 }
 
 const latestInProgressRecite = `-- name: LatestInProgressRecite :one

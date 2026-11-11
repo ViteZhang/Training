@@ -12,7 +12,7 @@ import { Cloze, CoverageView, Dictation, Oral, type RecordBody, type RecordResul
 import { api, unwrap } from '@/lib/api';
 
 export default function RecitePage() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, today } = useLocalSearchParams<{ id: string; today?: string }>();
   const sessionId = Number(id);
   const qc = useQueryClient();
   const session = useReciteSession(sessionId);
@@ -47,7 +47,7 @@ export default function RecitePage() {
     }
     void qc.invalidateQueries({ queryKey: ['practice', 'home'] });
     void qc.invalidateQueries({ queryKey: ['home'] });
-    router.replace({ pathname: '/recite/done/[id]', params: { id: String(sessionId), subjectId: String(s.subject_id) } });
+    router.replace({ pathname: '/recite/done/[id]', params: { id: String(sessionId), subjectId: String(s.subject_id), ...(today ? { today } : {}) } });
   };
 
   const record = async (body: RecordBody) => {
@@ -133,6 +133,8 @@ export default function RecitePage() {
         onConfirm={() => {
           setExiting(false);
           void qc.invalidateQueries({ queryKey: reciteKeys.session(sessionId) });
+          void qc.invalidateQueries({ queryKey: ['practice', 'home'] });
+          void qc.invalidateQueries({ queryKey: ['home'] });
           router.back();
         }}
         onCancel={() => setExiting(false)}

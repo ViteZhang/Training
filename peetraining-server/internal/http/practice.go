@@ -128,7 +128,8 @@ func (h *Handlers) GetPracticeHome(c *gin.Context, subjectID gen.SubjectId) {
 			out.Today.SessionId = ptr(int64(p.TodaySession))
 		}
 	}
-	if rules.Stage(p.Stage) != rules.Foundation {
+	// 本周题型专项只在强化期主推（PRD 11.5）：冲刺期主推本周整卷、考前期主推模拟考试，与首页一致。
+	if rules.Stage(p.Stage) == rules.Strengthen {
 		out.TypeDrill = &struct {
 			DoneThisWeek int               `json:"done_this_week"`
 			Qtype        *gen.QuestionType `json:"qtype,omitempty"`

@@ -79,6 +79,12 @@ describe('客观题离线判分', () => {
   });
 });
 
+const todayPlan = {
+  date: '2026-10-02', stage: 'strengthen', budget_minutes: 45, total_minutes: 23, done_minutes: 10, remaining_minutes: 13, item_count: 11, done_count: 5, completed: false,
+  subjects: [{ subject_id: 7, count: 5, done: 5, minutes: 10 }, { subject_id: 8, count: 6, done: 0, minutes: 13 }],
+  groups: [{ group: 'weak', count: 3, done: 1, minutes: 15 }, { group: 'recite', count: 8, done: 4, minutes: 8 }], items: [],
+};
+
 describe('4.1 训练首页', () => {
   it('今日训练、按题型练、错题本；点题型开始专项', async () => {
     mockResponses['GET /subjects/{subjectId}/practice'] = () => ({
@@ -89,9 +95,17 @@ describe('4.1 训练首页', () => {
         qtype_counts: [{ qtype: 'term', count: 18 }, { qtype: 'single_choice', count: 12 }], wrong_book: { total: 23, due: 8 },
       },
     });
+    mockResponses['GET /home'] = () => ({ status: 200, data: { state: 'normal', plan: todayPlan } });
+    mockResponses['POST /plans/today/next'] = () => ({ status: 200, data: { step: 'practice', session_id: 51, subject_id: 7, remaining: 6 } });
     mockResponses['POST /practice-sessions'] = () => ({ status: 201, data: session() });
     await wrap(<TrainTab />);
-    expect(await screen.findByText('0 / 12 · 约 44 分钟')).toBeTruthy();
+    // 今日训练和首页同一个口径：所有专业课的题目 + 背诵；下面是每门课的小计。
+    expect(await screen.findByText('5 / 11 项 · 还剩约 13 分钟')).toBeTruthy();
+    expect(screen.getByText('已完成')).toBeTruthy();
+    expect(screen.getByText('0 / 6')).toBeTruthy();
+    await fireEvent.press(screen.getByText('继续训练'));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith({ pathname: '/practice/[id]', params: { id: '51' } }));
+    expect(mockCalls.find((c) => c.path === '/plans/today/next')?.init).toEqual({ body: { ai_fill: false, subject_id: 7 } });
     expect(screen.getByText('本周题型专项 · 名词解释 2 / 3')).toBeTruthy();
     expect(screen.getByText('23 题 · 8 题到了复习日')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('练单选'));
@@ -101,6 +115,15 @@ describe('4.1 训练首页', () => {
 });
 
 describe('4.3 客观题', () => {
+  it('进来时这组题已经全部答完（上次答完直接退出）：直接去结算，不再摆出做过的题', async () => {
+    mockParams = { id: '50' };
+    const base = session();
+    const done = { ...base, questions: base.questions.map((x) => ({ ...x, answered: { is_correct: true, revealed: false } })) };
+    mockResponses['GET /practice-sessions/{sessionId}'] = () => ({ status: 200, data: done });
+    await wrap(<PracticeRunner />);
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith({ pathname: '/practice/summary/[id]', params: { id: '50' } }));
+  });
+
   it('选中即判分，显示服务端结果；做完进入本组总结', async () => {
     mockParams = { id: '50' };
     mockResponses['GET /practice-sessions/{sessionId}'] = () => ({ status: 200, data: session() });

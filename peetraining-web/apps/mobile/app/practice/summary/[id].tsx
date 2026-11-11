@@ -1,12 +1,13 @@
 // 4.11 本组训练总结：一句总结（只描述数据）、完成题数、正确率、用时、按题型得分、来自题库与 AI 出题的题数、需要再看的知识点（最多 3 个）。
 import { colors, semantic, spacing } from '@training/ui-tokens';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { BackButton, Button, Card, ErrorState, Icon, Loading, Screen, Text } from '@/components';
 import { qtypeNames } from '@/features/import/api';
 import { practiceKeys, useSession } from '@/features/practice/api';
+import { TodayNextFooter } from '@/features/today/Next';
 import { Stat } from '@/features/today/Cards';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
@@ -20,9 +21,14 @@ export default function PracticeSummaryPage() {
     queryFn: () => unwrap(api.POST('/practice-sessions/{sessionId}/finish', { params: { path: { sessionId } } })),
     staleTime: Infinity,
   });
+  const qc = useQueryClient();
   useEffect(() => {
-    if (q.data) track('session_finish');
-  }, [q.data]);
+    if (!q.data) return;
+    track('session_finish');
+    // 结算后首页与训练页的今日进度要跟上。
+    void qc.invalidateQueries({ queryKey: ['home'] });
+    void qc.invalidateQueries({ queryKey: ['practice', 'home'] });
+  }, [q.data, qc]);
   if (q.isLoading) return <Screen><Loading rows={5} /></Screen>;
   if (q.isError || !q.data) return <Screen><ErrorState error={q.error} onRetry={() => void q.refetch()} /></Screen>;
   const s = q.data;
@@ -84,10 +90,15 @@ export default function PracticeSummaryPage() {
           </View>
         ) : null}
       </ScrollView>
-      <View style={styles.footer}>
-        {subjectId ? <Button title="查看错题" kind="secondary" style={styles.flex} onPress={() => router.replace({ pathname: '/practice/wrong', params: { subjectId: String(subjectId) } })} /> : null}
-        <Button title="完成" style={styles.flex2} onPress={() => router.replace('/(tabs)/train')} />
-      </View>
+      {session.data?.kind === 'daily' ? (
+        // 今日训练的一段：主按钮接着做下一段（下一门课的题或背诵），全部做完去 2.2。
+        <TodayNextFooter subjectId={subjectId} onLater={() => router.replace('/(tabs)/train')} />
+      ) : (
+        <View style={styles.footer}>
+          {subjectId ? <Button title="查看错题" kind="secondary" style={styles.flex} onPress={() => router.replace({ pathname: '/practice/wrong', params: { subjectId: String(subjectId) } })} /> : null}
+          <Button title="完成" style={styles.flex2} onPress={() => router.replace('/(tabs)/train')} />
+        </View>
+      )}
     </Screen>
   );
 }

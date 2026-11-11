@@ -117,3 +117,14 @@ SELECT status, report_count, source FROM questions WHERE id = ? AND owner_user_i
 
 -- name: SetQuestionGeneratedFrom :exec
 UPDATE questions SET generated_from_kp_id = ?, answer_origin = 'ai_generated' WHERE id = ? AND owner_user_id = ?;
+
+-- name: LatestInProgressDaily :one
+-- 这门课最近一组进行中的今日训练：只认今日训练，别的练习（题型专项、自定义）开着也不挡断点续练。
+SELECT * FROM practice_sessions
+WHERE owner_user_id = ? AND subject_id = ? AND status = 'in_progress' AND kind = 'daily'
+ORDER BY started_at DESC, id DESC LIMIT 1;
+
+-- name: CountSessionsStartedSince :one
+-- 某类练习从某个时刻起开过几组（不论是否结束）。
+SELECT COUNT(*) FROM practice_sessions
+WHERE owner_user_id = ? AND subject_id = ? AND kind = ? AND started_at >= ?;

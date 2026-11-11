@@ -194,7 +194,7 @@ func reciteDue(next sql.NullTime, today rules.Day) bool {
 }
 
 // CreateRecite 开始一轮背诵：今日计划里背诵组的知识点优先，其余到期或从没背过的按掌握分从低到高，最多 10 条；
-// retryOf 不为 0 时只背那一轮里没记住的。当天已有进行中的一轮（不是再背）时继续那一轮。
+// retryOf 不为 0 时只背那一轮里没记住的。当天已有进行中、还没背完的一轮（不是再背）时继续那一轮。
 func (s *Service) CreateRecite(ctx context.Context, userID, subjectID, retryOf uint64) (ReciteSession, error) {
 	b, err := s.subject(ctx, userID, subjectID)
 	if err != nil {
@@ -233,7 +233,17 @@ func (s *Service) CreateRecite(ctx context.Context, userID, subjectID, retryOf u
 	} else {
 		cur, err := s.q.LatestInProgressRecite(ctx, dbq.LatestInProgressReciteParams{OwnerUserID: userID, SubjectID: sub})
 		if err == nil && cur.Kind == dbq.PracticeSessionsKindRecite && rules.DayOf(cur.StartedAt) == s.today() {
-			return s.GetRecite(ctx, userID, cur.ID)
+			rs, err := s.GetRecite(ctx, userID, cur.ID)
+			if err != nil {
+				return ReciteSession{}, err
+			}
+			if rs.DoneCount < len(rs.Items) {
+				return rs, nil
+			}
+			// 那一轮都背完了却没结算（背完直接退出）：先结算，再按还没背的开新的一轮，不把背过的最后一条再摆出来。
+			if _, err := s.FinishRecite(ctx, userID, cur.ID); err != nil {
+				return ReciteSession{}, err
+			}
 		}
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return ReciteSession{}, err
@@ -245,7 +255,8 @@ func (s *Service) CreateRecite(ctx context.Context, userID, subjectID, retryOf u
 		planned := map[uint64]int{}
 		if pl, err := s.plan.Today(ctx, userID); err == nil {
 			for i, it := range pl.Items {
-				if it.SubjectID == b.SubjectID && it.Group == string(rules.GroupRecite) {
+				// 今天已经背过的不再排进来（下次复习日已经往后推了）。
+				if it.SubjectID == b.SubjectID && it.Group == string(rules.GroupRecite) && !pl.Done[i] {
 					planned[it.KPID] = i + 1
 				}
 			}

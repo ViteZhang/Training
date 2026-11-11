@@ -25,10 +25,31 @@ func toGenPlan(p plan.Plan) gen.TodayPlan {
 	for _, k := range order {
 		groups[k] = &gen.PlanGroupSummary{Group: k}
 	}
+	// 条目数是全 App 统一的口径（题目 + 背诵，所有专业课合计），首页与训练页都显示它。
+	out.ItemCount, out.DoneCount = len(p.Items), len(p.Done)
+	out.RemainingMinutes = float32(max(0, p.TotalMinutes-p.DoneMinutes))
+	sized(&out.Subjects, 0)
+	bySubject := map[int64]int{}
 	sized(&out.Items, len(p.Items))
 	for i, it := range p.Items {
 		x := &out.Items[i]
 		x.Group, x.KpId, x.SubjectId, x.Minutes, x.Done = gen.PlanGroupKey(it.Group), int64(it.KPID), int64(it.SubjectID), float32(it.Minutes), p.Done[i]
+		si, ok := bySubject[x.SubjectId]
+		if !ok {
+			si = len(out.Subjects)
+			bySubject[x.SubjectId] = si
+			out.Subjects = append(out.Subjects, struct {
+				Count     int     `json:"count"`
+				Done      int     `json:"done"`
+				Minutes   float32 `json:"minutes"`
+				SubjectId int64   `json:"subject_id"`
+			}{SubjectId: x.SubjectId})
+		}
+		out.Subjects[si].Count++
+		out.Subjects[si].Minutes += x.Minutes
+		if x.Done {
+			out.Subjects[si].Done++
+		}
 		if it.QuestionID != 0 {
 			q := int64(it.QuestionID)
 			x.QuestionId = &q
@@ -143,6 +164,31 @@ func (h *Handlers) GetTodayPlan(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, toGenPlan(p))
+}
+
+// StartTodayNext 是首页与训练页的「开始训练 / 继续训练」：找到今日训练的下一段并建好会话。
+func (h *Handlers) StartTodayNext(c *gin.Context) {
+	var body gen.StartTodayNextJSONRequestBody
+	if c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&body); err != nil {
+			_ = c.Error(ErrBadRequest(err.Error()))
+			return
+		}
+	}
+	var prefer uint64
+	if body.SubjectId != nil {
+		prefer = uint64(*body.SubjectId)
+	}
+	st, err := h.deps.Practice.ContinueToday(c.Request.Context(), currentUser(c), prefer, body.AiFill != nil && *body.AiFill)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	out := gen.TodayNext{Step: gen.TodayNextStep(st.Step), Remaining: st.Remaining}
+	if st.SessionID != 0 {
+		out.SessionId, out.SubjectId = ptr(int64(st.SessionID)), ptr(int64(st.SubjectID))
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 func (h *Handlers) GetTodaySummary(c *gin.Context) {

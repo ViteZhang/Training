@@ -74,7 +74,16 @@ export default function PracticeRunner() {
   const result = q ? (results[q.id] ?? fromAnswered(q.answered)) : undefined;
   const done = useMemo(() => (s ? s.questions.filter((x) => x.answered || results[x.id]).length : 0), [s, results]);
 
-  if (session.isLoading && !s) return <Screen><Loading rows={6} /></Screen>;
+  // 进来时这组题已经全部答完（上次答完直接退出，没点「完成本组」）：直接去结算，不再把做过的最后一题摆出来。
+  const settled = !!s && session.isFetchedAfterMount && current === null && Object.keys(results).length === 0 && s.questions.length > 0 && s.questions.every((x) => x.answered);
+  useEffect(() => {
+    if (!settled) return;
+    void qc.invalidateQueries({ queryKey: ['practice', 'home'] });
+    void qc.invalidateQueries({ queryKey: ['home'] });
+    router.replace({ pathname: '/practice/summary/[id]', params: { id: String(sessionId) } });
+  }, [settled, sessionId, qc]);
+
+  if ((session.isLoading && !s) || settled) return <Screen><Loading rows={6} /></Screen>;
   if (!s) return <Screen><ErrorState error={session.error} onRetry={() => void session.refetch()} /></Screen>;
   if (s.questions.length === 0) return <Screen><EmptyState title="这组题都被删除了" actionText="返回" onAction={() => router.back()} /></Screen>;
   if (!q) return <Screen><Loading rows={6} /></Screen>;
@@ -122,6 +131,7 @@ export default function PracticeRunner() {
       return;
     }
     setFinishing(true);
+    void qc.invalidateQueries({ queryKey: ['home'] });
     await qc.invalidateQueries({ queryKey: ['practice', 'home'] });
     router.replace({ pathname: '/practice/summary/[id]', params: { id: String(sessionId) } });
   };
@@ -135,6 +145,7 @@ export default function PracticeRunner() {
     }
     void qc.invalidateQueries({ queryKey: practiceKeys.session(sessionId) });
     void qc.invalidateQueries({ queryKey: ['practice', 'home'] });
+    void qc.invalidateQueries({ queryKey: ['home'] });
     router.back();
   };
 

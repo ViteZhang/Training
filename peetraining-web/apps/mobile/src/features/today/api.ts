@@ -1,5 +1,7 @@
 import type { Schemas } from '@training/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { router } from 'expo-router';
+import { toast } from '@/components';
 import { api, unwrap } from '@/lib/api';
 
 export type Home = Schemas['Home'];
@@ -22,6 +24,33 @@ export function useHome() {
 
 export function useTodaySummary() {
   return useQuery({ queryKey: todayKeys.summary, queryFn: () => unwrap(api.GET('/plans/today/summary')) });
+}
+
+/**
+ * 今日训练的「开始训练 / 继续训练」：今日训练 = 今天计划的全部条目（题目与背诵，所有专业课合计）。
+ * 服务端找到下一段还没做的内容（这门课的题 → 这门课的背诵 → 下一门课）并建好会话，这里直接进入；都做完了进 2.2。
+ * 首页、训练页、每段结束页用的是同一个入口，数字和去向因此一致。replace 用在结束页（接着做下一段，不留在返回栈里）。
+ */
+export function useContinueToday(replace = false) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { subject_id?: number; ai_fill?: boolean } | void) => unwrap(api.POST('/plans/today/next', { body: { ai_fill: false, ...(body ?? {}) } })),
+    onSuccess: (n) => {
+      void qc.invalidateQueries({ queryKey: todayKeys.home });
+      void qc.invalidateQueries({ queryKey: ['practice', 'home'] });
+      const go = replace ? router.replace : router.push;
+      if (n.step === 'practice' && n.session_id) go({ pathname: '/practice/[id]', params: { id: String(n.session_id) } });
+      else if (n.step === 'recite' && n.session_id) go({ pathname: '/recite/[id]', params: { id: String(n.session_id), today: '1' } });
+      else go('/plan/summary');
+    },
+    onError: (e) => toast(e instanceof Error && e.message ? e.message : '没能开始训练，请重试'),
+  });
+}
+
+/** 今日训练卡右上角的进度：「5 / 11 项 · 还剩约 13 分钟」；还没开始时是「0 / 11 项 · 约 23 分钟」。数字都来自服务端。 */
+export function planProgress(plan: TodayPlan) {
+  const time = plan.done_count > 0 ? `还剩约 ${minutes(plan.remaining_minutes)} 分钟` : `约 ${minutes(plan.total_minutes)} 分钟`;
+  return `${plan.done_count} / ${plan.item_count} 项 · ${time}`;
 }
 
 /** 2.1e：接受立即切换阶段并重排今天的计划；拒绝留在当前阶段。 */
@@ -49,7 +78,7 @@ export function useSetTarget() {
   });
 }
 
-/** 计划分组名：强化期以后「薄弱查漏」显示为题型专项（PRD 模块 2）。 */
+/** 计划分组名。「题型专项」只指每周的专项练习，不用作分组名，免得和「本周题型专项」的次数混在一起。 */
 export const groupNames: Record<PlanGroupKey, string> = { new: '新知识点', review: '到期复习', weak: '薄弱查漏', recite: '背诵' };
 
 /** 2.1e 构成对比的顺序与名称（设计稿：新知识点 · 复习 · 查漏 · 背诵）。 */
