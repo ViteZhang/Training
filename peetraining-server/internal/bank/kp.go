@@ -108,10 +108,15 @@ func (s *Service) KnowledgePoint(ctx context.Context, userID, id uint64) (KPDeta
 		return d, err
 	}
 	if d.AIExplanation == "" && d.Level == string(dbq.KnowledgePointsLevelPoint) {
-		if text, err := s.explain(ctx, userID, d); err == nil {
-			d.AIExplanation = text
-		} else if !apperr.IsKind(err, apperr.AIFailed) {
-			return d, err
+		// 第一次打开时生成（官方题库复制来的知识点都没有）；模型慢时先返回卡片，解读在后台生成好存下来。
+		var text string
+		var aerr error
+		if s.waitOrBackground(ctx, "explain:"+strconv.FormatUint(id, 10), func(bg context.Context) { text, aerr = s.explain(bg, userID, d) }) {
+			if aerr == nil {
+				d.AIExplanation = text
+			} else if !apperr.IsKind(aerr, apperr.AIFailed) && !errors.Is(aerr, context.DeadlineExceeded) {
+				return d, aerr
+			}
 		}
 	}
 	return d, nil

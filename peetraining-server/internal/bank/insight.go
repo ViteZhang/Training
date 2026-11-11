@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
@@ -535,25 +536,98 @@ func (s *Service) ensureRelations(ctx context.Context, userID uint64, b dbq.GetS
 			}
 		}
 	}
-	// 易混对比：AI。
-	if len(points) >= 2 {
-		out, _, err := ai.Relate.Run(ctx, s.ai, userID, ai.RelateIn{Subject: b.Name, Points: points})
-		switch {
-		case err == nil:
-			for _, c := range out.Contrasts {
-				add(idOf[c.A], idOf[c.B], dbq.KpRelationsRelationTypeContrast)
+	// 易混对比：AI。模型慢时先把结构关联写好返回，对比关联在后台生成好再补上（见 waitOrBackground）。
+	var (
+		mu        sync.Mutex
+		finished  bool
+		abandoned bool
+		contrasts [][2]uint64
+	)
+	structDone := make(chan struct{})
+	defer close(structDone)
+	pairsOf := func(out ai.RelateOut) [][2]uint64 {
+		var ps [][2]uint64
+		for _, c := range out.Contrasts {
+			x, y := idOf[c.A], idOf[c.B]
+			if x == 0 || y == 0 || x == y {
+				continue
 			}
-		case !apperr.IsKind(err, apperr.AIFailed):
-			return err
+			if x > y {
+				x, y = y, x
+			}
+			ps = append(ps, [2]uint64{x, y})
 		}
+		return ps
 	}
-	for pr, t := range kinds {
-		if _, err := s.q.InsertKPRelation(ctx, dbq.InsertKPRelationParams{OwnerUserID: owner(userID), BankID: b.BankID, KpAID: pr.a, KpBID: pr.b,
-			RelationType: t, Origin: dbq.KpRelationsOriginAiGenerated}); err != nil {
-			return err
-		}
+	var aiErr error
+	if len(points) >= 2 {
+		s.waitOrBackground(ctx, "relate:"+strconv.FormatUint(b.BankID, 10), func(bg context.Context) {
+			out, _, err := ai.Relate.Run(bg, s.ai, userID, ai.RelateIn{Subject: b.Name, Points: points})
+			mu.Lock()
+			if !abandoned {
+				finished, aiErr = true, err
+				if err == nil {
+					contrasts = pairsOf(out)
+				}
+				mu.Unlock()
+				return
+			}
+			mu.Unlock()
+			if err != nil {
+				return
+			}
+			// 请求已经先返回了：等结构关联写完再补对比关联，免得被结构关联覆盖。
+			select {
+			case <-structDone:
+			case <-bg.Done():
+				return
+			}
+			rows := relationRows(userID, b.BankID, pairsOf(out), dbq.KpRelationsRelationTypeContrast)
+			_ = s.q.UpsertRows(bg, insertRelations, upsertRelationTail, rows)
+		})
+	}
+	mu.Lock()
+	if !finished {
+		abandoned = true
+	}
+	got, err := contrasts, aiErr
+	mu.Unlock()
+	if err != nil && !apperr.IsKind(err, apperr.AIFailed) && !errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	for _, c := range got {
+		add(c[0], c[1], dbq.KpRelationsRelationTypeContrast)
+	}
+	// 官方题库知识点多，同章并列、同题出现能有几千对，一条 INSERT 写多行（见 dbq.InsertRows）。
+	pairs := make([]pair, 0, len(kinds))
+	for pr := range kinds {
+		pairs = append(pairs, pr)
+	}
+	sort.Slice(pairs, func(i, j int) bool {
+		return pairs[i].a < pairs[j].a || (pairs[i].a == pairs[j].a && pairs[i].b < pairs[j].b)
+	})
+	rows := make([][]any, len(pairs))
+	for i, pr := range pairs {
+		rows[i] = []any{owner(userID), b.BankID, pr.a, pr.b, kinds[pr], dbq.KpRelationsOriginAiGenerated}
+	}
+	if err := s.q.UpsertRows(ctx, insertRelations, upsertRelationTail, rows); err != nil {
+		return err
 	}
 	return s.q.MarkRelationsGenerated(ctx, dbq.MarkRelationsGeneratedParams{RelationsGeneratedAt: sql.NullTime{Time: s.now().UTC(), Valid: true}, ID: b.BankID, OwnerUserID: owner(userID)})
+}
+
+// 与 InsertKPRelation 相同的写法：kp_a_id < kp_b_id，同一对只存一条，重复时以这次为准。
+const (
+	insertRelations    = "INSERT INTO kp_relations (owner_user_id, bank_id, kp_a_id, kp_b_id, relation_type, origin) VALUES"
+	upsertRelationTail = "ON DUPLICATE KEY UPDATE relation_type = VALUES(relation_type), origin = VALUES(origin)"
+)
+
+func relationRows(userID, bankID uint64, pairs [][2]uint64, t dbq.KpRelationsRelationType) [][]any {
+	rows := make([][]any, len(pairs))
+	for i, p := range pairs {
+		rows[i] = []any{owner(userID), bankID, p[0], p[1], t, dbq.KpRelationsOriginAiGenerated}
+	}
+	return rows
 }
 
 // CreateRelation 在知识点卡片里添加关联；两个知识点必须在同一个题库里。

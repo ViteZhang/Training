@@ -7997,6 +7997,19 @@ export interface components {
             updated_at: string;
             /** @description 7 天内上线或更新过，App 标「新」 */
             is_new: boolean;
+            /**
+             * @description 限选题的分组（T51，按原卷顺序，同一方向只列一次）；空表示没有限选题。
+             *     matches 表示与已添加到（没添加时是建议添加到）的专业课报考方向（Subject.my_majors）匹配。
+             *     有分组但一组都不匹配时，App 添加后请用户选报考方向（PATCH /subjects/{id} 改 my_majors，服务端重新对题）。
+             */
+            groups?: components["schemas"]["OfficialBankGroup"][];
+        };
+        OfficialBankGroup: {
+            /** @description 组名，如「第一组」 */
+            label: string;
+            /** @description 适用专业，多个用顿号分隔 */
+            majors: string;
+            matches: boolean;
         };
         AdminDemand: {
             subject_code: string;
@@ -16820,7 +16833,10 @@ export interface operations {
                     qtype: "term" | "short_answer" | "discussion";
                     score: number;
                     count: number;
+                    /** @description 参考教材名称（未上传到官方资料库的教材手填；选了 edition_ids 时可不填） */
                     textbook?: string;
+                    /** @description 关联官方资料库里已发布的资料版本（GET /admin/textbooks 的 editions[].id）；按方向检索原文片段交给 AI 出题，题目的参考教材记为这些书名 */
+                    edition_ids?: number[];
                 };
             };
         };

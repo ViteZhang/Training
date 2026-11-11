@@ -6114,7 +6114,12 @@ paths:
                 qtype: { type: string, enum: [term, short_answer, discussion] }
                 score: { type: number, minimum: 1, maximum: 300 }
                 count: { type: integer, minimum: 1, maximum: 10 }
-                textbook: { type: string, maxLength: 128 }
+                textbook: { type: string, maxLength: 128, description: 参考教材名称（未上传到官方资料库的教材手填；选了 edition_ids 时可不填） }
+                edition_ids:
+                  type: array
+                  maxItems: 3
+                  description: 关联官方资料库里已发布的资料版本（GET /admin/textbooks 的 editions[].id）；按方向检索原文片段交给 AI 出题，题目的参考教材记为这些书名
+                  items: { type: integer, format: int64 }
       responses:
         "200":
           description: OK
@@ -12615,6 +12620,21 @@ components:
         is_new:
           type: boolean
           description: 7 天内上线或更新过，App 标「新」
+        groups:
+          type: array
+          description: |
+            限选题的分组（T51，按原卷顺序，同一方向只列一次）；空表示没有限选题。
+            matches 表示与已添加到（没添加时是建议添加到）的专业课报考方向（Subject.my_majors）匹配。
+            有分组但一组都不匹配时，App 添加后请用户选报考方向（PATCH /subjects/{id} 改 my_majors，服务端重新对题）。
+          items:
+            $ref: '#/components/schemas/OfficialBankGroup'
+    OfficialBankGroup:
+      type: object
+      required: [label, majors, matches]
+      properties:
+        label: { type: string, description: 组名，如「第一组」 }
+        majors: { type: string, description: 适用专业，多个用顿号分隔 }
+        matches: { type: boolean }
     AdminDemand:
       type: object
       required:

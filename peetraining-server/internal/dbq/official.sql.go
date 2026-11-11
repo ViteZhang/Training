@@ -1557,6 +1557,44 @@ func (q *Queries) ListPublishedOfficialBanks(ctx context.Context) ([]ListPublish
 	return items, nil
 }
 
+const listPublishedOfficialGroups = `-- name: ListPublishedOfficialGroups :many
+SELECT q.bank_id, q.group_label, q.group_majors
+FROM questions q JOIN banks b ON b.id = q.bank_id
+WHERE b.source = 'official' AND q.owner_user_id IS NULL AND q.status = 'active' AND q.group_label IS NOT NULL AND q.group_label <> ''
+GROUP BY q.bank_id, q.group_label, q.group_majors
+ORDER BY q.bank_id, MIN(q.id)
+`
+
+type ListPublishedOfficialGroupsRow struct {
+	BankID      uint64
+	GroupLabel  sql.NullString
+	GroupMajors sql.NullString
+}
+
+// 已发布官方题库里的限选题分组（T51），App 添加后让用户选报考方向。
+func (q *Queries) ListPublishedOfficialGroups(ctx context.Context) ([]ListPublishedOfficialGroupsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPublishedOfficialGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPublishedOfficialGroupsRow{}
+	for rows.Next() {
+		var i ListPublishedOfficialGroupsRow
+		if err := rows.Scan(&i.BankID, &i.GroupLabel, &i.GroupMajors); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubscribers = `-- name: ListSubscribers :many
 SELECT owner_user_id, subject_id FROM bank_subscriptions WHERE bank_id = ?
 `
