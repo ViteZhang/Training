@@ -13,7 +13,7 @@ import { EssayKnowledgeBase } from '@/features/bank/EssayKB';
 import { MaterialList } from '@/features/bank/MaterialList';
 import { QuestionList } from '@/features/bank/QuestionList';
 import { ParseQuotaBar } from '@/features/bank/QuotaBar';
-import { hasOfficial, KnowledgeTree } from '@/features/bank/Tree';
+import { isMixed, KnowledgeTree } from '@/features/bank/Tree';
 import { SupplementCard } from '@/features/official/SupplementCard';
 import { Segments } from '@/features/import/ui';
 import { api, unwrap } from '@/lib/api';
@@ -65,7 +65,7 @@ function KnowledgeTab({ subjectId, missing, onMissing, onlyOfficial }: { subject
       ) : (
         <>
           <KnowledgeTree sections={data.sections} expandAll={filter !== 'all'} subjectId={subjectId} />
-          {hasOfficial(data.sections) ? (
+          {isMixed(data.sections) ? (
             <View style={styles.note}>
               <Text variant="small">官方题标「官方」，你自己导入的标「我的」，两边互不覆盖。同名知识点会提示你合并。</Text>
             </View>

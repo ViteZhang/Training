@@ -19,7 +19,7 @@ function PointRow({ n, subjectId, first, mixed }: { n: KnowledgeNode; subjectId:
       {n.is_new ? <Tag label="新" tone="progress" /> : null}
       <View style={styles.flex} />
       {/* 3.1e：添加了官方题库的课，知识点标「官方」或「我的」（PRD v3 增补） */}
-      {n.official ? <Tag label="官方" tone="mastered" /> : mixed ? <Tag label="我的" tone="info" /> : null}
+      {mixed ? n.official ? <Tag label="官方" tone="mastered" /> : <Tag label="我的" tone="info" /> : null}
       <Text variant="small" style={styles.examCol} numberOfLines={1}>
         {n.exam_count ? `真题 ${n.exam_count} 次` : ''}
       </Text>
@@ -78,8 +78,13 @@ const weakInk = colors.orange;
 /** 有官方题的课才区分「官方 / 我的」（3.1e）。 */
 export const hasOfficial = (sections: KnowledgeNode[]) => sections.some((s) => (s.official_question_count ?? 0) > 0 || s.official);
 
+const hasOwn = (nodes: KnowledgeNode[]): boolean =>
+  nodes.some((n) => (n.my_question_count ?? 0) > 0 || (n.level === 'point' && !n.official) || hasOwn(n.children ?? []));
+/** 官方内容和自己导入的内容都有时才需要用「官方」「我的」区分；只有一种来源时不标。 */
+export const isMixed = (sections: KnowledgeNode[]) => hasOfficial(sections) && hasOwn(sections);
+
 export function KnowledgeTree({ sections, expandAll, subjectId }: { sections: KnowledgeNode[]; expandAll: boolean; subjectId: number }) {
-  const mixed = hasOfficial(sections);
+  const mixed = isMixed(sections);
   return (
     <View style={styles.tree}>
       {sections.map((s, i) =>

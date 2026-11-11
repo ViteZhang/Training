@@ -194,11 +194,6 @@ export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) 
           })}
         </View>
       )}
-      {quotaLeft !== null && quotaLeft !== undefined && subjectiveLeft > quotaLeft ? (
-        <Text variant="small">
-          今天计划里还有 {subjectiveLeft} 道主观题，{quotaLeft > 0 ? `今天还能批改 ${quotaLeft} 道` : '今天的批改次数已用完'}；超出的答案会先保存，明天可以一键提交批改
-        </Text>
-      ) : null}
       {plan.shortfall_minutes ? (
         <Text variant="small">题量还不够排满每天 {plan.budget_minutes} 分钟，题库里添加更多题目可以补上</Text>
       ) : null}
@@ -208,6 +203,11 @@ export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) 
       ) : (
         <Button title="去题库添加" kind="secondary" onPress={() => router.push('/(tabs)/bank')} />
       )}
+      {quotaLeft !== null && quotaLeft !== undefined && subjectiveLeft > quotaLeft ? (
+        <Text variant="small">
+          今天计划里还有 {subjectiveLeft} 道主观题，{quotaLeft > 0 ? `今天还能批改 ${quotaLeft} 道` : '今天的批改次数已用完'}；超出的答案会先保存，明天可以一键提交批改
+        </Text>
+      ) : null}
     </Card>
   );
 }
@@ -368,8 +368,8 @@ export function FalseMasteryCard({ count, subjectId }: { count: number; subjectI
         <Text variant="caption" color={colors.ink} style={styles.bold}>
           {count} 个知识点「以为会了」
         </Text>
-        <Text variant="caption"> · 自评掌握但实测偏低</Text>
       </Text>
+      <Text variant="small" style={styles.falseDesc}>自评会了，实测偏低</Text>
       <Icon name="chevron" size={16} color={semantic.textSecondary} />
     </Pressable>
   );
@@ -472,6 +472,7 @@ const styles = StyleSheet.create({
   bar: { flexDirection: 'row', height: 6, borderRadius: 3, overflow: 'hidden', gap: 2, backgroundColor: semantic.border },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   legendText: { fontSize: 11 },
+  falseDesc: { flexShrink: 0 },
   falseMastery: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.fill },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   tile: { flexBasis: '47%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, minHeight: 72, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },

@@ -87,9 +87,8 @@ export default function PaperList() {
         <PageHeader
           title="整卷"
           onBack={() => router.back()}
-          right={<Button title="+ 添加卷子" kind="text" size="sm" color={semantic.textPrimary} style={styles.link} onPress={() => router.push('/(tabs)/bank')} />}
+          right={<Button title="历史答卷" kind="text" size="sm" color={semantic.textPrimary} style={styles.link} onPress={() => router.push({ pathname: '/paper/history', params: { subjectId: String(sid) } })} />}
         />
-        <Button title="历史答卷" kind="secondary" onPress={() => router.push({ pathname: '/paper/history', params: { subjectId: String(sid) } })} />
         {l.in_progress && l.in_progress.subject_id !== sid ? (
           <Card style={styles.card}>
             <Text variant="caption">「{l.in_progress.title}」还没做完，同一时间只能做一套</Text>
