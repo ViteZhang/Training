@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"strconv"
+	"sync"
 	"time"
 
 	"peetraining-server/internal/ai"
@@ -24,6 +25,8 @@ type Service struct {
 	quota  *quota.Service
 	params *params.Store
 	now    func() time.Time
+	// inflight 是后台还在跑的 AI 任务（见 waitOrBackground）
+	inflight sync.Map
 }
 
 // Deps 是创建服务的依赖。

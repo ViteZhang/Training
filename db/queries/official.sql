@@ -330,3 +330,11 @@ SELECT id, official_kp_id FROM knowledge_points WHERE bank_id = ? AND owner_user
 -- name: ListUserCopyQuestionIDs :many
 -- 批量插入题目副本后取回各自的 id（按对应的官方题目）。
 SELECT id, official_question_id FROM questions WHERE bank_id = ? AND owner_user_id = ? AND official_question_id IS NOT NULL;
+
+-- name: ListPublishedOfficialGroups :many
+-- 已发布官方题库里的限选题分组（T51），App 添加后让用户选报考方向。
+SELECT q.bank_id, q.group_label, q.group_majors
+FROM questions q JOIN banks b ON b.id = q.bank_id
+WHERE b.source = 'official' AND q.owner_user_id IS NULL AND q.status = 'active' AND q.group_label IS NOT NULL AND q.group_label <> ''
+GROUP BY q.bank_id, q.group_label, q.group_majors
+ORDER BY q.bank_id, MIN(q.id);

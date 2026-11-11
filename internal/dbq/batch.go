@@ -23,6 +23,15 @@ const (
 // （同一条 INSERT 的自增 id 按行的顺序递增，但不保证连续，要按 id 顺序回查）。
 // 调用方负责每行都写 owner_user_id（用户数据隔离）。
 func (q *Queries) InsertRows(ctx context.Context, head string, rows [][]any, after func(chunk [][]any, firstID uint64) error) error {
+	return q.insertRows(ctx, head, "", rows, after)
+}
+
+// UpsertRows 同 InsertRows，每条语句末尾加 tail（如 "ON DUPLICATE KEY UPDATE ..."）。
+func (q *Queries) UpsertRows(ctx context.Context, head, tail string, rows [][]any) error {
+	return q.insertRows(ctx, head, " "+tail, rows, nil)
+}
+
+func (q *Queries) insertRows(ctx context.Context, head, tail string, rows [][]any, after func(chunk [][]any, firstID uint64) error) error {
 	for len(rows) > 0 {
 		n, size := 0, 0
 		for n < len(rows) && n < batchMaxRows {
@@ -46,6 +55,7 @@ func (q *Queries) InsertRows(ctx context.Context, head string, rows [][]any, aft
 			b.WriteString(ph)
 			args = append(args, r...)
 		}
+		b.WriteString(tail)
 		res, err := q.db.ExecContext(ctx, b.String(), args...)
 		if err != nil {
 			return err

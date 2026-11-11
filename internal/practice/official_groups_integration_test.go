@@ -165,6 +165,28 @@ func TestOfficialGroups(t *testing.T) {
 	if gm != "文艺学、比较文学与世界文学" {
 		t.Errorf("副本带上限选分组：%q", gm)
 	}
+	// 官方题库列表带上分组：古代文学方向的用户有一组匹配；没填方向的一组都不匹配（App 请他选报考方向）。
+	groupsOf := func(uid uint64) []official.Group {
+		t.Helper()
+		bs, err := s.Banks(ctx, uid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, b := range bs {
+			if b.BankID == p.BankID {
+				return b.Groups
+			}
+		}
+		t.Fatal("列表里没有这个官方题库")
+		return nil
+	}
+	ga, gb := groupsOf(ua), groupsOf(ub)
+	if len(ga) != 2 || len(gb) != 2 || ga[0].Majors != "文艺学、比较文学与世界文学" || ga[0].Label == "" {
+		t.Fatalf("分组：%+v / %+v", ga, gb)
+	}
+	if ga[0].Matches || !ga[1].Matches || gb[0].Matches || gb[1].Matches {
+		t.Errorf("分组是否匹配报考方向：%+v / %+v", ga, gb)
+	}
 
 	// 改报考方向为文艺学：第二组下线（作答记录保留），第一组补上；改回来恢复。
 	wy := "文艺学"
