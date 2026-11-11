@@ -644,7 +644,7 @@ it('整卷录音停止后可切题，识别重试保留语音类型与原题', a
   mockResponses['GET /feature-flags'] = () => ({ status: 200, data: { flags: { voice_answer: true } } });
   mockResponses['POST /voice/upload-requests'] = () => ({ status: 200, data: { object_key: 'u/1/voice/exam.m4a', upload_url: 'https://oss/voice', upload_headers: {} } });
   const r = await wrap(<PaperSessionPage />);
-  await fireEvent.press(await screen.findByText('语音输入'));
+  await fireEvent.press(await screen.findByText('语音'));
   await fireEvent.press(await screen.findByText('结束录音 0:00'));
   await waitFor(() => expect(fixture.jobs()[0]?.input_kind).toBe('voice'));
   await fireEvent.press(screen.getByText('下一题'));

@@ -234,7 +234,8 @@ describe('3.1b 题目与 3.3 详情', () => {
     });
     mockResponses['GET /questions/{questionId}/answer-evidence'] = () => ({ status: 200, data: { snapshot: null } });
     await wrap(<QuestionScreen />);
-    expect(await screen.findByText('下面是官方题库由 AI 生成、经编辑审核的参考答案。')).toBeTruthy();
+    expect(await screen.findByText('指事象形')).toBeTruthy();
+    expect(screen.queryByText(/由 AI 生成/)).toBeNull();
     expect(screen.queryByText('我来改')).toBeNull();
     expect(screen.queryByText('补充答案文件 ›')).toBeNull();
   });

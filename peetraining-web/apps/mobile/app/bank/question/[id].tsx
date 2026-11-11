@@ -175,14 +175,12 @@ export default function QuestionScreen() {
                 {o.key}. {o.text}
               </Text>
             ))}
-            {ai ? (
+            {ai && !official ? (
               <View style={styles.aiNote}>
                 <Text variant="caption" color={colors.blueInk} style={styles.lh2}>
-                  {official
-                    ? '下面是官方题库由 AI 生成、经编辑审核的参考答案。'
-                    : '下面是 AI 生成的参考答案，可以查看引用的教材段落；核对后确认，或改成你的答案。'}
+                  下面是 AI 生成的参考答案，可以查看引用的教材段落；核对后确认，或改成你的答案。
                 </Text>
-                {official ? null : <Button title="补充答案文件 ›" kind="text" size="sm" color={colors.blueInk} style={styles.link} onPress={openAnswerFile} />}
+                <Button title="补充答案文件 ›" kind="text" size="sm" color={colors.blueInk} style={styles.link} onPress={openAnswerFile} />
               </View>
             ) : null}
             <InfoCard label="参考答案" style={ai ? styles.aiCard : undefined} right={ai ? <Tag label="AI 参考答案" tone="ai" /> : tierNames[tier]}>
@@ -213,7 +211,7 @@ export default function QuestionScreen() {
                   出处：{q.reference}
                 </Text>
               ) : null}
-              {q.answer ? <RecordAnswerEvidence kind="question" id={q.id} hideEmpty={official || !!q.reference} /> : null}
+              {q.answer ? <RecordAnswerEvidence kind="question" id={q.id} hideEmpty={official || !!q.reference} official={official} /> : null}
               {!ai && !official ? (
                 <View style={styles.sourceRow}>
                   <Button title={q.answer ? '修改答案' : '补充 / 修改答案'} kind="text" size="sm" color={semantic.info} style={styles.link} onPress={() => setEditing(true)} />

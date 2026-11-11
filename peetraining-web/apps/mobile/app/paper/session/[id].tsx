@@ -575,13 +575,14 @@ function Answering({ s, fetchedAt }: { s: PaperSession; fetchedAt: number }) {
                 style={styles.answer}
                 textAlignVertical="top"
               />
-              {voiceEnabled ? <VoiceRecorder disabled={submitting || photoBusy || timeUp || confirmingPhoto} onRecordingChange={setRecording} onCapture={(clip) => { photoQueue.addVoice(seq, clip); }} /> : null}
               <View style={styles.answerTools}>
+              {voiceEnabled ? <VoiceRecorder variant="tool" disabled={submitting || photoBusy || timeUp || confirmingPhoto} onRecordingChange={setRecording} onCapture={(clip) => { photoQueue.addVoice(seq, clip); }} /> : null}
               {!submitting && !photoBusy && !timeUp ? <Tool icon="camera" label="拍手写稿" onPress={openPhoto} /> : null}
               <Text variant="small" num style={styles.wordCount}>
                 {chars(text)} 字{item.required_words ? ` · 建议 ${item.required_words} 字左右` : ''}
               </Text>
               </View>
+              {recording ? <Text variant="small">正在录音，结束后可切题。单段接近 5 分钟时自动保存；只转写原话，请核对专业术语。</Text> : null}
               </>}
               {confirmingPhoto ? <View style={styles.gap}><Text variant="caption">正在保存本题识别结果，网络恢复后会自动重试，可以先做其他题。</Text><Button title="重试保存识别结果" kind="text" disabled={photoBusy || submitting || timeUp} onPress={() => { void sync().catch(() => toast('暂未同步成功，识别结果已保留')); }} /></View> : null}
               <PaperPhotoReview jobs={jobs.filter((job) => job.seq === seq)} local={Object.values(photos).filter((photo) => photo.seq === seq)} edits={photoEdits} disabled={submitting || photoBusy || timeUp || confirmingPhoto}
@@ -702,7 +703,7 @@ const styles = StyleSheet.create({
   optionOn: { borderColor: semantic.primary, borderWidth: 1.5 },
   answer: { minHeight: 260, padding: 14, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface, fontSize: 15, lineHeight: 28, color: semantic.textPrimary },
   nav: { flexDirection: 'row', gap: 10, paddingVertical: spacing.sm },
-  answerTools: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingVertical: spacing.sm },
+  answerTools: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   wordCount: { flex: 1, flexShrink: 1, textAlign: 'right' },
   sheetNav: { marginTop: spacing.lg, marginBottom: spacing.lg },
   counts: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
