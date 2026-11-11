@@ -187,7 +187,6 @@ export function GradingProgress({ q }: { q: PracticeQuestion }) {
             {q.source_ref.page ? ` 第 ${q.source_ref.page} 页` : ''}。
           </Text>
         ) : null}
-        <Text variant="small">采分点不对的话，可以在知识点里改，之后按新的批改。</Text>
       </View>
     </View>
   );
@@ -280,9 +279,6 @@ export function GradingResultView({
           批改依据：{sourceText[g.rubric_source]}
           {g.rubric_ref ? ` · 出自 ${g.rubric_ref.file_name}${g.rubric_ref.page ? ` 第 ${g.rubric_ref.page} 页` : ''}` : ''}
         </Text>
-        {g.rubric_changed ? null : (
-          <Button title="采分点不对？" kind="text" size="sm" color={semantic.textPrimary} style={styles.link} onPress={() => router.push({ pathname: '/bank/question/[id]', params: { id: String(g.question_id) } })} />
-        )}
       </View>
       {g.rubric_changed ? <Button title="采分点已修改，按新采分点重批" kind="secondary" loading={regrading} onPress={onRegrade} /> : null}
       {g.structure_note ? <Text variant="small">{g.structure_note}</Text> : null}
@@ -388,7 +384,7 @@ const reasons: { key: Schemas['DisputeRequest']['reason']; text: string }[] = [
   { key: 'other', text: '其他' },
 ];
 
-/** 4.8 批改异议：五选一；「采分点本身不对」引导去改采分点，改完按新采分点重批；其余提交复核重批一次，不扣次数。 */
+/** 4.8 批改异议：五选一；自己资料的题选「采分点本身不对」引导去改采分点，改完按新采分点重批；官方题不能改，和其余原因一样提交复核重批一次，不扣次数。 */
 export function DisputeSheet({ g, visible, onClose, onDone }: { g: GradingResult; visible: boolean; onClose: () => void; onDone: (r: GradingResult) => void }) {
   const [reason, setReason] = useState<Schemas['DisputeRequest']['reason']>();
   const [note, setNote] = useState('');
@@ -417,7 +413,7 @@ export function DisputeSheet({ g, visible, onClose, onDone }: { g: GradingResult
             );
           })}
         </View>
-        {reason === 'rubric_wrong' ? (
+        {reason === 'rubric_wrong' && g.rubric_source !== 'official' ? (
           <Pressable
             accessibilityRole="button"
             onPress={() => {
@@ -427,7 +423,7 @@ export function DisputeSheet({ g, visible, onClose, onDone }: { g: GradingResult
             style={styles.info}
           >
             <Text variant="small" color={colors.blueInk} style={styles.flex}>
-              采分点{g.rubric_source === 'official' ? '来自官方题库' : g.rubric_ref ? `来自你的资料「${g.rubric_ref.file_name}」` : '来自你的资料'}，可以直接改，改完这道题按新采分点重批，不消耗批改次数
+              采分点{g.rubric_ref ? `来自你的资料「${g.rubric_ref.file_name}」` : '来自你的资料'}，可以直接改，改完这道题按新采分点重批，不消耗批改次数
             </Text>
             <Text variant="caption" color={colors.blueInk} style={styles.bold}>
               去修改 ›

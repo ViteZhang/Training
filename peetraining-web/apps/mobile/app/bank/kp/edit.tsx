@@ -1,4 +1,4 @@
-// 3.6 编辑知识点：名称、原文表述、采分点、归属；只影响自己的题库。改了采分点后相关题目之后按新采分点批改，AI 解读重新生成。
+// 3.6 编辑知识点：名称、原文表述、采分点、归属；只影响自己的题库。改了采分点后相关题目之后按新采分点批改，官方知识点的采分点不能改。
 import { ApiError, type Schemas } from '@training/api-client';
 import { colors, layout, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -77,6 +77,8 @@ function Form({ kp, subjectId }: { kp: KPDetail; subjectId?: number }) {
               原文表述
             </Text>
             <TextInput accessibilityLabel="原文表述" value={orig} onChangeText={setOrig} multiline style={[styles.input, styles.multi]} maxFontSizeMultiplier={layout.maxFontScale} />
+            {kp.official ? null : (
+            <>
             <Text variant="caption" color={semantic.textPrimary} style={styles.label}>
               采分点
             </Text>
@@ -97,6 +99,8 @@ function Form({ kp, subjectId }: { kp: KPDetail; subjectId?: number }) {
             <Pressable accessibilityRole="button" onPress={() => setPoints([...points, { content: '' }])} style={styles.add}>
               <Text variant="caption">＋ 添加采分点</Text>
             </Pressable>
+            </>
+            )}
             {options.length > 0 ? (
               <>
                 <Text variant="caption" color={semantic.textPrimary} style={styles.label}>
@@ -108,7 +112,7 @@ function Form({ kp, subjectId }: { kp: KPDetail; subjectId?: number }) {
           </>
         ) : null}
         <Text variant="small" style={styles.note}>
-          只影响你自己的题库。改了采分点后，相关题目之后的批改按新采分点进行，AI 解读会重新生成。
+          {kp.official ? '只影响你自己的题库。官方题库的采分点由官方维护，不能修改。' : '只影响你自己的题库。改了采分点后，相关题目之后的批改按新采分点进行。'}
         </Text>
       </ScrollView>
     </>

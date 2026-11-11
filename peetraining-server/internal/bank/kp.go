@@ -101,25 +101,10 @@ func (s *Service) path(ctx context.Context, userID uint64, parent sql.NullInt64)
 	return out, nil
 }
 
-// KnowledgePoint 返回知识点卡片。第一次打开时同步生成并缓存 AI 解读；生成失败时解读为空，不影响其他内容。
+// KnowledgePoint 返回知识点卡片。App 已不展示 AI 解读（原文表述和采分点已经够用），这里不再在打开时生成，省一次模型调用；
+// 以前生成过的仍随卡片返回，「重新生成」接口保留。
 func (s *Service) KnowledgePoint(ctx context.Context, userID, id uint64) (KPDetail, error) {
-	d, err := s.detail(ctx, userID, id)
-	if err != nil {
-		return d, err
-	}
-	if d.AIExplanation == "" && d.Level == string(dbq.KnowledgePointsLevelPoint) {
-		// 第一次打开时生成（官方题库复制来的知识点都没有）；模型慢时先返回卡片，解读在后台生成好存下来。
-		var text string
-		var aerr error
-		if s.waitOrBackground(ctx, "explain:"+strconv.FormatUint(id, 10), func(bg context.Context) { text, aerr = s.explain(bg, userID, d) }) {
-			if aerr == nil {
-				d.AIExplanation = text
-			} else if !apperr.IsKind(aerr, apperr.AIFailed) && !errors.Is(aerr, context.DeadlineExceeded) {
-				return d, aerr
-			}
-		}
-	}
-	return d, nil
+	return s.detail(ctx, userID, id)
 }
 
 func (s *Service) detail(ctx context.Context, userID, id uint64) (KPDetail, error) {

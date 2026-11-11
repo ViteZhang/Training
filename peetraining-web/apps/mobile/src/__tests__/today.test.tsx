@@ -190,4 +190,18 @@ describe('2.2 今日训练完成', () => {
     expect(screen.getByText('新增 3 个已掌握')).toBeTruthy();
     expect(screen.getByText(/知识没掌握 62%/)).toBeTruthy();
   });
+
+  it('再练一组：直接开一组自定义练习，不再回训练页', async () => {
+    mockResponses['GET /home'] = () => ({ status: 200, data: home() });
+    mockResponses['POST /practice-sessions'] = () => ({ status: 200, data: { id: 77, kind: 'custom', questions: [] } });
+    await wrap(<TodaySummaryPage />);
+    await screen.findByText(/^78%$/);
+    await waitFor(() => expect(mockCalls.some((c) => c.path === '/home')).toBe(true));
+    await fireEvent.press(screen.getByText('再练一组'));
+    await waitFor(() =>
+      expect(mockCalls.find((c) => c.path === '/practice-sessions')?.init).toEqual({
+        body: { subject_id: 7, kind: 'custom', config: { count: 10, only_unmastered: true, ai_fill: false }, ai_fill: false },
+      }),
+    );
+  });
 });

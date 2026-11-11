@@ -12,7 +12,7 @@ import { planProgress, useContinueToday, useHome } from '@/features/today/api';
 import { entryTones } from '@/features/today/Cards';
 import { qtypeNames } from '@/features/import/api';
 import { stageInfo } from '@/features/onboarding/api';
-import { usePracticeHome, useStartPractice } from '@/features/practice/api';
+import { useExtraRound, usePracticeHome, useStartPractice } from '@/features/practice/api';
 import { PendingGradingsCard } from '@/features/practice/grading';
 import { flush, useAIFillPref, usePending } from '@/features/practice/offline';
 import { useStartRecite } from '@/features/recite/api';
@@ -43,6 +43,7 @@ export default function TrainTab() {
   const plan = today.data?.plan;
   const next = useContinueToday();
   const start = useStartPractice();
+  const extra = useExtraRound();
   const recite = useStartRecite();
   const pending = usePending((s) => s.count);
   const [aiFill, setAiFill] = useAIFillPref();
@@ -147,6 +148,13 @@ export default function TrainTab() {
                 <Pressable accessibilityRole="button" onPress={() => router.push('/plan/summary')} style={styles.todayBtn}>
                   <Text variant="bodyStrong" color={colors.ink} style={styles.bold}>
                     今日已完成 · 看总结
+                  </Text>
+                </Pressable>
+              ) : null}
+              {plan?.completed ? (
+                <Pressable accessibilityRole="button" disabled={extra.isPending} onPress={() => extra.mutate(sid)} style={styles.todayLink}>
+                  <Text variant="caption" color={colors.white}>
+                    再练一组（10 题，优先没掌握的）
                   </Text>
                 </Pressable>
               ) : plan && plan.item_count > 0 ? (
@@ -273,6 +281,7 @@ const styles = StyleSheet.create({
   tiny: { fontSize: 11 },
   link: { paddingHorizontal: 0 },
   today: { gap: 12, padding: 18, borderRadius: radius.card, backgroundColor: colors.ink },
+  todayLink: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   todayBtn: { minHeight: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white },
   push: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.peachSoft },
   pushBtn: { minHeight: 32, paddingHorizontal: 12, borderRadius: 16, justifyContent: 'center', backgroundColor: colors.white },

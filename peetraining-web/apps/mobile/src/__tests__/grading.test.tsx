@@ -185,6 +185,7 @@ describe('4.4 主观题 → 4.7 批改结果', () => {
     await wrap(<PracticeRunner />);
     await fireEvent.changeText(await screen.findByLabelText('你的答案'), answer);
     await fireEvent.press(screen.getByText('提交批改'));
+    expect(screen.queryByText('采分点不对？')).toBeNull();
     await fireEvent.press(await screen.findByText('有异议'));
     await fireEvent.press(screen.getByLabelText('采分点本身不对'));
     expect(screen.getByText('去修改 ›')).toBeTruthy();
