@@ -1,4 +1,4 @@
-// 6.9 备考设置：专业课与目标分（可改、可增删，删除时提示会一起删除它的题库）；目标院校选填；参考教材（每门专业课可填多本，选填）；考试年份可切换（初试日期随年份，只读）；
+// 6.9 备考设置：专业课与目标分（可改、可增删，删除时提示会一起删除它的题库）；目标院校从考试科目库里选（库里没有可手填）；参考教材只对没有官方题库的专业课显示（选填）；申请收录只在有专业课没有官方题库时显示；考试年份可切换（初试日期随年份，只读）；
 // 每日学习时长；备考阶段（显示系统建议和理由）；作文每周目标篇数。改阶段或时长从明天起生效，改目标分立即生效。
 import { ExamYearSelect } from '@/features/profile/ExamYearSelect';
 import { FullScoreSelect } from '@/features/profile/FullScoreSelect';
@@ -16,6 +16,7 @@ import { api, unwrap } from '@/lib/api';
 import { useFeatureFlag } from '@/lib/flags';
 import { matchTarget, useOfficialBanks } from '@/features/official/OfficialNotice';
 import { useUpgradeActions } from '@/features/membership/purchase';
+import { SchoolSheet } from '@/features/profile/SchoolSheet';
 import { TextbookSheet, textbookSummary } from '@/features/profile/textbooks';
 
 type Profile = Schemas['StudyProfile'];
@@ -57,6 +58,10 @@ export default function PrepSettings() {
     return <Screen><ErrorState error={profile.error ?? subjects.error} onRetry={() => void Promise.all([profile.refetch(), subjects.refetch()])} /></Screen>;
   }
   const p = profile.data;
+  // 官方题库为主（2026-11-11）：已添加官方题库的课，答案和采分点都是官方的，不需要参考教材，也不用申请收录。
+  const withOfficial = new Set((officialBanks.data?.items ?? []).map((b) => b.added_subject_id).filter(Boolean));
+  const ownSubjects = (subjects.data?.items ?? []).filter((s) => !withOfficial.has(s.id));
+  const applySubjects = ownSubjects.filter((s) => !s.is_essay);
   const effectiveStage = p.pending_stage ?? p.stage;
   const effectiveMinutes = (p.pending_daily_minutes ?? p.daily_minutes) as 30 | 45 | 60 | 90;
 
@@ -94,7 +99,7 @@ export default function PrepSettings() {
         </ListCard>
 
         <Text variant="small" style={styles.section}>
-          目标院校（选填）
+          目标院校
         </Text>
         <Pressable accessibilityRole="button" onPress={() => setSchoolEdit(p.target_school_major ?? '')}>
           <Card style={styles.row}>
@@ -102,9 +107,9 @@ export default function PrepSettings() {
             <View style={[styles.flex, styles.stack]}>
               <Text variant="bodyStrong">院校与专业</Text>
               <Text variant="body" color={p.target_school_major ? semantic.textPrimary : semantic.textSecondary}>
-                {p.target_school_major ? p.target_school_major.replace(/\s*[·•]\s*/g, ' · ') : '点击填写'}
+                {p.target_school_major ? p.target_school_major.replace(/\s*[·•]\s*/g, ' · ') : '点击选择'}
               </Text>
-              <Text variant="caption">填了以后，有官方题库上线时会提醒你</Text>
+              <Text variant="caption">按院校匹配官方题库；还没有收录的，上线时会提醒你</Text>
             </View>
             <Icon name="edit" size={16} color={semantic.textSecondary} />
           </Card>
@@ -131,25 +136,25 @@ export default function PrepSettings() {
           );
         })()}
 
-        {applyOn ? (
+        {applyOn && applySubjects.length > 0 ? (
           <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/apply', params: { entry: 'settings' } })}>
             <Card style={styles.row}>
               <View style={styles.flex}>
                 <Text variant="bodyStrong">申请收录官方题库</Text>
-                <Text variant="caption">你的专业课还没有官方题库时，申请的人越多越早收录</Text>
+                <Text variant="caption">{applySubjects.map((s) => s.name).join('、')}还没有官方题库，申请的人越多越早收录</Text>
               </View>
               <Icon name="chevron" size={16} color={semantic.textSecondary} />
             </Card>
           </Pressable>
         ) : null}
 
-        {(subjects.data?.items.length ?? 0) > 0 ? (
+        {ownSubjects.length > 0 ? (
           <>
             <Text variant="small" style={styles.section}>
-              参考教材（选填）
+              参考教材（选填，只用于自己导入的资料）
             </Text>
             <ListCard>
-              {subjects.data!.items.map((s, i) => (
+              {ownSubjects.map((s, i) => (
                 <Pressable key={s.id} accessibilityRole="button" onPress={() => setBookEdit(s)} style={[styles.bookRow, i > 0 && styles.bookDivider]}>
                   <View style={styles.flex}>
                     <Text variant="body">{textbookSummary(s)}</Text>
@@ -273,17 +278,14 @@ export default function PrepSettings() {
         />
       ) : null}
       {schoolEdit !== null ? (
-        <BottomSheet visible onClose={() => setSchoolEdit(null)} title="目标院校与专业">
-          <TextInput accessibilityLabel="目标院校专业" value={schoolEdit} onChangeText={setSchoolEdit} placeholder="如：海南大学 · 中国语言文学" style={styles.input} maxLength={64} maxFontSizeMultiplier={layout.maxFontScale} />
-          <Button
-            title="保存"
-            onPress={() => {
-              save.mutate({ target_school_major: schoolEdit.trim() || null });
-              setSchoolEdit(null);
-            }}
-            style={styles.sheetButton}
-          />
-        </BottomSheet>
+        <SchoolSheet
+          value={schoolEdit}
+          onClose={() => setSchoolEdit(null)}
+          onSave={(v) => {
+            save.mutate({ target_school_major: v });
+            setSchoolEdit(null);
+          }}
+        />
       ) : null}
       <QuotaSheet
         visible={quota}

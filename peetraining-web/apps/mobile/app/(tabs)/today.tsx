@@ -14,6 +14,7 @@ import { BanksCard, DoneCard, EntryGrid, entryTones, EstimateCard, FalseMasteryC
 import { usePracticeHome } from '@/features/practice/api';
 import { useStartRecite } from '@/features/recite/api';
 import { StagePromptSheet, TargetSheet } from '@/features/today/Sheets';
+import { useFeatureFlag } from '@/lib/flags';
 import { api, unwrap } from '@/lib/api';
 
 function Top({ days, stage }: { days?: number; stage?: keyof typeof stageInfo }) {
@@ -102,6 +103,7 @@ function Entries({ subjectId }: { subjectId?: number }) {
 }
 
 export default function TodayTab() {
+  const officialOn = useFeatureFlag('official_bank');
   const home = useHome();
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => unwrap(api.GET('/subjects')) });
   const organizing = home.data?.state === 'organizing';
@@ -124,24 +126,41 @@ export default function TodayTab() {
       <Screen edges={['top']}>
         <ScrollView contentContainerStyle={styles.scroll} refreshControl={refresh}>
           {top}
-          <Card style={styles.emptyCard}>
-            <View style={styles.emptyIcon}>
-              <Icon name="import" size={26} />
-            </View>
-            <Text variant="h3">导入第一份资料，开始今天的训练</Text>
-            <Text variant="caption" style={styles.center}>
-              真题汇编、习题册、讲义、笔记都可以，AI 会整理成能刷、能批改的题库
-            </Text>
-            <Button title="导入资料" block style={styles.emptyBtn} onPress={() => router.push('/import')} />
-          </Card>
-          <Card tone="fill" style={styles.tips}>
-            <Text variant="bodyStrong" style={styles.bold}>
-              不知道先导入什么？
-            </Text>
-            <Tip color={colors.green} title="历年真题卷最合适" desc="有题有答案，导入就能刷；做完一套整卷还能算出预估分" />
-            <Tip color={colors.blue} title="只有讲义或笔记" desc="AI 会拆出知识点和采分点，再按知识点出题" />
-            <Tip color={colors.lavender} title="纸质习题册" desc="直接拍照，一张拍一页" />
-          </Card>
+          {officialOn ? (
+            // 官方题库为主（2026-11-11）：先引导添加官方题库，自己导入作为兜底
+            <Card style={styles.emptyCard}>
+              <View style={styles.emptyIcon}>
+                <Icon name="book" size={26} />
+              </View>
+              <Text variant="h3">添加官方题库，开始今天的训练</Text>
+              <Text variant="caption" style={styles.center}>
+                院校真题、参考答案和采分点都整理好了，添加后直接刷；还没收录的院校可以申请，或先导入自己的资料
+              </Text>
+              <Button title="添加官方题库" block style={styles.emptyBtn} onPress={() => router.push('/bank/official')} />
+              <Button title="先导入我自己的资料" kind="text" onPress={() => router.push('/import')} />
+            </Card>
+          ) : (
+            <>
+            <Card style={styles.emptyCard}>
+              <View style={styles.emptyIcon}>
+                <Icon name="import" size={26} />
+              </View>
+              <Text variant="h3">导入第一份资料，开始今天的训练</Text>
+              <Text variant="caption" style={styles.center}>
+                真题汇编、习题册、讲义、笔记都可以，AI 会整理成能刷、能批改的题库
+              </Text>
+              <Button title="导入资料" block style={styles.emptyBtn} onPress={() => router.push('/import')} />
+            </Card>
+            <Card tone="fill" style={styles.tips}>
+              <Text variant="bodyStrong" style={styles.bold}>
+                不知道先导入什么？
+              </Text>
+              <Tip color={colors.green} title="历年真题卷最合适" desc="有题有答案，导入就能刷；做完一套整卷还能算出预估分" />
+              <Tip color={colors.blue} title="只有讲义或笔记" desc="AI 会拆出知识点和采分点，再按知识点出题" />
+              <Tip color={colors.lavender} title="纸质习题册" desc="直接拍照，一张拍一页" />
+            </Card>
+            </>
+          )}
           <BanksCard banks={h.banks} />
         </ScrollView>
       </Screen>

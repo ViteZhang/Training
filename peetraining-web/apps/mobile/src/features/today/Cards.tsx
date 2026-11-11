@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, Card, Icon, ProgressBar, Text } from '@/components';
 import type { IconName } from '@/components/Icon';
 import { qtypeNames } from '@/features/import/api';
+import { useFeatureFlag } from '@/lib/flags';
 import { useExtraRound } from '@/features/practice/api';
 import { useAIFillPref } from '@/features/practice/offline';
 import { groupNames, minutes, planProgress, useContinueToday, type Home, type TodayPlan } from './api';
@@ -243,6 +244,7 @@ const dist: { key: keyof Home['banks'][number]['mastery_distribution']; name: st
 
 /** 我的题库（模块 2 调整 5）：按专业课显示题数和掌握进度；还没导入的直接给导入入口。 */
 export function BanksCard({ banks, jobId }: { banks: Home['banks']; jobId?: number | null }) {
+  const officialOn = useFeatureFlag('official_bank');
   return (
     <Card style={[styles.section, styles.gap14]}>
       <View style={styles.row}>
@@ -298,7 +300,11 @@ export function BanksCard({ banks, jobId }: { banks: Home['banks']; jobId?: numb
                 {b.organizing && jobId ? (
                   <Button title="看进度" kind="soft" size="sm" onPress={() => router.push({ pathname: '/import/job/[id]', params: { id: String(jobId) } })} />
                 ) : empty && !b.organizing ? (
-                  <Button title="导入" kind="soft" size="sm" onPress={() => router.push({ pathname: '/import', params: { subjectId: String(b.subject_id) } })} />
+                  officialOn ? (
+                    <Button title="去添加" kind="soft" size="sm" onPress={() => router.push('/(tabs)/bank')} />
+                  ) : (
+                    <Button title="导入" kind="soft" size="sm" onPress={() => router.push({ pathname: '/import', params: { subjectId: String(b.subject_id) } })} />
+                  )
                 ) : null}
               </View>
             )}
