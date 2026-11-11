@@ -15,12 +15,15 @@ function PointRow({ n, subjectId, first, mixed }: { n: KnowledgeNode; subjectId:
         {n.name}
       </Text>
       {n.needs_review ? <View style={styles.reviewDot} accessibilityLabel="待核对" /> : null}
-      <View style={styles.flex} />
+      {/* 「新」跟在名称后面；右侧三列（来源、真题次数、掌握状态）宽度固定，没有内容也占位，各行才能对齐 */}
       {n.is_new ? <Tag label="新" tone="progress" /> : null}
+      <View style={styles.flex} />
       {/* 3.1e：添加了官方题库的课，知识点标「官方」或「我的」（PRD v3 增补） */}
       {n.official ? <Tag label="官方" tone="mastered" /> : mixed ? <Tag label="我的" tone="info" /> : null}
-      {n.exam_count ? <Text variant="small">真题 {n.exam_count} 次</Text> : null}
-      {n.state ? <MasteryPill state={n.state} /> : null}
+      <Text variant="small" style={styles.examCol} numberOfLines={1}>
+        {n.exam_count ? `真题 ${n.exam_count} 次` : ''}
+      </Text>
+      <View style={styles.stateCol}>{n.state ? <MasteryPill state={n.state} /> : null}</View>
     </Pressable>
   );
 }
@@ -101,6 +104,8 @@ const styles = StyleSheet.create({
   point: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48 },
   noBorder: {},
   pointName: { flexShrink: 1 },
+  examCol: { minWidth: 64, textAlign: 'right' },
+  stateCol: { minWidth: 60, alignItems: 'flex-end' },
   reviewDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.orange },
   flex: { flex: 1 },
   gap2: { gap: 2 },
