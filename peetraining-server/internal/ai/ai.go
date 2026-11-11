@@ -93,6 +93,7 @@ type Engine struct {
 	answerEvidence AnswerEvidenceProvider
 	client         cloudai.Client
 	fallback       *Fallback
+	modelFallbacks []string
 	q              dbq.Querier
 	useMock        bool
 	models         Models
@@ -131,7 +132,9 @@ type Call struct {
 // Config 是 Engine 的配置。
 type Config struct {
 	Client cloudai.Client
-	// Fallback 不为空时，主用平台调用出错（网络、5xx、超时）改用它重试一次。
+	// ModelFallbacks 是同一平台上主模型不可用时依次改用的模型（中转站下架模型、分组路由失败时有效）。
+	ModelFallbacks []string
+	// Fallback 不为空时，同一平台换完模型仍失败（网络、5xx、超时）再改用备用平台。
 	Fallback *Fallback
 	Queries  dbq.Querier
 	// UseMock 为 true 时不调用模型，用各能力的 Mock 函数。
@@ -158,7 +161,8 @@ func NewEngine(c Config) *Engine {
 	if c.Fallback != nil && c.Fallback.Client == nil {
 		c.Fallback = nil
 	}
-	return &Engine{client: c.Client, fallback: c.Fallback, q: c.Queries, useMock: c.UseMock, models: c.Models, prices: c.Prices, salt: c.Salt, now: time.Now,
+	return &Engine{client: c.Client, fallback: c.Fallback, modelFallbacks: dedupeModels(c.ModelFallbacks), q: c.Queries, useMock: c.UseMock,
+		models: c.Models, prices: c.Prices, salt: c.Salt, now: time.Now,
 		override: c.Override, onCall: c.OnCall, moderate: c.Moderation}
 }
 
@@ -294,6 +298,21 @@ func (c *Cap[In, Out]) validate(in In, content string) (Out, error) {
 	return out, nil
 }
 
+// dedupeModels 去掉空模型名和重复项，保持原有顺序。
+func dedupeModels(models []string) []string {
+	out := make([]string, 0, len(models))
+	seen := make(map[string]bool, len(models))
+	for _, m := range models {
+		m = strings.TrimSpace(m)
+		if m == "" || seen[m] {
+			continue
+		}
+		seen[m] = true
+		out = append(out, m)
+	}
+	return out
+}
+
 // stripFence 去掉模型偶尔包在外面的 ```json 代码块。
 func stripFence(s string) string {
 	s = strings.TrimSpace(s)
@@ -313,15 +332,24 @@ func firstLine(s string) string {
 	return line
 }
 
-// Run 执行一次能力调用：不合格重试一次，再失败返回 AIFailed。
+// Run 执行一次能力调用：平台错误时先换同平台模型、再换备用平台；输出不合格重试一次，再失败返回 AIFailed。
 func (c *Cap[In, Out]) Run(ctx context.Context, e *Engine, userID uint64, in In) (Out, Meta, error) {
 	var zero Out
 	meta, err := e.route(ctx, c.Def, userID)
 	if err != nil {
 		return zero, Meta{}, err
 	}
+	// 候选顺序：本次选中的模型 → 同平台备用模型；都失败后才轮到备用平台。
+	candidates := dedupeModels(append([]string{meta.Model}, e.modelFallbacks...))
+	if len(candidates) == 0 {
+		candidates = []string{meta.Model}
+	}
+	active, onFallbackPlatform := 0, false
+	altModel := ""
+	if e.fallback != nil {
+		altModel = e.fallback.Models.pick(c.Tier)
+	}
 	var lastErr error
-	primary := meta.Model
 	for attempt := 0; attempt < 2; attempt++ {
 		start := e.now()
 		var content string
@@ -345,22 +373,41 @@ func (c *Cap[In, Out]) Run(ctx context.Context, e *Engine, userID uint64, in In)
 			if err != nil {
 				return zero, meta, err
 			}
-			meta.Model = primary
+			model := candidates[active]
+			if onFallbackPlatform {
+				model = altModel
+			}
+			meta.Model = model
 			req := cloudai.Request{
-				Capability: c.Name, Model: meta.Model, JSONMode: true, Temperature: c.Temperature,
+				Capability: c.Name, Model: model, JSONMode: true, Temperature: c.Temperature,
 				Messages: []cloudai.Message{{Role: "system", Content: system}, {Role: "user", Content: user}},
 			}
 			if c.Images != nil {
 				req.Messages[1].Images = c.Images(in)
 			}
-			resp, err = e.client.Complete(ctx, req)
-			if err != nil && e.fallback != nil && ctx.Err() == nil {
-				// 主用平台不可用：记一笔失败，改用备用平台（优先高阶模型）。
-				e.record(ctx, c.Def, meta, userID, resp, start, "provider_error", attempt > 0)
-				meta.Model = e.fallback.Models.pick(c.Tier)
-				req.Model = meta.Model
-				start = e.now()
+			switch {
+			case onFallbackPlatform:
 				resp, err = e.fallback.Client.Complete(ctx, req)
+			default:
+				resp, err = e.client.Complete(ctx, req)
+				// 中转站可能单独下架某个模型（404/403/503），换同一平台的备用模型比重试更有效。
+				for err != nil && ctx.Err() == nil && active+1 < len(candidates) {
+					e.record(ctx, c.Def, meta, userID, resp, start, "provider_error", true)
+					active++
+					meta.Model = candidates[active]
+					req.Model = meta.Model
+					start = e.now()
+					resp, err = e.client.Complete(ctx, req)
+				}
+				if err != nil && ctx.Err() == nil && e.fallback != nil {
+					// 同一平台全部不可用：记一笔失败，改用备用平台（优先高阶模型）。
+					e.record(ctx, c.Def, meta, userID, resp, start, "provider_error", true)
+					onFallbackPlatform = true
+					meta.Model = altModel
+					req.Model = meta.Model
+					start = e.now()
+					resp, err = e.fallback.Client.Complete(ctx, req)
+				}
 			}
 			if err != nil {
 				e.record(ctx, c.Def, meta, userID, resp, start, "provider_error", attempt > 0)
