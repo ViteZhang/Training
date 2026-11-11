@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -377,6 +378,59 @@ func (q *Queries) ListPublishedTextbookEditions(ctx context.Context, licenseExpi
 			&i.CurrentGenerationID,
 			&i.LicenseExpiresAt,
 			&i.ExcerptsEnabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTextbookChunksByOrdinals = `-- name: ListTextbookChunksByOrdinals :many
+SELECT generation_id, ordinal, section_no, start_rune, end_rune, heading, body, text_hash, vector_ready FROM textbook_chunks WHERE generation_id = ? AND ordinal IN (/*SLICE:ordinals*/?)
+`
+
+type ListTextbookChunksByOrdinalsParams struct {
+	GenerationID uint64
+	Ordinals     []uint32
+}
+
+func (q *Queries) ListTextbookChunksByOrdinals(ctx context.Context, arg ListTextbookChunksByOrdinalsParams) ([]TextbookChunk, error) {
+	query := listTextbookChunksByOrdinals
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.GenerationID)
+	if len(arg.Ordinals) > 0 {
+		for _, v := range arg.Ordinals {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ordinals*/?", strings.Repeat(",?", len(arg.Ordinals))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ordinals*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TextbookChunk{}
+	for rows.Next() {
+		var i TextbookChunk
+		if err := rows.Scan(
+			&i.GenerationID,
+			&i.Ordinal,
+			&i.SectionNo,
+			&i.StartRune,
+			&i.EndRune,
+			&i.Heading,
+			&i.Body,
+			&i.TextHash,
+			&i.VectorReady,
 		); err != nil {
 			return nil, err
 		}

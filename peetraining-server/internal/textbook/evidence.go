@@ -438,6 +438,87 @@ func (s *Service) ValidateAnswerSources(ctx context.Context, q *dbq.Queries, sou
 	}
 	return nil
 }
+// ValidateAnswerSourcesBatch 一次核对多份答案依据，结果与逐份调用 ValidateAnswerSources 相同（ok[i] 为真表示第 i 份仍有效）。
+// 添加官方题库时几百道题各带依据，逐份核对要上千次查库；这里同一教材版本只锁一次、同一索引只查一次、片段按索引整批取。
+// 查库出错时那份算失效（与逐份核对一致），但请求已取消时返回错误，免得把依据全当失效丢掉。
+func (s *Service) ValidateAnswerSourcesBatch(ctx context.Context, q *dbq.Queries, batch [][]ai.AnswerSource) ([]bool, error) {
+	type editionKey struct{ id, book uint64 }
+	editions := map[editionKey]bool{}
+	generations := map[uint64]*dbq.TextbookIndexGeneration{}
+	ordinals := map[uint64][]uint32{}
+	for _, sources := range batch {
+		first := map[uint64]uint64{}
+		for _, src := range sources {
+			if src.Kind != "official_textbook" {
+				continue
+			}
+			if _, ok := first[src.EditionID]; !ok {
+				first[src.EditionID] = src.BookID
+				editions[editionKey{src.EditionID, src.BookID}] = false
+			}
+			generations[src.GenerationID] = nil
+			ordinals[src.GenerationID] = append(ordinals[src.GenerationID], src.Ordinal)
+		}
+	}
+	keys := make([]editionKey, 0, len(editions))
+	for k := range editions {
+		keys = append(keys, k)
+	}
+	// 按 id 顺序加锁，和逐份核对一样，避免并发时互相等待成死锁。
+	sort.Slice(keys, func(i, j int) bool { return keys[i].id < keys[j].id || (keys[i].id == keys[j].id && keys[i].book < keys[j].book) })
+	now := s.now().UTC()
+	for _, k := range keys {
+		e, err := q.LockTextbookEdition(ctx, dbq.LockTextbookEditionParams{ID: k.id, BookID: k.book})
+		editions[k] = err == nil && e.Status == "published" && validLicense(e, now)
+	}
+	chunks := map[uint64]map[uint32]dbq.TextbookChunk{}
+	for id := range generations {
+		if g, err := q.GetTextbookIndex(ctx, id); err == nil {
+			generations[id] = &g
+		}
+		rows, err := q.ListTextbookChunksByOrdinals(ctx, dbq.ListTextbookChunksByOrdinalsParams{GenerationID: id, Ordinals: ordinals[id]})
+		if err != nil {
+			continue
+		}
+		chunks[id] = map[uint32]dbq.TextbookChunk{}
+		for _, c := range rows {
+			chunks[id][c.Ordinal] = c
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]bool, len(batch))
+	for i, sources := range batch {
+		ok := true
+		first := map[uint64]uint64{}
+		for _, src := range sources {
+			if src.Kind != "official_textbook" {
+				continue
+			}
+			if _, seen := first[src.EditionID]; !seen {
+				first[src.EditionID] = src.BookID
+				if !editions[editionKey{src.EditionID, src.BookID}] {
+					ok = false
+					break
+				}
+			}
+			g := generations[src.GenerationID]
+			if g == nil || g.Status != "ready" || g.BookID != src.BookID || g.EditionID != src.EditionID || g.RevisionID != src.RevisionID {
+				ok = false
+				break
+			}
+			chunk, found := chunks[src.GenerationID][src.Ordinal]
+			if !found || chunk.TextHash != src.TextHash || !strings.Contains(chunk.Body, src.Quote) || chunk.SectionNo != src.SectionNo || chunk.StartRune != src.StartRune || chunk.EndRune != src.EndRune {
+				ok = false
+				break
+			}
+		}
+		out[i] = ok
+	}
+	return out, nil
+}
+
 func sourceChanged() error {
 	return apperr.New(apperr.AIFailed, "依据已变化，请重新生成，未扣除次数")
 }
