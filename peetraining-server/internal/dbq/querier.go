@@ -690,6 +690,8 @@ type Querier interface {
 	ListProjectTextbooks(ctx context.Context, projectID uint64) ([]ListProjectTextbooksRow, error)
 	// ---------- 用户添加官方题库（11.15） ----------
 	ListPublishedOfficialBanks(ctx context.Context) ([]ListPublishedOfficialBanksRow, error)
+	// 已发布官方题库里的限选题分组（T51），App 添加后让用户选报考方向。
+	ListPublishedOfficialGroups(ctx context.Context) ([]ListPublishedOfficialGroupsRow, error)
 	ListPublishedTextbookEditions(ctx context.Context, licenseExpiresAt sql.NullTime) ([]ListPublishedTextbookEditionsRow, error)
 	// 我的每次作答（3.3）与最近一次批改的逐点结果、失分归因。
 	ListQuestionAttempts(ctx context.Context, arg ListQuestionAttemptsParams) ([]ListQuestionAttemptsRow, error)

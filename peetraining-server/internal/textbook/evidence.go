@@ -438,6 +438,7 @@ func (s *Service) ValidateAnswerSources(ctx context.Context, q *dbq.Queries, sou
 	}
 	return nil
 }
+
 // ValidateAnswerSourcesBatch 一次核对多份答案依据，结果与逐份调用 ValidateAnswerSources 相同（ok[i] 为真表示第 i 份仍有效）。
 // 添加官方题库时几百道题各带依据，逐份核对要上千次查库；这里同一教材版本只锁一次、同一索引只查一次、片段按索引整批取。
 // 查库出错时那份算失效（与逐份核对一致），但请求已取消时返回错误，免得把依据全当失效丢掉。
@@ -465,7 +466,9 @@ func (s *Service) ValidateAnswerSourcesBatch(ctx context.Context, q *dbq.Queries
 		keys = append(keys, k)
 	}
 	// 按 id 顺序加锁，和逐份核对一样，避免并发时互相等待成死锁。
-	sort.Slice(keys, func(i, j int) bool { return keys[i].id < keys[j].id || (keys[i].id == keys[j].id && keys[i].book < keys[j].book) })
+	sort.Slice(keys, func(i, j int) bool {
+		return keys[i].id < keys[j].id || (keys[i].id == keys[j].id && keys[i].book < keys[j].book)
+	})
 	now := s.now().UTC()
 	for _, k := range keys {
 		e, err := q.LockTextbookEdition(ctx, dbq.LockTextbookEditionParams{ID: k.id, BookID: k.book})

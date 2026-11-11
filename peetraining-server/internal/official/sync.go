@@ -37,6 +37,14 @@ type Bank struct {
 	// UpdatedAt 是最近一次发布的时间；IsNew 表示 NewWindow 内上线或更新过（App 标「新」）。
 	UpdatedAt time.Time
 	IsNew     bool
+	// Groups 是限选题的分组（T51）；Matches 对照已添加到（没添加时是建议添加到）的专业课报考方向。
+	Groups []Group
+}
+
+// Group 是官方题库里一组限选题适用的专业。
+type Group struct {
+	Label, Majors string
+	Matches       bool
 }
 
 // NewWindow 是官方题库标「新」的时长。
@@ -60,6 +68,24 @@ func (s *Service) Banks(ctx context.Context, userID uint64) ([]Bank, error) {
 	if err != nil {
 		return nil, err
 	}
+	gs, err := s.q.ListPublishedOfficialGroups(ctx)
+	if err != nil {
+		return nil, err
+	}
+	groups := map[uint64][]Group{}
+	for _, g := range gs {
+		// 同一方向在几年里组名不同时只列一次（按适用专业去重）。
+		dup := false
+		for _, x := range groups[g.BankID] {
+			if x.Majors == g.GroupMajors.String {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			groups[g.BankID] = append(groups[g.BankID], Group{Label: g.GroupLabel.String, Majors: g.GroupMajors.String})
+		}
+	}
 	now := s.now()
 	out := make([]Bank, 0, len(rows))
 	for _, r := range rows {
@@ -71,6 +97,20 @@ func (s *Service) Banks(ctx context.Context, userID uint64) ([]Bank, error) {
 				b.Suggested = sj.ID
 				break
 			}
+		}
+		target := b.AddedTo
+		if target == 0 {
+			target = b.Suggested
+		}
+		mine := ""
+		for _, sj := range subjects {
+			if sj.ID == target {
+				mine = sj.MyMajors.String
+			}
+		}
+		for _, g := range groups[r.BankID] {
+			g.Matches = strings.TrimSpace(mine) != "" && importer.MatchMajors(mine, g.Majors)
+			b.Groups = append(b.Groups, g)
 		}
 		out = append(out, b)
 	}

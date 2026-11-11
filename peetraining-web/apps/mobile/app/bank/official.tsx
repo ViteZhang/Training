@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { GroupPicker, needsGroupPick, type GroupPick } from '@/features/official/GroupPicker';
 import { BottomSheet, Button, Card, ConfirmDialog, EmptyState, ErrorState, Loading, Screen, Tag, Text, toast } from '@/components';
 import { PageHeader } from '@/features/import/ui';
 import { matchTarget, OfficialNotice } from '@/features/official/OfficialNotice';
@@ -23,6 +24,7 @@ export default function OfficialBanksPage() {
   const profile = useQuery({ queryKey: ['profile'], queryFn: () => unwrap(api.GET('/profile')) });
   const [adding, setAdding] = useState<Bank>();
   const [removing, setRemoving] = useState<Bank>();
+  const [pick, setPick] = useState<GroupPick>();
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['official-banks'] });
     void qc.invalidateQueries({ queryKey: ['bank'] });
@@ -37,11 +39,15 @@ export default function OfficialBanksPage() {
         if (!(e instanceof ApiError && e.status === 409)) throw e;
       }
     },
-    onSuccess: () => {
+    onSuccess: async (_, v) => {
       track('official_bank_add');
       toast('已添加，官方内容标了「官方」');
       setAdding(undefined);
       refresh();
+      // 有限选题分组、报考方向一组都对不上：请用户选报考方向（T51）
+      const fresh = await qc.fetchQuery({ queryKey: ['official-banks'], queryFn: () => unwrap(api.GET('/official-banks')), staleTime: 0 }).catch(() => undefined);
+      const b = fresh?.items?.find((x) => x.bank_id === v.bank.bank_id);
+      if (b && needsGroupPick(b)) setPick({ subjectId: v.subjectId, subjectName: subjects.data?.items.find((x) => x.id === v.subjectId)?.name ?? '', groups: b.groups ?? [] });
     },
     onError: (e) => {
       toast(e instanceof ApiError && e.isTimeout ? '还在添加，题目较多，稍后刷新看看' : '添加失败，请重试');
@@ -120,6 +126,7 @@ export default function OfficialBanksPage() {
           </Pressable>
         ))}
       </BottomSheet>
+      <GroupPicker pick={pick} onDone={() => setPick(undefined)} />
       <ConfirmDialog
         visible={!!removing}
         title="移除官方题库？"
