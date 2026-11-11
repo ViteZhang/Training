@@ -4,6 +4,7 @@ import { BackHandler } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import TrainTab from '../../app/(tabs)/train';
 import PracticeRunner from '../../app/practice/[id]';
+import { gradingBasis } from '../features/practice/grading';
 import { storage } from '../lib/storage';
 
 const mockPush = jest.fn();
@@ -275,5 +276,13 @@ describe('4.4 / 4.7b 按 AI 参考答案批改', () => {
     await fireEvent.press(screen.getByText('提交批改'));
     expect(await screen.findByText(/当时规则下/)).toBeTruthy();
     expect(screen.queryByText('这份参考答案对吗？')).toBeNull();
+  });
+});
+
+describe('官方题库的 AI 答案不强调 AI', () => {
+  it('作答页的批改依据按官方答案显示；自己导入的题仍标 AI 参考答案', () => {
+    const base = { answer_tier: 'ai', rubric_count: 3 } as Parameters<typeof gradingBasis>[0];
+    expect(gradingBasis({ ...base, source: 'official' })).toBe('按官方的 3 个采分点批改');
+    expect(gradingBasis({ ...base, source: 'exam' })).toBe('这道题按 AI 参考答案批改');
   });
 });

@@ -148,11 +148,17 @@ export function SubjectiveInput({
   );
 }
 
+/** 官方题库的答案经编辑审核：即使由 AI 生成，界面也按官方答案显示，不强调 AI。 */
+export function shownTier(q: Pick<PracticeQuestion, 'answer_tier' | 'source'>) {
+  return q.answer_tier === 'ai' && q.source === 'official' ? 'official' : q.answer_tier;
+}
+
 /** 4.4 的批改依据（PRD v3 4.4、11.16）：AI 参考答案或还没有答案时说明（11 月 4 日起照常计入预估分，T49）。 */
 export function gradingBasis(q: PracticeQuestion) {
-  if (q.answer_tier === 'ai') return '这道题按 AI 参考答案批改';
-  if (q.answer_tier === 'missing') return '这道题还没有答案，提交时 AI 先生成参考答案再批改';
-  if (q.answer_tier === 'official') return q.rubric_count > 0 ? `按官方的 ${q.rubric_count} 个采分点批改` : '按官方答案批改';
+  const tier = shownTier(q);
+  if (tier === 'ai') return '这道题按 AI 参考答案批改';
+  if (tier === 'missing') return '这道题还没有答案，提交时 AI 先生成参考答案再批改';
+  if (tier === 'official') return q.rubric_count > 0 ? `按官方的 ${q.rubric_count} 个采分点批改` : '按官方答案批改';
   return q.rubric_count > 0 ? `按你资料里的 ${q.rubric_count} 个采分点批改` : '按参考答案批改';
 }
 
@@ -173,7 +179,7 @@ export function GradingProgress({ q }: { q: PracticeQuestion }) {
             ? ['生成 AI 参考答案', '提取你的答案要点，比对采分点', '生成修改建议']
             : [
                 '提取你的答案要点',
-                q.answer_tier === 'ai' ? '比对 AI 参考答案的采分点' : q.answer_tier === 'official' ? `比对官方的 ${q.rubric_count || 1} 个采分点` : `比对你资料里的 ${q.rubric_count || 1} 个采分点`,
+                shownTier(q) === 'ai' ? '比对 AI 参考答案的采分点' : shownTier(q) === 'official' ? `比对官方的 ${q.rubric_count || 1} 个采分点` : `比对你资料里的 ${q.rubric_count || 1} 个采分点`,
                 '生成修改建议',
               ]
         }
@@ -215,7 +221,7 @@ export function GradingResultView({
 }: {
   g: GradingResult;
   /** 这道题的解析与出处（T56）：展开参考答案时一起显示 */
-  question?: { analysis?: string; reference?: string };
+  question?: { analysis?: string; reference?: string; source?: string };
   kpId?: number;
   /** 「看规范写法」去 4.13 */
   norm?: { subjectId: number; qtype: string };
@@ -224,11 +230,12 @@ export function GradingResultView({
   regrading: boolean;
 }) {
   const [showRef, setShowRef] = useState(false);
+  const official = g.rubric_source === 'official' || question?.source === 'official';
   const reference = g.reference_only || g.answer_tier === 'ai';
   return (
     <View style={styles.gap12}>
       {/* 官方题库的答案经编辑审核，不再提示「AI 参考答案」（与题目详情一致）。 */}
-      {reference && (g.reference_only || g.rubric_source !== 'official') ? <AIAnswerNotice legacy={!!g.reference_only} /> : null}
+      {reference && (g.reference_only || !official) ? <AIAnswerNotice legacy={!!g.reference_only} /> : null}
       <View style={styles.scoreRow}>
         <Text variant="score" color={colors.ink} style={styles.score}>
           {g.score ?? '—'}
@@ -277,7 +284,7 @@ export function GradingResultView({
       </View>
       <View style={styles.row}>
         <Text variant="small" style={styles.flex}>
-          批改依据：{sourceText[g.rubric_source]}
+          批改依据：{official ? sourceText.official : sourceText[g.rubric_source]}
           {g.rubric_ref ? ` · 出自 ${g.rubric_ref.file_name}${g.rubric_ref.page ? ` 第 ${g.rubric_ref.page} 页` : ''}` : ''}
         </Text>
       </View>
@@ -338,7 +345,7 @@ export function GradingResultView({
               <Text variant="caption" color={colors.ink} style={styles.refText}>{g.reference_answer}</Text>
               {question?.analysis ? <Text variant="caption" style={styles.refText}>解析：{question.analysis}</Text> : null}
               {question?.reference ? <Text variant="small">出处：{question.reference}</Text> : null}
-              <RecordAnswerEvidence kind="grading" id={g.grading_id} hideEmpty official={g.rubric_source === 'official'} />
+              <RecordAnswerEvidence kind="grading" id={g.grading_id} hideEmpty official={official} />
             </View>
           ) : null}
         </View>
