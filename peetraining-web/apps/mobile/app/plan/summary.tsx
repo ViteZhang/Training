@@ -3,6 +3,7 @@ import { colors, fontFamily, radius, semantic, spacing } from '@training/ui-toke
 import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { BackButton, Button, Card, ErrorState, Loading, Screen, Text } from '@/components';
+import { useExtraRound } from '@/features/practice/api';
 import { MasteryPill } from '@/features/bank/MasteryPill';
 import { lossNames, minutes, useHome, useTodaySummary } from '@/features/today/api';
 
@@ -23,6 +24,8 @@ const lossColors = [colors.peach, colors.blue, colors.lavender];
 export default function TodaySummaryPage() {
   const q = useTodaySummary();
   const home = useHome();
+  const extra = useExtraRound(true);
+  const extraSubject = home.data?.plan?.subjects?.[0]?.subject_id ?? home.data?.estimates?.[0]?.subject_id;
   if (q.isLoading) return <Screen><Loading rows={5} /></Screen>;
   if (q.isError || !q.data) return <Screen><ErrorState error={q.error} onRetry={() => void q.refetch()} /></Screen>;
   const s = q.data;
@@ -110,7 +113,7 @@ export default function TodaySummaryPage() {
         ) : null}
       </ScrollView>
       <View style={styles.footer}>
-        <Button title="再练一组" kind="secondary" style={styles.flex} onPress={() => router.replace('/(tabs)/train')} />
+        <Button title="再练一组" kind="secondary" style={styles.flex} loading={extra.isPending} onPress={() => (extraSubject ? extra.mutate(extraSubject) : router.replace('/(tabs)/train'))} />
         <Button title="回到今日" style={styles.flex2} onPress={() => router.replace('/(tabs)/today')} />
       </View>
     </Screen>

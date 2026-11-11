@@ -112,7 +112,8 @@ describe('6.1 我的', () => {
     expect(await screen.findByText('开通会员：批改、整卷、资料解析不限')).toBeTruthy();
     expect(await screen.findByText('失分：知识没掌握 50% · 答题不规范 25% · 时间不够 25%')).toBeTruthy();
     expect(screen.getByText('3 份 · 246 题')).toBeTruthy();
-    expect(screen.getByText('还没有作文')).toBeTruthy();
+    // 没有作文课时不显示作文本入口
+    expect(screen.queryByText('作文本')).toBeNull();
     expect(screen.getByText('初试辛苦了！填写考后回访送 30 天会员')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('兑换码'));
     expect(mockPush).toHaveBeenCalledWith('/mine/redeem');

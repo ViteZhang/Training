@@ -90,14 +90,14 @@ describe('3.1 知识点树', () => {
 });
 
 describe('3.4 知识点卡片', () => {
-  it('显示原文、出处、采分点、AI 解读与相关题目；自评后更新', async () => {
+  it('显示原文、出处、采分点与相关题目，不显示 AI 解读；自评后更新', async () => {
     mockParams = { id: '5', subjectId: '7' };
     mockResponses['GET /knowledge-points/{kpId}'] = () => ({ status: 200, data: kp });
     mockResponses['PUT /knowledge-points/{kpId}/self-assessment'] = () => ({ status: 200, data: { m: 30, state: 'learning', last_self_assess: 'vague' } });
     await wrap(<KPCard />);
     expect(await screen.findByText('真题出现 3 次')).toBeTruthy();
     expect(screen.getByText('出自：讲义.docx · 第 3 页')).toBeTruthy();
-    expect(screen.getByText('AI 生成')).toBeTruthy();
+    expect(screen.queryByText('AI 帮你理解')).toBeNull();
     expect(screen.getByText('名词解释：意境')).toBeTruthy();
     await fireEvent.press(screen.getByText('查看原文 ›'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/bank/page', params: { materialId: '9', page: '3', highlight: kp.original_text } });
@@ -186,7 +186,7 @@ describe('3.1b 题目与 3.3 详情', () => {
     expect(screen.getByText('采分点分值合计要等于题目分值 5 分')).toBeTruthy();
   });
 
-  it('官方题：标「官方 · 年份 真题」「官方答案」，显示出处与解析，不显示「来源未记录」；编辑时提示不再跟随官方更新（T56）', async () => {
+  it('官方题：标「官方 · 年份 真题」「官方答案」，显示出处与解析，不显示「来源未记录」；不给编辑入口（T56）', async () => {
     mockParams = { id: '12' };
     mockResponses['GET /questions/{questionId}'] = () => ({
       status: 200,
@@ -219,11 +219,11 @@ describe('3.1b 题目与 3.3 详情', () => {
     expect(screen.getByText('善本以三性为标准')).toBeTruthy();
     await waitFor(() => expect(mockCalls.some((c) => c.path === '/questions/{questionId}/answer-evidence')).toBe(true));
     expect(screen.queryByText('历史答案 · 来源未记录')).toBeNull();
-    await fireEvent.press(screen.getByText('编辑'));
-    expect(screen.getByText('这是官方题库的题，改了以后这道题保留你的版本，官方题库更新时不再覆盖。')).toBeTruthy();
+    expect(screen.queryByText('编辑')).toBeNull();
+    expect(screen.queryByText('修改答案')).toBeNull();
   });
 
-  it('官方题的 AI 答案不给「补充答案文件」', async () => {
+  it('官方题的 AI 答案不给「补充答案文件」「我来改」', async () => {
     mockParams = { id: '13' };
     mockResponses['GET /questions/{questionId}'] = () => ({
       status: 200,
@@ -234,7 +234,8 @@ describe('3.1b 题目与 3.3 详情', () => {
     });
     mockResponses['GET /questions/{questionId}/answer-evidence'] = () => ({ status: 200, data: { snapshot: null } });
     await wrap(<QuestionScreen />);
-    expect(await screen.findByText('下面是官方题库由 AI 生成、经编辑审核的参考答案；觉得不对，可以改成你的答案。')).toBeTruthy();
+    expect(await screen.findByText('下面是官方题库由 AI 生成、经编辑审核的参考答案。')).toBeTruthy();
+    expect(screen.queryByText('我来改')).toBeNull();
     expect(screen.queryByText('补充答案文件 ›')).toBeNull();
   });
 });

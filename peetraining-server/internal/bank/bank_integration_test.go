@@ -187,8 +187,15 @@ func TestTreeOverviewAndKnowledgePoint(t *testing.T) {
 		t.Fatal("「真题考过」筛选不对")
 	}
 
-	// 知识点卡片：第一次打开生成并缓存 AI 解读
+	// 知识点卡片：打开时不再生成 AI 解读；「重新生成」仍会生成并缓存
 	d, err := f.bank.KnowledgePoint(ctx, uid, yijing.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.AIExplanation != "" {
+		t.Fatalf("打开卡片不应生成 AI 解读：%q", d.AIExplanation)
+	}
+	d, err = f.bank.RegenerateExplanation(ctx, uid, yijing.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +208,7 @@ func TestTreeOverviewAndKnowledgePoint(t *testing.T) {
 		t.Fatal("AI 解读应缓存")
 	}
 
-	// 编辑：改采分点后解读作废，下次打开重新生成
+	// 编辑：改采分点后解读作废
 	ten := 10.0
 	name := "意境（审美范畴）"
 	d, err = f.bank.UpdateKnowledgePoint(ctx, uid, yijing.ID, bank.KPPatch{Name: &name, RubricSet: true, Rubric: []bank.RubricInput{{Content: "情景交融", Score: &ten}}})

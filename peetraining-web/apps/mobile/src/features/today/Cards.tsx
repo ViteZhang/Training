@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, Card, Icon, ProgressBar, Text } from '@/components';
 import type { IconName } from '@/components/Icon';
 import { qtypeNames } from '@/features/import/api';
+import { useExtraRound } from '@/features/practice/api';
 import { useAIFillPref } from '@/features/practice/offline';
 import { groupNames, minutes, planProgress, useContinueToday, type Home, type TodayPlan } from './api';
 
@@ -359,6 +360,9 @@ export function FalseMasteryCard({ count }: { count: number }) {
 
 /** 2.1d 今日已完成：连续打卡、今天的题数与用时、明天预计。 */
 export function DoneCard({ home, summary }: { home: Home; summary?: Schemas['TodaySummary'] }) {
+  const extra = useExtraRound();
+  // 再练一组练哪门课：今天计划里的第一门；没有计划条目时用第一门有预估的课。
+  const extraSubject = home.plan?.subjects?.[0]?.subject_id ?? home.estimates?.[0]?.subject_id;
   return (
     <>
       <Card style={[styles.section, styles.gap14]}>
@@ -382,7 +386,7 @@ export function DoneCard({ home, summary }: { home: Home; summary?: Schemas['Tod
         ) : null}
         <View style={styles.row}>
           <Button title="今日总结" kind="secondary" style={styles.flex} onPress={() => router.push('/plan/summary')} />
-          <Button title="再练一组" style={styles.flex2} onPress={() => router.push('/(tabs)/train')} />
+          <Button title="再练一组" style={styles.flex2} loading={extra.isPending} onPress={() => (extraSubject ? extra.mutate(extraSubject) : router.push('/(tabs)/train'))} />
         </View>
       </Card>
       {home.tomorrow_minutes ? (

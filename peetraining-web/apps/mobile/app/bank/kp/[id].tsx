@@ -1,5 +1,5 @@
-// 3.4 知识点卡片：掌握状态与掌握分、真题出现次数、原文表述（采分关键词下划线）与出处、采分点、AI 解读（标「AI 生成」）、
-// 相关题目、三档自评（只作参考）、「来一题检验」。3.5 更多操作：编辑、调整归属、合并、拆分、重新生成解读、删除。
+// 3.4 知识点卡片：掌握状态与掌握分、真题出现次数、原文表述（采分关键词下划线）与出处、采分点、
+// 相关题目、三档自评（只作参考）、「来一题检验」。3.5 更多操作：编辑、调整归属、合并、拆分、删除。
 import { ApiError, type Schemas } from '@training/api-client';
 import { layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -100,14 +100,6 @@ function MoreActions({ kp, sheet, setSheet }: { kp: KPDetail; sheet: Sheet; setS
             { label: '添加关联', icon: 'link', onPress: () => setSheet('relate') },
             { label: '合并到其他知识点', icon: 'merge', onPress: () => setSheet('merge') },
             { label: '拆分为多个知识点', icon: 'split', onPress: () => { setAssignments({}); setSheet('split'); } },
-            {
-              label: 'AI 解读不准，重新生成',
-              icon: 'refresh',
-              onPress: () => {
-                setSheet(null);
-                void run(async () => qc.setQueryData(bankKeys.kp(kp.id), await unwrap(api.POST('/knowledge-points/{kpId}/explanation', path))), '已重新生成');
-              },
-            },
             { label: '删除这个知识点', icon: 'trash', danger: true, onPress: () => setSheet('delete') },
           ]}
         />
@@ -298,12 +290,6 @@ export default function KPCard() {
             ))}
           </InfoCard>
         ) : null}
-
-        <InfoCard label="AI 帮你理解" tone="fill" right={<Tag label="AI 生成" tone="ai" />}>
-          <Text variant="caption" color={semantic.textPrimary} style={styles.lh}>
-            {k.ai_explanation ?? 'AI 解读还在生成，稍后再打开就能看到；也可以在「更多」里重新生成'}
-          </Text>
-        </InfoCard>
 
         {k.related_questions.length > 0 ? (
           <>

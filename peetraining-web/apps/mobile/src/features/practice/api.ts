@@ -73,6 +73,33 @@ export function useStartPractice() {
   });
 }
 
+/**
+ * 今日训练完成后的「再练一组」：直接开一组 10 道自定义练习并进入答题页，优先没掌握的知识点；
+ * 都掌握了（没有符合条件的题）就从全部题里抽。不计入今日训练的进度。
+ */
+export function useExtraRound(replace = false) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (subjectId: number) => {
+      const create = (only_unmastered: boolean) =>
+        unwrap(api.POST('/practice-sessions', { body: { subject_id: subjectId, kind: 'custom', config: { count: 10, only_unmastered, ai_fill: false }, ai_fill: false } }));
+      try {
+        return await create(true);
+      } catch {
+        return create(false);
+      }
+    },
+    onSuccess: (s) => {
+      track('session_start', { kind: s.kind, questions: s.questions.length });
+      cacheSession(s);
+      qc.setQueryData(practiceKeys.session(s.id), s);
+      void qc.invalidateQueries({ queryKey: ['practice', 'home'] });
+      (replace ? router.replace : router.push)({ pathname: '/practice/[id]', params: { id: String(s.id) } });
+    },
+    onError: (e) => toast(e instanceof Error && e.message ? e.message : '没能开始练习，请重试'),
+  });
+}
+
 export function useWrongBook(subjectId: number) {
   return useQuery({
     queryKey: practiceKeys.wrong(subjectId),

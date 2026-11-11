@@ -19,6 +19,7 @@ export interface ButtonProps extends Omit<PressableProps, 'children'> {
 /**
  * 按钮（样式取自设计稿）：主（墨黑实底）、次（白底线色描边）、浅底胶囊、文字、危险（红色描边）。
  * 不可用时换成灰底灰字；可点区域不小于 44×44。
+ * 文字始终一行：并排放不下时先缩小字号（最多到 85%），再放不下才省略；数量、进度这类补充信息放到按钮上方的说明里，不写进按钮。
  */
 export function Button({ title, kind = 'primary', size = 'md', loading, disabled, block, color, style, ...rest }: ButtonProps) {
   const s = kindStyles[kind];
@@ -43,7 +44,7 @@ export function Button({ title, kind = 'primary', size = 'md', loading, disabled
     >
       <View style={styles.row}>
         {loading ? <ActivityIndicator color={s.text.color} style={styles.spinner} /> : null}
-        <Text variant={sm ? 'caption' : 'bodyStrong'} style={[s.text, color ? { color } : null, disabled && kind !== 'text' && styles.disabledText]}>
+        <Text variant={sm ? 'caption' : 'bodyStrong'} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.label, s.text, color ? { color } : null, disabled && kind !== 'text' && styles.disabledText]}>
           {title}
         </Text>
       </View>
@@ -69,7 +70,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   block: { alignSelf: 'stretch' },
-  row: { flexDirection: 'row', alignItems: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', maxWidth: '100%' },
+  label: { flexShrink: 1 },
   spinner: { marginRight: spacing.sm },
   disabled: { backgroundColor: semantic.disabledBg, borderColor: semantic.disabledBg },
   disabledText: { color: semantic.disabledText },

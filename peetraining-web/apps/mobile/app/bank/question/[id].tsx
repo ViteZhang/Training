@@ -60,13 +60,6 @@ function Editor({ q, onDone }: { q: QuestionDetail; onDone: () => void }) {
   };
   return (
     <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-      {q.origin_tags.includes('official') || q.source === 'official' ? (
-        <View style={styles.aiNote}>
-          <Text variant="caption" color={colors.blueInk} style={styles.lh2}>
-            这是官方题库的题，改了以后这道题保留你的版本，官方题库更新时不再覆盖。
-          </Text>
-        </View>
-      ) : null}
       <Text variant="bodyStrong">题干</Text>
       <TextInput accessibilityLabel="题干" value={stem} onChangeText={setStem} multiline style={[styles.input, styles.multi]} maxFontSizeMultiplier={layout.maxFontScale} />
       <Text variant="bodyStrong">分值</Text>
@@ -91,7 +84,7 @@ export default function QuestionScreen() {
   const qid = Number(id);
   const qc = useQueryClient();
   const question = useQuestion(qid);
-  const [editing, setEditing] = useState(edit === '1');
+  const [wantEdit, setEditing] = useState(edit === '1');
   const [removing, setRemoving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const subjects = useSubjects();
@@ -102,7 +95,9 @@ export default function QuestionScreen() {
   const primary = q.knowledge_points.find((k) => k.is_primary) ?? q.knowledge_points[0];
   const tier = q.answer_tier ?? (q.answer ? 'material' : 'missing');
   const ai = tier === 'ai';
+  // 官方题库的题：答案与采分点由官方维护，不提供编辑入口
   const official = q.origin_tags.includes('official') || q.source === 'official';
+  const editing = wantEdit && !official;
   const subject = subjects.data?.items?.find((x) => x.id === q.subject_id);
   const answerSrc = q.answer_source ?? (q.answer_match === 'original' ? q.source_ref : undefined);
   const openAnswerFile = () => router.push({ pathname: '/import/answers', params: { subject: String(q.subject_id ?? subject?.id ?? '') } });
@@ -138,7 +133,7 @@ export default function QuestionScreen() {
       <PageHeader
         title={editing ? '编辑题目' : '题目详情'}
         onBack={() => router.back()}
-        right={editing ? undefined : <Button title="编辑" kind="text" color={semantic.textPrimary} style={styles.edit} onPress={() => setEditing(true)} />}
+        right={editing || official ? undefined : <Button title="编辑" kind="text" color={semantic.textPrimary} style={styles.edit} onPress={() => setEditing(true)} />}
       />
       {editing ? (
         <Editor q={q} onDone={() => setEditing(false)} />
@@ -184,7 +179,7 @@ export default function QuestionScreen() {
               <View style={styles.aiNote}>
                 <Text variant="caption" color={colors.blueInk} style={styles.lh2}>
                   {official
-                    ? '下面是官方题库由 AI 生成、经编辑审核的参考答案；觉得不对，可以改成你的答案。'
+                    ? '下面是官方题库由 AI 生成、经编辑审核的参考答案。'
                     : '下面是 AI 生成的参考答案，可以查看引用的教材段落；核对后确认，或改成你的答案。'}
                 </Text>
                 {official ? null : <Button title="补充答案文件 ›" kind="text" size="sm" color={colors.blueInk} style={styles.link} onPress={openAnswerFile} />}
@@ -219,7 +214,7 @@ export default function QuestionScreen() {
                 </Text>
               ) : null}
               {q.answer ? <RecordAnswerEvidence kind="question" id={q.id} hideEmpty={official || !!q.reference} /> : null}
-              {!ai ? (
+              {!ai && !official ? (
                 <View style={styles.sourceRow}>
                   <Button title={q.answer ? '修改答案' : '补充 / 修改答案'} kind="text" size="sm" color={semantic.info} style={styles.link} onPress={() => setEditing(true)} />
                   {!q.answer ? <Button title="补充答案文件" kind="text" size="sm" color={semantic.info} style={styles.link} onPress={openAnswerFile} /> : null}
@@ -283,7 +278,7 @@ export default function QuestionScreen() {
             <Button title="删除这道题" kind="text" color={semantic.danger} style={styles.left} onPress={() => setRemoving(true)} />
           </ScrollView>
           <View style={styles.footer}>
-            {ai ? (
+            {ai && !official ? (
               <View style={styles.actions}>
                 <Button title="我来改" kind="secondary" onPress={() => setEditing(true)} style={styles.flex} />
                 <Button title="答案没问题，确认" loading={confirming} onPress={() => void confirmAI()} style={styles.flex} />
