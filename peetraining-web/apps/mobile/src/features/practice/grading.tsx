@@ -4,7 +4,7 @@ import type { Schemas } from '@training/api-client';
 import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { AIGenerating, BottomSheet, Button, Icon, Tag, Text, toast } from '@/components';
 import type { IconName } from '@/components/Icon';
@@ -93,6 +93,8 @@ export function SubjectiveInput({
   timed,
   onTimed,
   onPhoto,
+  voice,
+  children,
 }: {
   q: PracticeQuestion;
   text: string;
@@ -100,6 +102,10 @@ export function SubjectiveInput({
   timed: boolean;
   onTimed: (v: boolean) => void;
   onPhoto: () => void;
+  /** 「语音」按钮，排在「拍手写稿」前面（设计稿 4.4）；语音作答开关关闭时不传 */
+  voice?: ReactNode;
+  /** 工具行下面的内容：录音提示、语音识别结果 */
+  children?: ReactNode;
 }) {
 
   const remaining = useGradingRemaining();
@@ -124,11 +130,13 @@ export function SubjectiveInput({
         textAlignVertical="top"
       />
       <View style={styles.row}>
+        {voice}
         <Tool icon="camera" label="拍手写稿" onPress={onPhoto} />
         <Text variant="small" num style={[styles.flex, styles.right]}>
           {wordHint(q.qtype, n)}
         </Text>
       </View>
+      {children}
       <View style={styles.row}>
         <Text variant="small" style={styles.flex}>
           {remaining === undefined ? '' : remaining === null ? '批改次数不限' : `今日免费批改还剩 ${remaining} 次`}

@@ -93,6 +93,19 @@ describe('4.4 主观题 → 4.7 批改结果', () => {
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/bank/kp/[id]', params: { id: '3' } });
   });
 
+  it('打开语音作答后，「语音」按钮在答题框下方，与「拍手写稿」并排（设计稿 4.4）', async () => {
+    mockResponses['GET /feature-flags'] = () => ({ status: 200, data: { flags: { voice_answer: true } } });
+    mockResponses['GET /practice-sessions/{sessionId}/questions/{questionId}/voice'] = () => ({ status: 200, data: { items: [] } });
+    await wrap(<PracticeRunner />);
+    const voice = await screen.findByLabelText('语音');
+    const input = screen.getByLabelText('你的答案');
+    const photo = screen.getByLabelText('拍手写稿');
+    expect(voice.parent?.parent).toBe(photo.parent?.parent);
+    const tree = JSON.stringify(screen.toJSON());
+    expect(tree.indexOf('写下你的答案')).toBeLessThan(tree.indexOf('"语音"'));
+    expect(input).toBeTruthy();
+  });
+
   it('看参考答案后按返回键回到作答；作答页按返回键先确认，不直接退出', async () => {
     // 测试环境里 BackHandler 是空实现：截获注册的回调，按「后注册先调用」模拟安卓返回键
     const handlers: Parameters<typeof BackHandler.addEventListener>[1][] = [];

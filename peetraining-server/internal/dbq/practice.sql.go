@@ -374,9 +374,40 @@ func (q *Queries) InsertPracticeSession(ctx context.Context, arg InsertPracticeS
 	return result.LastInsertId()
 }
 
+const latestInProgressRecite = `-- name: LatestInProgressRecite :one
+SELECT id, owner_user_id, subject_id, title, config, question_ids, cursor_index, status, summary, started_at, finished_at, kind FROM practice_sessions
+WHERE owner_user_id = ? AND subject_id = ? AND status = 'in_progress' AND kind = 'recite'
+ORDER BY started_at DESC, id DESC LIMIT 1
+`
+
+type LatestInProgressReciteParams struct {
+	OwnerUserID uint64
+	SubjectID   sql.NullInt64
+}
+
+func (q *Queries) LatestInProgressRecite(ctx context.Context, arg LatestInProgressReciteParams) (PracticeSession, error) {
+	row := q.db.QueryRowContext(ctx, latestInProgressRecite, arg.OwnerUserID, arg.SubjectID)
+	var i PracticeSession
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerUserID,
+		&i.SubjectID,
+		&i.Title,
+		&i.Config,
+		&i.QuestionIds,
+		&i.CursorIndex,
+		&i.Status,
+		&i.Summary,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Kind,
+	)
+	return i, err
+}
+
 const latestInProgressSession = `-- name: LatestInProgressSession :one
 SELECT id, owner_user_id, subject_id, title, config, question_ids, cursor_index, status, summary, started_at, finished_at, kind FROM practice_sessions
-WHERE owner_user_id = ? AND subject_id = ? AND status = 'in_progress'
+WHERE owner_user_id = ? AND subject_id = ? AND status = 'in_progress' AND kind <> 'recite'
 ORDER BY started_at DESC, id DESC LIMIT 1
 `
 
@@ -385,6 +416,7 @@ type LatestInProgressSessionParams struct {
 	SubjectID   sql.NullInt64
 }
 
+// 最近一组进行中的刷题（不含背诵）：背诵会话存的是知识点，不能当刷题打开，也不能挡住今日训练的断点续练。
 func (q *Queries) LatestInProgressSession(ctx context.Context, arg LatestInProgressSessionParams) (PracticeSession, error) {
 	row := q.db.QueryRowContext(ctx, latestInProgressSession, arg.OwnerUserID, arg.SubjectID)
 	var i PracticeSession
