@@ -289,6 +289,20 @@ export function GradingResultView({
         </Text>
       </View>
       {g.rubric_changed ? <Button title="采分点已修改，按新采分点重批" kind="secondary" loading={regrading} onPress={onRegrade} /> : null}
+      {/* 参考答案紧跟采分点：看完哪里丢分就能对照答案，不用滑到页面最底部 */}
+      {g.reference_answer ? (
+        <View>
+          <Button title={showRef ? '收起参考答案' : '参考答案'} kind="secondary" onPress={() => setShowRef(!showRef)} />
+          {showRef ? (
+            <View>
+              <Text variant="caption" color={colors.ink} style={styles.refText}>{g.reference_answer}</Text>
+              {question?.analysis ? <Text variant="caption" style={styles.refText}>解析：{question.analysis}</Text> : null}
+              {question?.reference ? <Text variant="small">出处：{question.reference}</Text> : null}
+              <RecordAnswerEvidence kind="grading" id={g.grading_id} hideEmpty official={official} />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
       {g.structure_note ? <Text variant="small">{g.structure_note}</Text> : null}
       {g.loss.length > 0 ? (
         <View style={styles.box}>
@@ -337,19 +351,6 @@ export function GradingResultView({
         </Text>
         {g.wrong_book === 'added' || g.wrong_book === 'still' ? <Text variant="small">已加入错题本</Text> : null}
       </View>
-      {g.reference_answer ? (
-        <View>
-          <Button title={showRef ? '收起参考答案' : '参考答案'} kind="secondary" onPress={() => setShowRef(!showRef)} />
-          {showRef ? (
-            <View>
-              <Text variant="caption" color={colors.ink} style={styles.refText}>{g.reference_answer}</Text>
-              {question?.analysis ? <Text variant="caption" style={styles.refText}>解析：{question.analysis}</Text> : null}
-              {question?.reference ? <Text variant="small">出处：{question.reference}</Text> : null}
-              <RecordAnswerEvidence kind="grading" id={g.grading_id} hideEmpty official={official} />
-            </View>
-          ) : null}
-        </View>
-      ) : null}
       <Text variant="small" style={styles.center}>
         AI 批改得分，仅供参考
       </Text>

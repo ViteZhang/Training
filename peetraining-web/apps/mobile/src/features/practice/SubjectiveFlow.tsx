@@ -7,7 +7,7 @@ import { PracticeVoiceInput, PracticeVoiceTool, voiceEditsKey } from './Practice
 import { ApiError } from '@training/api-client';
 import { semantic, spacing } from '@training/ui-tokens';
 import * as Crypto from 'expo-crypto';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BackHandler, StyleSheet, View } from 'react-native';
 import { AIFailed, Button, QuotaSheet, Text, toast } from '@/components';
 import type { PracticeQuestion } from './api';
@@ -23,12 +23,15 @@ export function SubjectiveFlow({
   onGraded,
   onQueued,
   onSelfAssess,
+  onActions,
 }: {
   q: PracticeQuestion;
   sessionId: number;
   onGraded: (g: GradingResult) => void;
   onQueued: () => void;
   onSelfAssess: (level: Level) => void;
+  /** 给了就把「看参考答案」「提交批改」交给外层放到固定在屏幕底部的操作栏（答题页）；不给则跟在输入框后面。 */
+  onActions?: (node: ReactNode) => void;
 }) {
   const draft = useDraft(sessionId, q.id);
   const voiceEnabled = useFeatureFlag('voice_answer');
@@ -115,6 +118,27 @@ export function SubjectiveFlow({
     );
   };
 
+  // 两个主按钮：答题页把它们固定在屏幕底部（键盘弹起时跟着上移），不用滚到输入框下面才看得到。
+  const sendRef = useRef(send);
+  useEffect(() => {
+    sendRef.current = send;
+  });
+  const answering = !submit.isPending && !failed && !photo && !showRef;
+  const submitDisabled = recording || preparing || (!draft.text.trim() && !voiceEnabled);
+  const renderActions = () => (
+    <View style={styles.row}>
+      <Button title="看参考答案" kind="secondary" style={styles.flex} onPress={() => { if (recording) toast('请先结束录音'); else setShowRef(true); }} />
+      <Button title="提交批改" style={styles.flex2} disabled={submitDisabled} loading={preparing} onPress={() => { void sendRef.current(); }} />
+    </View>
+  );
+  useEffect(() => {
+    if (!onActions) return;
+    onActions(answering ? renderActions() : null);
+    return () => onActions(null);
+    // 按钮只随这几个状态变化；renderActions 每次渲染都是新函数，不放进依赖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onActions, answering, submitDisabled, preparing, recording]);
+
   if (submit.isPending) return <GradingProgress q={q} />;
   if (failed) return <AIFailed onRetry={() => send(last.current, true)} />;
   if (photo) return <HandwritingFlow onConfirm={(text, keys) => send({ text, keys })} onCancel={() => setPhoto(false)} />;
@@ -161,10 +185,7 @@ export function SubjectiveFlow({
         {voiceEnabled && recording ? <Text variant="small">正在录音，结束后可切题。单段接近 5 分钟时自动保存；只转写原话，请核对专业术语。</Text> : null}
         {voiceEnabled ? <PracticeVoiceInput queue={voiceQueue} applied={draft.voices} onConfirm={(job,value) => { try { draft.appendVoice(job.idempotency_key,value); } catch(error) { toast(error instanceof Error ? error.message : '保存失败'); } }} /> : null}
       </SubjectiveInput>
-      <View style={styles.row}>
-        <Button title="看参考答案" kind="secondary" style={styles.flex} onPress={() => { if (recording) toast('请先结束录音'); else setShowRef(true); }} />
-        <Button title="提交批改" style={styles.flex2} disabled={recording || preparing || (!draft.text.trim() && !voiceEnabled)} loading={preparing} onPress={() => { void send(); }} />
-      </View>
+      {onActions ? null : renderActions()}
       <QuotaSheet
         visible={quotaOut}
         onClose={() => {
