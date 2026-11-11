@@ -6,7 +6,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, Card, Icon, ProgressBar, Text } from '@/components';
 import type { IconName } from '@/components/Icon';
 import { qtypeNames } from '@/features/import/api';
-import { groupNames, minutes, type Home, type TodayPlan } from './api';
+import { useAIFillPref } from '@/features/practice/offline';
+import { groupNames, minutes, planProgress, useContinueToday, type Home, type TodayPlan } from './api';
 
 /** 专业课预估分（PRD 11.6，模块 2 调整 1、2）：做完至少一套导入的真题卷后显示区间、差距与依据；没有的写明「做完一套整卷后生成预估分」；
  * 目标分点了能改（2.1f）；「提分看板」→ 6.2。2.1b 题库整理中时写明整理好后做完一套真题卷就能估分；2.1d 显示今天的变化。 */
@@ -130,25 +131,26 @@ export function EstimateLine({ e, target }: { e: Schemas['EstimateCard']; target
 
 const groupDot: Record<string, string> = { new: colors.ink, review: colors.blue, weak: colors.peach, recite: colors.lavender };
 
-/** 今日训练：分组题数与预计用时，「开始训练」进入训练（T17）。 */
+/** 今日训练：进度按条目数（题目 + 背诵，所有专业课合计），和训练页同一个口径；按钮直接进入下一段还没做的内容。 */
 export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) {
-  const doneGroups = plan.groups.filter((g) => g.done >= g.count).length;
-  const weakName = plan.stage === 'foundation' ? groupNames.weak : '题型专项';
-  const count = plan.groups.reduce((n, g) => n + g.count, 0);
+  const next = useContinueToday();
+  const [aiFill] = useAIFillPref();
+  const start = () => next.mutate({ ai_fill: aiFill });
   if (early) {
     // 2.1b 题库整理中：先从已识别的题里练起来
+    const left = plan.item_count - plan.done_count;
     return (
       <Card style={[styles.section, styles.gap12]}>
         <View style={[styles.row, styles.baseline]}>
           <Text variant="h3" style={[styles.flex, styles.h16]}>
             先练起来
           </Text>
-          <Text variant="caption" num>约 {minutes(plan.total_minutes)} 分钟</Text>
+          <Text variant="caption" num>约 {minutes(plan.remaining_minutes)} 分钟</Text>
         </View>
         <Text variant="caption" style={styles.lh}>
-          从已识别的题里挑了 {count} 道，先熟悉一下怎么刷、怎么批改
+          从已识别的内容里挑了 {plan.item_count} 项，先熟悉一下怎么刷、怎么批改
         </Text>
-        <Button title={`先练 ${count} 道`} onPress={() => router.push('/(tabs)/train')} />
+        <Button title={left > 0 ? `先练 ${left} 项` : '今天的都练完了'} disabled={left === 0} loading={next.isPending} onPress={start} />
       </Card>
     );
   }
@@ -158,19 +160,23 @@ export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) 
         <Text variant="h3" style={[styles.flex, styles.h16]}>
           今日训练
         </Text>
-        <Text variant="caption" num>
-          {doneGroups} / {plan.groups.length} · 约 {minutes(plan.total_minutes)} 分钟
-        </Text>
+        {plan.item_count > 0 ? (
+          <Text variant="caption" num>
+            {planProgress(plan)}
+          </Text>
+        ) : null}
       </View>
       {plan.items.length === 0 ? (
         <Text variant="caption">今天没有可安排的内容。导入更多题目或资料后，计划会自动补上。</Text>
       ) : (
         <View style={styles.groups}>
           {plan.groups.map((g) => {
-            const name = g.group === 'weak' ? weakName : groupNames[g.group];
+            const name = groupNames[g.group];
             return (
-              <View key={g.group} style={styles.group} accessibilityLabel={`${name} ${g.count}`}>
-                <Text style={styles.groupNum}>{g.done > 0 ? `${g.done}/${g.count}` : g.count}</Text>
+              <View key={g.group} style={styles.group} accessibilityLabel={`${name} ${g.done}/${g.count}`}>
+                <Text style={styles.groupNum}>
+                  {g.done}/{g.count}
+                </Text>
                 <View style={styles.dotRow}>
                   <View style={[styles.dot, { backgroundColor: groupDot[g.group] ?? colors.gray }]} />
                   <Text variant="small">{name}</Text>
@@ -183,9 +189,9 @@ export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) 
       {plan.shortfall_minutes ? (
         <Text variant="small">题量还不够排满每天 {plan.budget_minutes} 分钟，导入更多题目可以补上</Text>
       ) : null}
-      {plan.done_minutes > 0 ? <ProgressBar value={plan.total_minutes ? plan.done_minutes / plan.total_minutes : 0} /> : null}
+      {plan.done_count > 0 ? <ProgressBar value={plan.item_count ? plan.done_count / plan.item_count : 0} /> : null}
       {plan.items.length > 0 ? (
-        <Button title={plan.done_minutes > 0 ? '继续训练' : '开始训练'} onPress={() => router.push('/(tabs)/train')} />
+        <Button title={plan.done_count > 0 ? '继续训练' : '开始训练'} loading={next.isPending} onPress={start} />
       ) : (
         <Button title="导入资料" kind="secondary" onPress={() => router.push('/import')} />
       )}

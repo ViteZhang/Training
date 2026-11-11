@@ -1,4 +1,5 @@
 // 4.1 训练首页：按阶段排序（强化期：今日训练 → 本周题型专项 → 按题型练 → 整卷 → 背诵 / 错题本 / 答题规范）；
+// 「本周题型专项」只在强化期显示（服务端不返回就不显示），冲刺期、考前期主推整卷，和首页一致。
 // 冲刺期、考前期把整卷置顶。题目都来自用户的题库，不够时 AI 出变式题。
 import { colors, radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery } from '@tanstack/react-query';
@@ -7,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Button, Card, EmptyState, ErrorState, Icon, Loading, ProgressBar, Screen, Segmented, Tag, Text, toast } from '@/components';
 import type { IconName } from '@/components/Icon';
+import { planProgress, useContinueToday, useHome } from '@/features/today/api';
 import { entryTones } from '@/features/today/Cards';
 import { qtypeNames } from '@/features/import/api';
 import { stageInfo } from '@/features/onboarding/api';
@@ -37,6 +39,9 @@ export default function TrainTab() {
   const list = subjects.data?.items ?? [];
   const subject = list.find((s) => s.id === picked) ?? list.find((s) => !s.is_essay) ?? list[0];
   const home = usePracticeHome(subject?.id);
+  const today = useHome();
+  const plan = today.data?.plan;
+  const next = useContinueToday();
   const start = useStartPractice();
   const recite = useStartRecite();
   const pending = usePending((s) => s.count);
@@ -71,7 +76,7 @@ export default function TrainTab() {
 
   return (
     <Screen edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={home.isRefetching} onRefresh={() => void home.refetch()} />}>
+      <ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={home.isRefetching} onRefresh={() => void Promise.all([home.refetch(), today.refetch()])} />}>
         <View style={styles.header}>
           <Text variant="h1">训练</Text>
           {h ? <Tag label={stageInfo[h.stage].name} tone="outline" size="md" /> : null}
@@ -109,38 +114,53 @@ export default function TrainTab() {
               </Card>
             ) : null}
 
+            {/* 今日训练：和首页同一个口径（今天计划的全部条目，所有专业课合计），按钮直接进下一段，优先当前选中的这门课。 */}
             <View style={styles.today}>
               <View style={[styles.rowInline, styles.baseline]}>
                 <Text variant="h3" color={colors.white} style={styles.flex}>
                   今日训练
                 </Text>
-                {h.today ? (
+                {plan && plan.item_count > 0 ? (
                   <Text variant="caption" num color={colors.faint}>
-                    {h.today.done} / {h.today.total} · 约 {Math.round(h.today.minutes)} 分钟
+                    {planProgress(plan)}
                   </Text>
                 ) : null}
               </View>
-              {h.today && h.today.total > 0 ? (
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={start.isPending && start.variables?.kind === 'daily'}
-                  onPress={() =>
-                    h.today?.session_id
-                      ? router.push({ pathname: '/practice/[id]', params: { id: String(h.today.session_id) } })
-                      : start.mutate({ subject_id: sid, kind: 'daily', ai_fill: aiFill })
-                  }
-                  style={styles.todayBtn}
-                >
+              {plan && plan.subjects.length > 1 ? (
+                <View style={styles.gap2}>
+                  {plan.subjects.map((x) => {
+                    const sub = list.find((y) => y.id === x.subject_id);
+                    return (
+                      <View key={x.subject_id} style={styles.rowInline}>
+                        <Text variant="small" color={colors.faint} style={styles.flex} numberOfLines={1}>
+                          {sub ? `${sub.code ? `${sub.code} ` : ''}${sub.name}` : '专业课'}
+                        </Text>
+                        <Text variant="small" num color={colors.faint}>
+                          {x.done >= x.count ? '已完成' : `${x.done} / ${x.count}`}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : null}
+              {plan?.completed ? (
+                <Pressable accessibilityRole="button" onPress={() => router.push('/plan/summary')} style={styles.todayBtn}>
                   <Text variant="bodyStrong" color={colors.ink} style={styles.bold}>
-                    {h.today.session_id ? '继续训练' : '开始训练'}
+                    今日已完成 · 看总结
+                  </Text>
+                </Pressable>
+              ) : plan && plan.item_count > 0 ? (
+                <Pressable accessibilityRole="button" disabled={next.isPending} onPress={() => next.mutate({ subject_id: sid, ai_fill: aiFill })} style={styles.todayBtn}>
+                  <Text variant="bodyStrong" color={colors.ink} style={styles.bold}>
+                    {plan.done_count > 0 ? '继续训练' : '开始训练'}
                   </Text>
                 </Pressable>
               ) : (
                 <Text variant="caption" color={colors.faint}>
-                  这门课今天没有安排题目，可以按题型练或自定义练习
+                  今天没有安排内容，可以按题型练或自定义练习
                 </Text>
               )}
-              {h.today && !h.today.session_id ? (
+              {plan && plan.item_count > 0 && !plan.completed ? (
                 <View style={styles.rowInline}>
                   <Text variant="small" color={colors.faint} style={styles.flex}>
                     题量不够时 AI 按你的知识点补变式题

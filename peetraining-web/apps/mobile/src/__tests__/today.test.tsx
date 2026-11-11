@@ -40,7 +40,8 @@ const bank = (extra = {}) => ({
   mastery_distribution: { unlearned: 22, learning: 15, consolidating: 9, mastered: 12 }, ...extra,
 });
 const plan = (extra = {}) => ({
-  date: '2026-10-02', stage: 'strengthen', budget_minutes: 45, total_minutes: 44.5, done_minutes: 0, completed: false,
+  date: '2026-10-02', stage: 'strengthen', budget_minutes: 45, total_minutes: 44.5, done_minutes: 0, remaining_minutes: 44.5, item_count: 38, done_count: 0, completed: false,
+  subjects: [{ subject_id: 7, count: 38, done: 0, minutes: 44.5 }],
   groups: [{ group: 'review', count: 12, done: 0, minutes: 18 }, { group: 'weak', count: 16, done: 0, minutes: 20 }, { group: 'recite', count: 10, done: 0, minutes: 6.5 }],
   items: [{ group: 'review', kp_id: 1, subject_id: 7, question_id: 3, qtype: 'term', minutes: 1.5, done: false }],
   ...extra,
@@ -71,17 +72,40 @@ describe('2.1 今日首页', () => {
     expect(await screen.findByText('83')).toBeTruthy();
     expect(screen.getByText('强化期')).toBeTruthy();
     expect(screen.getByText('今日训练')).toBeTruthy();
-    expect(screen.getByLabelText('到期复习 12')).toBeTruthy();
-    expect(screen.getByLabelText('题型专项 16')).toBeTruthy();
+    // 进度按条目数（题目 + 背诵），分组固定显示「已做 / 总数」；分组不叫「题型专项」，免得和每周专项的次数混在一起。
+    expect(screen.getByText('0 / 38 项 · 约 45 分钟')).toBeTruthy();
+    expect(screen.getByLabelText('到期复习 0/12')).toBeTruthy();
+    expect(screen.getByLabelText('薄弱查漏 0/16')).toBeTruthy();
     expect(screen.getByText('本周题型专项 · 名词解释')).toBeTruthy();
     expect(screen.getByText('246 题 · 58 个知识点')).toBeTruthy();
     expect(screen.getByText('3 个知识点「以为会了」')).toBeTruthy();
     expect(screen.getByText('做完一套整卷后生成预估分')).toBeTruthy();
+    // 「开始训练」直接进下一段，不再先跳到训练页。
+    mockResponses['POST /plans/today/next'] = () => ({ status: 200, data: { step: 'practice', session_id: 50, subject_id: 7, remaining: 38 } });
     await fireEvent.press(screen.getByText('开始训练'));
-    expect(mockPush).toHaveBeenCalledWith('/(tabs)/train');
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith({ pathname: '/practice/[id]', params: { id: '50' } }));
     // 铃铛：有未读时显示红点，点进 2.3。
     await fireEvent.press(await screen.findByLabelText('消息，3 条未读'));
     expect(mockPush).toHaveBeenCalledWith('/messages');
+  });
+
+  it('做了一部分：显示已做条目数与还剩的时间，「继续训练」接到背诵；都做完了进今日总结', async () => {
+    const part = plan({
+      done_minutes: 20, remaining_minutes: 13.2, item_count: 11, done_count: 5,
+      groups: [{ group: 'weak', count: 3, done: 1, minutes: 15 }, { group: 'recite', count: 8, done: 4, minutes: 8 }],
+    });
+    mockResponses['GET /home'] = () => ({ status: 200, data: home({ stage: 'sprint', plan: part, stage_push: { kind: 'weekly_paper', title: '本周整卷', desc: '每周 1 套整卷，推荐模拟考试模式' } }) });
+    let step: Record<string, unknown> = { step: 'recite', session_id: 61, subject_id: 8, remaining: 6 };
+    mockResponses['POST /plans/today/next'] = () => ({ status: 200, data: step });
+    await wrap(<TodayTab />);
+    expect(await screen.findByText('5 / 11 项 · 还剩约 13 分钟')).toBeTruthy();
+    expect(screen.getByLabelText('薄弱查漏 1/3')).toBeTruthy();
+    expect(screen.getByLabelText('背诵 4/8')).toBeTruthy();
+    await fireEvent.press(screen.getByText('继续训练'));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith({ pathname: '/recite/[id]', params: { id: '61', today: '1' } }));
+    step = { step: 'done', remaining: 0 };
+    await fireEvent.press(screen.getByText('继续训练'));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/plan/summary'));
   });
 
   it('预估分卡（PRD 11.6）：区间、今天的变化、差距与主要差在、依据；点「提分看板」进 6.2', async () => {

@@ -1,15 +1,17 @@
 // 4.17 背诵完成：本轮记住、模糊、没记住数量，与上一轮对比；下次复习安排（明天 / 2 天后 / 3–7 天后）；「再背没记住的」「完成」。
 import { semantic, spacing } from '@training/ui-tokens';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, ErrorState, Loading, Screen, Text } from '@/components';
 import { reciteKeys, useStartRecite } from '@/features/recite/api';
 import { Stat } from '@/features/today/Cards';
+import { TodayNextFooter } from '@/features/today/Next';
 import { api, unwrap } from '@/lib/api';
 
 export default function ReciteDonePage() {
-  const p = useLocalSearchParams<{ id: string; subjectId: string }>();
+  const p = useLocalSearchParams<{ id: string; subjectId: string; today?: string }>();
   const sessionId = Number(p.id);
   const retry = useStartRecite(true);
   const q = useQuery({
@@ -17,6 +19,12 @@ export default function ReciteDonePage() {
     queryFn: () => unwrap(api.POST('/recite-sessions/{sessionId}/finish', { params: { path: { sessionId } } })),
     staleTime: Infinity,
   });
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!q.data) return;
+    void qc.invalidateQueries({ queryKey: ['home'] });
+    void qc.invalidateQueries({ queryKey: ['practice', 'home'] });
+  }, [q.data, qc]);
   if (q.isLoading) return <Screen><Loading rows={5} /></Screen>;
   if (q.isError || !q.data) return <Screen><ErrorState error={q.error} onRetry={() => void q.refetch()} /></Screen>;
   const s = q.data;
@@ -56,7 +64,12 @@ export default function ReciteDonePage() {
         {s.forgot_count > 0 ? (
           <Button title="再背没记住的" kind="secondary" loading={retry.isPending} onPress={() => retry.mutate({ subject_id: Number(p.subjectId), retry_of: sessionId })} />
         ) : null}
-        <Button title="完成" onPress={() => router.replace('/(tabs)/train')} />
+        {p.today ? (
+          // 从今日训练进来的一轮：接着做下一段，全部做完去 2.2。
+          <TodayNextFooter subjectId={Number(p.subjectId)} onLater={() => router.replace('/(tabs)/train')} />
+        ) : (
+          <Button title="完成" onPress={() => router.replace('/(tabs)/train')} />
+        )}
       </ScrollView>
     </Screen>
   );

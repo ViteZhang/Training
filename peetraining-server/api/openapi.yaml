@@ -1507,6 +1507,26 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/TodayPlan" }
 
+  /plans/today/next:
+    post:
+      tags: [today]
+      operationId: startTodayNext
+      summary: 今日训练的下一段（首页与训练页的「开始训练 / 继续训练」）
+      description: |
+        今日训练 = 今天计划里的全部条目（题目与背诵，跨所有专业课）。服务端按「这门课的题 → 这门课的背诵 → 下一门课」
+        找到下一段还没做的内容，建好（或取回进行中的）会话后返回；全部做完返回 done。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TodayNextRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TodayNext" }
+
   /plans/today/summary:
     get:
       tags: [today]
@@ -1560,7 +1580,7 @@ paths:
       operationId: createPracticeSession
       summary: 开始一组练习（今日训练、题型专项、自定义、错题重做、摸底测）
       description: |
-        今日训练当天只有一个会话，重复开始返回同一个（从断点继续）。
+        今日训练有进行中的会话时返回同一个（从断点继续）；新开的一组只取今天计划里还没做的题，都做完了返回 400。
         自定义练习打开「AI 出变式题」且题库不够时，按资料里的知识点出题补足，消耗 AI 出题额度；额度不够时只用题库里的题。
       requestBody:
         required: true
@@ -10945,6 +10965,7 @@ components:
             session_id: { type: integer, format: int64 }
         type_drill:
           type: object
+          description: 本周题型专项，只在强化期返回（冲刺期主推本周整卷、考前期主推模拟考试）
           required: [done_this_week, weekly_target]
           properties:
             qtype: { $ref: "#/components/schemas/QuestionType" }
@@ -11007,7 +11028,7 @@ components:
         items: { type: array, items: { $ref: "#/components/schemas/WrongItem" } }
     PlanGroupKey:
       type: string
-      description: 新知识点 / 到期复习 / 薄弱查漏（强化期以后为题型专项）/ 背诵
+      description: 新知识点 / 到期复习 / 薄弱查漏 / 背诵（「题型专项」只指每周的专项练习，不是计划分组）
       enum: [new, review, weak, recite]
     PlanGroupSummary:
       type: object
@@ -11019,14 +11040,28 @@ components:
         done: { type: integer }
     TodayPlan:
       type: object
-      required: [date, stage, budget_minutes, total_minutes, done_minutes, groups, items, completed]
+      required: [date, stage, budget_minutes, total_minutes, done_minutes, remaining_minutes, item_count, done_count, subjects, groups, items, completed]
       properties:
         date: { type: string, format: date }
         stage: { $ref: "#/components/schemas/Stage" }
         budget_minutes: { type: integer }
         total_minutes: { type: number }
         done_minutes: { type: number }
+        remaining_minutes: { type: number, description: 还没做的条目的预计用时 }
+        item_count: { type: integer, description: 今天计划的条目数（题目 + 背诵，所有专业课合计）；首页与训练页都用这个口径 }
+        done_count: { type: integer, description: 已完成的条目数 }
         completed: { type: boolean }
+        subjects:
+          type: array
+          description: 每门专业课的小计（按计划里出现的顺序）
+          items:
+            type: object
+            required: [subject_id, count, done, minutes]
+            properties:
+              subject_id: { type: integer, format: int64 }
+              count: { type: integer }
+              done: { type: integer }
+              minutes: { type: number }
         groups: { type: array, items: { $ref: "#/components/schemas/PlanGroupSummary" } }
         items:
           type: array
@@ -11042,6 +11077,19 @@ components:
               minutes: { type: number }
               done: { type: boolean }
         shortfall_minutes: { type: number, description: 题量不够、没填满的分钟数 }
+    TodayNextRequest:
+      type: object
+      properties:
+        subject_id: { type: integer, format: int64, description: 优先从这门课开始（训练页当前选中的课）；不传按计划顺序 }
+        ai_fill: { type: boolean, default: false, description: 题量不够排满每日时长时 AI 补变式题（计 AI 出题额度，每门课每天只补一次） }
+    TodayNext:
+      type: object
+      required: [step, remaining]
+      properties:
+        step: { type: string, enum: [practice, recite, done], description: 下一段是刷题、背诵，还是今天已经没有可做的内容 }
+        session_id: { type: integer, format: int64, description: practice 为练习会话，recite 为背诵会话 }
+        subject_id: { type: integer, format: int64 }
+        remaining: { type: integer, description: 今天计划里还没做的条目数（含这一段） }
     StagePrompt:
       type: object
       required: [to, reason, mix]

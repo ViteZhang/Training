@@ -159,12 +159,17 @@ describe('今日训练 AI 补题开关', () => {
       data: { subject_id: 7, stage: 'strengthen', total_questions: 4, recite_due: 0, paper_first: false, today: { total: 3, done: 0, minutes: 10 }, qtype_counts: [], wrong_book: { total: 0, due: 0 } },
     });
     mockResponses['GET /gradings/pending'] = () => ({ status: 200, data: { items: [], remaining_today: 3 } });
-    mockResponses['POST /practice-sessions'] = () => ({ status: 201, data: session });
+    mockResponses['GET /home'] = () => ({
+      status: 200,
+      data: { state: 'normal', plan: { date: '2026-10-02', stage: 'strengthen', budget_minutes: 45, total_minutes: 10, done_minutes: 0, remaining_minutes: 10, item_count: 3, done_count: 0, completed: false,
+        subjects: [{ subject_id: 7, count: 3, done: 0, minutes: 10 }], groups: [{ group: 'weak', count: 3, done: 0, minutes: 10 }], items: [], shortfall_minutes: 35 } },
+    });
+    mockResponses['POST /plans/today/next'] = () => ({ status: 200, data: { step: 'practice', session_id: 50, subject_id: 7, remaining: 3 } });
     await wrap(<TrainTab />);
     const sw = await screen.findByLabelText('今日训练 AI 补题');
     expect(sw.props.value).toBe(false);
     await fireEvent(sw, 'valueChange', true);
     await fireEvent.press(screen.getByText('开始训练'));
-    await waitFor(() => expect(mockCalls.find((c) => c.path === '/practice-sessions')?.init).toEqual({ body: { subject_id: 7, kind: 'daily', ai_fill: true } }));
+    await waitFor(() => expect(mockCalls.find((c) => c.path === '/plans/today/next')?.init).toEqual({ body: { subject_id: 7, ai_fill: true } }));
   });
 });

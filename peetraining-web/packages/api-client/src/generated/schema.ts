@@ -1294,6 +1294,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/plans/today/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 今日训练的下一段（首页与训练页的「开始训练 / 继续训练」）
+         * @description 今日训练 = 今天计划里的全部条目（题目与背诵，跨所有专业课）。服务端按「这门课的题 → 这门课的背诵 → 下一门课」
+         *     找到下一段还没做的内容，建好（或取回进行中的）会话后返回；全部做完返回 done。
+         */
+        post: operations["startTodayNext"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/plans/today/summary": {
         parameters: {
             query?: never;
@@ -1360,7 +1381,7 @@ export interface paths {
         put?: never;
         /**
          * 开始一组练习（今日训练、题型专项、自定义、错题重做、摸底测）
-         * @description 今日训练当天只有一个会话，重复开始返回同一个（从断点继续）。
+         * @description 今日训练有进行中的会话时返回同一个（从断点继续）；新开的一组只取今天计划里还没做的题，都做完了返回 400。
          *     自定义练习打开「AI 出变式题」且题库不够时，按资料里的知识点出题补足，消耗 AI 出题额度；额度不够时只用题库里的题。
          */
         post: operations["createPracticeSession"];
@@ -6779,6 +6800,7 @@ export interface components {
                 /** Format: int64 */
                 session_id?: number;
             };
+            /** @description 本周题型专项，只在强化期返回（冲刺期主推本周整卷、考前期主推模拟考试） */
             type_drill?: {
                 qtype?: components["schemas"]["QuestionType"];
                 done_this_week: number;
@@ -6836,7 +6858,7 @@ export interface components {
             items: components["schemas"]["WrongItem"][];
         };
         /**
-         * @description 新知识点 / 到期复习 / 薄弱查漏（强化期以后为题型专项）/ 背诵
+         * @description 新知识点 / 到期复习 / 薄弱查漏 / 背诵（「题型专项」只指每周的专项练习，不是计划分组）
          * @enum {string}
          */
         PlanGroupKey: "new" | "review" | "weak" | "recite";
@@ -6853,7 +6875,21 @@ export interface components {
             budget_minutes: number;
             total_minutes: number;
             done_minutes: number;
+            /** @description 还没做的条目的预计用时 */
+            remaining_minutes: number;
+            /** @description 今天计划的条目数（题目 + 背诵，所有专业课合计）；首页与训练页都用这个口径 */
+            item_count: number;
+            /** @description 已完成的条目数 */
+            done_count: number;
             completed: boolean;
+            /** @description 每门专业课的小计（按计划里出现的顺序） */
+            subjects: {
+                /** Format: int64 */
+                subject_id: number;
+                count: number;
+                done: number;
+                minutes: number;
+            }[];
             groups: components["schemas"]["PlanGroupSummary"][];
             items: {
                 /** Format: int64 */
@@ -6872,6 +6908,34 @@ export interface components {
             }[];
             /** @description 题量不够、没填满的分钟数 */
             shortfall_minutes?: number;
+        };
+        TodayNextRequest: {
+            /**
+             * Format: int64
+             * @description 优先从这门课开始（训练页当前选中的课）；不传按计划顺序
+             */
+            subject_id?: number;
+            /**
+             * @description 题量不够排满每日时长时 AI 补变式题（计 AI 出题额度，每门课每天只补一次）
+             * @default false
+             */
+            ai_fill: boolean;
+        };
+        TodayNext: {
+            /**
+             * @description 下一段是刷题、背诵，还是今天已经没有可做的内容
+             * @enum {string}
+             */
+            step: "practice" | "recite" | "done";
+            /**
+             * Format: int64
+             * @description practice 为练习会话，recite 为背诵会话
+             */
+            session_id?: number;
+            /** Format: int64 */
+            subject_id?: number;
+            /** @description 今天计划里还没做的条目数（含这一段） */
+            remaining: number;
         };
         StagePrompt: {
             to: components["schemas"]["Stage"];
@@ -11923,6 +11987,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TodayPlan"];
+                };
+            };
+        };
+    };
+    startTodayNext: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TodayNextRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodayNext"];
                 };
             };
         };

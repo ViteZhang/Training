@@ -284,19 +284,45 @@ func (s *Service) Preview(ctx context.Context, userID, subjectID uint64, c Confi
 
 var kindTitle = map[Kind]string{KindDaily: "今日训练", KindTypeDrill: "题型专项", KindCustom: "自定义练习", KindWrongRedo: "错题重做", KindPlacement: "摸底测"}
 
-// Create 开始一组练习。今日训练当天只有一个进行中的会话，重复开始返回它（从断点继续）。
+// errDailyDone 是今日训练里这门课的题都做完了（或已不在题库里）。
+var errDailyDone = apperr.New(apperr.BadRequest, "今天这门课的题都做完了")
+
+// openDaily 返回今天这门课进行中的今日训练。题都答完却没结算的（答完直接退出）先结算并返回 nil，
+// 否则「继续训练」会一直回到最后那道做过的题。
+func (s *Service) openDaily(ctx context.Context, userID, subjectID uint64) (*Session, error) {
+	cur, err := s.q.LatestInProgressDaily(ctx, dbq.LatestInProgressDailyParams{OwnerUserID: userID, SubjectID: sql.NullInt64{Int64: int64(subjectID), Valid: true}})
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && rules.DayOf(cur.StartedAt) != s.today()) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	sess, err := s.Get(ctx, userID, cur.ID)
+	if err != nil {
+		return nil, err
+	}
+	if sess.DoneCount < len(sess.Questions) {
+		return &sess, nil
+	}
+	if _, err := s.Finish(ctx, userID, cur.ID); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+// Create 开始一组练习。今日训练有进行中的会话时返回它（从断点继续）；新开的一组只取今天计划里还没做的题。
 func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (Session, error) {
 	b, err := s.subject(ctx, userID, in.SubjectID)
 	if err != nil {
 		return Session{}, err
 	}
 	if in.Kind == KindDaily {
-		cur, err := s.q.LatestInProgressSession(ctx, dbq.LatestInProgressSessionParams{OwnerUserID: userID, SubjectID: sql.NullInt64{Int64: int64(b.SubjectID), Valid: true}})
-		if err == nil && Kind(cur.Kind) == KindDaily && rules.DayOf(cur.StartedAt) == s.today() {
-			return s.Get(ctx, userID, cur.ID)
-		}
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		cur, err := s.openDaily(ctx, userID, b.SubjectID)
+		if err != nil {
 			return Session{}, err
+		}
+		if cur != nil {
+			return *cur, nil
 		}
 	}
 	p, err := s.params.Rules(ctx)
@@ -318,14 +344,28 @@ func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (Se
 			return Session{}, err
 		}
 		meta.Groups = map[string]string{}
-		for _, it := range pl.Items {
-			if it.SubjectID == b.SubjectID && it.QuestionID != 0 {
+		active := map[uint64]bool{}
+		for _, it := range items {
+			active[it.ID] = true
+		}
+		// 只取今天还没做、而且还在题库里的题：做过的题不再出现（当天可以分几组做完）。
+		for i, it := range pl.Items {
+			if it.SubjectID == b.SubjectID && it.QuestionID != 0 && !pl.Done[i] && active[it.QuestionID] {
 				ids = append(ids, it.QuestionID)
 				meta.Groups[strconv.FormatUint(it.QuestionID, 10)] = it.Group
 			}
 		}
+		if len(ids) == 0 {
+			return Session{}, errDailyDone
+		}
 		// 题量不够排满每日时长时，打开 AI 补题才按缺的分钟数补变式题（4.2 / 今日训练的 AI 补题开关，关闭时不生成）。
-		if in.AIFill && pl.Shortfall > 0 {
+		// 每门课每天只在第一组补一次，分几组做完时不重复扣 AI 出题额度。
+		started, err := s.q.CountSessionsStartedSince(ctx, dbq.CountSessionsStartedSinceParams{OwnerUserID: userID, SubjectID: sql.NullInt64{Int64: int64(b.SubjectID), Valid: true},
+			Kind: dbq.PracticeSessionsKindDaily, StartedAt: s.today().Time().UTC()})
+		if err != nil {
+			return Session{}, err
+		}
+		if in.AIFill && pl.Shortfall > 0 && started == 0 {
 			n := int(math.Ceil(pl.Shortfall / rules.ItemMinutes(rules.QTermExplain, false, p.Plan)))
 			gen, err := s.fill(ctx, userID, b, Config{OnlyUnmastered: true}, min(n, maxAIFill), kps, r, true)
 			if err != nil {

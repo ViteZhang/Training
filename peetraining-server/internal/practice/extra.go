@@ -254,13 +254,18 @@ func (s *Service) Home(ctx context.Context, userID, subjectID uint64) (Home, err
 		return Home{}, err
 	}
 	h.ReciteDue = int(rd)
+	// 今日训练的断点：只认还有题没答的那一组（答完没结算的在这里结算掉）。
+	daily, err := s.openDaily(ctx, userID, b.SubjectID)
+	if err != nil {
+		return Home{}, err
+	}
+	if daily != nil {
+		h.TodaySession = daily.ID
+	}
 	cur, err := s.q.LatestInProgressSession(ctx, dbq.LatestInProgressSessionParams{OwnerUserID: userID, SubjectID: sql.NullInt64{Int64: int64(b.SubjectID), Valid: true}})
 	if err == nil {
 		var ids []uint64
 		_ = json.Unmarshal(cur.QuestionIds, &ids)
-		if Kind(cur.Kind) == KindDaily && rules.DayOf(cur.StartedAt) == today {
-			h.TodaySession = cur.ID
-		}
 		if Kind(cur.Kind) != KindDaily || rules.DayOf(cur.StartedAt) == today {
 			h.InProgress = &InProgress{SessionID: cur.ID, Title: cur.Title, Kind: Kind(cur.Kind), Done: int(cur.CursorIndex), Total: len(ids)}
 		}

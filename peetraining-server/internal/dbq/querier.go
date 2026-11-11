@@ -158,6 +158,8 @@ type Querier interface {
 	// 3.3b：按这份 AI 参考答案批改过的次数（不计入预估分）。
 	CountReferenceOnlyAttempts(ctx context.Context, arg CountReferenceOnlyAttemptsParams) (int64, error)
 	CountSessionsSince(ctx context.Context, arg CountSessionsSinceParams) (int64, error)
+	// 某类练习从某个时刻起开过几组（不论是否结束）。
+	CountSessionsStartedSince(ctx context.Context, arg CountSessionsStartedSinceParams) (int64, error)
 	// 作文课判断（PRD 11.12）：这门课已解析的资料里作文类占多少。
 	CountSubjectMaterialCategories(ctx context.Context, arg CountSubjectMaterialCategoriesParams) (CountSubjectMaterialCategoriesRow, error)
 	CountSubjects(ctx context.Context, ownerUserID uint64) (int64, error)
@@ -536,6 +538,8 @@ type Querier interface {
 	LatestDoneGrading(ctx context.Context, arg LatestDoneGradingParams) (Grading, error)
 	// 你上次的写法：最近一次批改完的同题型作答。
 	LatestGradingOfQType(ctx context.Context, arg LatestGradingOfQTypeParams) (LatestGradingOfQTypeRow, error)
+	// 这门课最近一组进行中的今日训练：只认今日训练，别的练习（题型专项、自定义）开着也不挡断点续练。
+	LatestInProgressDaily(ctx context.Context, arg LatestInProgressDailyParams) (PracticeSession, error)
 	LatestInProgressRecite(ctx context.Context, arg LatestInProgressReciteParams) (PracticeSession, error)
 	// 最近一组进行中的刷题（不含背诵）：背诵会话存的是知识点，不能当刷题打开，也不能挡住今日训练的断点续练。
 	LatestInProgressSession(ctx context.Context, arg LatestInProgressSessionParams) (PracticeSession, error)
