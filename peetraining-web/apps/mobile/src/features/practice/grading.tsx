@@ -227,7 +227,8 @@ export function GradingResultView({
   const reference = g.reference_only || g.answer_tier === 'ai';
   return (
     <View style={styles.gap12}>
-      {reference ? <AIAnswerNotice legacy={!!g.reference_only} /> : null}
+      {/* 官方题库的答案经编辑审核，不再提示「AI 参考答案」（与题目详情一致）。 */}
+      {reference && (g.reference_only || g.rubric_source !== 'official') ? <AIAnswerNotice legacy={!!g.reference_only} /> : null}
       <View style={styles.scoreRow}>
         <Text variant="score" color={colors.ink} style={styles.score}>
           {g.score ?? '—'}
@@ -337,7 +338,7 @@ export function GradingResultView({
               <Text variant="caption" color={colors.ink} style={styles.refText}>{g.reference_answer}</Text>
               {question?.analysis ? <Text variant="caption" style={styles.refText}>解析：{question.analysis}</Text> : null}
               {question?.reference ? <Text variant="small">出处：{question.reference}</Text> : null}
-              <RecordAnswerEvidence kind="grading" id={g.grading_id} hideEmpty={!!question?.reference} />
+              <RecordAnswerEvidence kind="grading" id={g.grading_id} hideEmpty official={g.rubric_source === 'official'} />
             </View>
           ) : null}
         </View>

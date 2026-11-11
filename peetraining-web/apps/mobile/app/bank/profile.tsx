@@ -162,9 +162,11 @@ export default function ExamProfileScreen() {
           </View>
         ) : null}
 
-        <Text variant="small" style={styles.center}>
-          只统计你导入的真题{p.excluded_count > 0 ? `，另有 ${p.excluded_count} 道回忆版或缺分值的题目不完整，未计入` : ''}。导入更多年份后会自动更新
-        </Text>
+        {p.excluded_count > 0 ? (
+          <Text variant="small" style={styles.center}>
+            另有 {p.excluded_count} 道回忆版或缺分值的题目不完整，未计入
+          </Text>
+        ) : null}
       </ScrollView>
     </Screen>
   );
