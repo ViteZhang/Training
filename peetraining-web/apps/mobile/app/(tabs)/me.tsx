@@ -164,17 +164,16 @@ export default function MeTab() {
               tone: entryTones.wrong,
               onPress: () => (main ? router.push({ pathname: '/practice/wrong', params: { subjectId: String(main.id) } }) : router.push('/(tabs)/train')),
             },
-            {
-              icon: 'pen',
-              title: '作文本',
-              desc: o ? (o.essays ? `${o.essays} 篇` : '还没有作文') : '作文与批改',
-              tone: entryTones.amber,
-              onPress: () => {
-                const essay = list.find((x) => x.is_essay);
-                if (essay) router.push({ pathname: '/essay/book', params: { subjectId: String(essay.id) } });
-                else router.push('/(tabs)/train');
-              },
-            },
+            // 没有作文课的专业不显示作文本（以前点了只会跳到训练页，没有下一步）
+            ...(list.some((x) => x.is_essay)
+              ? [{
+                  icon: 'pen' as const,
+                  title: '作文本',
+                  desc: o ? (o.essays ? `${o.essays} 篇` : '还没有作文') : '作文与批改',
+                  tone: entryTones.amber,
+                  onPress: () => router.push({ pathname: '/essay/book', params: { subjectId: String(list.find((x) => x.is_essay)!.id) } }),
+                }]
+              : []),
             { icon: 'download', title: '导出题库', desc: 'PDF / Word', tone: entryTones.neutral, onPress: () => router.push('/mine/export') },
           ]}
         />
