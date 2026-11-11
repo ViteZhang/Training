@@ -60,3 +60,5 @@ SELECT * FROM textbook_editions WHERE id=?;
 
 -- name: RetryTextbookIndex :exec
 UPDATE textbook_index_generations SET status='queued',failure_message='',attempt=attempt+1,retry_key=?,updated_at=? WHERE id=?;
+-- name: ListTextbookChunksByOrdinals :many
+SELECT * FROM textbook_chunks WHERE generation_id = sqlc.arg(generation_id) AND ordinal IN (sqlc.slice(ordinals));

@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"peetraining-server/internal/dbtypes"
@@ -268,6 +269,84 @@ func (q *Queries) ListAnswerCandidates(ctx context.Context, arg ListAnswerCandid
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOfficialAnswerSnapshots = `-- name: ListOfficialAnswerSnapshots :many
+SELECT id, owner_user_id, answer_hash, payload, created_at FROM answer_evidence_snapshots WHERE owner_user_id IS NULL AND id IN (/*SLICE:ids*/?)
+`
+
+// 官方题目的答案依据快照（官方的不属于任何用户），添加官方题库时一次取出。
+func (q *Queries) ListOfficialAnswerSnapshots(ctx context.Context, ids []uint64) ([]AnswerEvidenceSnapshot, error) {
+	query := listOfficialAnswerSnapshots
+	var queryParams []interface{}
+	if len(ids) > 0 {
+		for _, v := range ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AnswerEvidenceSnapshot{}
+	for rows.Next() {
+		var i AnswerEvidenceSnapshot
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerUserID,
+			&i.AnswerHash,
+			&i.Payload,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserAnswerSnapshotsSince = `-- name: ListUserAnswerSnapshotsSince :many
+SELECT id FROM answer_evidence_snapshots WHERE owner_user_id = ? AND created_at = ? AND id >= ? ORDER BY id
+`
+
+type ListUserAnswerSnapshotsSinceParams struct {
+	OwnerUserID sql.NullInt64
+	CreatedAt   time.Time
+	FirstID     uint64
+}
+
+// 批量复制快照后按插入顺序取回 id：同一条 INSERT 的自增 id 按行的顺序递增。
+func (q *Queries) ListUserAnswerSnapshotsSince(ctx context.Context, arg ListUserAnswerSnapshotsSinceParams) ([]uint64, error) {
+	rows, err := q.db.QueryContext(ctx, listUserAnswerSnapshotsSince, arg.OwnerUserID, arg.CreatedAt, arg.FirstID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uint64{}
+	for rows.Next() {
+		var id uint64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

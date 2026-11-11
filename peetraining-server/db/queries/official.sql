@@ -322,3 +322,11 @@ FROM official_reference_segments s
 JOIN official_references r ON r.id = s.reference_id
 WHERE r.project_id = ?
 ORDER BY s.reference_id, s.seq;
+
+-- name: ListUserCopyKPIDs :many
+-- 批量插入知识点副本后取回各自的 id（按对应的官方知识点）。
+SELECT id, official_kp_id FROM knowledge_points WHERE bank_id = ? AND owner_user_id = ? AND official_kp_id IS NOT NULL;
+
+-- name: ListUserCopyQuestionIDs :many
+-- 批量插入题目副本后取回各自的 id（按对应的官方题目）。
+SELECT id, official_question_id FROM questions WHERE bank_id = ? AND owner_user_id = ? AND official_question_id IS NOT NULL;

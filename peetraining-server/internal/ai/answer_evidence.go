@@ -139,6 +139,30 @@ func (e *Engine) ValidateAnswerSnapshot(ctx context.Context, q *dbq.Queries, sna
 	return e.answerEvidence.ValidateAnswerSources(ctx, q, snapshot.Sources)
 }
 
+// answerSourcesBatchValidator 是可以一次核对多份依据的实现（textbook.Service）；没有时逐份核对。
+type answerSourcesBatchValidator interface {
+	ValidateAnswerSourcesBatch(context.Context, *dbq.Queries, [][]AnswerSource) ([]bool, error)
+}
+
+// ValidateAnswerSnapshots 一次核对多份答案依据快照，ok[i] 与逐份调用 ValidateAnswerSnapshot 不报错等价。
+// 只有请求取消之类的错误才返回 error。
+func (e *Engine) ValidateAnswerSnapshots(ctx context.Context, q *dbq.Queries, snapshots []*AnswerSnapshot) ([]bool, error) {
+	if b, ok := e.answerEvidence.(answerSourcesBatchValidator); ok {
+		batch := make([][]AnswerSource, len(snapshots))
+		for i, sn := range snapshots {
+			if sn != nil {
+				batch[i] = sn.Sources
+			}
+		}
+		return b.ValidateAnswerSourcesBatch(ctx, q, batch)
+	}
+	out := make([]bool, len(snapshots))
+	for i, sn := range snapshots {
+		out[i] = e.ValidateAnswerSnapshot(ctx, q, sn) == nil
+	}
+	return out, ctx.Err()
+}
+
 // GenerateReferenceAnswer 是全部答案生成入口的共同通道。检索错误静默降级，最终模型失败正常返回。
 func (e *Engine) GenerateReferenceAnswer(ctx context.Context, user uint64, in GenerateAnswerIn) (GenerateAnswerOut, Meta, error) {
 	if e.answerEvidence != nil {
