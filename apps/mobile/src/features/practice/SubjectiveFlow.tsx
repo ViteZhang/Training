@@ -3,7 +3,7 @@
 import { useFeatureFlag } from '@/lib/flags';
 import { getJSON } from '@/lib/storage';
 import { practiceVoiceQueue } from './voiceQueue';
-import { PracticeVoiceInput, voiceEditsKey } from './PracticeVoiceInput';
+import { PracticeVoiceInput, PracticeVoiceTool, voiceEditsKey } from './PracticeVoiceInput';
 import { ApiError } from '@training/api-client';
 import { semantic, spacing } from '@training/ui-tokens';
 import * as Crypto from 'expo-crypto';
@@ -149,8 +149,18 @@ export function SubjectiveFlow({
 
   return (
     <View style={styles.gap}>
-      {voiceEnabled ? <PracticeVoiceInput queue={voiceQueue} applied={draft.voices} onRecordingChange={setRecording} onConfirm={(job,value) => { try { draft.appendVoice(job.idempotency_key,value); } catch(error) { toast(error instanceof Error ? error.message : '保存失败'); } }} /> : null}
-      <SubjectiveInput q={q} text={draft.text} onChange={draft.setText} timed={timed} onTimed={setTimed} onPhoto={() => { if (recording) toast('请先结束录音'); else setPhoto(true); }} />
+      <SubjectiveInput
+        q={q}
+        text={draft.text}
+        onChange={draft.setText}
+        timed={timed}
+        onTimed={setTimed}
+        onPhoto={() => { if (recording) toast('请先结束录音'); else setPhoto(true); }}
+        voice={voiceEnabled ? <PracticeVoiceTool queue={voiceQueue} onRecordingChange={setRecording} /> : undefined}
+      >
+        {voiceEnabled && recording ? <Text variant="small">正在录音，结束后可切题。单段接近 5 分钟时自动保存；只转写原话，请核对专业术语。</Text> : null}
+        {voiceEnabled ? <PracticeVoiceInput queue={voiceQueue} applied={draft.voices} onConfirm={(job,value) => { try { draft.appendVoice(job.idempotency_key,value); } catch(error) { toast(error instanceof Error ? error.message : '保存失败'); } }} /> : null}
+      </SubjectiveInput>
       <View style={styles.row}>
         <Button title="看参考答案" kind="secondary" style={styles.flex} onPress={() => { if (recording) toast('请先结束录音'); else setShowRef(true); }} />
         <Button title="提交批改" style={styles.flex2} disabled={recording || preparing || (!draft.text.trim() && !voiceEnabled)} loading={preparing} onPress={() => { void send(); }} />

@@ -8,7 +8,13 @@ import { VoiceRecorder } from './VoiceRecorder';
 import { useLocalVoice, type PracticeVoiceQueue, type VoiceJob } from './voiceQueue';
 
 export const voiceEditsKey = (sessionId: number, questionId: number) => `practice:voice-edits:${sessionId}:${questionId}`;
-export function PracticeVoiceInput({ queue, onConfirm, applied, onRecordingChange }: { queue: PracticeVoiceQueue; onConfirm: (job: VoiceJob, text: string) => void; applied: string[]; onRecordingChange: (recording: boolean) => void }) {
+/** 4.4 答题框下方的「语音」胶囊按钮，与「拍手写稿」并排（设计稿 m4_subj）。 */
+export function PracticeVoiceTool({ queue, onRecordingChange }: { queue: PracticeVoiceQueue; onRecordingChange: (recording: boolean) => void }) {
+  return <VoiceRecorder variant="tool" onCapture={(clip) => { queue.add(clip); }} onRecordingChange={onRecordingChange} />;
+}
+
+/** 录音上传与识别结果：放在工具行下面，核对后填入答案。 */
+export function PracticeVoiceInput({ queue, onConfirm, applied }: { queue: PracticeVoiceQueue; onConfirm: (job: VoiceJob, text: string) => void; applied: string[] }) {
   const qc = useQueryClient();
   const local = useLocalVoice(queue);
   const key = ['practice-voice', queue.sessionId, queue.questionId];
@@ -22,7 +28,6 @@ export function PracticeVoiceInput({ queue, onConfirm, applied, onRecordingChang
     catch (error) { toast(error instanceof Error ? error.message : '暂时无法重试'); }
   };
   return <View style={styles.gap}>
-    <VoiceRecorder onCapture={(clip) => { queue.add(clip); }} onRecordingChange={onRecordingChange} />
     {jobs.isError ? <View style={styles.gap}><Text variant="caption">暂时无法读取识别状态，录音会保留。</Text><Button title="刷新语音识别状态" kind="text" onPress={() => void jobs.refetch()} /></View> : null}
     {Object.values(local).filter((record) => record.status !== 'registered').map((record) => <Card key={record.key} style={styles.gap}>
       <Text variant="caption">{record.status === 'failed' ? record.error ?? '录音上传失败，已保存在本机' : '录音正在后台上传，可以切换题目；提交前会等待保存完成。'}</Text>

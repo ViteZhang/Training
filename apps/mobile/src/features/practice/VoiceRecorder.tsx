@@ -1,14 +1,17 @@
 import { AudioModule, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, type AudioRecorder } from 'expo-audio';
 import { File } from 'expo-file-system';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Platform, StyleSheet, View } from 'react-native';
-import { spacing } from '@training/ui-tokens';
-import { Button, Text, toast } from '@/components';
+import { AppState, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { radius, semantic, spacing } from '@training/ui-tokens';
+import { Button, Icon, Text, toast } from '@/components';
 import { usePermissionPrompt } from '@/features/permissions/PermissionPrompt';
 import type { VoiceClip } from './voiceUpload';
 
-/** 自主管理原生录音生命周期，停止并保存完成后才释放，离开页面也不会先释放录音器。 */
-export function VoiceRecorder({ onCapture, onRecordingChange, disabled = false }: { onCapture: (clip: VoiceClip) => void; onRecordingChange?: (recording: boolean) => void; disabled?: boolean }) {
+/**
+ * 自主管理原生录音生命周期，停止并保存完成后才释放，离开页面也不会先释放录音器。
+ * variant="tool"：按设计稿 4.4 做成答题框下方与「拍手写稿」并排的胶囊按钮，录音提示由页面放在工具行下面。
+ */
+export function VoiceRecorder({ onCapture, onRecordingChange, disabled = false, variant = 'button' }: { onCapture: (clip: VoiceClip) => void; onRecordingChange?: (recording: boolean) => void; disabled?: boolean; variant?: 'button' | 'tool' }) {
   const recorder = useRef<AudioRecorder | null>(null);
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -93,10 +96,28 @@ export function VoiceRecorder({ onCapture, onRecordingChange, disabled = false }
   }, [recording, stop]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; void stop(); }; }, [stop]);
   useEffect(() => { if (disabled && active.current) void stop(); }, [disabled, stop]);
+  const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  if (variant === 'tool') {
+    const off = busy || (disabled && !recording);
+    const label = recording ? `结束录音 ${clock}` : '语音';
+    return <>
+      <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: off }} disabled={off} onPress={() => void (recording ? stop() : start())}
+        style={[styles.tool, recording && styles.toolOn, off && styles.toolOff]}>
+        <Icon name="mic" size={16} color={recording ? semantic.textOnBrand : semantic.textPrimary} />
+        <Text variant="caption" num color={recording ? semantic.textOnBrand : semantic.textPrimary}>{label}</Text>
+      </Pressable>
+      {mic.element}
+    </>;
+  }
   return <View style={styles.gap}>
     <Button title={recording ? `结束录音 ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : '语音输入'} kind={recording ? 'primary' : 'secondary'} size="sm" disabled={busy || (disabled && !recording)} onPress={() => void (recording ? stop() : start())} />
     {recording ? <Text variant="small">正在录音，结束后可切题。单段接近 5 分钟时自动保存；只转写原话，请核对专业术语。</Text> : null}
     {mic.element}
   </View>;
 }
-const styles = StyleSheet.create({ gap: { gap: spacing.xs } });
+const styles = StyleSheet.create({
+  gap: { gap: spacing.xs },
+  tool: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: semantic.fill },
+  toolOn: { backgroundColor: semantic.primary },
+  toolOff: { opacity: 0.5 },
+});
