@@ -24,7 +24,7 @@ export default function PaperReportPage() {
         <PageHeader title="整卷报告" onBack={back} />
         <Card style={styles.gap}>
           <Text variant="h3">正在整卷批改</Text>
-          <Text variant="caption">按你资料里的采分点逐题批改，大约需要 2 分钟。批改完成后会发消息提醒你，可以先离开。</Text>
+          <Text variant="caption">按采分点逐题批改，大约需要 2 分钟。批改完成后会发消息提醒你，可以先离开。</Text>
         </Card>
       </Screen>
     );

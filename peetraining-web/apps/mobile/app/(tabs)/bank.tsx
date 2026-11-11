@@ -13,7 +13,7 @@ import { EssayKnowledgeBase } from '@/features/bank/EssayKB';
 import { MaterialList } from '@/features/bank/MaterialList';
 import { QuestionList } from '@/features/bank/QuestionList';
 import { ParseQuotaBar } from '@/features/bank/QuotaBar';
-import { hasOfficial, KnowledgeTree } from '@/features/bank/Tree';
+import { isMixed, KnowledgeTree } from '@/features/bank/Tree';
 import { SupplementCard } from '@/features/official/SupplementCard';
 import { Segments } from '@/features/import/ui';
 import { api, unwrap } from '@/lib/api';
@@ -23,7 +23,8 @@ import { matchTarget, useOfficialBanks } from '@/features/official/OfficialNotic
 type Tab = 'kp' | 'question' | 'material';
 type TreeFilter = 'all' | 'unmastered' | 'exam' | 'needs_review';
 
-function KnowledgeTab({ subjectId, missing, onMissing }: { subjectId: number; missing: number; onMissing: () => void }) {
+/** onlyOfficial：这门课只有官方题库、没有自己导入的资料，这时不显示「待核对」和按资料整理的说明。 */
+function KnowledgeTab({ subjectId, missing, onMissing, onlyOfficial }: { subjectId: number; missing: number; onMissing: () => void; onlyOfficial?: boolean }) {
   const [filter, setFilter] = useState<TreeFilter>('all');
   const officialOn = useFeatureFlag('official_bank');
   const tree = useQuery({
@@ -43,7 +44,7 @@ function KnowledgeTab({ subjectId, missing, onMissing }: { subjectId: number; mi
           { key: 'all', label: '全部' },
           { key: 'unmastered', label: '未掌握' },
           { key: 'exam', label: '真题考过' },
-          { key: 'needs_review', label: '待核对' },
+          ...(onlyOfficial ? [] : [{ key: 'needs_review' as const, label: '待核对' }]),
         ]}
       />
       {/* 3.1 提醒条：「N 处待核对 · N 题缺答案 · 补全后批改更准」（PRD 11.16）；只有缺答案时点进去看缺答案的题 */}
@@ -60,20 +61,22 @@ function KnowledgeTab({ subjectId, missing, onMissing }: { subjectId: number; mi
         </Pressable>
       ) : null}
       {data.sections.length === 0 ? (
-        <EmptyState title={filter === 'all' ? '还没有知识点' : '这一类没有知识点'} desc={filter === 'all' ? '导入讲义、笔记或真题后，AI 会整理成知识点' : undefined} />
+        <EmptyState title={filter === 'all' ? '还没有知识点' : '这一类没有知识点'} desc={filter === 'all' ? '添加官方题库或导入自己的资料后，这里会按章节列出知识点' : undefined} />
       ) : (
         <>
           <KnowledgeTree sections={data.sections} expandAll={filter !== 'all'} subjectId={subjectId} />
-          {hasOfficial(data.sections) ? (
+          {isMixed(data.sections) ? (
             <View style={styles.note}>
               <Text variant="small">官方题标「官方」，你自己导入的标「我的」，两边互不覆盖。同名知识点会提示你合并。</Text>
             </View>
           ) : null}
         </>
       )}
-      <Text variant="small" color={semantic.textSecondary}>
-        板块和章节由 AI 按你资料的目录整理，可以在知识点里调整归属
-      </Text>
+      {onlyOfficial ? null : (
+        <Text variant="small" color={semantic.textSecondary}>
+          板块和章节按你资料的目录整理，可以在知识点里调整归属
+        </Text>
+      )}
     </View>
   );
 }
@@ -126,7 +129,7 @@ function InsightTiles({ subjectId, papers, kps }: { subjectId: number; papers: n
       >
         <Icon name="paper" size={20} color={colors.mintInk} />
         <Text variant="bodyStrong" color={colors.mintInk}>考情分析</Text>
-        <Text variant="small" color={colors.mintInk}>{papers > 0 ? `基于 ${papers} 套真题` : '导入真题后生成'}</Text>
+        <Text variant="small" color={colors.mintInk}>{papers > 0 ? `基于 ${papers} 套真题` : '有真题后生成'}</Text>
       </Pressable>
       <Pressable
         accessibilityRole="button"
@@ -229,6 +232,7 @@ export default function BankTab() {
             {tab === 'kp' ? (
               <KnowledgeTab
                 subjectId={subject.id}
+                onlyOfficial={!!o?.has_official && o.material_count === 0}
                 missing={o?.missing_answer_count ?? 0}
                 onMissing={() => {
                   setAnswerFilter('missing');

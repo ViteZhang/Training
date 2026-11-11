@@ -29,11 +29,17 @@ export default function OfficialBanksPage() {
     void qc.invalidateQueries({ queryKey: ['official-banks'] });
     void qc.invalidateQueries({ queryKey: ['bank'] });
     void qc.invalidateQueries({ queryKey: ['today'] });
+    void qc.invalidateQueries({ queryKey: ['subjects'] });
   };
   const add = useMutation({
-    mutationFn: async (v: { bank: Bank; subjectId: number }) => {
+    mutationFn: async (v: { bank: Bank; subjectId?: number }) => {
+      // 没有对应的专业课时，按官方题库的科目代码和名称新建一门，再添加进去
+      const subjectId =
+        v.subjectId ??
+        (await unwrap(api.POST('/subjects', { body: { name: v.bank.subject_name, code: v.bank.subject_code || null, full_score: 150 } }))).id;
+      v.subjectId = subjectId;
       try {
-        await unwrap(api.PUT('/official-banks/{bankId}/subscription', { params: { path: { bankId: v.bank.bank_id } }, body: { subject_id: v.subjectId } }));
+        await unwrap(api.PUT('/official-banks/{bankId}/subscription', { params: { path: { bankId: v.bank.bank_id } }, body: { subject_id: subjectId } }));
       } catch (e) {
         // 上次等不及断开了，服务端照样添加完：再点一次返回 409，当作已添加
         if (!(e instanceof ApiError && e.status === 409)) throw e;
@@ -47,10 +53,11 @@ export default function OfficialBanksPage() {
       // 有限选题分组、报考方向一组都对不上：请用户选报考方向（T51）
       const fresh = await qc.fetchQuery({ queryKey: ['official-banks'], queryFn: () => unwrap(api.GET('/official-banks')), staleTime: 0 }).catch(() => undefined);
       const b = fresh?.items?.find((x) => x.bank_id === v.bank.bank_id);
-      if (b && needsGroupPick(b)) setPick({ subjectId: v.subjectId, subjectName: subjects.data?.items.find((x) => x.id === v.subjectId)?.name ?? '', groups: b.groups ?? [] });
+      const sid = v.subjectId;
+      if (b && sid && needsGroupPick(b)) setPick({ subjectId: sid, subjectName: subjects.data?.items.find((x) => x.id === sid)?.name ?? b.subject_name, groups: b.groups ?? [] });
     },
     onError: (e) => {
-      toast(e instanceof ApiError && e.isTimeout ? '还在添加，题目较多，稍后刷新看看' : '添加失败，请重试');
+      toast(e instanceof ApiError && e.isTimeout ? '还在添加，题目较多，稍后刷新看看' : e instanceof ApiError && e.message ? e.message : '添加失败，请重试');
       refresh();
     },
   });
@@ -109,7 +116,7 @@ export default function OfficialBanksPage() {
         ))}
       </ScrollView>
       <BottomSheet visible={!!adding} onClose={() => setAdding(undefined)} title="添加到哪门专业课">
-        {subs.length === 0 ? <Text variant="body">先在备考设置里添加专业课</Text> : null}
+        {subs.length === 0 ? <Text variant="caption">你还没有专业课，会按这套题库新建一门</Text> : null}
         {subs.map((s) => (
           <Pressable
             key={s.id}
@@ -125,6 +132,16 @@ export default function OfficialBanksPage() {
             {adding?.suggested_subject_id === s.id ? <Tag label="建议" tone="info" /> : null}
           </Pressable>
         ))}
+        {adding && !adding.suggested_subject_id ? (
+          <Pressable accessibilityRole="button" disabled={add.isPending} onPress={() => add.mutate({ bank: adding })} style={styles.option}>
+            <Text variant="bodyStrong" style={styles.flex}>
+              新建专业课：{adding.subject_code ? `${adding.subject_code} ` : ''}
+              {adding.subject_name}
+            </Text>
+            {subs.length === 0 ? <Tag label="建议" tone="info" /> : null}
+          </Pressable>
+        ) : null}
+        {add.isPending ? <Text variant="small">正在添加，题目较多时要等一会儿…</Text> : null}
       </BottomSheet>
       <GroupPicker pick={pick} onDone={() => setPick(undefined)} />
       <ConfirmDialog

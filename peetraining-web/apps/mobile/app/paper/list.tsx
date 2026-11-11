@@ -87,9 +87,8 @@ export default function PaperList() {
         <PageHeader
           title="整卷"
           onBack={() => router.back()}
-          right={<Button title="+ 导入卷子" kind="text" size="sm" color={semantic.textPrimary} style={styles.link} onPress={() => router.push({ pathname: '/import', params: { subjectId: String(sid) } })} />}
+          right={<Button title="历史答卷" kind="text" size="sm" color={semantic.textPrimary} style={styles.link} onPress={() => router.push({ pathname: '/paper/history', params: { subjectId: String(sid) } })} />}
         />
-        <Button title="历史答卷" kind="secondary" onPress={() => router.push({ pathname: '/paper/history', params: { subjectId: String(sid) } })} />
         {l.in_progress && l.in_progress.subject_id !== sid ? (
           <Card style={styles.card}>
             <Text variant="caption">「{l.in_progress.title}」还没做完，同一时间只能做一套</Text>
@@ -104,7 +103,7 @@ export default function PaperList() {
         </View>
         {l.real_exam.length === 0 ? (
           <Card>
-            <EmptyState title="还没有真题卷" desc="导入历年真题后，会按年份组成整卷" actionText="导入真题" onAction={() => router.push({ pathname: '/import', params: { subjectId: String(sid) } })} />
+            <EmptyState title="还没有真题卷" desc="添加官方题库或导入历年真题后，会按年份组成整卷" actionText="去题库添加" onAction={() => router.push('/(tabs)/bank')} />
           </Card>
         ) : (
           <Card style={styles.list}>

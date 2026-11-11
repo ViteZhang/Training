@@ -6615,8 +6615,10 @@ export interface components {
          */
         PracticeKind: "daily" | "type_drill" | "custom" | "wrong_redo" | "placement" | "official_first";
         PracticeConfig: {
-            /** @description 板块或章节，空表示全部 */
+            /** @description 板块、章节或知识点，空表示全部 */
             section_ids?: number[];
+            /** @description 只练这几道题（题目详情「再练这道题」）；给了就不再按其他条件筛，也不补 AI 变式题 */
+            question_ids?: number[];
             /** @description 空表示全部 */
             qtypes?: components["schemas"]["QuestionType"][];
             /** @default 10 */

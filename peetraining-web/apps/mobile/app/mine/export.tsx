@@ -75,7 +75,7 @@ export default function ExportPage() {
     return (
       <Screen>
         <PageHeader title="导出题库" onBack={() => router.back()} />
-        <EmptyState title="还没有专业课" desc="添加专业课并导入资料后可以导出" actionText="去导入" onAction={() => router.push('/import')} />
+        <EmptyState title="还没有专业课" desc="添加专业课和题库后可以导出" actionText="去题库" onAction={() => router.push('/(tabs)/bank')} />
       </Screen>
     );
   }

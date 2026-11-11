@@ -26,6 +26,11 @@ func toConfig(c *gen.PracticeConfig) practice.Config {
 			out.SectionIDs = append(out.SectionIDs, uint64(id))
 		}
 	}
+	if c.QuestionIds != nil {
+		for _, id := range *c.QuestionIds {
+			out.QuestionIDs = append(out.QuestionIDs, uint64(id))
+		}
+	}
 	if c.Qtypes != nil {
 		for _, t := range *c.Qtypes {
 			out.QTypes = append(out.QTypes, string(t))

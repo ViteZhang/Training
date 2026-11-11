@@ -76,8 +76,8 @@ describe('3.8 考情分析', () => {
     });
     await wrap(<ExamProfileScreen />);
     expect(await screen.findByText('目前只有 1 套真题')).toBeTruthy();
-    await fireEvent.press(screen.getByText('导入真题'));
-    expect(mockPush).toHaveBeenCalledWith({ pathname: '/import', params: { subjectId: '7' } });
+    await fireEvent.press(screen.getByText('去题库添加'));
+    expect(mockPush).toHaveBeenCalledWith('/(tabs)/bank');
   });
 
   const notReady = { ready: false, paper_count: 0, min_papers: 2, years: [], excluded_count: 0, structure: [], sections: [], high_freq: [], missing_sections: [], style_tags: [], basis: [] };

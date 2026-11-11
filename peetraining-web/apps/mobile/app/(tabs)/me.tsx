@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, ErrorState, Icon, Loading, Screen, Text } from '@/components';
+import { Button, Card, ErrorState, Icon, Loading, Screen, Segmented, Text } from '@/components';
 import { EntryGrid, entryTones } from '@/features/today/Cards';
 import { useDashboard } from '@/features/dashboard/api';
 import { mineKeys, tierNames, useMe, useOverview, useProfile, useSubjects, ymd } from '@/features/mine/api';
@@ -38,7 +38,10 @@ export default function MeTab() {
   const survey = useQuery({ queryKey: mineKeys.survey, queryFn: () => unwrap(api.GET('/me/survey')) });
   const list = subjects.data?.items ?? [];
   const main = list.find((s) => !s.is_essay) ?? list[0];
-  const dash = useDashboard(main?.id ?? 0);
+  // 多门专业课时提分看板卡片可以切换，不再只看第一门
+  const [dashId, setDashId] = useState<number>();
+  const shown = list.find((s) => s.id === dashId) ?? main;
+  const dash = useDashboard(shown?.id ?? 0);
   const [nicknameSheet, setNicknameSheet] = useState(false);
 
   if (me.isLoading || profile.isLoading) return <Screen edges={['top']}><Loading rows={6} /></Screen>;
@@ -105,18 +108,21 @@ export default function MeTab() {
           ) : null}
         </Pressable>
 
-        {main ? (
+        {shown ? (
           <Card style={styles.gap}>
-            <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/dashboard', params: { subjectId: String(main.id) } })} style={styles.rowInline}>
+            <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/dashboard', params: { subjectId: String(shown.id) } })} style={styles.rowInline}>
               <Text variant="h3" style={[styles.flex, styles.h16]}>
                 提分看板
               </Text>
               <Text variant="small">详情</Text>
               <Icon name="chevron" size={14} color={semantic.textSecondary} />
             </Pressable>
+            {list.length > 1 ? (
+              <Segmented options={list.map((x) => ({ key: x.id, label: `${x.code ? `${x.code} ` : ''}${x.name}` }))} value={shown.id} onChange={setDashId} />
+            ) : null}
             {d?.estimate.ready ? (
               <View style={styles.rowBase}>
-                <Text variant="small">{main.code ?? main.name} 预估 </Text>
+                <Text variant="small">{shown.code ?? shown.name} 预估 </Text>
                 <Text style={styles.range}>
                   {d.estimate.low}–{d.estimate.high}
                 </Text>
@@ -130,7 +136,7 @@ export default function MeTab() {
                 ) : null}
               </View>
             ) : (
-              <Text variant="small">做完一套导入的真题卷后生成预估分</Text>
+              <Text variant="small">做完一套真题卷后生成预估分</Text>
             )}
             {shares && lossTotal > 0 ? (
               <>
@@ -156,7 +162,6 @@ export default function MeTab() {
 
         <EntryGrid
           items={[
-            { icon: 'paper', title: '我的资料', desc: o ? `${o.materials} 份 · ${o.questions} 题` : '导入的资料', tone: entryTones.paper, onPress: () => router.push('/library') },
             {
               icon: 'wrong',
               title: '错题本',
@@ -175,6 +180,7 @@ export default function MeTab() {
                 }]
               : []),
             { icon: 'download', title: '导出题库', desc: 'PDF / Word', tone: entryTones.neutral, onPress: () => router.push('/mine/export') },
+            { icon: 'paper', title: '我的资料', desc: o ? (o.materials > 0 ? `${o.materials} 份` : '还没有自己导入的') : '自己导入的资料', tone: entryTones.paper, onPress: () => router.push('/library') },
           ]}
         />
 

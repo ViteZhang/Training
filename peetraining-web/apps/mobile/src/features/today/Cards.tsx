@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, Card, Icon, ProgressBar, Text } from '@/components';
 import type { IconName } from '@/components/Icon';
-import { qtypeNames } from '@/features/import/api';
+import { qtypeNames, useQuota } from '@/features/import/api';
 import { useFeatureFlag } from '@/lib/flags';
 import { useExtraRound } from '@/features/practice/api';
 import { useAIFillPref } from '@/features/practice/offline';
@@ -123,13 +123,15 @@ export function EstimateLine({ e, target }: { e: Schemas['EstimateCard']; target
       <Text variant="small" style={styles.basis}>
         {e.is_essay
           ? `依据你最近 ${e.basis_papers} 篇按评分细则批改的真题限时作文估算`
-          : `依据你导入的 ${e.basis_papers} 套真题卷实测${e.basis_questions ? `和近 ${e.basis_questions} 道主观题` : ''}估算${e.ai_confirmed_questions ? `，其中 ${e.ai_confirmed_questions} 题按你确认过的 AI 答案评分` : ''}`}
+          : `依据你做过的 ${e.basis_papers} 套真题卷实测${e.basis_questions ? `和近 ${e.basis_questions} 道主观题` : ''}估算${e.ai_confirmed_questions ? `，其中 ${e.ai_confirmed_questions} 题按你确认过的 AI 答案评分` : ''}`}
         {/* PRD v3 11.6：一半以上主观题没有可信答案的卷暂不参与估分，提示补答案 */}
         {!e.is_essay && e.pending_answer_papers ? `；另有 ${e.pending_answer_papers} 套卷缺答案，暂不参与估分` : ''}
       </Text>
     </View>
   );
 }
+
+const objectiveTypes = new Set(['single_choice', 'multi_choice', 'true_false', 'fill_blank']);
 
 const groupDot: Record<string, string> = { new: colors.ink, review: colors.blue, weak: colors.peach, recite: colors.lavender };
 
@@ -138,6 +140,10 @@ export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) 
   const next = useContinueToday();
   const [aiFill] = useAIFillPref();
   const start = () => next.mutate({ ai_fill: aiFill });
+  // 免费版每天的批改次数有限：计划里没做的主观题比剩余次数多时提前说明，免得做到一半才撞上额度提示。
+  const grading = useQuota().data?.items?.find((i) => i.quota_type === 'grading');
+  const quotaLeft = !grading || grading.limit === undefined || grading.limit === null ? null : Math.max(grading.limit - grading.used, 0);
+  const subjectiveLeft = plan.items.filter((it) => !it.done && it.qtype && !objectiveTypes.has(it.qtype)).length;
   if (early) {
     // 2.1b 题库整理中：先从已识别的题里练起来
     const left = plan.item_count - plan.done_count;
@@ -169,7 +175,7 @@ export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) 
         ) : null}
       </View>
       {plan.items.length === 0 ? (
-        <Text variant="caption">今天没有可安排的内容。导入更多题目或资料后，计划会自动补上。</Text>
+        <Text variant="caption">今天没有可安排的内容。题库里有更多题目后，计划会自动补上。</Text>
       ) : (
         <View style={styles.groups}>
           {plan.groups.map((g) => {
@@ -189,14 +195,19 @@ export function PlanCard({ plan, early }: { plan: TodayPlan; early?: boolean }) 
         </View>
       )}
       {plan.shortfall_minutes ? (
-        <Text variant="small">题量还不够排满每天 {plan.budget_minutes} 分钟，导入更多题目可以补上</Text>
+        <Text variant="small">题量还不够排满每天 {plan.budget_minutes} 分钟，题库里添加更多题目可以补上</Text>
       ) : null}
       {plan.done_count > 0 ? <ProgressBar value={plan.item_count ? plan.done_count / plan.item_count : 0} /> : null}
       {plan.items.length > 0 ? (
         <Button title={plan.done_count > 0 ? '继续训练' : '开始训练'} loading={next.isPending} onPress={start} />
       ) : (
-        <Button title="导入资料" kind="secondary" onPress={() => router.push('/import')} />
+        <Button title="去题库添加" kind="secondary" onPress={() => router.push('/(tabs)/bank')} />
       )}
+      {quotaLeft !== null && quotaLeft !== undefined && subjectiveLeft > quotaLeft ? (
+        <Text variant="small">
+          今天计划里还有 {subjectiveLeft} 道主观题，{quotaLeft > 0 ? `今天还能批改 ${quotaLeft} 道` : '今天的批改次数已用完'}；超出的答案会先保存，明天可以一键提交批改
+        </Text>
+      ) : null}
     </Card>
   );
 }
@@ -348,17 +359,17 @@ export const entryTones = {
 };
 
 /** 以为会了：自评掌握但实测偏低，为 0 时隐藏。 */
-export function FalseMasteryCard({ count }: { count: number }) {
+export function FalseMasteryCard({ count, subjectId }: { count: number; subjectId?: number }) {
   if (count <= 0) return null;
   return (
-    <Pressable onPress={() => router.push('/(tabs)/bank')} accessibilityRole="button" style={styles.falseMastery}>
+    <Pressable onPress={() => (subjectId ? router.push({ pathname: '/dashboard', params: { subjectId: String(subjectId) } }) : router.push('/(tabs)/bank'))} accessibilityRole="button" style={styles.falseMastery}>
       <View style={[styles.dot, { backgroundColor: semantic.progress }]} />
       <Text variant="caption" color={colors.ink} style={styles.flex}>
         <Text variant="caption" color={colors.ink} style={styles.bold}>
           {count} 个知识点「以为会了」
         </Text>
-        <Text variant="caption"> · 自评掌握但实测偏低</Text>
       </Text>
+      <Text variant="small" style={styles.falseDesc}>自评会了，实测偏低</Text>
       <Icon name="chevron" size={16} color={semantic.textSecondary} />
     </Pressable>
   );
@@ -461,6 +472,7 @@ const styles = StyleSheet.create({
   bar: { flexDirection: 'row', height: 6, borderRadius: 3, overflow: 'hidden', gap: 2, backgroundColor: semantic.border },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   legendText: { fontSize: 11 },
+  falseDesc: { flexShrink: 0 },
   falseMastery: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: semantic.fill },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   tile: { flexBasis: '47%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, minHeight: 72, borderRadius: radius.xl, borderWidth: 1, borderColor: semantic.border, backgroundColor: semantic.surface },

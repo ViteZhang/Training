@@ -157,6 +157,12 @@ func (s *Service) Subscribe(ctx context.Context, userID, bankID, subjectID uint6
 		_ = s.Unsubscribe(ctx, userID, bankID)
 		return err
 	}
+	// 添加官方题库和确认导入资料一样算「开始使用」：发邀请奖励。失败只记日志，不影响添加。
+	if s.OnSubscribed != nil {
+		if err := s.OnSubscribed(ctx, userID); err != nil {
+			s.d.Log.Warn("官方题库添加后的回调失败", "user_id", userID, "err", err)
+		}
+	}
 	return nil
 }
 

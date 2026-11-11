@@ -94,7 +94,7 @@ function NormBody({ n }: { n: Schemas['AnswerNorm'] }) {
           ) : null}
         </View>
       ) : (
-        <EmptyState title="还没有带采分点的同类题" desc="导入真题或讲义后，这里会用你资料里的原文示范高分写法" />
+        <EmptyState title="还没有带采分点的同类题" desc="题库里有带采分点的同类题后，这里会用原文示范高分写法" />
       )}
 
       {n.last ? (

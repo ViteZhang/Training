@@ -66,10 +66,10 @@ describe('6.8 邀请研友', () => {
     const r = await wrap(<InvitePage />);
     expect(await screen.findByLabelText('邀请码 K7Q2HN3P')).toBeTruthy();
     expect(screen.getByText('双方各得 7 天会员')).toBeTruthy();
-    expect(screen.getByText('好友用你的邀请码注册，并导入第一份资料后生效')).toBeTruthy();
+    expect(screen.getByText('好友用你的邀请码注册，并添加官方题库或导入第一份资料后生效')).toBeTruthy();
     expect(screen.getByText('已获得 14 天')).toBeTruthy();
     expect(screen.getByText('研友 C')).toBeTruthy();
-    expect(screen.getByText(/已注册，还没导入资料/)).toBeTruthy();
+    expect(screen.getByText(/已注册，还没添加题库/)).toBeTruthy();
     expect(screen.getAllByText('+7 天')).toHaveLength(2);
     await fireEvent.press(screen.getByText('复制'));
     expect(mockCopy).toHaveBeenCalledWith('K7Q2HN3P');

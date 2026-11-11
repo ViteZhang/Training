@@ -141,6 +141,8 @@ type Service struct {
 	imports ImportDeps
 	q       *dbq.Queries
 	now     func() time.Time
+	// OnSubscribed 在用户添加官方题库成功后调用（被邀请人第一次添加官方题库后发邀请奖励）。
+	OnSubscribed func(ctx context.Context, userID uint64) error
 }
 
 func New(d Deps) *Service {

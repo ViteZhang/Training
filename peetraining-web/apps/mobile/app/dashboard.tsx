@@ -66,7 +66,7 @@ export default function DashboardPage() {
     return (
       <Screen>
         <PageHeader title="提分看板" onBack={() => router.back()} />
-        <EmptyState title="还没有专业课" desc="先在备考设置里添加专业课并导入资料" actionText="去导入" onAction={() => router.push('/import')} />
+        <EmptyState title="还没有专业课" desc="先添加专业课和题库，练起来以后这里显示提分情况" actionText="去题库" onAction={() => router.push('/(tabs)/bank')} />
       </Screen>
     );
   }
@@ -94,7 +94,7 @@ export default function DashboardPage() {
             </>
           ) : (
             <>
-              <Text variant="caption">做完一套导入的真题卷后生成预估分，AI 组卷的成绩不计入</Text>
+              <Text variant="caption">做完一套真题卷后生成预估分，AI 组卷的成绩不计入</Text>
               <Button title="去做整卷" kind="secondary" onPress={() => router.push({ pathname: '/paper/list', params: { subjectId: String(sid) } })} />
             </>
           )}
@@ -155,7 +155,7 @@ export default function DashboardPage() {
               ) : null}
             </View>
           ))}
-          {!d.sections_ready && d.sections.length > 0 ? <Text variant="small">导入 2 套以上真题卷后显示各板块的分值占比</Text> : null}
+          {!d.sections_ready && d.sections.length > 0 ? <Text variant="small">题库里有 2 套以上真题卷后显示各板块的分值占比</Text> : null}
         </Card>
 
         {d.false_mastery.length > 0 ? (

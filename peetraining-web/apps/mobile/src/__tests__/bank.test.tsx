@@ -106,6 +106,20 @@ describe('3.4 知识点卡片', () => {
     expect(await screen.findByText(/^学习中/)).toBeTruthy();
   });
 
+  it('「来一题检验」从相关题目里挑一道开练', async () => {
+    mockParams = { id: '5', subjectId: '7' };
+    mockResponses['GET /knowledge-points/{kpId}'] = () => ({ status: 200, data: kp });
+    mockResponses['POST /practice-sessions'] = () => ({ status: 200, data: { id: 88, kind: 'custom', title: '再练一遍', subject_id: 7, status: 'in_progress', cursor_index: 0, started_at: '2026-11-11T00:00:00Z', done_count: 0, questions: [] } });
+    await wrap(<KPCard />);
+    await fireEvent.press(await screen.findByText('来一题检验'));
+    await waitFor(() => expect(mockCalls.some((c) => c.path === '/practice-sessions')).toBe(true));
+    const body = mockCalls.find((c) => c.path === '/practice-sessions')!.init!.body as { subject_id: number; kind: string; config: { question_ids: number[] } };
+    expect(body.subject_id).toBe(7);
+    expect(body.kind).toBe('custom');
+    expect(body.config.question_ids).toHaveLength(1);
+    expect(kp.related_questions.map((q: { id: number }) => q.id)).toContain(body.config.question_ids[0]);
+  });
+
   it('更多操作：拆分', async () => {
     mockParams = { id: '5', subjectId: '7' };
     mockResponses['GET /knowledge-points/{kpId}'] = () => ({ status: 200, data: kp });

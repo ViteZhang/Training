@@ -234,10 +234,10 @@ function NotReady({ subjectId, profile: p }: { subjectId: number; profile: Schem
 
   return (
     <EmptyState
-      title={p.paper_count === 0 ? '还没有导入真题' : `目前只有 ${p.paper_count} 套真题`}
-      desc={`至少 ${p.min_papers} 套不同年份的真题卷才能统计这门课怎么考。导入更多年份的真题后会自动更新`}
-      actionText="导入真题"
-      onAction={importMore}
+      title={p.paper_count === 0 ? '还没有真题' : `目前只有 ${p.paper_count} 套真题`}
+      desc={`至少 ${p.min_papers} 套不同年份的真题卷才能统计这门课怎么考。添加官方题库或导入更多年份的真题后会自动更新`}
+      actionText="去题库添加"
+      onAction={() => router.push('/(tabs)/bank')}
     />
   );
 }

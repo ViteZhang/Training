@@ -165,7 +165,7 @@ describe('6.2 提分看板', () => {
     const r = await wrap(<DashboardPage />);
     expect(await screen.findByLabelText('预估分 98 到 106')).toBeTruthy();
     await fireEvent.press(screen.getByText('908 作文'));
-    expect(await screen.findByText('做完一套导入的真题卷后生成预估分，AI 组卷的成绩不计入')).toBeTruthy();
+    expect(await screen.findByText('做完一套真题卷后生成预估分，AI 组卷的成绩不计入')).toBeTruthy();
     expect(screen.getByText('近 30 天还没有主观题批改，做几道主观题后显示')).toBeTruthy();
     expect(screen.getByText('作文各维度平均分')).toBeTruthy();
     expect(screen.getByText('22 / 30')).toBeTruthy();

@@ -15,7 +15,7 @@ import { api, unwrap } from '@/lib/api';
 import { appConfig } from '@/lib/config';
 
 export function inviteMessage(code: string, days: number) {
-  return `我在用「${appConfig.appName}」备考专业课：导入自己的资料，AI 按采分点批改主观题。注册时填我的邀请码 ${code}，导入第一份资料后我们各得 ${days} 天会员。`;
+  return `我在用「${appConfig.appName}」备考专业课：院校真题直接刷，主观题按采分点批改。注册时填我的邀请码 ${code}，添加题库后我们各得 ${days} 天会员。`;
 }
 
 const friendName = (i: number, total: number) => `研友 ${String.fromCharCode(65 + ((total - 1 - i) % 26))}`;
@@ -53,7 +53,7 @@ export default function InvitePage() {
         <View style={styles.hero}>
           <Text variant="h2" color={colors.white}>邀请研友一起备考</Text>
           <Text variant="h3" color={colors.peach}>双方各得 {d.reward_days} 天会员</Text>
-          <Text variant="caption" color={colors.white}>好友用你的邀请码注册，并导入第一份资料后生效</Text>
+          <Text variant="caption" color={colors.white}>好友用你的邀请码注册，并添加官方题库或导入第一份资料后生效</Text>
         </View>
         <Card style={styles.codeCard}>
           <Text variant="caption">我的邀请码</Text>
@@ -79,7 +79,7 @@ export default function InvitePage() {
               <View style={styles.flex}>
                 <Text variant="body">{friendName(i, d.records.length)}</Text>
                 <Text variant="caption">
-                  {r.activated ? '已导入资料' : '已注册，还没导入资料'} · {ymd(r.registered_at)}
+                  {r.activated ? '已开始使用' : '已注册，还没添加题库'} · {ymd(r.registered_at)}
                 </Text>
               </View>
               {r.activated ? <Text variant="bodyStrong" color={semantic.progress}>{r.days > 0 ? `+${r.days} 天` : '已达上限'}</Text> : null}
@@ -91,10 +91,10 @@ export default function InvitePage() {
       <BottomSheet visible={poster} onClose={() => setPoster(false)} title="邀请海报">
         <View ref={shot} collapsable={false} style={styles.poster}>
           <Text variant="h2" color={colors.white}>{appConfig.appName}</Text>
-          <Text variant="body" color={colors.white}>导入你的专业课资料，AI 按采分点批改主观题</Text>
+          <Text variant="body" color={colors.white}>院校专业课真题直接刷，主观题按采分点批改</Text>
           <Text variant="caption" color={colors.white}>注册时填写邀请码</Text>
           <Text variant="number" color={colors.peach} style={styles.code}>{d.code}</Text>
-          <Text variant="caption" color={colors.white}>导入第一份资料后，我们各得 {d.reward_days} 天会员</Text>
+          <Text variant="caption" color={colors.white}>添加题库后，我们各得 {d.reward_days} 天会员</Text>
         </View>
         <Button title="分享海报" block onPress={() => void sharePoster()} />
       </BottomSheet>

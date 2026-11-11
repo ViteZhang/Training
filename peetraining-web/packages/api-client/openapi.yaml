@@ -10798,7 +10798,8 @@ components:
     PracticeConfig:
       type: object
       properties:
-        section_ids: { type: array, items: { type: integer, format: int64 }, description: 板块或章节，空表示全部 }
+        section_ids: { type: array, items: { type: integer, format: int64 }, description: 板块、章节或知识点，空表示全部 }
+        question_ids: { type: array, maxItems: 50, items: { type: integer, format: int64 }, description: 只练这几道题（题目详情「再练这道题」）；给了就不再按其他条件筛，也不补 AI 变式题 }
         qtypes: { type: array, items: { $ref: "#/components/schemas/QuestionType" }, description: 空表示全部 }
         count: { type: integer, minimum: 1, maximum: 50, default: 10 }
         only_unmastered: { type: boolean, default: false, description: 只练未掌握的知识点 }

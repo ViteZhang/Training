@@ -28,7 +28,8 @@ export function QuestionHeader({ q }: { q: PracticeQuestion }) {
       <Tag label={qtypeNames[q.qtype]} />
       {q.plan_group ? <Tag label={groupTagNames[q.plan_group]} tone="info" /> : null}
       {q.origin_tags.includes('ai_generated') ? <Tag label="AI 出题" tone="ai" /> : null}
-      {q.source === 'exam' && q.exam_year ? <Tag label={`${q.exam_year} 真题`} tone="mastered" /> : null}
+      {(q.source === 'exam' || q.source === 'official') && q.exam_year ? <Tag label={`${q.exam_year} 真题`} tone="mastered" /> : null}
+      {q.score ? <Tag label={`${q.score} 分`} /> : null}
     </View>
   );
 }

@@ -197,6 +197,12 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger) (*Base, err
 	engine.SetAnswerEvidenceProvider(base.Textbooks)
 	base.AnswerUpdates = answerupdate.New(db, engine, qs, queue)
 	base.Official = official.New(official.Deps{DB: db, AI: engine, Log: log, Params: ps, OpsWebhook: cfg.OpsWebhookURL, AdminBaseURL: cfg.AdminBaseURL})
+	// 被邀请人第一次添加官方题库后，和确认导入资料一样发邀请奖励（官方题库为主以后，多数用户不再导入资料）。
+	if base.Invite != nil {
+		base.Official.OnSubscribed = func(ctx context.Context, userID uint64) error {
+			return store.WithTx(ctx, db, func(q *dbq.Queries) error { return base.Invite.Activate(ctx, q, userID) })
+		}
+	}
 	base.Official.ConfigureImports(official.ImportDeps{OSS: clients.OSS, OCR: clients.OCR, PDF: clients.PDF, Queue: queue, NewTask: jobs.NewOfficialImportTask,
 		NewFillTask: jobs.NewOfficialImportFillTask, NewItemFillTask: jobs.NewOfficialImportItemFillTask})
 	return base, nil
