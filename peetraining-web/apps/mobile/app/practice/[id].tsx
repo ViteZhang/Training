@@ -4,7 +4,7 @@ import { semantic, spacing } from '@training/ui-tokens';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BackHandler, ScrollView, StyleSheet, View } from 'react-native';
 import { BackButton, BottomSheet, Button, ConfirmDialog, EmptyState, ErrorState, GroupNote, Loading, NavBar, PassageCard, Screen, Text, toast } from '@/components';
 import { practiceKeys, useSession } from '@/features/practice/api';
@@ -33,6 +33,7 @@ export default function PracticeRunner() {
   const [current, setIndex] = useState<number | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [text, setText] = useState('');
+  const [subjectiveActions, setSubjectiveActions] = useState<ReactNode>(null);
   const [results, setResults] = useState<Record<number, LocalResult>>({});
   const [reporting, setReporting] = useState(false);
   const [exiting, setExiting] = useState(false);
@@ -198,6 +199,7 @@ export default function PracticeRunner() {
             onGraded={(g) => setResults((r) => ({ ...r, [q.id]: { correct: null, revealed: false, synced: true, grading: g } }))}
             onQueued={() => setResults((r) => ({ ...r, [q.id]: { correct: null, revealed: false, synced: true, queued: true } }))}
             onSelfAssess={(k) => void send({ revealed: true, self_assess: k })}
+            onActions={setSubjectiveActions}
           />
         ) : null}
       </ScrollView>
@@ -210,7 +212,9 @@ export default function PracticeRunner() {
             {q.qtype === 'fill_blank' ? <Button title="提交" disabled={!text.trim()} onPress={() => void send({ answer_text: text })} /> : null}
             <Button title="不会，看答案" kind="soft" style={styles.reveal} onPress={() => void send({ revealed: true })} />
           </>
-        ) : null}
+        ) : (
+          subjectiveActions
+        )}
       </View>
       <ConfirmDialog
         visible={exiting}
