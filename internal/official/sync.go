@@ -3,12 +3,15 @@ package official
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"peetraining-server/internal/ai"
 	"peetraining-server/internal/apperr"
 	"peetraining-server/internal/dbq"
 	"peetraining-server/internal/importer"
@@ -363,9 +366,46 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 		today := sql.NullTime{Time: rules.DayOf(now).Date(), Valid: true}
 		kpMap := map[uint64]uint64{} // 官方知识点 → 用户的知识点
 		officialKPs := map[uint64]bool{}
+		// 新增的副本攒起来批量写（见 dbq.InsertRows）；采分点等题目也写完后一起写。
+		var newKPs, rubrics [][]any
+		var newKPIDs []uint64
+		pending := map[uint64]bool{}
+		flushKPs := func() error {
+			if len(newKPs) == 0 {
+				return nil
+			}
+			if err := q.InsertRows(ctx, insertKPCopies, newKPs, nil); err != nil {
+				return err
+			}
+			rows, err := q.ListUserCopyKPIDs(ctx, dbq.ListUserCopyKPIDsParams{BankID: ub.ID, OwnerUserID: owner})
+			if err != nil {
+				return err
+			}
+			got := make(map[uint64]uint64, len(rows))
+			for _, r := range rows {
+				got[uint64(r.OfficialKpID.Int64)] = r.ID
+			}
+			for _, oid := range newKPIDs {
+				id, ok := got[oid]
+				if !ok {
+					return fmt.Errorf("知识点副本没有写进去：官方知识点 %d", oid)
+				}
+				kpMap[oid] = id
+				rubrics = appendRubricRows(rubrics, owner, sql.NullInt64{}, sql.NullInt64{Int64: int64(id), Valid: true}, oc.kpRubric[oid])
+			}
+			newKPs, newKPIDs = nil, nil
+			clear(pending)
+			return nil
+		}
 		for i, o := range oc.kps {
 			officialKPs[o.ID] = true
 			oh := oc.kpHash(o)
+			// 父节点还在待写的一批里时先写掉，拿到它的 id（按层级排过序，正常只在换层级时发生）。
+			if o.ParentID.Valid && pending[uint64(o.ParentID.Int64)] {
+				if err := flushKPs(); err != nil {
+					return err
+				}
+			}
 			parent := sql.NullInt64{}
 			if o.ParentID.Valid {
 				if p, ok := kpMap[uint64(o.ParentID.Int64)]; ok {
@@ -383,16 +423,10 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 					kpMap[o.ID] = same.ID
 					continue
 				}
-				id, err := q.InsertUserKPCopy(ctx, dbq.InsertUserKPCopyParams{OwnerUserID: owner, BankID: ub.ID, ParentID: parent, Level: o.Level, Name: o.Name,
-					OriginalText: o.OriginalText, ReferenceText: o.ReferenceText, OfficialKpID: sql.NullInt64{Int64: int64(o.ID), Valid: true}, OfficialHash: nullStr(oh), OfficialNewUntil: newUntil,
-					SortOrder: uint32(i)})
-				if err != nil {
-					return err
-				}
-				kpMap[o.ID] = uint64(id)
-				if err := copyRubric(ctx, q, owner, sql.NullInt64{}, sql.NullInt64{Int64: id, Valid: true}, oc.kpRubric[o.ID]); err != nil {
-					return err
-				}
+				newKPs = append(newKPs, []any{owner, ub.ID, parent, o.Level, o.Name, o.OriginalText, o.ReferenceText, "official",
+					sql.NullInt64{Int64: int64(o.ID), Valid: true}, nullStr(oh), newUntil, uint32(i)})
+				newKPIDs = append(newKPIDs, o.ID)
+				pending[o.ID] = true
 				res.Added++
 				continue
 			}
@@ -422,6 +456,9 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 			}
 			res.Updated++
 		}
+		if err := flushKPs(); err != nil {
+			return err
+		}
 		// 官方已删除的知识点（回滚了新增）：没改过的删掉，改过的解除关联。
 		for _, k := range uc.kps {
 			if !k.OfficialKpID.Valid || officialKPs[uint64(k.OfficialKpID.Int64)] {
@@ -442,6 +479,7 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 			linkedQ[uint64(x.OfficialQuestionID.Int64)] = x
 		}
 		officialQs := map[uint64]bool{}
+		var newQs []dbq.ListOfficialQuestionsRow
 		for _, o := range oc.questions {
 			officialQs[o.ID] = true
 			u, ok := linkedQ[o.ID]
@@ -457,21 +495,7 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 			}
 			oh := oc.questionHash(o)
 			if !ok {
-				id, err := q.InsertUserQuestionCopy(ctx, dbq.InsertUserQuestionCopyParams{OwnerUserID: owner, BankID: ub.ID, Qtype: o.Qtype, Stem: o.Stem, Options: o.Options,
-					Answer: o.Answer, AnswerOrigin: copyOrigin(o.AnswerOrigin), Analysis: o.Analysis, ReferenceText: o.ReferenceText, Score: o.Score, ExamYear: o.ExamYear, ContentHash: importer.ContentHash(o.Stem),
-					OfficialQuestionID: sql.NullInt64{Int64: int64(o.ID), Valid: true}, OfficialHash: nullStr(oh), GroupLabel: o.GroupLabel, GroupMajors: o.GroupMajors})
-				if err != nil {
-					return err
-				}
-				if err := copyRubric(ctx, q, owner, sql.NullInt64{Int64: id, Valid: true}, sql.NullInt64{}, oc.qRubric[o.ID]); err != nil {
-					return err
-				}
-				if err := copyQuestionKPs(ctx, q, owner, uint64(id), oc.qKPs[o.ID], kpMap); err != nil {
-					return err
-				}
-				if err := s.copyQuestionEvidence(ctx, q, uint64(o.AnswerSnapshotID.Int64), userID, uint64(id)); err != nil {
-					return err
-				}
+				newQs = append(newQs, o)
 				res.Added++
 				continue
 			}
@@ -509,6 +533,12 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 				}
 			}
 			res.Updated++
+		}
+		if rubrics, err = s.insertQuestionCopies(ctx, q, oc, newQs, userID, ub.ID, kpMap, rubrics); err != nil {
+			return err
+		}
+		if err := q.InsertRows(ctx, insertRubricCopies, rubrics, nil); err != nil {
+			return err
 		}
 		for _, x := range uc.questions {
 			if officialQs[uint64(x.OfficialQuestionID.Int64)] {
@@ -549,27 +579,157 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 	return res, err
 }
 
-func copyRubric(ctx context.Context, q *dbq.Queries, owner, questionID, kpID sql.NullInt64, rs []dbq.ListOfficialRubricRow) error {
+// 批量写副本用的 INSERT 头，列顺序与各 append 的行一致；每行都带 owner_user_id。
+const (
+	insertKPCopies       = "INSERT INTO knowledge_points (owner_user_id, bank_id, parent_id, level, name, original_text, reference_text, origin, official_kp_id, official_hash, official_new_until, sort_order) VALUES"
+	insertQuestionCopies = "INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, reference_text, score, source, exam_year, content_hash, " +
+		"official_question_id, official_hash, group_label, group_majors, answer_snapshot_id) VALUES"
+	insertRubricCopies   = "INSERT INTO rubric_points (owner_user_id, question_id, kp_id, seq, content, keywords, score, origin) VALUES"
+	insertQuestionKPs    = "INSERT IGNORE INTO question_kps (question_id, kp_id, is_primary, owner_user_id) VALUES"
+	insertSnapshotCopies = "INSERT INTO answer_evidence_snapshots (owner_user_id, answer_hash, payload, created_at) VALUES"
+)
+
+func appendRubricRows(rows [][]any, owner, questionID, kpID sql.NullInt64, rs []dbq.ListOfficialRubricRow) [][]any {
 	for _, r := range rs {
-		if err := q.InsertOfficialRubricPoint(ctx, dbq.InsertOfficialRubricPointParams{OwnerUserID: owner, QuestionID: questionID, KpID: kpID, Seq: r.Seq, Content: r.Content,
-			Keywords: r.Keywords, Score: r.Score}); err != nil {
-			return err
+		rows = append(rows, []any{owner, questionID, kpID, r.Seq, r.Content, r.Keywords, r.Score, "official"})
+	}
+	return rows
+}
+
+// insertQuestionCopies 批量写新增的题目副本：先复制仍有效的答案依据快照，题目带上快照 id 一次写入，
+// 再取回题目 id，写题目与知识点的关联；题目的采分点追加到 rubrics 里返回，由调用方一起写。
+func (s *Service) insertQuestionCopies(ctx context.Context, q *dbq.Queries, oc content, qs []dbq.ListOfficialQuestionsRow, userID, bankID uint64,
+	kpMap map[uint64]uint64, rubrics [][]any) ([][]any, error) {
+	if len(qs) == 0 {
+		return rubrics, nil
+	}
+	owner := sql.NullInt64{Int64: int64(userID), Valid: true}
+	snap, err := s.copySnapshots(ctx, q, qs, owner)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([][]any, len(qs))
+	for i, o := range qs {
+		rows[i] = []any{owner, bankID, o.Qtype, o.Stem, o.Options, o.Answer, copyOrigin(o.AnswerOrigin), o.Analysis, o.ReferenceText, o.Score, "official", o.ExamYear,
+			importer.ContentHash(o.Stem), sql.NullInt64{Int64: int64(o.ID), Valid: true}, nullStr(oc.questionHash(o)), o.GroupLabel, o.GroupMajors, snap[o.ID]}
+	}
+	if err := q.InsertRows(ctx, insertQuestionCopies, rows, nil); err != nil {
+		return nil, err
+	}
+	ids, err := q.ListUserCopyQuestionIDs(ctx, dbq.ListUserCopyQuestionIDsParams{BankID: bankID, OwnerUserID: owner})
+	if err != nil {
+		return nil, err
+	}
+	got := make(map[uint64]uint64, len(ids))
+	for _, r := range ids {
+		got[uint64(r.OfficialQuestionID.Int64)] = r.ID
+	}
+	var links [][]any
+	for _, o := range qs {
+		id, ok := got[o.ID]
+		if !ok {
+			return nil, fmt.Errorf("题目副本没有写进去：官方题目 %d", o.ID)
+		}
+		qid := sql.NullInt64{Int64: int64(id), Valid: true}
+		rubrics = appendRubricRows(rubrics, owner, qid, sql.NullInt64{}, oc.qRubric[o.ID])
+		for _, l := range oc.qKPs[o.ID] {
+			if kp, ok := kpMap[l.KpID]; ok {
+				links = append(links, []any{id, kp, l.IsPrimary, owner})
+			}
 		}
 	}
-	return nil
+	if err := q.InsertRows(ctx, insertQuestionKPs, links, nil); err != nil {
+		return nil, err
+	}
+	return rubrics, nil
+}
+
+// copySnapshots 给新增题目复制答案依据快照，返回官方题目 → 用户快照 id（依据失效的不复制，题目照常添加）。
+func (s *Service) copySnapshots(ctx context.Context, q *dbq.Queries, qs []dbq.ListOfficialQuestionsRow, owner sql.NullInt64) (map[uint64]sql.NullInt64, error) {
+	out := map[uint64]sql.NullInt64{}
+	var ids []uint64
+	for _, o := range qs {
+		if o.AnswerSnapshotID.Valid {
+			ids = append(ids, uint64(o.AnswerSnapshotID.Int64))
+		}
+	}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := q.ListOfficialAnswerSnapshots(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[uint64]dbq.AnswerEvidenceSnapshot, len(rows))
+	for _, r := range rows {
+		byID[r.ID] = r
+	}
+	type item struct {
+		qid uint64
+		row dbq.AnswerEvidenceSnapshot
+	}
+	var items []item
+	var snaps []*ai.AnswerSnapshot
+	for _, o := range qs {
+		r, ok := byID[uint64(o.AnswerSnapshotID.Int64)]
+		if !o.AnswerSnapshotID.Valid || !ok {
+			continue
+		}
+		var sn ai.AnswerSnapshot
+		if err := json.Unmarshal(r.Payload, &sn); err != nil {
+			return nil, err
+		}
+		items = append(items, item{o.ID, r})
+		snaps = append(snaps, &sn)
+	}
+	valid, err := s.d.AI.ValidateAnswerSnapshots(ctx, q, snaps)
+	if err != nil {
+		return nil, err
+	}
+	// 回查新快照 id 靠「这位用户 + 这个创建时间」：取到毫秒，和 DATETIME(3) 存的一致。
+	at := s.now().UTC().Truncate(time.Millisecond)
+	var copies [][]any
+	var qids []uint64
+	for i, it := range items {
+		if valid[i] {
+			copies = append(copies, []any{owner, it.row.AnswerHash, it.row.Payload, at})
+			qids = append(qids, it.qid)
+		}
+	}
+	next := 0
+	err = q.InsertRows(ctx, insertSnapshotCopies, copies, func(chunk [][]any, first uint64) error {
+		got, err := q.ListUserAnswerSnapshotsSince(ctx, dbq.ListUserAnswerSnapshotsSinceParams{OwnerUserID: owner, CreatedAt: at, FirstID: first})
+		if err != nil {
+			return err
+		}
+		if len(got) != len(chunk) {
+			// 同一位用户同一毫秒还有别的写入（几乎不会），对不上就整体失败，事务回滚，用户重试即可。
+			return fmt.Errorf("答案依据快照回查数量不符：写入 %d，查到 %d", len(chunk), len(got))
+		}
+		for _, id := range got {
+			out[qids[next]] = sql.NullInt64{Int64: int64(id), Valid: true}
+			next++
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func copyRubric(ctx context.Context, q *dbq.Queries, owner, questionID, kpID sql.NullInt64, rs []dbq.ListOfficialRubricRow) error {
+	return q.InsertRows(ctx, insertRubricCopies, appendRubricRows(nil, owner, questionID, kpID, rs), nil)
 }
 
 func copyQuestionKPs(ctx context.Context, q *dbq.Queries, owner sql.NullInt64, questionID uint64, links []dbq.ListOfficialQuestionKPsRow, kpMap map[uint64]uint64) error {
+	var rows [][]any
 	for _, l := range links {
-		kp, ok := kpMap[l.KpID]
-		if !ok {
-			continue
-		}
-		if err := q.InsertOfficialQuestionKP(ctx, dbq.InsertOfficialQuestionKPParams{QuestionID: questionID, KpID: kp, IsPrimary: l.IsPrimary, OwnerUserID: owner}); err != nil {
-			return err
+		if kp, ok := kpMap[l.KpID]; ok {
+			rows = append(rows, []any{questionID, kp, l.IsPrimary, owner})
 		}
 	}
-	return nil
+	return q.InsertRows(ctx, insertQuestionKPs, rows, nil)
 }
 
 // SyncBank 发布或回滚后给所有订阅用户对账，逐个用户各自一个事务；单个用户失败只记日志。

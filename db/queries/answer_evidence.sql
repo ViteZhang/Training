@@ -32,3 +32,9 @@ UPDATE answer_update_candidates SET status=?,failure_message=?,updated_at=? WHER
 UPDATE answer_update_candidates SET status='failed',failure_message=?,updated_at=? WHERE id=? AND question_id=? AND owner_user_id=? AND status IN ('queued','processing');
 -- name: BumpQuestionAnswerVersion :exec
 UPDATE questions SET rubric_version=rubric_version+1 WHERE id=? AND owner_user_id=?;
+-- name: ListOfficialAnswerSnapshots :many
+-- 官方题目的答案依据快照（官方的不属于任何用户），添加官方题库时一次取出。
+SELECT * FROM answer_evidence_snapshots WHERE owner_user_id IS NULL AND id IN (sqlc.slice(ids));
+-- name: ListUserAnswerSnapshotsSince :many
+-- 批量复制快照后按插入顺序取回 id：同一条 INSERT 的自增 id 按行的顺序递增。
+SELECT id FROM answer_evidence_snapshots WHERE owner_user_id = ? AND created_at = ? AND id >= sqlc.arg(first_id) ORDER BY id;

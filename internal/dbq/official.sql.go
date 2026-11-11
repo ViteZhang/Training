@@ -1589,6 +1589,82 @@ func (q *Queries) ListSubscribers(ctx context.Context, bankID uint64) ([]ListSub
 	return items, nil
 }
 
+const listUserCopyKPIDs = `-- name: ListUserCopyKPIDs :many
+SELECT id, official_kp_id FROM knowledge_points WHERE bank_id = ? AND owner_user_id = ? AND official_kp_id IS NOT NULL
+`
+
+type ListUserCopyKPIDsParams struct {
+	BankID      uint64
+	OwnerUserID sql.NullInt64
+}
+
+type ListUserCopyKPIDsRow struct {
+	ID           uint64
+	OfficialKpID sql.NullInt64
+}
+
+// 批量插入知识点副本后取回各自的 id（按对应的官方知识点）。
+func (q *Queries) ListUserCopyKPIDs(ctx context.Context, arg ListUserCopyKPIDsParams) ([]ListUserCopyKPIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUserCopyKPIDs, arg.BankID, arg.OwnerUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUserCopyKPIDsRow{}
+	for rows.Next() {
+		var i ListUserCopyKPIDsRow
+		if err := rows.Scan(&i.ID, &i.OfficialKpID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserCopyQuestionIDs = `-- name: ListUserCopyQuestionIDs :many
+SELECT id, official_question_id FROM questions WHERE bank_id = ? AND owner_user_id = ? AND official_question_id IS NOT NULL
+`
+
+type ListUserCopyQuestionIDsParams struct {
+	BankID      uint64
+	OwnerUserID sql.NullInt64
+}
+
+type ListUserCopyQuestionIDsRow struct {
+	ID                 uint64
+	OfficialQuestionID sql.NullInt64
+}
+
+// 批量插入题目副本后取回各自的 id（按对应的官方题目）。
+func (q *Queries) ListUserCopyQuestionIDs(ctx context.Context, arg ListUserCopyQuestionIDsParams) ([]ListUserCopyQuestionIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUserCopyQuestionIDs, arg.BankID, arg.OwnerUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUserCopyQuestionIDsRow{}
+	for rows.Next() {
+		var i ListUserCopyQuestionIDsRow
+		if err := rows.Scan(&i.ID, &i.OfficialQuestionID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUserKPCopies = `-- name: ListUserKPCopies :many
 SELECT id, parent_id, level, name, original_text, reference_text, origin, official_kp_id, official_hash FROM knowledge_points WHERE bank_id = ? AND owner_user_id = ?
 `

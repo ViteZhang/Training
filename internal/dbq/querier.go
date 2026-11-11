@@ -648,6 +648,8 @@ type Querier interface {
 	ListModelEssaysKB(ctx context.Context, arg ListModelEssaysKBParams) ([]ListModelEssaysKBRow, error)
 	ListMyInvites(ctx context.Context, inviterID uint64) ([]ListMyInvitesRow, error)
 	ListMySubscriptions(ctx context.Context, ownerUserID uint64) ([]ListMySubscriptionsRow, error)
+	// 官方题目的答案依据快照（官方的不属于任何用户），添加官方题库时一次取出。
+	ListOfficialAnswerSnapshots(ctx context.Context, ids []uint64) ([]AnswerEvidenceSnapshot, error)
 	ListOfficialDrafts(ctx context.Context, arg ListOfficialDraftsParams) ([]OfficialDraft, error)
 	ListOfficialImportFiles(ctx context.Context, projectID uint64) ([]ListOfficialImportFilesRow, error)
 	ListOfficialImportItems(ctx context.Context, fileID uint64) ([]OfficialImportItem, error)
@@ -729,6 +731,7 @@ type Querier interface {
 	ListSubjectsWithoutContent(ctx context.Context, ownerUserID uint64) ([]uint64, error)
 	ListSubscribers(ctx context.Context, bankID uint64) ([]ListSubscribersRow, error)
 	ListSupplementDismissals(ctx context.Context, arg ListSupplementDismissalsParams) ([]ListSupplementDismissalsRow, error)
+	ListTextbookChunksByOrdinals(ctx context.Context, arg ListTextbookChunksByOrdinalsParams) ([]TextbookChunk, error)
 	ListTextbookEditions(ctx context.Context, bookID uint64) ([]TextbookEdition, error)
 	ListTextbookImportPages(ctx context.Context, importID uint64) ([]TextbookImportPage, error)
 	ListTextbookImports(ctx context.Context, revisionID uint64) ([]ListTextbookImportsRow, error)
@@ -740,6 +743,12 @@ type Querier interface {
 	ListTopicModelEssays(ctx context.Context, arg ListTopicModelEssaysParams) ([]ListTopicModelEssaysRow, error)
 	// 登录设备列表：同一设备可能有多条有效令牌（并发刷新），由调用方按 device_id 去重。
 	ListUserActiveTokens(ctx context.Context, arg ListUserActiveTokensParams) ([]ListUserActiveTokensRow, error)
+	// 批量复制快照后按插入顺序取回 id：同一条 INSERT 的自增 id 按行的顺序递增。
+	ListUserAnswerSnapshotsSince(ctx context.Context, arg ListUserAnswerSnapshotsSinceParams) ([]uint64, error)
+	// 批量插入知识点副本后取回各自的 id（按对应的官方知识点）。
+	ListUserCopyKPIDs(ctx context.Context, arg ListUserCopyKPIDsParams) ([]ListUserCopyKPIDsRow, error)
+	// 批量插入题目副本后取回各自的 id（按对应的官方题目）。
+	ListUserCopyQuestionIDs(ctx context.Context, arg ListUserCopyQuestionIDsParams) ([]ListUserCopyQuestionIDsRow, error)
 	// 5.9「你的资料」：从用户资料识别出的评分标准，新的在前。
 	ListUserEssayRubrics(ctx context.Context, arg ListUserEssayRubricsParams) ([]ListUserEssayRubricsRow, error)
 	ListUserFeatureFlags(ctx context.Context, userID uint64) ([]string, error)
