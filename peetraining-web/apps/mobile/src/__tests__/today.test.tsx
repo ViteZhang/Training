@@ -138,6 +138,17 @@ describe('2.1 今日首页', () => {
     expect(screen.queryByText('今日训练')).toBeNull();
   });
 
+  it('还没有题库、官方题库开关打开：先引导添加官方题库，导入是兜底', async () => {
+    mockResponses['GET /feature-flags'] = () => ({ status: 200, data: { flags: { official_bank: true } } });
+    mockResponses['GET /home'] = () => ({ status: 200, data: home({ state: 'no_material', plan: undefined, stage_push: undefined, false_mastery_count: 0, banks: [bank({ question_count: 0, kp_count: 0, mastery_distribution: { unlearned: 0, learning: 0, consolidating: 0, mastered: 0 } })] }) });
+    await wrap(<TodayTab />);
+    expect(await screen.findByText('添加官方题库，开始今天的训练')).toBeTruthy();
+    expect(screen.getByText('先导入我自己的资料')).toBeTruthy();
+    expect(screen.queryByText('不知道先导入什么？')).toBeNull();
+    await fireEvent.press(screen.getByText('添加官方题库'));
+    expect(mockPush).toHaveBeenCalledWith('/bank/official');
+  });
+
   it('今日已完成（2.1d）：打卡、今日数据、明天预计', async () => {
     mockResponses['GET /home'] = () => ({ status: 200, data: home({ state: 'done', plan: plan({ completed: true }), tomorrow_minutes: 50 }) });
     await wrap(<TodayTab />);

@@ -22,7 +22,9 @@ export default function SetupStep() {
   const [busy, setBusy] = useState(false);
   const chosen = stage ?? year?.suggested_stage;
   const subjects = useSubjects();
-  const subjectList = subjects.data?.items ?? [];
+  // 官方题库为主：走官方题库引导（draft.after 有值）时，只有没有官方题库的课才需要参考教材（答案缺失时 AI 才会用到）。
+  const noOfficialIds = new Set((draft.noOfficial ?? []).map((n) => n.subjectId));
+  const subjectList = (subjects.data?.items ?? []).filter((s) => !draft.after || noOfficialIds.has(s.id));
   // 没改过时用服务端已存的教材（中途退出再回来不丢）。
   const [edited, setBooks] = useState<TextbookMap | null>(null);
   const books = edited ?? textbooksOf(subjectList);

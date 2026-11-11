@@ -192,10 +192,19 @@ export default function BankTab() {
           <Card style={styles.gap}>
             <Text variant="h3">{label} 还没有资料</Text>
             <Text variant="body" color={semantic.textSecondary}>
-              {subject.is_essay ? '导入历年作文真题、范文或写作笔记，AI 帮你整理成作文知识库' : '导入真题、讲义或笔记，AI 帮你整理成题库'}
+              {subject.is_essay ? '导入历年作文真题、范文或写作笔记，AI 帮你整理成作文知识库' : officialOn ? '官方题库的真题、答案和采分点都整理好了，添加后直接刷；还没收录的可以申请，或先导入自己的资料' : '导入真题、讲义或笔记，AI 帮你整理成题库'}
             </Text>
-            <Button title="导入资料" onPress={() => router.push({ pathname: '/import', params: { subjectId: String(subject.id) } })} />
-            {officialOn ? <Button title="添加官方题库" kind="secondary" onPress={() => router.push('/bank/official')} /> : null}
+            {officialOn && !subject.is_essay ? (
+              <>
+                <Button title={todo.length > 0 ? '添加官方题库（你的院校已收录）' : '看看有没有官方题库'} onPress={() => router.push('/bank/official')} />
+                {applyOn && todo.length === 0 ? (
+                  <Button title="申请收录这门课" kind="secondary" onPress={() => router.push({ pathname: '/apply', params: { entry: 'bank', subjectId: String(subject.id) } })} />
+                ) : null}
+                <Button title="先导入我自己的资料" kind="text" onPress={() => router.push({ pathname: '/import', params: { subjectId: String(subject.id) } })} />
+              </>
+            ) : (
+              <Button title="导入资料" onPress={() => router.push({ pathname: '/import', params: { subjectId: String(subject.id) } })} />
+            )}
           </Card>
         ) : (
           <>
@@ -234,20 +243,11 @@ export default function BankTab() {
       </ScrollView>
       <BottomSheet visible={adding} onClose={() => setAdding(false)} title={`添加到 ${label}`}>
         <View style={styles.gap}>
-          <AddOption
-            icon="import"
-            title="导入我的资料"
-            desc={subject.is_essay ? '作文真题、范文或写作笔记' : '真题、讲义、笔记，PDF、Word、照片都行'}
-            onPress={() => {
-              setAdding(false);
-              router.push({ pathname: '/import', params: { subjectId: String(subject.id) } });
-            }}
-          />
           {officialOn && !subject.is_essay ? (
             <AddOption
               icon="book"
               title="添加官方题库"
-              desc="院校真题与知识点，和自建的一起练"
+              desc="院校真题、参考答案和采分点都整理好了，添加后直接刷"
               tag={todo.length > 0 ? `你的院校有 ${todo.length} 门` : undefined}
               onPress={() => {
                 setAdding(false);
@@ -255,6 +255,15 @@ export default function BankTab() {
               }}
             />
           ) : null}
+          <AddOption
+            icon="import"
+            title={o?.has_official ? '补充我自己的资料' : '导入我的资料'}
+            desc={subject.is_essay ? '作文真题、范文或写作笔记' : o?.has_official ? '官方题库没有的讲义、笔记，自己补进来' : '真题、讲义、笔记，PDF、Word、照片都行'}
+            onPress={() => {
+              setAdding(false);
+              router.push({ pathname: '/import', params: { subjectId: String(subject.id) } });
+            }}
+          />
           {applyOn && !subject.is_essay && o && !o.has_official && todo.length === 0 ? (
             <Pressable
               accessibilityRole="link"
