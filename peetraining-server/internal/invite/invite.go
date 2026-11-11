@@ -77,7 +77,7 @@ func (s *Service) Bind(ctx context.Context, q *dbq.Queries, inviteeID uint64, co
 	return q.InsertInvite(ctx, dbq.InsertInviteParams{InviterID: inviter.ID, InviteeID: inviteeID, RegisteredAt: now.UTC()})
 }
 
-// Activate 在被邀请人确认导入资料的事务里调用：第一次时给被邀请人 7 天、邀请人 7 天（累计不超过 70 天），并发消息。
+// Activate 在被邀请人确认导入资料的事务里、以及添加官方题库成功后调用：第一次时给被邀请人 7 天、邀请人 7 天（累计不超过 70 天），并发消息。
 // 没有待激活的邀请时什么都不做，所以每次确认导入都可以调。
 func (s *Service) Activate(ctx context.Context, q *dbq.Queries, inviteeID uint64) error {
 	inv, err := q.GetPendingInviteForUpdate(ctx, inviteeID)

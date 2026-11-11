@@ -118,7 +118,9 @@ func (s *Service) subject(ctx context.Context, userID, subjectID uint64) (dbq.Ge
 
 // Config 是自定义练习条件（4.2）。
 type Config struct {
-	SectionIDs     []uint64 `json:"section_ids,omitempty"`
+	SectionIDs []uint64 `json:"section_ids,omitempty"`
+	// QuestionIDs 指定只练这几道题（题目详情「再练这道题」）：不再按其他条件筛，也不补 AI 变式题。
+	QuestionIDs    []uint64 `json:"question_ids,omitempty"`
 	QTypes         []string `json:"qtypes,omitempty"`
 	Count          int      `json:"count,omitempty"`
 	OnlyUnmastered bool     `json:"only_unmastered,omitempty"`
@@ -197,6 +199,19 @@ func (s *Service) pool(ctx context.Context, userID uint64, b dbq.GetSubjectBankR
 
 // filter 按自定义条件筛题（4.2）。
 func filter(items []poolItem, c Config) []poolItem {
+	if len(c.QuestionIDs) > 0 {
+		want := map[uint64]bool{}
+		for _, id := range c.QuestionIDs {
+			want[id] = true
+		}
+		var out []poolItem
+		for _, it := range items {
+			if want[it.ID] {
+				out = append(out, it)
+			}
+		}
+		return out
+	}
 	qt := map[string]bool{}
 	for _, t := range c.QTypes {
 		qt[t] = true
@@ -391,6 +406,12 @@ func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (Se
 	case KindCustom:
 		c := in.Config
 		c.Count = clampCount(c.Count, defaultCount)
+		if len(c.QuestionIDs) > 0 {
+			// 指定题目重练：题量就是这几道，不补 AI 变式题。
+			c.Count = min(len(c.QuestionIDs), maxCount)
+			c.AIFill = false
+			title = "再练一遍"
+		}
 		meta.Config = &c
 		hit := filter(items, c)
 		rank(hit, r)
