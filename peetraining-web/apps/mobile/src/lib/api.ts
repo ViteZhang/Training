@@ -38,6 +38,8 @@ export function apiRequestTimeoutMs(request: Request): number {
   if (request.method !== 'POST') return API_REQUEST_TIMEOUT_MS;
   if (path.endsWith('/handwriting/recognize')) return HANDWRITING_REQUEST_TIMEOUT_MS;
   if (/\/import-items\/[^/]+\/generate-answer$/.test(path)) return AI_ANSWER_REQUEST_TIMEOUT_MS;
+  // 重新生成知识点 AI 解读：现调模型
+  if (/\/knowledge-points\/[^/]+\/explanation$/.test(path)) return AI_ANSWER_REQUEST_TIMEOUT_MS;
   return API_REQUEST_TIMEOUT_MS;
 }
 
