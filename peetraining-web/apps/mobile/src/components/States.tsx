@@ -10,6 +10,7 @@ import { useDelayed } from '../lib/useDelayed';
 import { BottomSheet } from './BottomSheet';
 import { Button } from './Button';
 import { Icon, type IconName } from './Icon';
+import { LogoLoader } from './LogoLoader';
 import { Text } from './Text';
 
 /**
@@ -29,10 +30,13 @@ export function Skeleton({ rows = 3 }: { rows?: number }) {
   );
 }
 
-/** 加载中：超过 300 毫秒才显示骨架屏，避免闪烁。 */
-export function Loading({ rows }: { rows?: number }) {
+/**
+ * 加载中：超过 300 毫秒才出现，避免闪烁。原来的灰色骨架屏不会动，用户以为白屏了，
+ * 改成 Logo 进度环动画，等久了换安抚文案。rows 是旧骨架屏的行数，保留参数以兼容调用方。
+ */
+export function Loading(_props: { rows?: number }) {
   const show = useDelayed(true);
-  return show ? <Skeleton rows={rows} /> : null;
+  return show ? <LogoLoader /> : null;
 }
 
 function StateBlock({ icon, title, desc, action }: { icon: IconName; title: string; desc?: string; action?: ReactNode }) {
