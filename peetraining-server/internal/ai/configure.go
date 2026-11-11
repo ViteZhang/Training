@@ -24,6 +24,14 @@ func Routing(cfg config.AIConfig, fallback cloudai.Client) (Models, *Fallback) {
 	return primary, &Fallback{Client: fallback, Models: bailian}
 }
 
+// ModelFallbacks 返回中转平台上主模型不可用时依次尝试的模型；其他平台没有同平台备用模型。
+func ModelFallbacks(cfg config.AIConfig) []string {
+	if cfg.Provider != "relay" {
+		return nil
+	}
+	return cfg.RelayModelFallbacks
+}
+
 // PricesFrom 把配置里的价格（元 / 百万 token）换成引擎用的单位（百万分之一元 / 千 token）。
 func PricesFrom(cfg config.AIConfig) map[string]Price {
 	out := make(map[string]Price, len(cfg.Prices))

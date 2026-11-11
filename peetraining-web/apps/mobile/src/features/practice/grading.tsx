@@ -333,7 +333,6 @@ export function GradingResultView({
         </Text>
         {g.wrong_book === 'added' || g.wrong_book === 'still' ? <Text variant="small">已加入错题本</Text> : null}
       </View>
-      {reference && !g.answer_confirmed ? <ConfirmAIAnswerCard questionId={g.question_id} /> : null}
       {g.reference_answer ? (
         <View>
           <Button title={showRef ? '收起参考答案' : '参考答案'} kind="secondary" onPress={() => setShowRef(!showRef)} />
@@ -370,57 +369,9 @@ function AIAnswerNotice({ legacy }: { legacy: boolean }) {
           </Text>
         ) : (
           <Text variant="small" color={colors.blueInk} style={styles.lh19}>
-            这道题按 <Text variant="small" color={colors.blueInk} style={styles.bold}>AI 参考答案</Text> 批改，可以在参考答案里查看引用的教材段落；觉得答案不对，可以改成你的答案
+            这道题按 <Text variant="small" color={colors.blueInk} style={styles.bold}>AI 参考答案</Text> 批改，可以在参考答案里查看引用的教材段落
           </Text>
         )}
-      </View>
-    </View>
-  );
-}
-
-/** 4.7b「这份参考答案对吗？」：我来改 → 3.3b 编辑；答案没问题，确认 → 你已确认。 */
-function ConfirmAIAnswerCard({ questionId }: { questionId: number }) {
-  const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
-  if (done) {
-    return (
-      <View style={[styles.box, styles.aiCard]}>
-        <Text variant="caption" color={colors.ink}>
-          已确认，答案来源变为「你已确认」
-        </Text>
-      </View>
-    );
-  }
-  const confirm = async () => {
-    setBusy(true);
-    try {
-      await unwrap(api.POST('/questions/{questionId}/answer/confirm', { params: { path: { questionId } } }));
-      track('ai_answer_confirm');
-      void qc.invalidateQueries({ queryKey: ['bank'] });
-      setDone(true);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : '没确认成功，请重试');
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <View style={[styles.box, styles.aiCard]}>
-      <Text variant="body" color={colors.ink} style={styles.bold}>
-        这份参考答案对吗？
-      </Text>
-      <Text variant="small" style={styles.lh19}>
-        你确认后，它会变成这道题的正式答案；觉得不对可以改采分点，或补一份答案文件
-      </Text>
-      <View style={styles.row}>
-        <Button
-          title="我来改"
-          kind="secondary"
-          style={styles.flex}
-          onPress={() => router.push({ pathname: '/bank/question/[id]', params: { id: String(questionId), edit: '1' } })}
-        />
-        <Button title="答案没问题，确认" style={styles.flex} loading={busy} onPress={() => void confirm()} />
       </View>
     </View>
   );

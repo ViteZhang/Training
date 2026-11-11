@@ -220,6 +220,9 @@ type AIConfig struct {
 	RelayAPIKey      string
 	RelayModelStrong string
 	RelayModelCheap  string
+	// RelayModelFallbacks 是中转平台上主模型不可用时依次改用的模型（AI_RELAY_MODEL_FALLBACKS）。
+	// 中转站会下架单个模型或按分组路由，主模型报 404/403/5xx 时换模型通常比重试同一模型有效。
+	RelayModelFallbacks []string
 	// Prices 是各模型的价格：元 / 百万 token（输入、输出），来自 AI_PRICES，例如 "qwen3.8-flash=0.3:3"。
 	// 用于 ai_calls 记成本（7.8 成本看板）和评测的每千次成本；价格以平台当时的公开价为准，不写死在代码里。
 	Prices map[string][2]float64
@@ -284,6 +287,8 @@ func load(getenv func(string) string) (*Config, error) {
 			RelayAPIKey:      get("AI_RELAY_API_KEY", ""),
 			RelayModelStrong: get("AI_RELAY_MODEL_STRONG", "gpt-5.5"),
 			RelayModelCheap:  get("AI_RELAY_MODEL_CHEAP", "gpt-5.5"),
+			RelayModelFallbacks: splitModels(get("AI_RELAY_MODEL_FALLBACKS",
+				"deepseek-v4.1-flash,gemini-3.8-flash")),
 		},
 		OCR: OCRConfig{
 			Provider:    get("OCR_PROVIDER", ProviderMock),
@@ -419,6 +424,21 @@ func load(getenv func(string) string) (*Config, error) {
 
 // IsProduction 报告是否运行在生产环境。
 func (c *Config) IsProduction() bool { return c.AppEnv == EnvProduction }
+
+// splitModels 解析逗号分隔的模型名，去掉空项和重复项。
+func splitModels(v string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, m := range strings.Split(v, ",") {
+		m = strings.TrimSpace(m)
+		if m == "" || seen[m] {
+			continue
+		}
+		seen[m] = true
+		out = append(out, m)
+	}
+	return out
+}
 
 // parsePrices 解析 AI_PRICES："模型=输入:输出,…"，单位元 / 百万 token。
 func parsePrices(v string) (map[string][2]float64, error) {

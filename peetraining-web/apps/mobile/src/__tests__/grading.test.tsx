@@ -223,25 +223,20 @@ describe('待批改', () => {
 describe('4.4 / 4.7b 按 AI 参考答案批改', () => {
   const aiSession = (tier: string) => ({ ...session, questions: [{ ...termQ, answer_tier: tier }] });
 
-  it('4.4 标明按 AI 参考答案批改；4.7b 照常计入预估分（T49），可确认答案', async () => {
+  it('4.4 标明按 AI 参考答案批改；4.7b 照常计入预估分（T49），不再追问「这份参考答案对吗」', async () => {
     mockResponses['GET /practice-sessions/{sessionId}'] = () => ({ status: 200, data: aiSession('ai') });
     mockResponses['POST /practice-sessions/{sessionId}/gradings'] = () => ({
       status: 200,
       data: grading({ rubric_source: 'ai_generated', answer_tier: 'ai', answer_confirmed: false }),
     });
-    mockResponses['POST /questions/{questionId}/answer/confirm'] = () => ({ status: 200, data: { ...termQ, answer_tier: 'confirmed' } });
     await wrap(<PracticeRunner />);
     expect(await screen.findByText(/这道题按 AI 参考答案批改/)).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('你的答案'), answer);
     await fireEvent.press(screen.getByText('提交批改'));
     expect((await screen.findAllByText('AI 参考答案')).length).toBeGreaterThan(0);
     expect(screen.queryByText(/不计入预估分/)).toBeNull();
-    expect(screen.getByText('这份参考答案对吗？')).toBeTruthy();
-    await fireEvent.press(screen.getByText('我来改'));
-    expect(mockPush).toHaveBeenCalledWith({ pathname: '/bank/question/[id]', params: { id: '201', edit: '1' } });
-    await fireEvent.press(screen.getByText('答案没问题，确认'));
-    expect(await screen.findByText(/已确认，答案来源变为「你已确认」/)).toBeTruthy();
-    expect(mockCalls.some((c) => c.method === 'POST' && c.path === '/questions/{questionId}/answer/confirm')).toBe(true);
+    expect(screen.queryByText('这份参考答案对吗？')).toBeNull();
+    expect(screen.queryByText(/觉得答案不对/)).toBeNull();
   });
 
   it('还没有答案：提交时先生成 AI 参考答案；AI 出题次数用完时答案保留，可先自评', async () => {
