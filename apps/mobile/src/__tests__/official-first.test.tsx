@@ -325,6 +325,29 @@ describe('1.1a 匹配到官方题库', () => {
     expect(await screen.findByText('套模拟卷')).toBeTruthy();
   });
 
+  it('有限选题分组且方向对不上：先选报考方向，选完进 1.2', async () => {
+    const groups = [{ label: '第一组', majors: '外国哲学', matches: false }, { label: '第二组', majors: '中国哲学', matches: false }];
+    mockResponses['GET /official-banks'] = () => ({ status: 200, data: { items: [{ bank_id: 7, groups }] } });
+    mockResponses['PATCH /subjects/{subjectId}'] = () => ({ status: 200, data: { id: 5 } });
+    await wrap(<OfficialFound />);
+    await fireEvent.press(await screen.findByText('添加官方题库'));
+    expect(await screen.findByText('你报考的是哪个方向？')).toBeTruthy();
+    expect(mockPush).not.toHaveBeenCalledWith('/(onboarding)/target');
+    await fireEvent.press(screen.getByText('外国哲学'));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/(onboarding)/target'));
+    expect(mockCalls.find((c) => c.method === 'PATCH' && c.path === '/subjects/{subjectId}')?.init).toEqual({ params: { path: { subjectId: 5 } }, body: { my_majors: '外国哲学' } });
+  });
+
+  it('选「不区分，全部保留」也往下走，不改报考方向', async () => {
+    const groups = [{ label: '第一组', majors: '外国哲学', matches: false }, { label: '第二组', majors: '中国哲学', matches: false }];
+    mockResponses['GET /official-banks'] = () => ({ status: 200, data: { items: [{ bank_id: 7, groups }] } });
+    await wrap(<OfficialFound />);
+    await fireEvent.press(await screen.findByText('添加官方题库'));
+    await fireEvent.press(await screen.findByText('不区分，全部保留'));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/(onboarding)/target'));
+    expect(mockCalls.some((c) => c.method === 'PATCH' && c.path === '/subjects/{subjectId}')).toBe(false);
+  });
+
   it('已经添加过（409）也往下走', async () => {
     mockResponses['PUT /official-banks/{bankId}/subscription'] = () => ({ status: 409, error: { code: 'CONFLICT', message: '已经添加过这个官方题库' } });
     await wrap(<OfficialFound />);

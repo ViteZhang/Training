@@ -301,7 +301,7 @@ export default function KPCard() {
 
         <InfoCard label="AI 帮你理解" tone="fill" right={<Tag label="AI 生成" tone="ai" />}>
           <Text variant="caption" color={semantic.textPrimary} style={styles.lh}>
-            {k.ai_explanation ?? 'AI 解读暂时没生成出来，可以在「更多」里重新生成'}
+            {k.ai_explanation ?? 'AI 解读还在生成，稍后再打开就能看到；也可以在「更多」里重新生成'}
           </Text>
         </InfoCard>
 

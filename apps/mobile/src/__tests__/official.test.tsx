@@ -5,6 +5,7 @@ import OfficialBanksPage from '../../app/bank/official';
 import OfficialUpdates, { groupBySchool } from '../../app/official/updates';
 import { countMajors, matchTarget, OfficialNotice } from '../features/official/OfficialNotice';
 import { messageHref } from '../features/messages/api';
+import { needsGroupPick } from '../features/official/GroupPicker';
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
@@ -78,6 +79,34 @@ describe('添加官方题库（T30）', () => {
     const buttons = screen.getAllByText('移除');
     await fireEvent.press(buttons[buttons.length - 1]!);
     await waitFor(() => expect(mockCalls.find((c) => c.method === 'DELETE')).toBeTruthy());
+  });
+
+  it('添加后有限选题分组、方向一组都不匹配：请选报考方向，选中组的专业记为报考方向', async () => {
+    const groups = [
+      { label: '第一组', majors: '文艺学、比较文学与世界文学', matches: false },
+      { label: '第二组', majors: '中国古代文学', matches: false },
+    ];
+    mockResponses['GET /official-banks'] = () => ({ status: 200, data: { items: [bank({ groups })] } });
+    mockResponses['PATCH /subjects/{subjectId}'] = () => ({ status: 200, data: { id: 2 } });
+    await wrap(<OfficialBanksPage />);
+    await fireEvent.press(await screen.findByText('添加'));
+    await fireEvent.press(await screen.findByText('654 中国语言文学基础'));
+    expect(await screen.findByText('你报考的是哪个方向？')).toBeTruthy();
+    expect(screen.getByText('文艺学、比较文学与世界文学')).toBeTruthy();
+    await fireEvent.press(screen.getByText('中国古代文学'));
+    await waitFor(() => expect(mockCalls.find((c) => c.method === 'PATCH')).toBeTruthy());
+    expect(mockCalls.find((c) => c.method === 'PATCH')!.init).toEqual({ params: { path: { subjectId: 2 } }, body: { my_majors: '中国古代文学' } });
+  });
+
+  it('方向已匹配某一组，或没有分组：添加后不问', async () => {
+    const groups = [
+      { label: '第一组', majors: '文艺学', matches: false },
+      { label: '第二组', majors: '中国古代文学', matches: true },
+    ];
+    expect(needsGroupPick({ groups })).toBe(false);
+    expect(needsGroupPick({ groups: [] })).toBe(false);
+    expect(needsGroupPick({})).toBe(false);
+    expect(needsGroupPick({ groups: groups.map((g) => ({ ...g, matches: false })) })).toBe(true);
   });
 
   it('官方题库的消息跳到添加页或题库', () => {

@@ -2,6 +2,7 @@
 // 「所有用户免费使用，不需要上传任何资料」；同时选了没有官方题库的课时在下方列出，点进 1.1c。
 // 主按钮「添加官方题库」→ 添加到对应的专业课 → 1.2 设目标分（不再先做一道真题，1.1b 不进）；次按钮「不用，我导入自己的资料」→ 1.4。
 // 已经添加过（上次点过、接口返回 409）当作成功，直接往下走。
+// 官方题库有按专业分组的限选题、报考方向对不上任何一组时，先弹「你报考的是哪个方向？」（T51），选完再进 1.2。
 import { ApiError } from '@training/api-client';
 import { radius, semantic, spacing } from '@training/ui-tokens';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,6 +11,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, ErrorState, Icon, Loading, Screen, Tag, Text, toast } from '@/components';
 import { useCatalogCourses } from '@/features/official/api';
+import { GroupPicker, needsGroupPick, type GroupPick } from '@/features/official/GroupPicker';
 import { setStep } from '@/features/onboarding/api';
 import { loadDraft, saveDraft } from '@/features/onboarding/draft';
 import { Footer, StepHeader } from '@/features/onboarding/ui';
@@ -27,10 +29,24 @@ export default function OfficialFound() {
   const official = picked.filter((c) => c.official_status === 'available' && c.official);
   const others = draft.noOfficial ?? [];
 
+  // 添加后有限选题分组、报考方向对不上的课，逐门请用户选方向，选完再进 1.2
+  const [picks, setPicks] = useState<GroupPick[]>([]);
+  const next = async () => {
+    saveDraft({ after: '/(tabs)/bank' });
+    await setStep('1.2');
+    router.push('/(onboarding)/target');
+  };
+  const donePick = () => {
+    const rest = picks.slice(1);
+    setPicks(rest);
+    if (!rest.length) void next();
+  };
+
   const start = async () => {
     setBusy(true);
     try {
       let added = 0;
+      const addedTo: { bankId: number; subjectId: number; name: string }[] = [];
       for (const c of official) {
         const bank = c.official!;
         const subject = subjects.data?.items.find((s) => s.catalog_course_id === c.id);
@@ -45,11 +61,19 @@ export default function OfficialFound() {
           }
         }
         added++;
+        addedTo.push({ bankId: bank.bank_id, subjectId: subject.id, name: c.subject_name });
       }
       if (!added) throw new Error('没有可添加的官方题库');
-      saveDraft({ after: '/(tabs)/bank' });
-      await setStep('1.2');
-      router.push('/(onboarding)/target');
+      const banks = await qc.fetchQuery({ queryKey: ['official-banks'], queryFn: () => unwrap(api.GET('/official-banks')), staleTime: 0 }).catch(() => undefined);
+      const need = addedTo.flatMap((a) => {
+        const b = banks?.items?.find((x) => x.bank_id === a.bankId);
+        return b && needsGroupPick(b) ? [{ subjectId: a.subjectId, subjectName: a.name, groups: b.groups ?? [] }] : [];
+      });
+      if (need.length) {
+        setPicks(need);
+        return;
+      }
+      await next();
     } catch (e) {
       // 超时时服务端还在复制（不会因为断开撤销），稍后再点一次返回 409，直接往下走
       toast(e instanceof ApiError ? (e.isTimeout ? '还在添加，题目较多，请稍等再点一次' : e.message) : '添加失败，请重试');
@@ -113,6 +137,7 @@ export default function OfficialFound() {
         <Button title="添加官方题库" loading={busy} disabled={official.length === 0} onPress={() => void start()} />
         <Button title="不用，我导入自己的资料" kind="text" disabled={busy} onPress={() => void importOwn()} />
       </Footer>
+      <GroupPicker pick={picks[0]} onDone={donePick} />
     </Screen>
   );
 }
