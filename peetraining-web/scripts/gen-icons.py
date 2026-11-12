@@ -37,8 +37,11 @@ def render(name: str, content: str, size: int) -> None:
 def main() -> None:
     color = MARK.format(track=TRACK, arc=AMBER, dot=WHITE, t=WHITE)
     mono = MARK.format(track="#FFFFFF66", arc=WHITE, dot=WHITE, t=WHITE)
-    # 标志直径 69u；安卓前景画布取 119u，让标志落在 66/108 的圆形安全区内
-    safe = "-9.5 -9.5 119 119"
+    # 安卓自适应图标：前景画布 108dp，桌面只显示中间 72dp（四周各 18dp 被遮罩裁掉）。
+    # 标志直径 69u；画布取 150u，可见区域正好是 100u，标志占可见图标的 69%，
+    # 与 iOS 图标、启动页 Logo 的比例一致，并落在 66dp 圆形安全区内。
+    # （原先取 119u 是把标志撑满安全区，占到可见图标的 87%，桌面上显得过大。）
+    safe = "-25 -25 150 150"
     render("icon.png", svg("0 0 100 100", color, INDIGO), 1024)
     render("android-icon-foreground.png", svg(safe, color), 1024)
     render("android-icon-background.png", svg("0 0 100 100", "", INDIGO), 1024)
