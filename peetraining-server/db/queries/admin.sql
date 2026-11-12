@@ -147,10 +147,10 @@ SELECT * FROM redeem_batches WHERE id = ?;
 INSERT INTO redeem_batches (name, tier, days, quantity, code_expires_at, channel, created_by) VALUES (?, ?, ?, ?, ?, ?, ?);
 
 -- name: AdminInsertCode :exec
-INSERT INTO redeem_codes (batch_id, code_hash, code_tail) VALUES (?, ?, ?);
+INSERT INTO redeem_codes (batch_id, code_hash, code_tail, code_plain) VALUES (?, ?, ?, ?);
 
 -- name: AdminInsertCodeReturning :execlastid
-INSERT INTO redeem_codes (batch_id, code_hash, code_tail) VALUES (?, ?, ?);
+INSERT INTO redeem_codes (batch_id, code_hash, code_tail, code_plain, note, noted_by, noted_at) VALUES (?, ?, ?, ?, ?, ?, ?);
 
 -- name: AdminFindSingleBatch :one
 -- 7.4 单个发码：每个档位一个「企业微信客服 · 单个发码」批次；码有效期不足 180 天时另开一批。
@@ -168,12 +168,33 @@ VALUES (?, ?, ?, 'wecom', ?, ?, ?, ?, 'paid', ?, ?, ?, ?);
 UPDATE redeem_batches SET status = 'disabled' WHERE id = ? AND status = 'active';
 
 -- name: AdminBatchCodes :many
--- 批次明细：码只存哈希，明细显示末 3 位、状态、使用人与时间。
-SELECT id, code_tail, status, used_by, used_at FROM redeem_codes WHERE batch_id = ? ORDER BY id LIMIT 2000;
+-- 批次明细：明文（旧码补录前为空，只有末 3 位）、状态、使用人与时间、发放备注。
+SELECT c.id, c.code_tail, c.code_plain, c.status, c.used_by, c.used_at, c.note, c.noted_at, a.display_name AS noted_by_name
+FROM redeem_codes c LEFT JOIN admin_users a ON a.id = c.noted_by
+WHERE c.batch_id = ? ORDER BY c.id LIMIT 5000;
 
 -- name: AdminFindCode :one
-SELECT c.id, c.batch_id, c.code_tail, c.status, c.used_by, c.used_at, c.membership_id, b.name AS batch_name, b.tier, b.days, b.code_expires_at, b.status AS batch_status
-FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id WHERE c.code_hash = ?;
+SELECT c.id, c.batch_id, c.code_tail, c.code_plain, c.status, c.used_by, c.used_at, c.membership_id, c.note, c.noted_at, a.display_name AS noted_by_name,
+  b.name AS batch_name, b.tier, b.days, b.code_expires_at, b.status AS batch_status
+FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id LEFT JOIN admin_users a ON a.id = c.noted_by WHERE c.code_hash = ?;
+
+-- name: AdminSearchCodes :many
+-- 7.4 查找兑换码：按码（哈希，旧码没补录也能查）或备注里的文字（发给了谁），最多 50 条，新的在前。
+SELECT c.id, c.batch_id, c.code_tail, c.code_plain, c.status, c.used_by, c.used_at, c.note, c.noted_at, a.display_name AS noted_by_name,
+  b.name AS batch_name, b.tier, b.days, b.code_expires_at
+FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id LEFT JOIN admin_users a ON a.id = c.noted_by
+WHERE c.code_hash = sqlc.arg(code_hash) OR (CAST(sqlc.arg(keyword) AS CHAR) <> '' AND c.note LIKE CONCAT('%', CAST(sqlc.arg(keyword) AS CHAR), '%'))
+ORDER BY c.id DESC LIMIT 50;
+
+-- name: AdminSetCodeNote :execrows
+UPDATE redeem_codes SET note = ?, noted_by = ?, noted_at = ? WHERE id = ?;
+
+-- name: AdminBackfillCodePlain :execrows
+-- 旧码补录明文：只有哈希对得上本批次的码才写入。
+UPDATE redeem_codes SET code_plain = ? WHERE batch_id = ? AND code_hash = ? AND code_plain IS NULL;
+
+-- name: AdminCodeHashesInBatch :many
+SELECT code_hash, code_plain IS NOT NULL AS has_plain FROM redeem_codes WHERE batch_id = ?;
 
 -- name: AdminGetCodeForUpdate :one
 SELECT id, status, used_by, membership_id FROM redeem_codes WHERE id = ? FOR UPDATE;
@@ -317,3 +338,32 @@ SELECT
   (SELECT COUNT(*) FROM questions q WHERE q.ai_answer_at >= CAST(sqlc.arg(since) AS DATETIME)) AS ai_answers,
   (SELECT COUNT(*) FROM questions q WHERE q.ai_answer_at >= CAST(sqlc.arg(since) AS DATETIME) AND q.ai_answer_outcome = 'confirmed') AS ai_confirmed,
   (SELECT COUNT(*) FROM questions q WHERE q.ai_answer_at >= CAST(sqlc.arg(since) AS DATETIME) AND q.ai_answer_outcome = 'edited') AS ai_edited;
+
+-- ---------- 7.20 激活漏斗（用户使用进度，第一期只用业务表） ----------
+
+-- name: AdminJourneys :many
+-- 一批注册用户（按注册时间，或指定一个用户 ID）各里程碑第一次达成的时间；只读时间与状态，不读资料、题目与作答内容。
+-- return_day_at：第一次作答之后，在另一天（北京时间）再次作答的时间；北京时间次日 0 点 = DATE(首次作答 + 8 小时) + 16 小时（UTC）。
+SELECT u.id, u.phone, u.created_at, u.last_active_at, u.onboarding_step,
+  (SELECT MIN(m.created_at) FROM materials m WHERE m.owner_user_id = u.id AND m.status IN ('parsed', 'partial')) AS first_material_at,
+  (SELECT MIN(bs.added_at) FROM bank_subscriptions bs WHERE bs.owner_user_id = u.id) AS first_official_at,
+  (SELECT MIN(a.answered_at) FROM attempts a WHERE a.owner_user_id = u.id) AS first_answer_at,
+  (SELECT MAX(a.answered_at) FROM attempts a WHERE a.owner_user_id = u.id) AS last_answer_at,
+  (SELECT MIN(g.finished_at) FROM gradings g WHERE g.owner_user_id = u.id AND g.status = 'done') AS first_grading_at,
+  (SELECT MIN(a2.answered_at) FROM attempts a2 WHERE a2.owner_user_id = u.id
+    AND a2.answered_at >= (SELECT DATE_ADD(DATE(DATE_ADD(MIN(a1.answered_at), INTERVAL 8 HOUR)), INTERVAL 16 HOUR) FROM attempts a1 WHERE a1.owner_user_id = u.id)) AS return_day_at,
+  (SELECT MIN(a.answered_at) FROM attempts a WHERE a.owner_user_id = u.id AND a.answered_at >= DATE_ADD(u.created_at, INTERVAL 7 DAY)) AS week_later_at,
+  (SELECT MIN(o.paid_at) FROM orders o WHERE o.owner_user_id = u.id AND o.status IN ('paid', 'refunding', 'refunded')) AS first_paid_at
+FROM users u
+WHERE u.status <> 'deleting'
+  AND u.created_at >= CAST(sqlc.arg(from_t) AS DATETIME) AND u.created_at < CAST(sqlc.arg(to_t) AS DATETIME)
+  AND (CAST(sqlc.arg(user_id) AS UNSIGNED) = 0 OR u.id = CAST(sqlc.arg(user_id) AS UNSIGNED))
+ORDER BY u.id DESC;
+
+-- name: AdminUserDailyAnswers :many
+-- 用户每天（北京时间）的作答次数，用于 7.2 用户详情的「使用进度」。
+SELECT CAST(DATE(DATE_ADD(answered_at, INTERVAL 8 HOUR)) AS CHAR) AS day, COUNT(*) AS answers
+FROM attempts
+WHERE owner_user_id = sqlc.arg(user_id) AND answered_at >= CAST(sqlc.arg(since) AS DATETIME)
+GROUP BY day
+ORDER BY day;

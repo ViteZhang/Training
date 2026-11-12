@@ -8468,6 +8468,13 @@ type RedeemCode struct {
 	UsedBy       sql.NullInt64
 	UsedAt       sql.NullTime
 	MembershipID sql.NullInt64
+	// 兑换码明文；旧码补录前为空
+	CodePlain sql.NullString
+	// 发放备注（发给了谁）；有备注即已发放
+	Note sql.NullString
+	// 最后改备注的后台账号
+	NotedBy sql.NullInt64
+	NotedAt sql.NullTime
 }
 
 // 按设备的刷新令牌（6.11 登录设备列表）

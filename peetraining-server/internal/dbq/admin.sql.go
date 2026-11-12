@@ -61,19 +61,44 @@ func (q *Queries) AdminAnswerStats(ctx context.Context, arg AdminAnswerStatsPara
 	return i, err
 }
 
+const adminBackfillCodePlain = `-- name: AdminBackfillCodePlain :execrows
+UPDATE redeem_codes SET code_plain = ? WHERE batch_id = ? AND code_hash = ? AND code_plain IS NULL
+`
+
+type AdminBackfillCodePlainParams struct {
+	CodePlain sql.NullString
+	BatchID   uint64
+	CodeHash  string
+}
+
+// 旧码补录明文：只有哈希对得上本批次的码才写入。
+func (q *Queries) AdminBackfillCodePlain(ctx context.Context, arg AdminBackfillCodePlainParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, adminBackfillCodePlain, arg.CodePlain, arg.BatchID, arg.CodeHash)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const adminBatchCodes = `-- name: AdminBatchCodes :many
-SELECT id, code_tail, status, used_by, used_at FROM redeem_codes WHERE batch_id = ? ORDER BY id LIMIT 2000
+SELECT c.id, c.code_tail, c.code_plain, c.status, c.used_by, c.used_at, c.note, c.noted_at, a.display_name AS noted_by_name
+FROM redeem_codes c LEFT JOIN admin_users a ON a.id = c.noted_by
+WHERE c.batch_id = ? ORDER BY c.id LIMIT 5000
 `
 
 type AdminBatchCodesRow struct {
-	ID       uint64
-	CodeTail string
-	Status   RedeemCodesStatus
-	UsedBy   sql.NullInt64
-	UsedAt   sql.NullTime
+	ID          uint64
+	CodeTail    string
+	CodePlain   sql.NullString
+	Status      RedeemCodesStatus
+	UsedBy      sql.NullInt64
+	UsedAt      sql.NullTime
+	Note        sql.NullString
+	NotedAt     sql.NullTime
+	NotedByName sql.NullString
 }
 
-// 批次明细：码只存哈希，明细显示末 3 位、状态、使用人与时间。
+// 批次明细：明文（旧码补录前为空，只有末 3 位）、状态、使用人与时间、发放备注。
 func (q *Queries) AdminBatchCodes(ctx context.Context, batchID uint64) ([]AdminBatchCodesRow, error) {
 	rows, err := q.db.QueryContext(ctx, adminBatchCodes, batchID)
 	if err != nil {
@@ -86,9 +111,13 @@ func (q *Queries) AdminBatchCodes(ctx context.Context, batchID uint64) ([]AdminB
 		if err := rows.Scan(
 			&i.ID,
 			&i.CodeTail,
+			&i.CodePlain,
 			&i.Status,
 			&i.UsedBy,
 			&i.UsedAt,
+			&i.Note,
+			&i.NotedAt,
+			&i.NotedByName,
 		); err != nil {
 			return nil, err
 		}
@@ -110,6 +139,38 @@ UPDATE redeem_batches SET quantity = quantity + 1 WHERE id = ?
 func (q *Queries) AdminBumpBatchQuantity(ctx context.Context, id uint64) error {
 	_, err := q.db.ExecContext(ctx, adminBumpBatchQuantity, id)
 	return err
+}
+
+const adminCodeHashesInBatch = `-- name: AdminCodeHashesInBatch :many
+SELECT code_hash, code_plain IS NOT NULL AS has_plain FROM redeem_codes WHERE batch_id = ?
+`
+
+type AdminCodeHashesInBatchRow struct {
+	CodeHash string
+	HasPlain bool
+}
+
+func (q *Queries) AdminCodeHashesInBatch(ctx context.Context, batchID uint64) ([]AdminCodeHashesInBatchRow, error) {
+	rows, err := q.db.QueryContext(ctx, adminCodeHashesInBatch, batchID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminCodeHashesInBatchRow{}
+	for rows.Next() {
+		var i AdminCodeHashesInBatchRow
+		if err := rows.Scan(&i.CodeHash, &i.HasPlain); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const adminDisableBatch = `-- name: AdminDisableBatch :execrows
@@ -285,18 +346,23 @@ func (q *Queries) AdminFeedbackTypes(ctx context.Context, since time.Time) ([]Ad
 }
 
 const adminFindCode = `-- name: AdminFindCode :one
-SELECT c.id, c.batch_id, c.code_tail, c.status, c.used_by, c.used_at, c.membership_id, b.name AS batch_name, b.tier, b.days, b.code_expires_at, b.status AS batch_status
-FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id WHERE c.code_hash = ?
+SELECT c.id, c.batch_id, c.code_tail, c.code_plain, c.status, c.used_by, c.used_at, c.membership_id, c.note, c.noted_at, a.display_name AS noted_by_name,
+  b.name AS batch_name, b.tier, b.days, b.code_expires_at, b.status AS batch_status
+FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id LEFT JOIN admin_users a ON a.id = c.noted_by WHERE c.code_hash = ?
 `
 
 type AdminFindCodeRow struct {
 	ID            uint64
 	BatchID       uint64
 	CodeTail      string
+	CodePlain     sql.NullString
 	Status        RedeemCodesStatus
 	UsedBy        sql.NullInt64
 	UsedAt        sql.NullTime
 	MembershipID  sql.NullInt64
+	Note          sql.NullString
+	NotedAt       sql.NullTime
+	NotedByName   sql.NullString
 	BatchName     string
 	Tier          RedeemBatchesTier
 	Days          sql.NullInt16
@@ -311,10 +377,14 @@ func (q *Queries) AdminFindCode(ctx context.Context, codeHash string) (AdminFind
 		&i.ID,
 		&i.BatchID,
 		&i.CodeTail,
+		&i.CodePlain,
 		&i.Status,
 		&i.UsedBy,
 		&i.UsedAt,
 		&i.MembershipID,
+		&i.Note,
+		&i.NotedAt,
+		&i.NotedByName,
 		&i.BatchName,
 		&i.Tier,
 		&i.Days,
@@ -662,32 +732,50 @@ func (q *Queries) AdminInsertBatch(ctx context.Context, arg AdminInsertBatchPara
 }
 
 const adminInsertCode = `-- name: AdminInsertCode :exec
-INSERT INTO redeem_codes (batch_id, code_hash, code_tail) VALUES (?, ?, ?)
+INSERT INTO redeem_codes (batch_id, code_hash, code_tail, code_plain) VALUES (?, ?, ?, ?)
 `
 
 type AdminInsertCodeParams struct {
-	BatchID  uint64
-	CodeHash string
-	CodeTail string
+	BatchID   uint64
+	CodeHash  string
+	CodeTail  string
+	CodePlain sql.NullString
 }
 
 func (q *Queries) AdminInsertCode(ctx context.Context, arg AdminInsertCodeParams) error {
-	_, err := q.db.ExecContext(ctx, adminInsertCode, arg.BatchID, arg.CodeHash, arg.CodeTail)
+	_, err := q.db.ExecContext(ctx, adminInsertCode,
+		arg.BatchID,
+		arg.CodeHash,
+		arg.CodeTail,
+		arg.CodePlain,
+	)
 	return err
 }
 
 const adminInsertCodeReturning = `-- name: AdminInsertCodeReturning :execlastid
-INSERT INTO redeem_codes (batch_id, code_hash, code_tail) VALUES (?, ?, ?)
+INSERT INTO redeem_codes (batch_id, code_hash, code_tail, code_plain, note, noted_by, noted_at) VALUES (?, ?, ?, ?, ?, ?, ?)
 `
 
 type AdminInsertCodeReturningParams struct {
-	BatchID  uint64
-	CodeHash string
-	CodeTail string
+	BatchID   uint64
+	CodeHash  string
+	CodeTail  string
+	CodePlain sql.NullString
+	Note      sql.NullString
+	NotedBy   sql.NullInt64
+	NotedAt   sql.NullTime
 }
 
 func (q *Queries) AdminInsertCodeReturning(ctx context.Context, arg AdminInsertCodeReturningParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, adminInsertCodeReturning, arg.BatchID, arg.CodeHash, arg.CodeTail)
+	result, err := q.db.ExecContext(ctx, adminInsertCodeReturning,
+		arg.BatchID,
+		arg.CodeHash,
+		arg.CodeTail,
+		arg.CodePlain,
+		arg.Note,
+		arg.NotedBy,
+		arg.NotedAt,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -732,6 +820,92 @@ func (q *Queries) AdminInsertManualOrder(ctx context.Context, arg AdminInsertMan
 		return 0, err
 	}
 	return result.LastInsertId()
+}
+
+const adminJourneys = `-- name: AdminJourneys :many
+
+SELECT u.id, u.phone, u.created_at, u.last_active_at, u.onboarding_step,
+  (SELECT MIN(m.created_at) FROM materials m WHERE m.owner_user_id = u.id AND m.status IN ('parsed', 'partial')) AS first_material_at,
+  (SELECT MIN(bs.added_at) FROM bank_subscriptions bs WHERE bs.owner_user_id = u.id) AS first_official_at,
+  (SELECT MIN(a.answered_at) FROM attempts a WHERE a.owner_user_id = u.id) AS first_answer_at,
+  (SELECT MAX(a.answered_at) FROM attempts a WHERE a.owner_user_id = u.id) AS last_answer_at,
+  (SELECT MIN(g.finished_at) FROM gradings g WHERE g.owner_user_id = u.id AND g.status = 'done') AS first_grading_at,
+  (SELECT MIN(a2.answered_at) FROM attempts a2 WHERE a2.owner_user_id = u.id
+    AND a2.answered_at >= (SELECT DATE_ADD(DATE(DATE_ADD(MIN(a1.answered_at), INTERVAL 8 HOUR)), INTERVAL 16 HOUR) FROM attempts a1 WHERE a1.owner_user_id = u.id)) AS return_day_at,
+  (SELECT MIN(a.answered_at) FROM attempts a WHERE a.owner_user_id = u.id AND a.answered_at >= DATE_ADD(u.created_at, INTERVAL 7 DAY)) AS week_later_at,
+  (SELECT MIN(o.paid_at) FROM orders o WHERE o.owner_user_id = u.id AND o.status IN ('paid', 'refunding', 'refunded')) AS first_paid_at
+FROM users u
+WHERE u.status <> 'deleting'
+  AND u.created_at >= CAST(? AS DATETIME) AND u.created_at < CAST(? AS DATETIME)
+  AND (CAST(? AS UNSIGNED) = 0 OR u.id = CAST(? AS UNSIGNED))
+ORDER BY u.id DESC
+`
+
+type AdminJourneysParams struct {
+	FromT  time.Time
+	ToT    time.Time
+	UserID int64
+}
+
+type AdminJourneysRow struct {
+	ID              uint64
+	Phone           string
+	CreatedAt       time.Time
+	LastActiveAt    sql.NullTime
+	OnboardingStep  string
+	FirstMaterialAt interface{}
+	FirstOfficialAt interface{}
+	FirstAnswerAt   interface{}
+	LastAnswerAt    interface{}
+	FirstGradingAt  interface{}
+	ReturnDayAt     interface{}
+	WeekLaterAt     interface{}
+	FirstPaidAt     interface{}
+}
+
+// ---------- 7.20 激活漏斗（用户使用进度，第一期只用业务表） ----------
+// 一批注册用户（按注册时间，或指定一个用户 ID）各里程碑第一次达成的时间；只读时间与状态，不读资料、题目与作答内容。
+// return_day_at：第一次作答之后，在另一天（北京时间）再次作答的时间；北京时间次日 0 点 = DATE(首次作答 + 8 小时) + 16 小时（UTC）。
+func (q *Queries) AdminJourneys(ctx context.Context, arg AdminJourneysParams) ([]AdminJourneysRow, error) {
+	rows, err := q.db.QueryContext(ctx, adminJourneys,
+		arg.FromT,
+		arg.ToT,
+		arg.UserID,
+		arg.UserID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminJourneysRow{}
+	for rows.Next() {
+		var i AdminJourneysRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Phone,
+			&i.CreatedAt,
+			&i.LastActiveAt,
+			&i.OnboardingStep,
+			&i.FirstMaterialAt,
+			&i.FirstOfficialAt,
+			&i.FirstAnswerAt,
+			&i.LastAnswerAt,
+			&i.FirstGradingAt,
+			&i.ReturnDayAt,
+			&i.WeekLaterAt,
+			&i.FirstPaidAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const adminListBatches = `-- name: AdminListBatches :many
@@ -1268,6 +1442,75 @@ func (q *Queries) AdminSalesByTier(ctx context.Context, paidAt sql.NullTime) ([]
 	return items, nil
 }
 
+const adminSearchCodes = `-- name: AdminSearchCodes :many
+SELECT c.id, c.batch_id, c.code_tail, c.code_plain, c.status, c.used_by, c.used_at, c.note, c.noted_at, a.display_name AS noted_by_name,
+  b.name AS batch_name, b.tier, b.days, b.code_expires_at
+FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id LEFT JOIN admin_users a ON a.id = c.noted_by
+WHERE c.code_hash = ? OR (CAST(? AS CHAR) <> '' AND c.note LIKE CONCAT('%', CAST(? AS CHAR), '%'))
+ORDER BY c.id DESC LIMIT 50
+`
+
+type AdminSearchCodesParams struct {
+	CodeHash string
+	Keyword  interface{}
+}
+
+type AdminSearchCodesRow struct {
+	ID            uint64
+	BatchID       uint64
+	CodeTail      string
+	CodePlain     sql.NullString
+	Status        RedeemCodesStatus
+	UsedBy        sql.NullInt64
+	UsedAt        sql.NullTime
+	Note          sql.NullString
+	NotedAt       sql.NullTime
+	NotedByName   sql.NullString
+	BatchName     string
+	Tier          RedeemBatchesTier
+	Days          sql.NullInt16
+	CodeExpiresAt time.Time
+}
+
+// 7.4 查找兑换码：按码（哈希，旧码没补录也能查）或备注里的文字（发给了谁），最多 50 条，新的在前。
+func (q *Queries) AdminSearchCodes(ctx context.Context, arg AdminSearchCodesParams) ([]AdminSearchCodesRow, error) {
+	rows, err := q.db.QueryContext(ctx, adminSearchCodes, arg.CodeHash, arg.Keyword, arg.Keyword)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminSearchCodesRow{}
+	for rows.Next() {
+		var i AdminSearchCodesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.BatchID,
+			&i.CodeTail,
+			&i.CodePlain,
+			&i.Status,
+			&i.UsedBy,
+			&i.UsedAt,
+			&i.Note,
+			&i.NotedAt,
+			&i.NotedByName,
+			&i.BatchName,
+			&i.Tier,
+			&i.Days,
+			&i.CodeExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const adminSearchUsers = `-- name: AdminSearchUsers :many
 
 SELECT u.id, u.phone, u.invite_code, u.status, u.created_at, u.last_active_at,
@@ -1357,6 +1600,30 @@ func (q *Queries) AdminSearchUsers(ctx context.Context, arg AdminSearchUsersPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const adminSetCodeNote = `-- name: AdminSetCodeNote :execrows
+UPDATE redeem_codes SET note = ?, noted_by = ?, noted_at = ? WHERE id = ?
+`
+
+type AdminSetCodeNoteParams struct {
+	Note    sql.NullString
+	NotedBy sql.NullInt64
+	NotedAt sql.NullTime
+	ID      uint64
+}
+
+func (q *Queries) AdminSetCodeNote(ctx context.Context, arg AdminSetCodeNoteParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, adminSetCodeNote,
+		arg.Note,
+		arg.NotedBy,
+		arg.NotedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const adminSetDisputeAttribution = `-- name: AdminSetDisputeAttribution :execrows
@@ -1458,6 +1725,48 @@ func (q *Queries) AdminUserCounts(ctx context.Context, arg AdminUserCountsParams
 		&i.InviteDays,
 	)
 	return i, err
+}
+
+const adminUserDailyAnswers = `-- name: AdminUserDailyAnswers :many
+SELECT CAST(DATE(DATE_ADD(answered_at, INTERVAL 8 HOUR)) AS CHAR) AS day, COUNT(*) AS answers
+FROM attempts
+WHERE owner_user_id = ? AND answered_at >= CAST(? AS DATETIME)
+GROUP BY day
+ORDER BY day
+`
+
+type AdminUserDailyAnswersParams struct {
+	UserID uint64
+	Since  time.Time
+}
+
+type AdminUserDailyAnswersRow struct {
+	Day     interface{}
+	Answers int64
+}
+
+// 用户每天（北京时间）的作答次数，用于 7.2 用户详情的「使用进度」。
+func (q *Queries) AdminUserDailyAnswers(ctx context.Context, arg AdminUserDailyAnswersParams) ([]AdminUserDailyAnswersRow, error) {
+	rows, err := q.db.QueryContext(ctx, adminUserDailyAnswers, arg.UserID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminUserDailyAnswersRow{}
+	for rows.Next() {
+		var i AdminUserDailyAnswersRow
+		if err := rows.Scan(&i.Day, &i.Answers); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const adminUserSubjects = `-- name: AdminUserSubjects :many

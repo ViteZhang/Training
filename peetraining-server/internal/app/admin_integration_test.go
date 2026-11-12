@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -300,8 +301,69 @@ func TestIntegrationAdmin(t *testing.T) {
 		t.Errorf("单码查询：%d %s", code, body)
 	}
 	code, body = f.do("GET", fmt.Sprintf("/api/v1/admin/redeem/batches/%d", created.Batch.Id), support, "")
-	if code != 200 || strings.Count(body, `"tail"`) != 20 || strings.Contains(body, created.Codes[1]) {
-		t.Errorf("批次明细只有末 3 位：%d", code)
+	if code != 200 || strings.Count(body, `"tail"`) != 20 || !strings.Contains(body, created.Codes[1]) {
+		t.Errorf("批次明细直接显示明文（D54）：%d", code)
+	}
+
+	// 发放备注：客服记下发给了谁；按备注或码都能查到；清空备注回到未发放。
+	var detail struct {
+		Codes []gen.AdminCode `json:"codes"`
+	}
+	_ = json.Unmarshal([]byte(body), &detail)
+	second := detail.Codes[1]
+	if second.Code == nil || *second.Code != created.Codes[1] || second.Note != nil {
+		t.Fatalf("明细里的码：%+v", second)
+	}
+	if code, body := f.do("PUT", fmt.Sprintf("/api/v1/admin/redeem/codes/%d/note", second.Id), support, `{"note":"小红书 @考研的阿青"}`); code != 204 {
+		t.Fatalf("写备注：%d %s", code, body)
+	}
+	if code, _ := f.do("PUT", "/api/v1/admin/redeem/codes/999999/note", support, `{"note":"x"}`); code != 404 {
+		t.Errorf("不存在的码：%d", code)
+	}
+	if code, _ := f.do("PUT", fmt.Sprintf("/api/v1/admin/redeem/codes/%d/note", second.Id), support, fmt.Sprintf(`{"note":%q}`, strings.Repeat("长", 101))); code != 400 {
+		t.Errorf("备注超长：%d", code)
+	}
+	code, body = f.do("GET", "/api/v1/admin/redeem/codes/search?q="+url.QueryEscape("阿青"), support, "")
+	var found struct {
+		Items []gen.AdminCode `json:"items"`
+	}
+	_ = json.Unmarshal([]byte(body), &found)
+	if code != 200 || len(found.Items) != 1 || found.Items[0].Id != second.Id || found.Items[0].NotedByName == nil || *found.Items[0].NotedByName != "support1" || found.Items[0].NotedAt == nil {
+		t.Errorf("按备注查找：%d %s", code, body)
+	}
+	code, body = f.do("GET", "/api/v1/admin/redeem/codes/search?q="+strings.ToLower(created.Codes[1]), support, "")
+	if code != 200 || !strings.Contains(body, "考研的阿青") {
+		t.Errorf("按码查找（不区分大小写）：%d %s", code, body)
+	}
+	if code, body := f.do("GET", "/api/v1/admin/redeem/codes/search?q=%25", support, ""); code != 200 || strings.Contains(body, `"id"`) {
+		t.Errorf("通配符按字面查：%d %s", code, body)
+	}
+	if code, _ := f.do("PUT", fmt.Sprintf("/api/v1/admin/redeem/codes/%d/note", second.Id), support, `{"note":"  "}`); code != 204 {
+		t.Errorf("清空备注：%d", code)
+	}
+	if _, body := f.do("GET", "/api/v1/admin/redeem/codes/search?q="+url.QueryEscape("阿青"), support, ""); strings.Contains(body, `"id"`) {
+		t.Errorf("清空后查不到：%s", body)
+	}
+
+	// 旧码补录：库里没有明文时，粘贴当初导出的码，核对哈希后才写入；不属于本批次的忽略。
+	if _, err := b.DB.Exec("UPDATE redeem_codes SET code_plain = NULL WHERE batch_id = ?", created.Batch.Id); err != nil {
+		t.Fatal(err)
+	}
+	backfill := fmt.Sprintf(`{"codes":[%q,%q,%q,"ZZZZZZZZ",""]}`, created.Codes[2], " "+strings.ToLower(created.Codes[3])+" ", created.Codes[2])
+	code, body = f.do("POST", fmt.Sprintf("/api/v1/admin/redeem/batches/%d/plain-codes", created.Batch.Id), support, backfill)
+	if code != 200 || body != `{"already":0,"filled":2,"unmatched":1}` {
+		t.Errorf("补录：%d %s", code, body)
+	}
+	_, body = f.do("POST", fmt.Sprintf("/api/v1/admin/redeem/batches/%d/plain-codes", created.Batch.Id), support, backfill)
+	if body != `{"already":2,"filled":0,"unmatched":1}` {
+		t.Errorf("重复补录：%s", body)
+	}
+	_, body = f.do("GET", fmt.Sprintf("/api/v1/admin/redeem/batches/%d", created.Batch.Id), support, "")
+	if !strings.Contains(body, created.Codes[3]) || strings.Contains(body, created.Codes[4]) {
+		t.Errorf("补录后只有补上的码显示明文：%s", body)
+	}
+	if code, _ := f.do("POST", "/api/v1/admin/redeem/batches/999999/plain-codes", support, backfill); code != 404 {
+		t.Errorf("不存在的批次：%d", code)
 	}
 	if code, _ := f.do("POST", fmt.Sprintf("/api/v1/admin/redeem/codes/%d/void", one.Id), root, ""); code != 204 {
 		t.Errorf("作废单码：%d", code)

@@ -3355,6 +3355,110 @@ paths:
                 $ref: '#/components/schemas/AdminUserDetail'
         '404':
           $ref: '#/components/responses/NotFound'
+  /admin/users/{userId}/journey:
+    get:
+      tags:
+      - admin
+      operationId: getAdminUserJourney
+      summary: 7.2 用户详情 · 使用进度
+      x-roles:
+      - admin
+      - support
+      description: 用户在使用阶梯（注册 → 完成引导 → 有题库 → 首次作答 → 看到批改 → 隔天再练 → 7 日后仍在练 → 付费）上各级第一次达成的时间，加最近 30 天每天的作答次数。只有时间与数量，不含内容。
+      security:
+      - adminAuth: []
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserJourney'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/activation:
+    get:
+      tags:
+      - admin
+      operationId: getAdminActivation
+      summary: 7.20 激活漏斗
+      x-roles:
+      - admin
+      - analyst
+      - support
+      description: 注册日期（北京时间，含两端，最多一年）内的用户在使用阶梯上各级的达成人数、停在这一级的人数、从注册到达成的用时中位数。实时按业务表计算，不依赖埋点。
+      security:
+      - adminAuth: []
+      parameters:
+      - &activationFrom
+        name: from
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+      - &activationTo
+        name: to
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminActivation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /admin/activation/users:
+    get:
+      tags:
+      - admin
+      operationId: listAdminActivationUsers
+      summary: 7.20 激活漏斗 · 停在某一级的用户
+      x-roles:
+      - admin
+      - support
+      description: 注册日期内、最远停在 stage 这一级的用户，按用户 ID 倒序，50 条一页；手机号脱敏。
+      security:
+      - adminAuth: []
+      parameters:
+      - *activationFrom
+      - *activationTo
+      - name: stage
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/ActivationStage'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminJourney'
+                  next_cursor:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /admin/users/{userId}/phone:
     get:
       tags:
@@ -3926,7 +4030,7 @@ paths:
       summary: 7.4 单个发码 · 手动收款
       description: |
         客服在企业微信收款后生成一个兑换码，同时记一笔渠道为企业微信客服的已支付订单（收入计入 7.3），码归入「企业微信客服 · 单个发码」批次。
-        码不绑定手机号，手机号只记在订单上用于对账；码的明文只在这次响应里返回。
+        码不绑定手机号，手机号只记在订单上用于对账；码的明文同时存入批次明细，发放备注自动写「单个发码 · 脱敏手机号 · 备注」。
       x-roles:
       - admin
       - support
@@ -4005,6 +4109,131 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminCode'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/redeem/codes/search:
+    get:
+      tags:
+      - admin
+      operationId: searchRedeemCodes
+      summary: 查找兑换码
+      description: 输入完整的码（旧码没补录明文也能按哈希找到），或备注里的文字（如发给了谁）；最多 50 条，新的在前。
+      x-roles:
+      - admin
+      - support
+      security:
+      - adminAuth: []
+      parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminCode'
+  /admin/redeem/codes/{codeId}/note:
+    put:
+      tags:
+      - admin
+      operationId: setRedeemCodeNote
+      summary: 写发放备注
+      description: 记下这个码发给了谁，避免重复发放；空字符串清除备注（回到未发放）。
+      x-roles:
+      - admin
+      - support
+      security:
+      - adminAuth: []
+      parameters:
+      - name: codeId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - note
+              properties:
+                note:
+                  type: string
+                  maxLength: 100
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/redeem/batches/{batchId}/plain-codes:
+    post:
+      tags:
+      - admin
+      operationId: backfillRedeemCodes
+      summary: 旧码补录明文
+      description: 粘贴当初生成时导出的完整兑换码，服务端逐个核对哈希，只有属于这个批次的码才写入明文；不属于本批次或输错的忽略。
+      x-roles:
+      - admin
+      - support
+      security:
+      - adminAuth: []
+      parameters:
+      - name: batchId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - codes
+              properties:
+                codes:
+                  type: array
+                  minItems: 1
+                  maxItems: 5000
+                  items:
+                    type: string
+                    maxLength: 32
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - filled
+                - already
+                - unmatched
+                properties:
+                  filled: { type: integer, description: 本次补上明文的码 }
+                  already: { type: integer, description: 之前已有明文的码 }
+                  unmatched: { type: integer, description: 不属于这个批次或输错的码 }
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
   /admin/redeem/codes/{codeId}/void:
@@ -11884,6 +12113,105 @@ components:
             type: array
             items:
               $ref: '#/components/schemas/QuotaItem'
+    ActivationStage:
+      type: string
+      description: 使用阶梯的一级
+      enum:
+      - registered
+      - onboarded
+      - has_bank
+      - first_answer
+      - first_grading
+      - return_day
+      - week_later
+      - paid
+    AdminActivationStep:
+      type: object
+      required:
+      - key
+      - label
+      - hint
+      - reached
+      - stuck
+      properties:
+        key:
+          $ref: '#/components/schemas/ActivationStage'
+        label: { type: string }
+        hint: { type: string, description: 这一级怎么算 }
+        reached: { type: integer, description: 达成过这一级的人数 }
+        stuck: { type: integer, description: 最远停在这一级的人数 }
+        median_hours: { type: number, format: float, description: 达成者从注册到达成的用时中位数（小时）；没有时间记录的一级（完成引导）不返回 }
+    AdminActivation:
+      type: object
+      required:
+      - from
+      - to
+      - total
+      - steps
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        total: { type: integer, description: 这批注册用户的人数 }
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminActivationStep'
+    AdminMilestone:
+      type: object
+      required:
+      - key
+      - label
+      - reached
+      properties:
+        key:
+          $ref: '#/components/schemas/ActivationStage'
+        label: { type: string }
+        reached: { type: boolean }
+        at: { type: string, format: date-time, description: 第一次达成的时间；完成引导没有记录时间 }
+    AdminJourney:
+      type: object
+      required:
+      - user_id
+      - phone_masked
+      - created_at
+      - current
+      - milestones
+      properties:
+        user_id: { type: integer, format: int64 }
+        phone_masked: { type: string }
+        created_at: { type: string, format: date-time }
+        last_active_at: { type: string, format: date-time, description: 最后一次登录、刷新令牌或作答，取最晚的 }
+        last_answer_at: { type: string, format: date-time }
+        current:
+          $ref: '#/components/schemas/ActivationStage'
+        milestones:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminMilestone'
+    AdminUserJourney:
+      allOf:
+      - $ref: '#/components/schemas/AdminJourney'
+      - type: object
+        required:
+        - active_days_30
+        - answers_30
+        - days
+        properties:
+          active_days_30: { type: integer, description: 最近 30 天有作答的天数 }
+          answers_30: { type: integer, description: 最近 30 天的作答次数 }
+          days:
+            type: array
+            description: 最近 30 天每天（北京时间）的作答次数，没作答的日子不列
+            items:
+              $ref: '#/components/schemas/AdminDayAnswers'
+    AdminDayAnswers:
+      type: object
+      required:
+      - day
+      - answers
+      properties:
+        day: { type: string, format: date }
+        answers: { type: integer }
     AdminAudit:
       type: object
       required:
@@ -12155,6 +12483,10 @@ components:
         tier: *id001_4
         days: *id002_4
         expires_at: *id004_3
+        code: { type: string, description: 兑换码明文；旧码在补录前不返回（只有末 3 位） }
+        note: { type: string, description: 发放备注（发给了谁）；有备注即视为已发放 }
+        noted_at: { type: string, format: date-time }
+        noted_by_name: { type: string, description: 最后改备注的后台账号 }
     AdminFormatStat:
       type: object
       required:

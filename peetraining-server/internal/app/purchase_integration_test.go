@@ -131,6 +131,11 @@ func TestIntegrationPurchaseEntryAndManualCode(t *testing.T) {
 	if len(issued.Code) != 8 || !strings.HasPrefix(issued.OrderNo, "W") {
 		t.Fatalf("单个发码结果：%+v", issued)
 	}
+	// 单个发码自动写发放备注（脱敏手机号 + 客服备注），明细里能直接看到明文（D54）。
+	if code, body := f.do("GET", "/api/v1/admin/redeem/codes/search?q="+issued.Code, support, ""); code != 200 ||
+		!strings.Contains(body, `"note":"单个发码 · 139****1234 · 小红书来的"`) || !strings.Contains(body, `"code":"`+issued.Code+`"`) || strings.Contains(body, "13900001234") {
+		t.Errorf("单个发码的备注：%d %s", code, body)
+	}
 	code, body = f.do("POST", "/api/v1/admin/redeem/single-codes", support, issue)
 	var second struct {
 		BatchID int64 `json:"batch_id"`

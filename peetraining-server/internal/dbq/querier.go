@@ -34,9 +34,12 @@ type Querier interface {
 	AddTextbookDailyBudget(ctx context.Context, arg AddTextbookDailyBudgetParams) error
 	// 7.5 缺答案（PRD v3 11.16）：只统计数量，不读题目与答案内容。
 	AdminAnswerStats(ctx context.Context, arg AdminAnswerStatsParams) (AdminAnswerStatsRow, error)
-	// 批次明细：码只存哈希，明细显示末 3 位、状态、使用人与时间。
+	// 旧码补录明文：只有哈希对得上本批次的码才写入。
+	AdminBackfillCodePlain(ctx context.Context, arg AdminBackfillCodePlainParams) (int64, error)
+	// 批次明细：明文（旧码补录前为空，只有末 3 位）、状态、使用人与时间、发放备注。
 	AdminBatchCodes(ctx context.Context, batchID uint64) ([]AdminBatchCodesRow, error)
 	AdminBumpBatchQuantity(ctx context.Context, id uint64) error
+	AdminCodeHashesInBatch(ctx context.Context, batchID uint64) ([]AdminCodeHashesInBatchRow, error)
 	AdminDisableBatch(ctx context.Context, id uint64) (int64, error)
 	AdminDisputeReasons(ctx context.Context, since time.Time) ([]AdminDisputeReasonsRow, error)
 	// ---------- 7.6 批改异议 ----------
@@ -65,6 +68,10 @@ type Querier interface {
 	AdminInsertCodeReturning(ctx context.Context, arg AdminInsertCodeReturningParams) (int64, error)
 	// PRD v3 13.3：客服收款后单个发码，记一笔已支付订单，收入计入 7.3（渠道：企业微信客服）。
 	AdminInsertManualOrder(ctx context.Context, arg AdminInsertManualOrderParams) (int64, error)
+	// ---------- 7.20 激活漏斗（用户使用进度，第一期只用业务表） ----------
+	// 一批注册用户（按注册时间，或指定一个用户 ID）各里程碑第一次达成的时间；只读时间与状态，不读资料、题目与作答内容。
+	// return_day_at：第一次作答之后，在另一天（北京时间）再次作答的时间；北京时间次日 0 点 = DATE(首次作答 + 8 小时) + 16 小时（UTC）。
+	AdminJourneys(ctx context.Context, arg AdminJourneysParams) ([]AdminJourneysRow, error)
 	AdminListApplicationGroups(ctx context.Context, arg AdminListApplicationGroupsParams) ([]AdminListApplicationGroupsRow, error)
 	AdminListBatches(ctx context.Context, arg AdminListBatchesParams) ([]AdminListBatchesRow, error)
 	// 后台考试科目列表：按命题方式、学科筛选，按院校、科目名、代码搜索（统考科目还按登记的院校搜）。
@@ -92,12 +99,17 @@ type Querier interface {
 	AdminRevokeUserTokens(ctx context.Context, arg AdminRevokeUserTokensParams) error
 	AdminSalesByTier(ctx context.Context, paidAt sql.NullTime) ([]AdminSalesByTierRow, error)
 	AdminSampleStats(ctx context.Context, since sql.NullTime) (AdminSampleStatsRow, error)
+	// 7.4 查找兑换码：按码（哈希，旧码没补录也能查）或备注里的文字（发给了谁），最多 50 条，新的在前。
+	AdminSearchCodes(ctx context.Context, arg AdminSearchCodesParams) ([]AdminSearchCodesRow, error)
 	// ---------- 7.2 用户 ----------
 	// 搜索手机号、用户 ID、邀请码；筛选：付费、额度用完、解析失败、未导入资料。只返回计数与状态。
 	AdminSearchUsers(ctx context.Context, arg AdminSearchUsersParams) ([]AdminSearchUsersRow, error)
+	AdminSetCodeNote(ctx context.Context, arg AdminSetCodeNoteParams) (int64, error)
 	AdminSetDisputeAttribution(ctx context.Context, arg AdminSetDisputeAttributionParams) (int64, error)
 	AdminSetUserStatus(ctx context.Context, arg AdminSetUserStatusParams) (int64, error)
 	AdminUserCounts(ctx context.Context, arg AdminUserCountsParams) (AdminUserCountsRow, error)
+	// 用户每天（北京时间）的作答次数，用于 7.2 用户详情的「使用进度」。
+	AdminUserDailyAnswers(ctx context.Context, arg AdminUserDailyAnswersParams) ([]AdminUserDailyAnswersRow, error)
 	// 专业课名称与代码（用户填的元数据）、满分、目标分与最新预估区间（数字）。
 	AdminUserSubjects(ctx context.Context, ownerUserID uint64) ([]AdminUserSubjectsRow, error)
 	AdminVoidCode(ctx context.Context, id uint64) (int64, error)
