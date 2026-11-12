@@ -4030,7 +4030,7 @@ paths:
       summary: 7.4 单个发码 · 手动收款
       description: |
         客服在企业微信收款后生成一个兑换码，同时记一笔渠道为企业微信客服的已支付订单（收入计入 7.3），码归入「企业微信客服 · 单个发码」批次。
-        码不绑定手机号，手机号只记在订单上用于对账；码的明文只在这次响应里返回。
+        码不绑定手机号，手机号只记在订单上用于对账；码的明文同时存入批次明细，发放备注自动写「单个发码 · 脱敏手机号 · 备注」。
       x-roles:
       - admin
       - support
@@ -4109,6 +4109,131 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminCode'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/redeem/codes/search:
+    get:
+      tags:
+      - admin
+      operationId: searchRedeemCodes
+      summary: 查找兑换码
+      description: 输入完整的码（旧码没补录明文也能按哈希找到），或备注里的文字（如发给了谁）；最多 50 条，新的在前。
+      x-roles:
+      - admin
+      - support
+      security:
+      - adminAuth: []
+      parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminCode'
+  /admin/redeem/codes/{codeId}/note:
+    put:
+      tags:
+      - admin
+      operationId: setRedeemCodeNote
+      summary: 写发放备注
+      description: 记下这个码发给了谁，避免重复发放；空字符串清除备注（回到未发放）。
+      x-roles:
+      - admin
+      - support
+      security:
+      - adminAuth: []
+      parameters:
+      - name: codeId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - note
+              properties:
+                note:
+                  type: string
+                  maxLength: 100
+      responses:
+        '204':
+          description: 完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/redeem/batches/{batchId}/plain-codes:
+    post:
+      tags:
+      - admin
+      operationId: backfillRedeemCodes
+      summary: 旧码补录明文
+      description: 粘贴当初生成时导出的完整兑换码，服务端逐个核对哈希，只有属于这个批次的码才写入明文；不属于本批次或输错的忽略。
+      x-roles:
+      - admin
+      - support
+      security:
+      - adminAuth: []
+      parameters:
+      - name: batchId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - codes
+              properties:
+                codes:
+                  type: array
+                  minItems: 1
+                  maxItems: 5000
+                  items:
+                    type: string
+                    maxLength: 32
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - filled
+                - already
+                - unmatched
+                properties:
+                  filled: { type: integer, description: 本次补上明文的码 }
+                  already: { type: integer, description: 之前已有明文的码 }
+                  unmatched: { type: integer, description: 不属于这个批次或输错的码 }
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
   /admin/redeem/codes/{codeId}/void:
@@ -12358,6 +12483,10 @@ components:
         tier: *id001_4
         days: *id002_4
         expires_at: *id004_3
+        code: { type: string, description: 兑换码明文；旧码在补录前不返回（只有末 3 位） }
+        note: { type: string, description: 发放备注（发给了谁）；有备注即视为已发放 }
+        noted_at: { type: string, format: date-time }
+        noted_by_name: { type: string, description: 最后改备注的后台账号 }
     AdminFormatStat:
       type: object
       required:

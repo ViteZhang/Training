@@ -192,7 +192,7 @@ func newCode() string {
 	return string(b)
 }
 
-// CreateBatch 生成一批兑换码。库里只存哈希（D28），明文只在这次返回，由后台当场导出（D37）。
+// CreateBatch 生成一批兑换码。兑换按哈希核对（D28）；明文也存一份，后台明细可直接查看、复制（D54）。
 func (s *Service) CreateBatch(ctx context.Context, adminID uint64, in NewBatch) (Batch, []string, error) {
 	switch {
 	case strings.TrimSpace(in.Name) == "":
@@ -222,7 +222,7 @@ func (s *Service) CreateBatch(ctx context.Context, adminID uint64, in NewBatch) 
 			if seen[c] {
 				continue
 			}
-			err := q.AdminInsertCode(ctx, dbq.AdminInsertCodeParams{BatchID: uint64(id), CodeHash: membership.HashCode(c), CodeTail: c[5:]})
+			err := q.AdminInsertCode(ctx, dbq.AdminInsertCodeParams{BatchID: uint64(id), CodeHash: membership.HashCode(c), CodeTail: c[5:], CodePlain: nullStr(c)})
 			if isDuplicate(err) {
 				continue // 与历史批次撞码：换一个
 			}
@@ -255,21 +255,25 @@ func (s *Service) DisableBatch(ctx context.Context, id uint64) error {
 	return nil
 }
 
-// CodeRow 是批次明细或单码查询的一个码（明文不存，只有末 3 位）。
+// CodeRow 是批次明细或单码查询的一个码。Code 是明文，旧码补录前为空（只有末 3 位）；Note 是发放备注，有备注即视为已发放。
 type CodeRow struct {
-	ID        uint64
-	Tail      string
-	Status    string
-	UsedBy    uint64
-	UsedAt    *time.Time
-	BatchID   uint64
-	BatchName string
-	Tier      string
-	Days      int
-	ExpiresAt time.Time
+	ID          uint64
+	Tail        string
+	Code        string
+	Note        string
+	NotedAt     *time.Time
+	NotedByName string
+	Status      string
+	UsedBy      uint64
+	UsedAt      *time.Time
+	BatchID     uint64
+	BatchName   string
+	Tier        string
+	Days        int
+	ExpiresAt   time.Time
 }
 
-// BatchCodes 是批次明细（「导出」导出的是这个：末 3 位、状态、使用人与时间）。
+// BatchCodes 是批次明细（「导出」导出的是这个：明文、状态、使用人与时间、发放备注）。
 func (s *Service) BatchCodes(ctx context.Context, id uint64) (Batch, []CodeRow, error) {
 	b, err := s.q.AdminGetBatch(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -284,7 +288,8 @@ func (s *Service) BatchCodes(ctx context.Context, id uint64) (Batch, []CodeRow, 
 	}
 	out := make([]CodeRow, len(rows))
 	for i, r := range rows {
-		out[i] = CodeRow{ID: r.ID, Tail: r.CodeTail, Status: string(r.Status), UsedBy: uint64(r.UsedBy.Int64), UsedAt: nullTimePtr(r.UsedAt), BatchID: id, BatchName: b.Name,
+		out[i] = CodeRow{ID: r.ID, Tail: r.CodeTail, Code: r.CodePlain.String, Note: r.Note.String, NotedAt: nullTimePtr(r.NotedAt), NotedByName: r.NotedByName.String,
+			Status: string(r.Status), UsedBy: uint64(r.UsedBy.Int64), UsedAt: nullTimePtr(r.UsedAt), BatchID: id, BatchName: b.Name,
 			Tier: string(b.Tier), Days: int(b.Days.Int16), ExpiresAt: b.CodeExpiresAt}
 	}
 	return Batch{ID: b.ID, Name: b.Name, Tier: string(b.Tier), Days: int(b.Days.Int16), Quantity: int(b.Quantity), ExpiresAt: b.CodeExpiresAt, Channel: b.Channel,
@@ -304,9 +309,112 @@ func (s *Service) FindCode(ctx context.Context, code string) (CodeRow, error) {
 	if err != nil {
 		return CodeRow{}, err
 	}
-	return CodeRow{ID: r.ID, Tail: r.CodeTail, Status: string(r.Status), UsedBy: uint64(r.UsedBy.Int64), UsedAt: nullTimePtr(r.UsedAt), BatchID: r.BatchID,
+	return CodeRow{ID: r.ID, Tail: r.CodeTail, Code: r.CodePlain.String, Note: r.Note.String, NotedAt: nullTimePtr(r.NotedAt), NotedByName: r.NotedByName.String,
+		Status: string(r.Status), UsedBy: uint64(r.UsedBy.Int64), UsedAt: nullTimePtr(r.UsedAt), BatchID: r.BatchID,
 		BatchName: r.BatchName, Tier: string(r.Tier), Days: int(r.Days.Int16), ExpiresAt: r.CodeExpiresAt}, nil
 }
+
+// SearchCodes 查找兑换码：输入完整的码（旧码没补录明文也能按哈希找到），或备注里的文字（如发给了谁），最多 50 条。
+func (s *Service) SearchCodes(ctx context.Context, q string) ([]CodeRow, error) {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return []CodeRow{}, nil
+	}
+	hash := ""
+	if c := membership.NormalizeCode(q); c != "" {
+		hash = membership.HashCode(c)
+	}
+	keyword := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(q)
+	rows, err := s.q.AdminSearchCodes(ctx, dbq.AdminSearchCodesParams{CodeHash: hash, Keyword: keyword})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]CodeRow, len(rows))
+	for i, r := range rows {
+		out[i] = CodeRow{ID: r.ID, Tail: r.CodeTail, Code: r.CodePlain.String, Note: r.Note.String, NotedAt: nullTimePtr(r.NotedAt), NotedByName: r.NotedByName.String,
+			Status: string(r.Status), UsedBy: uint64(r.UsedBy.Int64), UsedAt: nullTimePtr(r.UsedAt), BatchID: r.BatchID,
+			BatchName: r.BatchName, Tier: string(r.Tier), Days: int(r.Days.Int16), ExpiresAt: r.CodeExpiresAt}
+	}
+	return out, nil
+}
+
+// maxNote 是发放备注的最大字数。
+const maxNote = 100
+
+// SetCodeNote 写发放备注（发给了谁）；空字符串清除备注，码回到「未发放」。
+func (s *Service) SetCodeNote(ctx context.Context, adminID, codeID uint64, note string) error {
+	note = strings.TrimSpace(note)
+	if len([]rune(note)) > maxNote {
+		return apperr.New(apperr.BadRequest, "备注最多 100 字")
+	}
+	n, err := s.q.AdminSetCodeNote(ctx, dbq.AdminSetCodeNoteParams{Note: nullStr(note), NotedBy: sql.NullInt64{Int64: int64(adminID), Valid: note != ""},
+		NotedAt: sql.NullTime{Time: s.now().UTC(), Valid: note != ""}, ID: codeID})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		// 备注没变时 MySQL 也报 0 行：再确认码是否存在。
+		if _, err := s.q.AdminGetCodeForUpdate(ctx, codeID); errors.Is(err, sql.ErrNoRows) {
+			return apperr.NotFoundErr()
+		} else if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Backfill 是旧码补录明文的结果：Filled 本次补上的；Already 之前已有明文的；Unmatched 不属于这个批次（或输错）的。
+type Backfill struct {
+	Filled, Already, Unmatched int
+}
+
+// BackfillCodes 旧码补录明文（D54）：粘贴当初导出的码，逐个核对哈希，只有属于这个批次的码才写入明文。
+func (s *Service) BackfillCodes(ctx context.Context, batchID uint64, codes []string) (Backfill, error) {
+	if _, err := s.q.AdminGetBatch(ctx, batchID); errors.Is(err, sql.ErrNoRows) {
+		return Backfill{}, apperr.NotFoundErr()
+	} else if err != nil {
+		return Backfill{}, err
+	}
+	if len(codes) == 0 || len(codes) > maxBatch {
+		return Backfill{}, apperr.New(apperr.BadRequest, "一次补录 1–5000 个码")
+	}
+	rows, err := s.q.AdminCodeHashesInBatch(ctx, batchID)
+	if err != nil {
+		return Backfill{}, err
+	}
+	hasPlain := make(map[string]bool, len(rows))
+	for _, r := range rows {
+		hasPlain[r.CodeHash] = r.HasPlain
+	}
+	var out Backfill
+	seen := map[string]bool{}
+	err = store.WithTx(ctx, s.d.DB, func(q *dbq.Queries) error {
+		for _, raw := range codes {
+			c := membership.NormalizeCode(raw)
+			if c == "" || seen[c] {
+				continue
+			}
+			seen[c] = true
+			h := membership.HashCode(c)
+			plain, ok := hasPlain[h]
+			switch {
+			case !ok:
+				out.Unmatched++
+			case plain:
+				out.Already++
+			default:
+				if _, err := q.AdminBackfillCodePlain(ctx, dbq.AdminBackfillCodePlainParams{CodePlain: nullStr(c), BatchID: batchID, CodeHash: h}); err != nil {
+					return err
+				}
+				out.Filled++
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+
+func nullStr(v string) sql.NullString { return sql.NullString{String: v, Valid: v != ""} }
 
 // VoidCode 作废单码；已兑换的同时收回那段会员（PRD 13.4）。
 func (s *Service) VoidCode(ctx context.Context, id uint64) error {
@@ -349,7 +457,7 @@ type ManualSale struct {
 	Remark      string
 }
 
-// ManualCode 是单个发码的结果：码的明文只在这次返回，客服复制后发给用户。
+// ManualCode 是单个发码的结果：客服复制后发给用户；明文与发放备注（脱敏手机号）也存在批次明细里。
 type ManualCode struct {
 	Code    string
 	OrderNo string
@@ -399,7 +507,9 @@ func (s *Service) IssueManualCode(ctx context.Context, adminID uint64, in Manual
 		var codeID int64
 		for {
 			c := newCode()
-			codeID, err = q.AdminInsertCodeReturning(ctx, dbq.AdminInsertCodeReturningParams{BatchID: batchID, CodeHash: membership.HashCode(c), CodeTail: c[5:]})
+			codeID, err = q.AdminInsertCodeReturning(ctx, dbq.AdminInsertCodeReturningParams{BatchID: batchID, CodeHash: membership.HashCode(c), CodeTail: c[5:],
+				CodePlain: nullStr(c), Note: nullStr(manualNote(phone, in.Remark)), NotedBy: sql.NullInt64{Int64: int64(adminID), Valid: true},
+				NotedAt: sql.NullTime{Time: now, Valid: true}})
 			if isDuplicate(err) {
 				continue
 			}
@@ -431,6 +541,18 @@ func (s *Service) IssueManualCode(ctx context.Context, adminID uint64, in Manual
 }
 
 var phonePattern = regexp.MustCompile(`^1[3-9][0-9]{9}$`)
+
+// manualNote 是单个发码自动写上的发放备注：脱敏手机号加客服备注，截到 100 字。
+func manualNote(phone, remark string) string {
+	n := "单个发码 · " + MaskPhone(phone)
+	if r := strings.TrimSpace(remark); r != "" {
+		n += " · " + r
+	}
+	if rs := []rune(n); len(rs) > maxNote {
+		n = string(rs[:maxNote])
+	}
+	return n
+}
 
 // manualOrderNo 与在线支付的订单号同格式，前缀 W 表示企业微信客服手动收款。
 func manualOrderNo(now time.Time) string {

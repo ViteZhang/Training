@@ -61,19 +61,44 @@ func (q *Queries) AdminAnswerStats(ctx context.Context, arg AdminAnswerStatsPara
 	return i, err
 }
 
+const adminBackfillCodePlain = `-- name: AdminBackfillCodePlain :execrows
+UPDATE redeem_codes SET code_plain = ? WHERE batch_id = ? AND code_hash = ? AND code_plain IS NULL
+`
+
+type AdminBackfillCodePlainParams struct {
+	CodePlain sql.NullString
+	BatchID   uint64
+	CodeHash  string
+}
+
+// 旧码补录明文：只有哈希对得上本批次的码才写入。
+func (q *Queries) AdminBackfillCodePlain(ctx context.Context, arg AdminBackfillCodePlainParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, adminBackfillCodePlain, arg.CodePlain, arg.BatchID, arg.CodeHash)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const adminBatchCodes = `-- name: AdminBatchCodes :many
-SELECT id, code_tail, status, used_by, used_at FROM redeem_codes WHERE batch_id = ? ORDER BY id LIMIT 2000
+SELECT c.id, c.code_tail, c.code_plain, c.status, c.used_by, c.used_at, c.note, c.noted_at, a.display_name AS noted_by_name
+FROM redeem_codes c LEFT JOIN admin_users a ON a.id = c.noted_by
+WHERE c.batch_id = ? ORDER BY c.id LIMIT 5000
 `
 
 type AdminBatchCodesRow struct {
-	ID       uint64
-	CodeTail string
-	Status   RedeemCodesStatus
-	UsedBy   sql.NullInt64
-	UsedAt   sql.NullTime
+	ID          uint64
+	CodeTail    string
+	CodePlain   sql.NullString
+	Status      RedeemCodesStatus
+	UsedBy      sql.NullInt64
+	UsedAt      sql.NullTime
+	Note        sql.NullString
+	NotedAt     sql.NullTime
+	NotedByName sql.NullString
 }
 
-// 批次明细：码只存哈希，明细显示末 3 位、状态、使用人与时间。
+// 批次明细：明文（旧码补录前为空，只有末 3 位）、状态、使用人与时间、发放备注。
 func (q *Queries) AdminBatchCodes(ctx context.Context, batchID uint64) ([]AdminBatchCodesRow, error) {
 	rows, err := q.db.QueryContext(ctx, adminBatchCodes, batchID)
 	if err != nil {
@@ -86,9 +111,13 @@ func (q *Queries) AdminBatchCodes(ctx context.Context, batchID uint64) ([]AdminB
 		if err := rows.Scan(
 			&i.ID,
 			&i.CodeTail,
+			&i.CodePlain,
 			&i.Status,
 			&i.UsedBy,
 			&i.UsedAt,
+			&i.Note,
+			&i.NotedAt,
+			&i.NotedByName,
 		); err != nil {
 			return nil, err
 		}
@@ -110,6 +139,38 @@ UPDATE redeem_batches SET quantity = quantity + 1 WHERE id = ?
 func (q *Queries) AdminBumpBatchQuantity(ctx context.Context, id uint64) error {
 	_, err := q.db.ExecContext(ctx, adminBumpBatchQuantity, id)
 	return err
+}
+
+const adminCodeHashesInBatch = `-- name: AdminCodeHashesInBatch :many
+SELECT code_hash, code_plain IS NOT NULL AS has_plain FROM redeem_codes WHERE batch_id = ?
+`
+
+type AdminCodeHashesInBatchRow struct {
+	CodeHash string
+	HasPlain bool
+}
+
+func (q *Queries) AdminCodeHashesInBatch(ctx context.Context, batchID uint64) ([]AdminCodeHashesInBatchRow, error) {
+	rows, err := q.db.QueryContext(ctx, adminCodeHashesInBatch, batchID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminCodeHashesInBatchRow{}
+	for rows.Next() {
+		var i AdminCodeHashesInBatchRow
+		if err := rows.Scan(&i.CodeHash, &i.HasPlain); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const adminDisableBatch = `-- name: AdminDisableBatch :execrows
@@ -285,18 +346,23 @@ func (q *Queries) AdminFeedbackTypes(ctx context.Context, since time.Time) ([]Ad
 }
 
 const adminFindCode = `-- name: AdminFindCode :one
-SELECT c.id, c.batch_id, c.code_tail, c.status, c.used_by, c.used_at, c.membership_id, b.name AS batch_name, b.tier, b.days, b.code_expires_at, b.status AS batch_status
-FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id WHERE c.code_hash = ?
+SELECT c.id, c.batch_id, c.code_tail, c.code_plain, c.status, c.used_by, c.used_at, c.membership_id, c.note, c.noted_at, a.display_name AS noted_by_name,
+  b.name AS batch_name, b.tier, b.days, b.code_expires_at, b.status AS batch_status
+FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id LEFT JOIN admin_users a ON a.id = c.noted_by WHERE c.code_hash = ?
 `
 
 type AdminFindCodeRow struct {
 	ID            uint64
 	BatchID       uint64
 	CodeTail      string
+	CodePlain     sql.NullString
 	Status        RedeemCodesStatus
 	UsedBy        sql.NullInt64
 	UsedAt        sql.NullTime
 	MembershipID  sql.NullInt64
+	Note          sql.NullString
+	NotedAt       sql.NullTime
+	NotedByName   sql.NullString
 	BatchName     string
 	Tier          RedeemBatchesTier
 	Days          sql.NullInt16
@@ -311,10 +377,14 @@ func (q *Queries) AdminFindCode(ctx context.Context, codeHash string) (AdminFind
 		&i.ID,
 		&i.BatchID,
 		&i.CodeTail,
+		&i.CodePlain,
 		&i.Status,
 		&i.UsedBy,
 		&i.UsedAt,
 		&i.MembershipID,
+		&i.Note,
+		&i.NotedAt,
+		&i.NotedByName,
 		&i.BatchName,
 		&i.Tier,
 		&i.Days,
@@ -662,32 +732,50 @@ func (q *Queries) AdminInsertBatch(ctx context.Context, arg AdminInsertBatchPara
 }
 
 const adminInsertCode = `-- name: AdminInsertCode :exec
-INSERT INTO redeem_codes (batch_id, code_hash, code_tail) VALUES (?, ?, ?)
+INSERT INTO redeem_codes (batch_id, code_hash, code_tail, code_plain) VALUES (?, ?, ?, ?)
 `
 
 type AdminInsertCodeParams struct {
-	BatchID  uint64
-	CodeHash string
-	CodeTail string
+	BatchID   uint64
+	CodeHash  string
+	CodeTail  string
+	CodePlain sql.NullString
 }
 
 func (q *Queries) AdminInsertCode(ctx context.Context, arg AdminInsertCodeParams) error {
-	_, err := q.db.ExecContext(ctx, adminInsertCode, arg.BatchID, arg.CodeHash, arg.CodeTail)
+	_, err := q.db.ExecContext(ctx, adminInsertCode,
+		arg.BatchID,
+		arg.CodeHash,
+		arg.CodeTail,
+		arg.CodePlain,
+	)
 	return err
 }
 
 const adminInsertCodeReturning = `-- name: AdminInsertCodeReturning :execlastid
-INSERT INTO redeem_codes (batch_id, code_hash, code_tail) VALUES (?, ?, ?)
+INSERT INTO redeem_codes (batch_id, code_hash, code_tail, code_plain, note, noted_by, noted_at) VALUES (?, ?, ?, ?, ?, ?, ?)
 `
 
 type AdminInsertCodeReturningParams struct {
-	BatchID  uint64
-	CodeHash string
-	CodeTail string
+	BatchID   uint64
+	CodeHash  string
+	CodeTail  string
+	CodePlain sql.NullString
+	Note      sql.NullString
+	NotedBy   sql.NullInt64
+	NotedAt   sql.NullTime
 }
 
 func (q *Queries) AdminInsertCodeReturning(ctx context.Context, arg AdminInsertCodeReturningParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, adminInsertCodeReturning, arg.BatchID, arg.CodeHash, arg.CodeTail)
+	result, err := q.db.ExecContext(ctx, adminInsertCodeReturning,
+		arg.BatchID,
+		arg.CodeHash,
+		arg.CodeTail,
+		arg.CodePlain,
+		arg.Note,
+		arg.NotedBy,
+		arg.NotedAt,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -1354,6 +1442,75 @@ func (q *Queries) AdminSalesByTier(ctx context.Context, paidAt sql.NullTime) ([]
 	return items, nil
 }
 
+const adminSearchCodes = `-- name: AdminSearchCodes :many
+SELECT c.id, c.batch_id, c.code_tail, c.code_plain, c.status, c.used_by, c.used_at, c.note, c.noted_at, a.display_name AS noted_by_name,
+  b.name AS batch_name, b.tier, b.days, b.code_expires_at
+FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id LEFT JOIN admin_users a ON a.id = c.noted_by
+WHERE c.code_hash = ? OR (CAST(? AS CHAR) <> '' AND c.note LIKE CONCAT('%', CAST(? AS CHAR), '%'))
+ORDER BY c.id DESC LIMIT 50
+`
+
+type AdminSearchCodesParams struct {
+	CodeHash string
+	Keyword  interface{}
+}
+
+type AdminSearchCodesRow struct {
+	ID            uint64
+	BatchID       uint64
+	CodeTail      string
+	CodePlain     sql.NullString
+	Status        RedeemCodesStatus
+	UsedBy        sql.NullInt64
+	UsedAt        sql.NullTime
+	Note          sql.NullString
+	NotedAt       sql.NullTime
+	NotedByName   sql.NullString
+	BatchName     string
+	Tier          RedeemBatchesTier
+	Days          sql.NullInt16
+	CodeExpiresAt time.Time
+}
+
+// 7.4 查找兑换码：按码（哈希，旧码没补录也能查）或备注里的文字（发给了谁），最多 50 条，新的在前。
+func (q *Queries) AdminSearchCodes(ctx context.Context, arg AdminSearchCodesParams) ([]AdminSearchCodesRow, error) {
+	rows, err := q.db.QueryContext(ctx, adminSearchCodes, arg.CodeHash, arg.Keyword, arg.Keyword)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminSearchCodesRow{}
+	for rows.Next() {
+		var i AdminSearchCodesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.BatchID,
+			&i.CodeTail,
+			&i.CodePlain,
+			&i.Status,
+			&i.UsedBy,
+			&i.UsedAt,
+			&i.Note,
+			&i.NotedAt,
+			&i.NotedByName,
+			&i.BatchName,
+			&i.Tier,
+			&i.Days,
+			&i.CodeExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const adminSearchUsers = `-- name: AdminSearchUsers :many
 
 SELECT u.id, u.phone, u.invite_code, u.status, u.created_at, u.last_active_at,
@@ -1443,6 +1600,30 @@ func (q *Queries) AdminSearchUsers(ctx context.Context, arg AdminSearchUsersPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const adminSetCodeNote = `-- name: AdminSetCodeNote :execrows
+UPDATE redeem_codes SET note = ?, noted_by = ?, noted_at = ? WHERE id = ?
+`
+
+type AdminSetCodeNoteParams struct {
+	Note    sql.NullString
+	NotedBy sql.NullInt64
+	NotedAt sql.NullTime
+	ID      uint64
+}
+
+func (q *Queries) AdminSetCodeNote(ctx context.Context, arg AdminSetCodeNoteParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, adminSetCodeNote,
+		arg.Note,
+		arg.NotedBy,
+		arg.NotedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const adminSetDisputeAttribution = `-- name: AdminSetDisputeAttribution :execrows

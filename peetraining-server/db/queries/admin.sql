@@ -147,10 +147,10 @@ SELECT * FROM redeem_batches WHERE id = ?;
 INSERT INTO redeem_batches (name, tier, days, quantity, code_expires_at, channel, created_by) VALUES (?, ?, ?, ?, ?, ?, ?);
 
 -- name: AdminInsertCode :exec
-INSERT INTO redeem_codes (batch_id, code_hash, code_tail) VALUES (?, ?, ?);
+INSERT INTO redeem_codes (batch_id, code_hash, code_tail, code_plain) VALUES (?, ?, ?, ?);
 
 -- name: AdminInsertCodeReturning :execlastid
-INSERT INTO redeem_codes (batch_id, code_hash, code_tail) VALUES (?, ?, ?);
+INSERT INTO redeem_codes (batch_id, code_hash, code_tail, code_plain, note, noted_by, noted_at) VALUES (?, ?, ?, ?, ?, ?, ?);
 
 -- name: AdminFindSingleBatch :one
 -- 7.4 单个发码：每个档位一个「企业微信客服 · 单个发码」批次；码有效期不足 180 天时另开一批。
@@ -168,12 +168,33 @@ VALUES (?, ?, ?, 'wecom', ?, ?, ?, ?, 'paid', ?, ?, ?, ?);
 UPDATE redeem_batches SET status = 'disabled' WHERE id = ? AND status = 'active';
 
 -- name: AdminBatchCodes :many
--- 批次明细：码只存哈希，明细显示末 3 位、状态、使用人与时间。
-SELECT id, code_tail, status, used_by, used_at FROM redeem_codes WHERE batch_id = ? ORDER BY id LIMIT 2000;
+-- 批次明细：明文（旧码补录前为空，只有末 3 位）、状态、使用人与时间、发放备注。
+SELECT c.id, c.code_tail, c.code_plain, c.status, c.used_by, c.used_at, c.note, c.noted_at, a.display_name AS noted_by_name
+FROM redeem_codes c LEFT JOIN admin_users a ON a.id = c.noted_by
+WHERE c.batch_id = ? ORDER BY c.id LIMIT 5000;
 
 -- name: AdminFindCode :one
-SELECT c.id, c.batch_id, c.code_tail, c.status, c.used_by, c.used_at, c.membership_id, b.name AS batch_name, b.tier, b.days, b.code_expires_at, b.status AS batch_status
-FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id WHERE c.code_hash = ?;
+SELECT c.id, c.batch_id, c.code_tail, c.code_plain, c.status, c.used_by, c.used_at, c.membership_id, c.note, c.noted_at, a.display_name AS noted_by_name,
+  b.name AS batch_name, b.tier, b.days, b.code_expires_at, b.status AS batch_status
+FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id LEFT JOIN admin_users a ON a.id = c.noted_by WHERE c.code_hash = ?;
+
+-- name: AdminSearchCodes :many
+-- 7.4 查找兑换码：按码（哈希，旧码没补录也能查）或备注里的文字（发给了谁），最多 50 条，新的在前。
+SELECT c.id, c.batch_id, c.code_tail, c.code_plain, c.status, c.used_by, c.used_at, c.note, c.noted_at, a.display_name AS noted_by_name,
+  b.name AS batch_name, b.tier, b.days, b.code_expires_at
+FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id LEFT JOIN admin_users a ON a.id = c.noted_by
+WHERE c.code_hash = sqlc.arg(code_hash) OR (CAST(sqlc.arg(keyword) AS CHAR) <> '' AND c.note LIKE CONCAT('%', CAST(sqlc.arg(keyword) AS CHAR), '%'))
+ORDER BY c.id DESC LIMIT 50;
+
+-- name: AdminSetCodeNote :execrows
+UPDATE redeem_codes SET note = ?, noted_by = ?, noted_at = ? WHERE id = ?;
+
+-- name: AdminBackfillCodePlain :execrows
+-- 旧码补录明文：只有哈希对得上本批次的码才写入。
+UPDATE redeem_codes SET code_plain = ? WHERE batch_id = ? AND code_hash = ? AND code_plain IS NULL;
+
+-- name: AdminCodeHashesInBatch :many
+SELECT code_hash, code_plain IS NOT NULL AS has_plain FROM redeem_codes WHERE batch_id = ?;
 
 -- name: AdminGetCodeForUpdate :one
 SELECT id, status, used_by, membership_id FROM redeem_codes WHERE id = ? FOR UPDATE;

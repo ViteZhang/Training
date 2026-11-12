@@ -34,9 +34,12 @@ type Querier interface {
 	AddTextbookDailyBudget(ctx context.Context, arg AddTextbookDailyBudgetParams) error
 	// 7.5 缺答案（PRD v3 11.16）：只统计数量，不读题目与答案内容。
 	AdminAnswerStats(ctx context.Context, arg AdminAnswerStatsParams) (AdminAnswerStatsRow, error)
-	// 批次明细：码只存哈希，明细显示末 3 位、状态、使用人与时间。
+	// 旧码补录明文：只有哈希对得上本批次的码才写入。
+	AdminBackfillCodePlain(ctx context.Context, arg AdminBackfillCodePlainParams) (int64, error)
+	// 批次明细：明文（旧码补录前为空，只有末 3 位）、状态、使用人与时间、发放备注。
 	AdminBatchCodes(ctx context.Context, batchID uint64) ([]AdminBatchCodesRow, error)
 	AdminBumpBatchQuantity(ctx context.Context, id uint64) error
+	AdminCodeHashesInBatch(ctx context.Context, batchID uint64) ([]AdminCodeHashesInBatchRow, error)
 	AdminDisableBatch(ctx context.Context, id uint64) (int64, error)
 	AdminDisputeReasons(ctx context.Context, since time.Time) ([]AdminDisputeReasonsRow, error)
 	// ---------- 7.6 批改异议 ----------
@@ -96,9 +99,12 @@ type Querier interface {
 	AdminRevokeUserTokens(ctx context.Context, arg AdminRevokeUserTokensParams) error
 	AdminSalesByTier(ctx context.Context, paidAt sql.NullTime) ([]AdminSalesByTierRow, error)
 	AdminSampleStats(ctx context.Context, since sql.NullTime) (AdminSampleStatsRow, error)
+	// 7.4 查找兑换码：按码（哈希，旧码没补录也能查）或备注里的文字（发给了谁），最多 50 条，新的在前。
+	AdminSearchCodes(ctx context.Context, arg AdminSearchCodesParams) ([]AdminSearchCodesRow, error)
 	// ---------- 7.2 用户 ----------
 	// 搜索手机号、用户 ID、邀请码；筛选：付费、额度用完、解析失败、未导入资料。只返回计数与状态。
 	AdminSearchUsers(ctx context.Context, arg AdminSearchUsersParams) ([]AdminSearchUsersRow, error)
+	AdminSetCodeNote(ctx context.Context, arg AdminSetCodeNoteParams) (int64, error)
 	AdminSetDisputeAttribution(ctx context.Context, arg AdminSetDisputeAttributionParams) (int64, error)
 	AdminSetUserStatus(ctx context.Context, arg AdminSetUserStatusParams) (int64, error)
 	AdminUserCounts(ctx context.Context, arg AdminUserCountsParams) (AdminUserCountsRow, error)

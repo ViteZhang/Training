@@ -392,7 +392,7 @@ func toGenBatch(b admin.Batch) gen.AdminBatch {
 
 func toGenCode(r admin.CodeRow) gen.AdminCode {
 	out := gen.AdminCode{Id: int64(r.ID), Tail: r.Tail, Status: gen.AdminCodeStatus(r.Status), BatchId: int64(r.BatchID), BatchName: r.BatchName, Tier: r.Tier,
-		Days: opt(r.Days), ExpiresAt: r.ExpiresAt, UsedAt: r.UsedAt}
+		Days: opt(r.Days), ExpiresAt: r.ExpiresAt, UsedAt: r.UsedAt, Code: opt(r.Code), Note: opt(r.Note), NotedAt: r.NotedAt, NotedByName: opt(r.NotedByName)}
 	if r.UsedBy != 0 {
 		out.UsedBy = ptr(int64(r.UsedBy))
 	}
@@ -465,6 +465,44 @@ func (h *Handlers) FindRedeemCode(c *gin.Context, p gen.FindRedeemCodeParams) {
 		return
 	}
 	c.JSON(http.StatusOK, toGenCode(r))
+}
+
+func (h *Handlers) SearchRedeemCodes(c *gin.Context, p gen.SearchRedeemCodesParams) {
+	rows, err := h.deps.Admin.SearchCodes(c.Request.Context(), p.Q)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	items := make([]gen.AdminCode, len(rows))
+	for i, r := range rows {
+		items[i] = toGenCode(r)
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func (h *Handlers) SetRedeemCodeNote(c *gin.Context, codeID int64) {
+	var body gen.SetRedeemCodeNoteJSONBody
+	if !bind(c, &body) {
+		return
+	}
+	if err := h.deps.Admin.SetCodeNote(c.Request.Context(), currentAdmin(c).ID, uint64(codeID), body.Note); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *Handlers) BackfillRedeemCodes(c *gin.Context, batchID int64) {
+	var body gen.BackfillRedeemCodesJSONBody
+	if !bind(c, &body) {
+		return
+	}
+	r, err := h.deps.Admin.BackfillCodes(c.Request.Context(), uint64(batchID), body.Codes)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"filled": r.Filled, "already": r.Already, "unmatched": r.Unmatched})
 }
 
 func (h *Handlers) VoidRedeemCode(c *gin.Context, codeID int64) {
