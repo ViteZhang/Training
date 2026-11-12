@@ -65,6 +65,10 @@ type Querier interface {
 	AdminInsertCodeReturning(ctx context.Context, arg AdminInsertCodeReturningParams) (int64, error)
 	// PRD v3 13.3：客服收款后单个发码，记一笔已支付订单，收入计入 7.3（渠道：企业微信客服）。
 	AdminInsertManualOrder(ctx context.Context, arg AdminInsertManualOrderParams) (int64, error)
+	// ---------- 7.20 激活漏斗（用户使用进度，第一期只用业务表） ----------
+	// 一批注册用户（按注册时间，或指定一个用户 ID）各里程碑第一次达成的时间；只读时间与状态，不读资料、题目与作答内容。
+	// return_day_at：第一次作答之后，在另一天（北京时间）再次作答的时间；北京时间次日 0 点 = DATE(首次作答 + 8 小时) + 16 小时（UTC）。
+	AdminJourneys(ctx context.Context, arg AdminJourneysParams) ([]AdminJourneysRow, error)
 	AdminListApplicationGroups(ctx context.Context, arg AdminListApplicationGroupsParams) ([]AdminListApplicationGroupsRow, error)
 	AdminListBatches(ctx context.Context, arg AdminListBatchesParams) ([]AdminListBatchesRow, error)
 	// 后台考试科目列表：按命题方式、学科筛选，按院校、科目名、代码搜索（统考科目还按登记的院校搜）。
@@ -98,6 +102,8 @@ type Querier interface {
 	AdminSetDisputeAttribution(ctx context.Context, arg AdminSetDisputeAttributionParams) (int64, error)
 	AdminSetUserStatus(ctx context.Context, arg AdminSetUserStatusParams) (int64, error)
 	AdminUserCounts(ctx context.Context, arg AdminUserCountsParams) (AdminUserCountsRow, error)
+	// 用户每天（北京时间）的作答次数，用于 7.2 用户详情的「使用进度」。
+	AdminUserDailyAnswers(ctx context.Context, arg AdminUserDailyAnswersParams) ([]AdminUserDailyAnswersRow, error)
 	// 专业课名称与代码（用户填的元数据）、满分、目标分与最新预估区间（数字）。
 	AdminUserSubjects(ctx context.Context, ownerUserID uint64) ([]AdminUserSubjectsRow, error)
 	AdminVoidCode(ctx context.Context, id uint64) (int64, error)

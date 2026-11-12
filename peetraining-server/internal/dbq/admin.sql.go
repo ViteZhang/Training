@@ -734,6 +734,92 @@ func (q *Queries) AdminInsertManualOrder(ctx context.Context, arg AdminInsertMan
 	return result.LastInsertId()
 }
 
+const adminJourneys = `-- name: AdminJourneys :many
+
+SELECT u.id, u.phone, u.created_at, u.last_active_at, u.onboarding_step,
+  (SELECT MIN(m.created_at) FROM materials m WHERE m.owner_user_id = u.id AND m.status IN ('parsed', 'partial')) AS first_material_at,
+  (SELECT MIN(bs.added_at) FROM bank_subscriptions bs WHERE bs.owner_user_id = u.id) AS first_official_at,
+  (SELECT MIN(a.answered_at) FROM attempts a WHERE a.owner_user_id = u.id) AS first_answer_at,
+  (SELECT MAX(a.answered_at) FROM attempts a WHERE a.owner_user_id = u.id) AS last_answer_at,
+  (SELECT MIN(g.finished_at) FROM gradings g WHERE g.owner_user_id = u.id AND g.status = 'done') AS first_grading_at,
+  (SELECT MIN(a2.answered_at) FROM attempts a2 WHERE a2.owner_user_id = u.id
+    AND a2.answered_at >= (SELECT DATE_ADD(DATE(DATE_ADD(MIN(a1.answered_at), INTERVAL 8 HOUR)), INTERVAL 16 HOUR) FROM attempts a1 WHERE a1.owner_user_id = u.id)) AS return_day_at,
+  (SELECT MIN(a.answered_at) FROM attempts a WHERE a.owner_user_id = u.id AND a.answered_at >= DATE_ADD(u.created_at, INTERVAL 7 DAY)) AS week_later_at,
+  (SELECT MIN(o.paid_at) FROM orders o WHERE o.owner_user_id = u.id AND o.status IN ('paid', 'refunding', 'refunded')) AS first_paid_at
+FROM users u
+WHERE u.status <> 'deleting'
+  AND u.created_at >= CAST(? AS DATETIME) AND u.created_at < CAST(? AS DATETIME)
+  AND (CAST(? AS UNSIGNED) = 0 OR u.id = CAST(? AS UNSIGNED))
+ORDER BY u.id DESC
+`
+
+type AdminJourneysParams struct {
+	FromT  time.Time
+	ToT    time.Time
+	UserID int64
+}
+
+type AdminJourneysRow struct {
+	ID              uint64
+	Phone           string
+	CreatedAt       time.Time
+	LastActiveAt    sql.NullTime
+	OnboardingStep  string
+	FirstMaterialAt interface{}
+	FirstOfficialAt interface{}
+	FirstAnswerAt   interface{}
+	LastAnswerAt    interface{}
+	FirstGradingAt  interface{}
+	ReturnDayAt     interface{}
+	WeekLaterAt     interface{}
+	FirstPaidAt     interface{}
+}
+
+// ---------- 7.20 激活漏斗（用户使用进度，第一期只用业务表） ----------
+// 一批注册用户（按注册时间，或指定一个用户 ID）各里程碑第一次达成的时间；只读时间与状态，不读资料、题目与作答内容。
+// return_day_at：第一次作答之后，在另一天（北京时间）再次作答的时间；北京时间次日 0 点 = DATE(首次作答 + 8 小时) + 16 小时（UTC）。
+func (q *Queries) AdminJourneys(ctx context.Context, arg AdminJourneysParams) ([]AdminJourneysRow, error) {
+	rows, err := q.db.QueryContext(ctx, adminJourneys,
+		arg.FromT,
+		arg.ToT,
+		arg.UserID,
+		arg.UserID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminJourneysRow{}
+	for rows.Next() {
+		var i AdminJourneysRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Phone,
+			&i.CreatedAt,
+			&i.LastActiveAt,
+			&i.OnboardingStep,
+			&i.FirstMaterialAt,
+			&i.FirstOfficialAt,
+			&i.FirstAnswerAt,
+			&i.LastAnswerAt,
+			&i.FirstGradingAt,
+			&i.ReturnDayAt,
+			&i.WeekLaterAt,
+			&i.FirstPaidAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const adminListBatches = `-- name: AdminListBatches :many
 SELECT b.id, b.name, b.tier, b.days, b.quantity, b.code_expires_at, b.channel, b.status, b.created_by, b.created_at, (SELECT COUNT(*) FROM redeem_codes c WHERE c.batch_id = b.id AND c.status = 'used') AS used_count
 FROM redeem_batches b WHERE (CAST(? AS UNSIGNED) = 0 OR b.id < CAST(? AS UNSIGNED)) ORDER BY b.id DESC LIMIT 50
@@ -1458,6 +1544,48 @@ func (q *Queries) AdminUserCounts(ctx context.Context, arg AdminUserCountsParams
 		&i.InviteDays,
 	)
 	return i, err
+}
+
+const adminUserDailyAnswers = `-- name: AdminUserDailyAnswers :many
+SELECT CAST(DATE(DATE_ADD(answered_at, INTERVAL 8 HOUR)) AS CHAR) AS day, COUNT(*) AS answers
+FROM attempts
+WHERE owner_user_id = ? AND answered_at >= CAST(? AS DATETIME)
+GROUP BY day
+ORDER BY day
+`
+
+type AdminUserDailyAnswersParams struct {
+	UserID uint64
+	Since  time.Time
+}
+
+type AdminUserDailyAnswersRow struct {
+	Day     interface{}
+	Answers int64
+}
+
+// 用户每天（北京时间）的作答次数，用于 7.2 用户详情的「使用进度」。
+func (q *Queries) AdminUserDailyAnswers(ctx context.Context, arg AdminUserDailyAnswersParams) ([]AdminUserDailyAnswersRow, error) {
+	rows, err := q.db.QueryContext(ctx, adminUserDailyAnswers, arg.UserID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminUserDailyAnswersRow{}
+	for rows.Next() {
+		var i AdminUserDailyAnswersRow
+		if err := rows.Scan(&i.Day, &i.Answers); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const adminUserSubjects = `-- name: AdminUserSubjects :many
