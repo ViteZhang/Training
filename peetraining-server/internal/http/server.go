@@ -120,6 +120,10 @@ func NewRouter(deps Deps) (*gin.Engine, error) {
 		}
 	}
 
+	if deps.Auth != nil {
+		registerLegalPages(r, deps.Auth.GetAgreement)
+	}
+
 	if deps.DevOSS != nil {
 		r.PUT("/dev/oss/*key", devOSSUpload(deps.DevOSS))
 		r.GET("/dev/oss/*key", devOSSDownload(deps.DevOSS))
