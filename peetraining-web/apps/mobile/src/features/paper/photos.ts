@@ -1,7 +1,7 @@
 // 按考试、题号保存照片；上传和服务端任务登记不依赖当前题目的组件生命周期。
 import type { Schemas } from '@training/api-client';
 import * as Crypto from 'expo-crypto';
-import { Directory, File, Paths } from 'expo-file-system';
+import { Directory, File, Paths } from '@/lib/fs';
 import { useState, useSyncExternalStore } from 'react';
 import { uploadPhotos, type Shot } from '@/features/practice/handwriting';
 import { api, unwrap } from '@/lib/api';

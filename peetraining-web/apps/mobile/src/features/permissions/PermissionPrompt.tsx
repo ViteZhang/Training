@@ -2,7 +2,7 @@
 // 被拒时给替代路径（如相机被拒 → 从相册导入）和「去设置」。
 import { semantic } from '@training/ui-tokens';
 import { useCallback, useState } from 'react';
-import { Linking, StyleSheet, View } from 'react-native';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
 import { BottomSheet, Button, Icon, Text } from '@/components';
 import type { IconName } from '@/components/Icon';
 import { storage } from '@/lib/storage';
@@ -96,12 +96,15 @@ export function usePermissionPrompt(
 
   /** 有权限返回 true；第一次先弹说明，用户点「去允许」后再调系统弹窗。 */
   const ensure = useCallback(async (): Promise<boolean> => {
+    // H5：权限由浏览器在用到时自己询问，这里不弹说明，也没有「去设置」可跳。
+    // 还要保证选文件、拍照是在用户这次点击里直接触发的，中间多一个弹层 iOS 浏览器会拦掉。
+    if (Platform.OS === 'web') return (await request()).granted;
     if (storage.getBoolean(explainedKey)) return askSystem();
     return new Promise<boolean>((resolve) => {
       setResolver(() => resolve);
       setStage('explain');
     });
-  }, [askSystem, explainedKey]);
+  }, [askSystem, explainedKey, request]);
 
   const c = copy[kind];
   const element =

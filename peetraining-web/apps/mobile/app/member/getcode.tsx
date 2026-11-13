@@ -3,8 +3,8 @@
 // 「我已有兑换码，去兑换」→ 6.7。二维码、ID、服务时间、说明文案在后台 7.8 配置。购买入口关闭的平台不显示本页入口。
 import { semantic, spacing } from '@training/ui-tokens';
 import * as Clipboard from 'expo-clipboard';
-import { File, Paths } from 'expo-file-system';
-import * as MediaLibrary from 'expo-media-library';
+import { File, Paths } from '@/lib/fs';
+import * as MediaLibrary from '@/lib/mediaLibrary';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -13,6 +13,7 @@ import { useMemberCenter, yuan } from '@/features/membership/api';
 import { usePurchaseEntry } from '@/features/membership/purchase';
 import { usePermissionPrompt } from '@/features/permissions/PermissionPrompt';
 import { track } from '@/lib/analytics';
+import { isWeb } from '@/lib/platform';
 
 async function requestSave() {
   const r = await MediaLibrary.requestPermissionsAsync(true, ['photo']);
@@ -45,6 +46,10 @@ export default function GetCodeSheet() {
   };
   const saveQR = async () => {
     if (!c?.qr_url || saving) return;
+    if (isWeb) {
+      toast('长按上方二维码，可以保存图片或直接识别');
+      return;
+    }
     if (!(await permission.ensure())) return;
     setSaving(true);
     try {
@@ -99,12 +104,12 @@ export default function GetCodeSheet() {
                 </Text>
               ) : null}
               <View style={styles.row}>
-                {c.qr_url ? <Button title="保存二维码" kind="secondary" size="sm" loading={saving} onPress={() => void saveQR()} /> : null}
+                {c.qr_url && !isWeb ? <Button title="保存二维码" kind="secondary" size="sm" loading={saving} onPress={() => void saveQR()} /> : null}
                 {id ? <Button title="复制 ID" kind="secondary" size="sm" onPress={() => void copyID()} /> : null}
               </View>
             </View>
             <View style={styles.steps}>
-              <Step n={1} title="微信扫码，添加客服" desc={id ? '也可以保存二维码到相册识别，或搜索上方 ID' : '也可以保存二维码，在微信里「扫一扫」从相册识别'} />
+              <Step n={1} title="微信扫码，添加客服" desc={isWeb ? (id ? '在微信里长按二维码就能识别，也可以搜索上方 ID' : '在微信里长按二维码就能识别；其他浏览器先长按保存图片') : id ? '也可以保存二维码到相册识别，或搜索上方 ID' : '也可以保存二维码，在微信里「扫一扫」从相册识别'} />
               <Step n={2} title="告诉客服想开哪种会员" desc={prices || undefined} />
               <Step n={3} title="付款后收到兑换码，回来兑换" desc="时长叠加在当前会员之后，不自动续费" />
             </View>

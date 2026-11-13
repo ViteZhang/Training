@@ -1,6 +1,6 @@
 // 1.5 隐私承诺卡（PRD v3 增补「内容来源与隐私承诺」，设计稿 m1_upload）：上传页、官方题库页、隐私政策展示同样的四条承诺。
 import { colors, radius, spacing } from '@training/ui-tokens';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { Icon, Text } from '@/components';
 import { appConfig } from '@/lib/config';
 
@@ -25,6 +25,8 @@ export function PrivacyCard() {
 
 /** 「文件在微信里？」默认展开的三步说明（1.5）。 */
 export function WeChatSteps() {
+  // H5 版接收不了微信分享过来的文件，步骤说明在「文件在微信里？」弹层里（WeChatImportGuide）
+  if (Platform.OS === 'web') return null;
   return (
     <View style={styles.wechat}>
       <Text variant="bodyStrong">文件在微信里？</Text>

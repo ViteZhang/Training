@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <!-- H5 版页面模板：只在导出网页（expo export --platform web）时使用，App 打包不读这个文件。 -->
+    <!-- 不允许双指缩放：iOS 上输入框字号小于 16 时聚焦会自动放大页面，放大后布局错位。viewport-fit=cover 用于刘海和底部横条的安全区。 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#FFFFFF" />
+    <meta name="format-detection" content="telephone=no, email=no" />
+    <!-- 「添加到主屏幕」后全屏打开，像 App 一样没有浏览器地址栏 -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="考研Training" />
+    <meta name="description" content="考研文科专业课 AI 提分教练" />
+    <link rel="apple-touch-icon" href="%WEB_BASE%/apple-touch-icon.png" />
+    <link rel="manifest" href="%WEB_BASE%/manifest.webmanifest" />
+    <title>%WEB_TITLE%</title>
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        overflow: hidden;
+        margin: 0;
+        background: #ffffff;
+        /* 禁止整页橡皮筋回弹和下拉刷新，滚动只发生在页面内的列表里 */
+        overscroll-behavior: none;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-text-size-adjust: 100%;
+        -webkit-font-smoothing: antialiased;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+      input,
+      textarea {
+        outline: none;
+      }
+      /* 电脑上打开：内容按手机宽度居中显示 */
+      @media (min-width: 600px) {
+        body {
+          background: #f7f7f5;
+        }
+        #root {
+          max-width: 480px;
+          margin: 0 auto;
+          background: #ffffff;
+          box-shadow: 0 0 0 1px #efefef;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <noscript>请开启浏览器的 JavaScript 后使用考研Training。</noscript>
+    <div id="root"></div>
+  </body>
+</html>

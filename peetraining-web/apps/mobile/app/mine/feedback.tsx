@@ -3,7 +3,7 @@
 import type { Schemas } from '@training/api-client';
 import { radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { File } from 'expo-file-system';
+import { File } from '@/lib/fs';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';

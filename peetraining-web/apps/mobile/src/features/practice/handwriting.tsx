@@ -3,7 +3,7 @@ import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
 import { radius, semantic, spacing } from '@training/ui-tokens';
 import * as ImagePicker from 'expo-image-picker';
-import { File } from 'expo-file-system';
+import { File } from '@/lib/fs';
 import { useState } from 'react';
 import { Image, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { AIGenerating, Button, Text, toast } from '@/components';

@@ -1,6 +1,6 @@
 import type { Schemas } from '@training/api-client';
 import * as Crypto from 'expo-crypto';
-import { Directory, File, Paths } from 'expo-file-system';
+import { Directory, File, Paths } from '@/lib/fs';
 import { useSyncExternalStore } from 'react';
 import { api, unwrap } from '@/lib/api';
 import { getJSON, setJSON } from '@/lib/storage';

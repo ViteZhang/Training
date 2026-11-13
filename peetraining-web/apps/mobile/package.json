@@ -8,6 +8,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "export": "expo export --platform android --platform ios --output-dir dist",
+    "build:h5": "bash scripts/build-h5.sh",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src app",
     "test": "jest",

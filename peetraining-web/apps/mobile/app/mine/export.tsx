@@ -3,7 +3,7 @@
 import type { Schemas } from '@training/api-client';
 import { radius, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { File, Paths } from 'expo-file-system';
+import { File, Paths } from '@/lib/fs';
 import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
@@ -13,6 +13,7 @@ import { Checkbox, PageHeader } from '@/features/import/ui';
 import { mineKeys, useSubjects } from '@/features/mine/api';
 import { api, unwrap } from '@/lib/api';
 import { track } from '@/lib/analytics';
+import { isWeb } from '@/lib/platform';
 
 type Options = Schemas['ExportOptions'];
 type Format = 'pdf' | 'docx';
@@ -27,6 +28,11 @@ const items: { key: keyof Options; label: string; desc: (n: number) => string }[
 /** 下载到缓存目录再交给系统分享面板（保存到手机或发到微信）。 */
 async function saveOrShare(job: Schemas['ExportJob']) {
   if (!job.download_url) return;
+  if (isWeb) {
+    // H5：交给浏览器下载或预览，用户再用系统分享存到「文件」或发到微信
+    window.location.assign(job.download_url);
+    return;
+  }
   const target = new File(Paths.cache, job.file_name);
   if (target.exists) target.delete();
   const file = await File.downloadFileAsync(job.download_url, target);
@@ -132,14 +138,14 @@ export default function ExportPage() {
               </Pressable>
             ))}
           </View>
-          <Text variant="caption">约 {pages} 页 · 生成后保存到手机或发到微信</Text>
+          <Text variant="caption">约 {pages} 页 · {isWeb ? '生成后可下载' : '生成后保存到手机或发到微信'}</Text>
         </Card>
         {generating ? <AIGenerating steps={['整理题目与知识点', '排版', '生成文件']} current={1} eta="大约 10 秒" /> : null}
         {j?.status === 'done' ? (
           <Card style={styles.gap}>
             <Text variant="bodyStrong">{j.file_name}</Text>
             <Text variant="caption">约 {j.pages} 页 · 文件 24 小时后删除</Text>
-            <Button title="保存到手机或分享" loading={share.isPending} onPress={() => share.mutate(j)} />
+            <Button title={isWeb ? '下载文档' : '保存到手机或分享'} loading={share.isPending} onPress={() => share.mutate(j)} />
           </Card>
         ) : null}
         {j?.status === 'failed' ? (
