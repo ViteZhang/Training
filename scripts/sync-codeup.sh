@@ -6,6 +6,7 @@
 #   scripts/sync-codeup.sh status          看两边是否一致、谁领先
 #   scripts/sync-codeup.sh pull            把云效的新提交合并进当前分支（先做这一步再开发）
 #   scripts/sync-codeup.sh push server|web 把当前分支的目录推到云效对应分支（只快进，不强推）
+#   scripts/sync-codeup.sh push-h5         把当前分支的 peetraining-web/ 推到云效 web 的 h5 分支（H5 版单独发布用）
 #
 # 云效分支：server 用 main，web 用 master-zhangzhao（web 不再同步云效 main）。GitHub 一侧照旧合并到 main。
 #
@@ -104,7 +105,17 @@ push() {
   g push "$(url_of "$side")" "$split:refs/heads/$(branch_of "$side")"
 }
 
+# H5 版单独的云效分支：把当前分支的 peetraining-web/ 推到云效 web 的 h5 分支（流水线「peetraining-h5上线」的代码源）。
+# 不经过 master-zhangzhao，也不动 main；普通推送，不是快进时 git 会拒绝，不强推。
+push_h5() {
+  local split
+  split=$(git subtree split -q --prefix="$(prefix_of web)" HEAD)
+  echo "web：将把 ${split:0:7} 推送到云效 web 的 h5 分支"
+  g push "$(url_of web)" "$split:refs/heads/h5"
+}
+
 case "${1:-}" in
+  push-h5) push_h5 ;;
   status) status server; status web ;;
   pull) pull server; pull web ;;
   push)

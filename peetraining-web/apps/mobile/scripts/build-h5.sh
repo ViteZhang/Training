@@ -6,7 +6,7 @@
 #   WEB_BASE_PATH=/m scripts/build-h5.sh   换部署路径
 #   API_BASE_URL=http://127.0.0.1:8080/api/v1 scripts/build-h5.sh   本地联调
 #
-# 产物放到 Nginx 的 /h5/ 下即可，Nginx 配置见 docs/h5.md。
+# 发布走云效流水线「peetraining-h5上线」，见 docs/h5.md。
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 

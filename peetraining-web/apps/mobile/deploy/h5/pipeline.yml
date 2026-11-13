@@ -1,0 +1,77 @@
+# 云效流水线「peetraining-h5上线」的定义（用 CreatePipeline 接口创建时的 content）。
+# 代码源：云效 peetraining-web 的 h5 分支；不设推送触发，只手动运行。
+# 网页打成 Nginx 镜像推到 ACR（用云效里已授权的 ACR 服务连接，配置里没有密码），再到阿里云入口机拉取并启动容器 training-h5。
+sources:
+  h5_repo:
+    type: codeup
+    name: peetraining-web
+    endpoint: https://codeup.aliyun.com/6976db02f7b43e00d4205276/peetraining-web.git
+    branch: h5
+    certificate:
+      type: serviceConnection
+      serviceConnection: osat8pbm8axigtda
+stages:
+  build_stage:
+    name: 构建
+    jobs:
+      build_job:
+        name: 构建 H5
+        runsOn:
+          group: public/cn-beijing
+          container: build-steps-public-registry.cn-beijing.cr.aliyuncs.com/build-steps/alinux3:latest
+        steps:
+          build_step:
+            name: 安装依赖并构建
+            step: Command
+            with:
+              run: |
+                set -eu
+                NODE_VERSION=22.20.0
+                curl -fsSL "https://npmmirror.com/mirrors/node/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.gz" -o /tmp/node.tgz
+                mkdir -p /opt/node && tar -xzf /tmp/node.tgz -C /opt/node --strip-components=1
+                export PATH=/opt/node/bin:$PATH
+                node -v
+                npm install -g pnpm@10.28.0
+                pnpm install --frozen-lockfile
+                pnpm typecheck
+                pnpm lint
+                pnpm --filter mobile build:h5
+                rm -rf h5-package && mkdir h5-package
+                cp -r apps/mobile/dist-h5 h5-package/dist-h5
+                cp apps/mobile/deploy/h5/nginx.conf apps/mobile/deploy/h5/Dockerfile h5-package/
+                cat h5-package/dist-h5/version.json
+          image_step:
+            name: 镜像构建并推送
+            step: ACRDockerBuild
+            with:
+              artifact: h5_image
+              dockerfilePath: h5-package/Dockerfile
+              contextPath: h5-package
+              dockerRegistry: crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com/dreamer-lab/peetraining-h5
+              dockerTag: latest
+              region: cn-beijing
+              serviceConnection: nm8nueiukuaog1e1
+  deploy_stage:
+    name: 部署
+    jobs:
+      deploy_job:
+        name: 主机部署
+        component: VMDockerDeploy
+        with:
+          machineGroup: BiC3vRBpf1g3RJMj
+          executeUser: root
+          run: |
+            set -eu
+            # 只动容器 training-h5（独立的 Nginx，只放网页），不碰入口 Nginx、后端和其他容器
+            IMG=crpi-3mjxc296umgnl4w9.cn-beijing.personal.cr.aliyuncs.com/dreamer-lab/peetraining-h5:latest
+            docker pull "$IMG"
+            docker rm -f training-h5 >/dev/null 2>&1 || true
+            docker run -d --name training-h5 --restart unless-stopped --network dreamer-net --network-alias training-h5 "$IMG"
+            i=0
+            until docker exec training-h5 wget -qO- http://127.0.0.1/healthz >/dev/null 2>&1; do
+              i=$((i+1))
+              if [ "$i" -ge 12 ]; then echo 'training-h5 health check failed'; docker logs --tail=50 training-h5; exit 1; fi
+              sleep 5
+            done
+            docker exec training-h5 cat /usr/share/nginx/html/h5/version.json
+            docker ps --filter name=training-h5

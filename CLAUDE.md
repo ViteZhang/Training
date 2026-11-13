@@ -11,6 +11,8 @@
 - GitHub 一侧照旧：所有改动开 PR 合并到 GitHub 的 main，并与云效保持一致（以云效为准）
 - 分支对应关系写在 `scripts/sync-codeup.sh` 的 `branch_of` 里，要改分支就改那里
 - 管理后台已从 web 拆到云效单独的 `peetraining-admin` 仓库（分支 master），不在本仓库里，也不在同步范围内
+- H5 版（网页版，2026-11-13 起）：代码在 peetraining-web/apps/mobile（与 App 同一份），单独发布，不经过 master-zhangzhao：
+  `scripts/sync-codeup.sh push-h5` 推到云效 web 的 `h5` 分支，再运行云效流水线「peetraining-h5上线」（`YUNXIAO_PIPELINE_ID=5389145 scripts/yunxiao-flow.sh run`），部署为阿里云上的容器 training-h5，地址 /h5/。见 peetraining-web/docs/h5.md
 
 各目录的开发规范见各自的 CLAUDE.md。
 
