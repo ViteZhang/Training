@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+.git
+.idea
+.DS_Store
+.env
+*.local
+docs
+README.md
+dist-site
+site/md.test.js

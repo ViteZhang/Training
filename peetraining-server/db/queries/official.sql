@@ -74,7 +74,7 @@ UPDATE questions SET status = ? WHERE id = ? AND bank_id = ? AND owner_user_id I
 
 -- name: ListOfficialRubric :many
 -- 官方题库的全部采分点（题目的与知识点的）。
-SELECT r.id, r.question_id, r.kp_id, r.seq, r.content, r.keywords, r.score FROM rubric_points r
+SELECT r.id, r.question_id, r.kp_id, r.subquestion_id, r.seq, r.content, r.keywords, r.score FROM rubric_points r
 WHERE r.owner_user_id IS NULL AND (r.question_id IN (SELECT q.id FROM questions q WHERE q.bank_id = sqlc.arg(bank_id) AND q.owner_user_id IS NULL)
    OR r.kp_id IN (SELECT k.id FROM knowledge_points k WHERE k.bank_id = sqlc.arg(bank_id) AND k.owner_user_id IS NULL))
 ORDER BY r.question_id, r.kp_id, r.seq;
@@ -86,7 +86,7 @@ DELETE FROM rubric_points WHERE question_id = ? AND owner_user_id IS NULL;
 DELETE FROM rubric_points WHERE kp_id = ? AND owner_user_id IS NULL;
 
 -- name: InsertOfficialRubricPoint :exec
-INSERT INTO rubric_points (owner_user_id, question_id, kp_id, seq, content, keywords, score, origin) VALUES (?, ?, ?, ?, ?, ?, ?, 'official');
+INSERT INTO rubric_points (owner_user_id, question_id, kp_id, subquestion_id, seq, content, keywords, score, origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'official');
 
 -- name: ListOfficialQuestionKPs :many
 SELECT qk.question_id, qk.kp_id, qk.is_primary FROM question_kps qk JOIN questions q ON q.id = qk.question_id WHERE q.bank_id = ? AND q.owner_user_id IS NULL;

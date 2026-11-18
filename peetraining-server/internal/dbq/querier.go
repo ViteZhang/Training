@@ -236,6 +236,7 @@ type Querier interface {
 	DeleteQuestion(ctx context.Context, arg DeleteQuestionParams) (int64, error)
 	DeleteQuestionKPs(ctx context.Context, arg DeleteQuestionKPsParams) error
 	DeleteQuestionRubric(ctx context.Context, arg DeleteQuestionRubricParams) error
+	DeleteQuestionSubquestions(ctx context.Context, questionID uint64) error
 	DeleteQuestionsFromMaterial(ctx context.Context, arg DeleteQuestionsFromMaterialParams) error
 	DeleteSubject(ctx context.Context, arg DeleteSubjectParams) (int64, error)
 	DeleteSubjectExports(ctx context.Context, arg DeleteSubjectExportsParams) error
@@ -523,6 +524,7 @@ type Querier interface {
 	// 确认导入后写入题库（T10）。每条都带 owner_user_id。
 	InsertQuestion(ctx context.Context, arg InsertQuestionParams) (int64, error)
 	InsertQuestionKP(ctx context.Context, arg InsertQuestionKPParams) error
+	InsertQuestionSubquestion(ctx context.Context, arg InsertQuestionSubquestionParams) (int64, error)
 	InsertQuotaLedger(ctx context.Context, arg InsertQuotaLedgerParams) error
 	InsertReciteRecord(ctx context.Context, arg InsertReciteRecordParams) (int64, error)
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) (int64, error)
@@ -715,6 +717,7 @@ type Querier interface {
 	ListQuestionAttempts(ctx context.Context, arg ListQuestionAttemptsParams) ([]ListQuestionAttemptsRow, error)
 	ListQuestionKPs(ctx context.Context, arg ListQuestionKPsParams) ([]ListQuestionKPsRow, error)
 	ListQuestionRubric(ctx context.Context, arg ListQuestionRubricParams) ([]RubricPoint, error)
+	ListQuestionSubquestions(ctx context.Context, questionID uint64) ([]QuestionSubquestion, error)
 	ListQueuedGradings(ctx context.Context, ownerUserID uint64) ([]ListQueuedGradingsRow, error)
 	// 30 天内发布的协议新版本：给还没同意的用户发「协议更新」（新注册的用户登录时已同意当前版本）。
 	ListRecentAgreements(ctx context.Context, arg ListRecentAgreementsParams) ([]ListRecentAgreementsRow, error)

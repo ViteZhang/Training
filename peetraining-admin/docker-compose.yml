@@ -1,0 +1,28 @@
+# 应用机 /opt/dreamer/project/training-admin/docker-compose.yml
+# 首次准备后在目录下执行：docker compose pull && docker compose up -d
+name: training-admin
+
+services:
+  admin:
+    image: ${ADMIN_IMAGE:?需要在同目录 .env 里设置 ADMIN_IMAGE}:${ADMIN_TAG:-latest}
+    pull_policy: always
+    container_name: training-admin
+    restart: unless-stopped
+    expose: ["80"]
+    networks:
+      dreamer-net:
+        aliases: [training-admin]
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "3" }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+networks:
+  dreamer-net:
+    external: true
+    name: dreamer-net

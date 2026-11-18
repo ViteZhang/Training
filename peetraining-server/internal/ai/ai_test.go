@@ -245,6 +245,11 @@ func TestText(t *testing.T) {
 	if !Subjective("discussion") || Subjective("single_choice") {
 		t.Error("Subjective")
 	}
+	for _, qt := range []string{"discrimination", "material_analysis", "analytical_discussion"} {
+		if !Subjective(qt) {
+			t.Errorf("%s 应为主观题", qt)
+		}
+	}
 }
 
 type fixedErrClient struct{ err error }

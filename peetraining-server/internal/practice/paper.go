@@ -247,7 +247,8 @@ func (s *Service) Paper(ctx context.Context, userID, paperID uint64) (PaperDetai
 	return d, nil
 }
 
-var qtypeSection = map[string]string{"term": "名词解释", "short_answer": "简答", "discussion": "论述", "essay": "作文", "single_choice": "单选", "multi_choice": "多选",
+var qtypeSection = map[string]string{"term": "名词解释", "short_answer": "简答", "discrimination": "辨析", "discussion": "论述", "analytical_discussion": "分析论述",
+	"material_analysis": "材料分析", "essay": "作文", "single_choice": "单选", "multi_choice": "多选",
 	"true_false": "判断", "fill_blank": "填空", "calculation": "计算", "other": "其他"}
 
 // ComposePaper 是 AI 组卷（PRD 11.10）：结构等于最近一套真题卷；按板块真题分值占比分配知识点；标准卷真题考过的知识点占 50–70%、
@@ -1133,7 +1134,7 @@ func (s *Service) GradePaper(ctx context.Context, userID, sessionID uint64) erro
 				return err
 			}
 			extra := gradingExtra{Items: out.Suggestions, StructureOK: out.StructureOK, StructureNote: out.StructureNote, KPs: eff.KPs, WrongBook: eff.WrongBook}
-			if _, err := s.insertDone(ctx, q, userID, uint64(aid), dbq.GradingsTriggerReasonSubmit, 0, snap, snapJSON, out, loss, extra, meta, false, ""); err != nil {
+			if _, err := s.insertDone(ctx, q, userID, uint64(aid), dbq.GradingsTriggerReasonSubmit, 0, snap, snapJSON, out, loss, nil, extra, meta, false, ""); err != nil {
 				return err
 			}
 			return q.SetPaperItemAttempt(ctx, dbq.SetPaperItemAttemptParams{AttemptID: sql.NullInt64{Int64: aid, Valid: true}, PaperSessionID: sessionID, Seq: it.Seq, OwnerUserID: userID})

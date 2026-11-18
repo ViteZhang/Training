@@ -4229,6 +4229,64 @@ func AllOrdersTierValues() []OrdersTier {
 	}
 }
 
+type PaperChoiceGroupsRule string
+
+const (
+	PaperChoiceGroupsRuleChooseOne      PaperChoiceGroupsRule = "choose_one"
+	PaperChoiceGroupsRuleBothCountFirst PaperChoiceGroupsRule = "both_count_first"
+)
+
+func (e *PaperChoiceGroupsRule) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PaperChoiceGroupsRule(s)
+	case string:
+		*e = PaperChoiceGroupsRule(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PaperChoiceGroupsRule: %T", src)
+	}
+	return nil
+}
+
+type NullPaperChoiceGroupsRule struct {
+	PaperChoiceGroupsRule PaperChoiceGroupsRule
+	Valid                 bool // Valid is true if PaperChoiceGroupsRule is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPaperChoiceGroupsRule) Scan(value interface{}) error {
+	if value == nil {
+		ns.PaperChoiceGroupsRule, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PaperChoiceGroupsRule.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPaperChoiceGroupsRule) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PaperChoiceGroupsRule), nil
+}
+
+func (e PaperChoiceGroupsRule) Valid() bool {
+	switch e {
+	case PaperChoiceGroupsRuleChooseOne,
+		PaperChoiceGroupsRuleBothCountFirst:
+		return true
+	}
+	return false
+}
+
+func AllPaperChoiceGroupsRuleValues() []PaperChoiceGroupsRule {
+	return []PaperChoiceGroupsRule{
+		PaperChoiceGroupsRuleChooseOne,
+		PaperChoiceGroupsRuleBothCountFirst,
+	}
+}
+
 type PaperSessionsMode string
 
 const (
@@ -4622,6 +4680,64 @@ func AllPracticeSessionsStatusValues() []PracticeSessionsStatus {
 	}
 }
 
+type QuestionSubquestionsScoreSource string
+
+const (
+	QuestionSubquestionsScoreSourceOriginal QuestionSubquestionsScoreSource = "original"
+	QuestionSubquestionsScoreSourceTeam     QuestionSubquestionsScoreSource = "team"
+)
+
+func (e *QuestionSubquestionsScoreSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = QuestionSubquestionsScoreSource(s)
+	case string:
+		*e = QuestionSubquestionsScoreSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for QuestionSubquestionsScoreSource: %T", src)
+	}
+	return nil
+}
+
+type NullQuestionSubquestionsScoreSource struct {
+	QuestionSubquestionsScoreSource QuestionSubquestionsScoreSource
+	Valid                           bool // Valid is true if QuestionSubquestionsScoreSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullQuestionSubquestionsScoreSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.QuestionSubquestionsScoreSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.QuestionSubquestionsScoreSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullQuestionSubquestionsScoreSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.QuestionSubquestionsScoreSource), nil
+}
+
+func (e QuestionSubquestionsScoreSource) Valid() bool {
+	switch e {
+	case QuestionSubquestionsScoreSourceOriginal,
+		QuestionSubquestionsScoreSourceTeam:
+		return true
+	}
+	return false
+}
+
+func AllQuestionSubquestionsScoreSourceValues() []QuestionSubquestionsScoreSource {
+	return []QuestionSubquestionsScoreSource{
+		QuestionSubquestionsScoreSourceOriginal,
+		QuestionSubquestionsScoreSourceTeam,
+	}
+}
+
 type QuestionsAiAnswerOutcome string
 
 const (
@@ -4869,16 +4985,19 @@ func AllQuestionsDifficultyValues() []QuestionsDifficulty {
 type QuestionsQtype string
 
 const (
-	QuestionsQtypeSingleChoice QuestionsQtype = "single_choice"
-	QuestionsQtypeMultiChoice  QuestionsQtype = "multi_choice"
-	QuestionsQtypeTrueFalse    QuestionsQtype = "true_false"
-	QuestionsQtypeFillBlank    QuestionsQtype = "fill_blank"
-	QuestionsQtypeTerm         QuestionsQtype = "term"
-	QuestionsQtypeShortAnswer  QuestionsQtype = "short_answer"
-	QuestionsQtypeDiscussion   QuestionsQtype = "discussion"
-	QuestionsQtypeEssay        QuestionsQtype = "essay"
-	QuestionsQtypeCalculation  QuestionsQtype = "calculation"
-	QuestionsQtypeOther        QuestionsQtype = "other"
+	QuestionsQtypeSingleChoice         QuestionsQtype = "single_choice"
+	QuestionsQtypeMultiChoice          QuestionsQtype = "multi_choice"
+	QuestionsQtypeTrueFalse            QuestionsQtype = "true_false"
+	QuestionsQtypeFillBlank            QuestionsQtype = "fill_blank"
+	QuestionsQtypeTerm                 QuestionsQtype = "term"
+	QuestionsQtypeShortAnswer          QuestionsQtype = "short_answer"
+	QuestionsQtypeDiscussion           QuestionsQtype = "discussion"
+	QuestionsQtypeEssay                QuestionsQtype = "essay"
+	QuestionsQtypeCalculation          QuestionsQtype = "calculation"
+	QuestionsQtypeOther                QuestionsQtype = "other"
+	QuestionsQtypeDiscrimination       QuestionsQtype = "discrimination"
+	QuestionsQtypeMaterialAnalysis     QuestionsQtype = "material_analysis"
+	QuestionsQtypeAnalyticalDiscussion QuestionsQtype = "analytical_discussion"
 )
 
 func (e *QuestionsQtype) Scan(src interface{}) error {
@@ -4927,7 +5046,10 @@ func (e QuestionsQtype) Valid() bool {
 		QuestionsQtypeDiscussion,
 		QuestionsQtypeEssay,
 		QuestionsQtypeCalculation,
-		QuestionsQtypeOther:
+		QuestionsQtypeOther,
+		QuestionsQtypeDiscrimination,
+		QuestionsQtypeMaterialAnalysis,
+		QuestionsQtypeAnalyticalDiscussion:
 		return true
 	}
 	return false
@@ -4945,6 +5067,9 @@ func AllQuestionsQtypeValues() []QuestionsQtype {
 		QuestionsQtypeEssay,
 		QuestionsQtypeCalculation,
 		QuestionsQtypeOther,
+		QuestionsQtypeDiscrimination,
+		QuestionsQtypeMaterialAnalysis,
+		QuestionsQtypeAnalyticalDiscussion,
 	}
 }
 
@@ -7324,6 +7449,8 @@ type Attempt struct {
 	CreatedAt  time.Time
 	// 按 AI 参考答案（待确认）判分，不计入预估分
 	ReferenceOnly bool
+	// 分问作答 [{subquestion_id,text}]
+	Subanswers dbtypes.NullJSON
 }
 
 // 题库：知识点、题目、试卷、资料的容器
@@ -7385,6 +7512,8 @@ type CatalogCourse struct {
 	Majors dbtypes.NullJSON
 	// 去重键：命题方式|院校|代码（没有代码时 n:名称）|年份（各年通用为 0）
 	CourseKey string
+	// school 院校自命题 / national 全国统考
+	ExamSystem string
 }
 
 // 用户在 1.1 手动添加、待运营入库的课程
@@ -7713,6 +7842,8 @@ type Grading struct {
 	IdempotencyKey sql.NullString
 	CreatedAt      time.Time
 	FinishedAt     sql.NullTime
+	// 分问得分 [{subquestion_id,score,full_score,feedback}]
+	SubquestionResults dbtypes.NullJSON
 }
 
 // 导入中只有答案的条目，待配对
@@ -8110,6 +8241,8 @@ type OfficialProject struct {
 	TextbookLinkVersion uint64
 	// 考试科目；为空的是 T50 之前的旧立项，仍按院校 + 代码匹配
 	CatalogCourseID sql.NullInt64
+	// school 院校自命题 / national 全国统考
+	ExamSystem string
 }
 
 type OfficialProjectTextbook struct {
@@ -8217,6 +8350,32 @@ type Paper struct {
 	CreatedAt        time.Time
 }
 
+// 卷面选答组（与专业限选无关）
+type PaperChoiceGroup struct {
+	ID      uint64
+	PaperID uint64
+	// 卷面题号，如 56
+	SlotNo uint16
+	// 该槽计分分值，如 30
+	SlotScore string
+	// 计入卷面的候选数
+	ChooseCount uint16
+	// 2026 311 第56题：双答计Ⅰ
+	Rule PaperChoiceGroupsRule
+	// 原卷选答说明原文
+	Description sql.NullString
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// 选答组候选大题
+type PaperChoiceGroupItem struct {
+	ID         uint64
+	GroupID    uint64
+	QuestionID uint64
+	Seq        uint16
+}
+
 // 整卷手写稿后台识别；交卷后保留原始照片与结果
 type PaperHandwriting struct {
 	ID             uint64
@@ -8291,6 +8450,18 @@ type PaperSessionItem struct {
 	TimeSpentSeconds uint32
 }
 
+// 卷面计分槽；311 第56题两个候选共享一个槽
+type PaperSlot struct {
+	ID      uint64
+	PaperID uint64
+	SlotNo  uint16
+	// 普通题槽位
+	QuestionID sql.NullInt64
+	// 选答槽位
+	ChoiceGroupID sql.NullInt64
+	Score         string
+}
+
 // 练习会话
 type PracticeSession struct {
 	ID          uint64
@@ -8316,9 +8487,7 @@ type Question struct {
 	ID          uint64
 	OwnerUserID sql.NullInt64
 	BankID      uint64
-	// term 名词解释 / short_answer 简答 / discussion 论述 / essay 作文
-	Qtype QuestionsQtype
-	Stem  string
+	Stem        string
 	// 客观题选项 [{key,text}]
 	Options dbtypes.NullJSON
 	// 客观题正确答案或主观题参考答案
@@ -8378,6 +8547,8 @@ type Question struct {
 	AnswerSnapshotID sql.NullInt64
 	// 出处（T56）
 	ReferenceText sql.NullString
+	// term 名词解释 / short_answer 简答 / discussion 论述 / essay 作文 / discrimination 辨析 / material_analysis 材料分析 / analytical_discussion 分析论述
+	Qtype QuestionsQtype
 }
 
 // 题目与知识点多对多
@@ -8395,6 +8566,27 @@ type QuestionReport struct {
 	OwnerUserID uint64
 	Reason      sql.NullString
 	CreatedAt   time.Time
+}
+
+// 大题子问（教育学多子问）
+type QuestionSubquestion struct {
+	ID         uint64
+	QuestionID uint64
+	// 大题内顺序，从 1 开始
+	Ordinal uint16
+	// 展示序号，如 (1)
+	Label string
+	// 设问原文
+	Stem string
+	// 分问参考答案
+	Answer sql.NullString
+	// NULL 表示原卷未给分问分值
+	FullScore sql.NullString
+	// original 原题给定 / team 团队制定（须审核）
+	ScoreSource NullQuestionSubquestionsScoreSource
+	NeedsReview bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // 额度计数，扣减时 SELECT ... FOR UPDATE 防并发超额
@@ -8538,6 +8730,8 @@ type RubricPoint struct {
 	Origin    RubricPointsOrigin
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	// 属于子问的采分点；NULL 表示整题采分点
+	SubquestionID sql.NullInt64
 }
 
 // 规则参数与额度、价格（PRD 第 11、13 节初始值），后台 7.8 可改

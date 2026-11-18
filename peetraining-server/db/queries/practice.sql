@@ -47,8 +47,8 @@ SELECT * FROM attempts WHERE owner_user_id = ? AND idempotency_key = ?;
 
 -- name: InsertAttempt :execlastid
 INSERT INTO attempts (owner_user_id, question_id, practice_session_id, answer_mode, selected, answer_text, is_correct, score, full_score,
-  revealed_answer, self_assess, duration_seconds, offline, verified_at, idempotency_key, answered_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  revealed_answer, self_assess, duration_seconds, offline, verified_at, idempotency_key, answered_at, subanswers)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: ListSessionAttempts :many
 SELECT a.id, a.question_id, a.is_correct, a.revealed_answer, a.self_assess, a.selected, a.duration_seconds, q.qtype, q.source

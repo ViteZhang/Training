@@ -85,6 +85,22 @@ func toGenSession(s practice.Session) gen.PracticeSession {
 			}
 			x.Options = &opts
 		}
+		if len(q.Subquestions) > 0 {
+			subs := make([]gen.PracticeSubquestion, len(q.Subquestions))
+			for i, sub := range q.Subquestions {
+				subs[i] = gen.PracticeSubquestion{Id: int64(sub.ID), Ordinal: sub.Ordinal, Stem: sub.Stem}
+				if sub.Label != "" {
+					subs[i].Label = ptr(sub.Label)
+				}
+				if sub.Answer != "" {
+					subs[i].Answer = ptr(sub.Answer)
+				}
+				if sub.FullScore != nil {
+					subs[i].FullScore = ptr(float32(*sub.FullScore))
+				}
+			}
+			x.Subquestions = &subs
+		}
 		if q.FileName != "" {
 			ref := gen.SourceRef{MaterialId: int64(q.MaterialID), FileName: q.FileName}
 			if q.Page > 0 {

@@ -698,9 +698,10 @@ func (s *Service) insertQuestion(ctx context.Context, q *dbq.Queries, t *tree, j
 var qtypeNames = map[string]string{
 	"single_choice": "单项选择题", "multi_choice": "多项选择题", "true_false": "判断题", "fill_blank": "填空题",
 	"term": "名词解释", "short_answer": "简答题", "discussion": "论述题", "essay": "作文", "calculation": "计算题", "other": "其他",
+	"discrimination": "辨析题", "material_analysis": "材料分析题", "analytical_discussion": "分析论述题",
 }
 
-var qtypeOrder = []string{"single_choice", "multi_choice", "true_false", "fill_blank", "term", "short_answer", "calculation", "discussion", "essay", "other"}
+var qtypeOrder = []string{"single_choice", "multi_choice", "true_false", "fill_blank", "term", "short_answer", "calculation", "discrimination", "discussion", "analytical_discussion", "material_analysis", "essay", "other"}
 
 // buildPaper 按年份把真题组成真题卷（PRD 11.6）：满分取专业课满分；收录题目的分值合计小于满分时记缺题说明，成绩按比例换算。
 // 题目没有分值的年份不组卷（无法计分）。返回是否组了卷。

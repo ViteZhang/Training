@@ -863,7 +863,11 @@ func (s *Service) kpPaths(ctx context.Context, projectID uint64) ([][]string, er
 // T56：题目表加「解析」「答案来源」；「出处」存进题目、展示给用户；表头有「板块、章节、知识点」而没有「题干」的是知识点表。
 var tableColumns = map[string]string{"年份": "year", "题号": "no", "题型": "qtype", "分值": "score", "题干": "stem", "参考答案": "answer",
 	"采分点": "rubric", "知识点": "kp", "出处": "source", "来源类型": "kind", "限选分组": "group", "适用专业": "group_majors",
-	"解析": "analysis", "答案来源": "answer_origin", "板块": "section", "章节": "chapter", "原文表述": "original"}
+	"解析": "analysis", "答案来源": "answer_origin", "板块": "section", "章节": "chapter", "原文表述": "original",
+	"选项A": "option_a", "选项B": "option_b", "选项C": "option_c", "选项D": "option_d", "正确选项": "correct",
+	"材料": "passage", "大题标识": "qgroup", "子问序号": "sub_ordinal", "子问题干": "sub_stem", "子问分值": "sub_score",
+	"子问参考答案": "sub_answer", "子问采分点": "sub_rubric", "评分分配来源": "sub_source",
+	"选答组标识": "choice_group", "选取数量": "choice_count", "双答处理": "choice_rule", "原卷选答说明": "choice_desc"}
 
 // tableAnswerAI 是「答案来源」列的写法：AI 生成的标「AI 参考答案」，团队给的标「官方答案」，不填按团队答案。
 var tableAnswerAI = map[string]bool{"AI生成": true, "AI": true, "ai": true, "AI 生成": true, "团队": false, "官方": false, "团队答案": false, "官方答案": false, "": false}
@@ -881,7 +885,9 @@ func SplitKPNames(cell string) []string {
 }
 
 var tableQTypes = map[string]string{"名词解释": "term", "简答": "short_answer", "简答题": "short_answer", "论述": "discussion", "论述题": "discussion",
-	"客观题": "single_choice", "单选": "single_choice", "选择": "single_choice"}
+	"客观题": "single_choice", "单选": "single_choice", "单项选择题": "single_choice", "单选题": "single_choice", "选择": "single_choice",
+	"辨析": "discrimination", "辨析题": "discrimination", "材料分析": "material_analysis", "材料分析题": "material_analysis",
+	"分析论述": "analytical_discussion", "分析论述题": "analytical_discussion"}
 
 // reRubricLine 认一行采分点：「要点（3 分）」「要点 3分」「要点：3」。
 var reRubricLine = regexp.MustCompile(`^(.+?)[\s：:（(]*([0-9]+(?:\.[0-9]+)?)\s*分?[)）]?\s*$`)
@@ -900,6 +906,168 @@ func ParseRubricCell(cell string) ([]Point, error) {
 		}
 		v, _ := strconv.ParseFloat(m[2], 64)
 		out = append(out, Point{Content: strings.TrimSpace(strings.TrimRight(m[1], "，,；; ")), Score: v})
+	}
+	return out, nil
+}
+
+// parseGroupedTable 是多行子问表：同一「大题标识」的多行合并成一道题，每行一个分问。
+// 单选的四项选项来自「选项A—D」，正确答案来自「正确选项」；「材料」拼在题干前，保证题目完整。
+func (s *Service) parseGroupedTable(ctx context.Context, projectID uint64, rows [][]string, col map[string]int, autoAnswer bool) ([]dbq.InsertOfficialImportItemParams, error) {
+	get := func(row []string, k string) string {
+		if i, ok := col[k]; ok && i < len(row) {
+			return strings.TrimSpace(row[i])
+		}
+		return ""
+	}
+	order := []string{}
+	groups := map[string][][]string{}
+	for _, row := range rows[1:] {
+		key := get(row, "qgroup")
+		if key == "" {
+			key = fmt.Sprintf("__row_%d", len(order)+2)
+		}
+		if _, ok := groups[key]; !ok {
+			order = append(order, key)
+		}
+		groups[key] = append(groups[key], row)
+	}
+	var out []dbq.InsertOfficialImportItemParams
+	for _, key := range order {
+		g := groups[key]
+		first := g[0]
+		line := 2
+		stem := get(first, "stem")
+		if stem == "" {
+			return nil, apperr.New(apperr.BadRequest, "大题 "+key+" 缺少题干")
+		}
+		rawType := get(first, "qtype")
+		qt, ok := tableQTypes[rawType]
+		if !ok {
+			return nil, apperr.New(apperr.BadRequest, fmt.Sprintf("第 %d 行题型不正确（%s 不是支持的题型）", line, cutRunes(rawType, 20)))
+		}
+		scoreVal, err := strconv.ParseFloat(get(first, "score"), 64)
+		if err != nil || scoreVal <= 0 {
+			return nil, apperr.New(apperr.BadRequest, "大题 "+key+" 的分值要大于 0")
+		}
+		passage := get(first, "passage")
+		if passage != "" {
+			stem = passage + "\n\n" + stem
+		}
+		p := QuestionPayload{QType: qt, Stem: stem, Answer: get(first, "answer"), Analysis: get(first, "analysis"), Reference: cutRunes(get(first, "source"), maxCitationRunes), Score: &scoreVal}
+		if y, e := strconv.Atoi(get(first, "year")); e == nil && y > 1977 {
+			p.ExamYear = &y
+		}
+		p.KPNames = SplitKPNames(get(first, "kp"))
+		if g := get(first, "group"); g != "" {
+			p.Group = &QuestionGroup{Label: g, Majors: get(first, "group_majors")}
+		}
+		if qt == "single_choice" {
+			var opts []ai.Option
+			for _, pair := range [][2]string{{"option_a", "A"}, {"option_b", "B"}, {"option_c", "C"}, {"option_d", "D"}} {
+				if v := get(first, pair[0]); v != "" {
+					opts = append(opts, ai.Option{Key: pair[1], Text: v})
+				}
+			}
+			if len(opts) > 0 && len(opts) != 4 {
+				return nil, apperr.New(apperr.BadRequest, "大题 "+key+" 的单选选项要 A—D 四项齐全")
+			}
+			p.Options = opts
+			correct := strings.ToUpper(get(first, "correct"))
+			if correct == "" {
+				correct = strings.ToUpper(strings.TrimSpace(p.Answer))
+			}
+			if len(opts) == 4 {
+				valid := false
+				for _, o := range opts {
+					if o.Key == correct {
+						valid = true
+					}
+				}
+				if !valid {
+					return nil, apperr.New(apperr.BadRequest, "大题 "+key+" 的正确选项只能是 A—D 且必须存在")
+				}
+				p.Answer = correct
+				p.AnswerAI = false
+			}
+		}
+		for i, row := range g {
+			ord := i + 1
+			if v := get(row, "sub_ordinal"); v != "" {
+				n, e := strconv.Atoi(v)
+				if e != nil || n <= 0 {
+					return nil, apperr.New(apperr.BadRequest, "大题 "+key+" 的子问序号要是正整数")
+				}
+				ord = n
+			}
+			subStem := get(row, "sub_stem")
+			if subStem != "" {
+				sp := SubquestionPayload{Ordinal: ord, Label: fmt.Sprintf("(%d)", ord), Stem: subStem, Answer: get(row, "sub_answer"), ScoreSource: get(row, "sub_source")}
+				if v := get(row, "sub_score"); v != "" {
+					f, e := strconv.ParseFloat(v, 64)
+					if e != nil || f < 0 {
+						return nil, apperr.New(apperr.BadRequest, "大题 "+key+" 的子问分值不正确")
+					}
+					sp.FullScore = &f
+				}
+				p.Subquestions = append(p.Subquestions, sp)
+			}
+			cell := get(row, "sub_rubric")
+			if cell != "" {
+				pts, e := ParseRubricCell(cell)
+				if e != nil {
+					return nil, apperr.New(apperr.BadRequest, "大题 "+key+" 第 "+fmt.Sprint(ord)+" 问"+e.Error())
+				}
+				for j := range pts {
+					pts[j].SubquestionOrdinal = ord
+				}
+				p.Rubric = append(p.Rubric, pts...)
+			} else if v := get(row, "rubric"); v != "" {
+				pts, e := ParseRubricCell(v)
+				if e != nil {
+					return nil, apperr.New(apperr.BadRequest, "大题 "+key+" "+e.Error())
+				}
+				p.Rubric = append(p.Rubric, pts...)
+			}
+		}
+		if len(p.Subquestions) > 0 {
+			total := 0.0
+			all := true
+			for _, sub := range p.Subquestions {
+				if sub.FullScore == nil {
+					all = false
+				} else {
+					total += *sub.FullScore
+				}
+			}
+			if all && math.Abs(total-scoreVal) > 0.01 {
+				return nil, apperr.New(apperr.BadRequest, fmt.Sprintf("大题 %s 的分问分值合计 %.1f 不等于总分 %.1f", key, total, scoreVal))
+			}
+		}
+		var cite []Citation
+		filled, fillErr := false, ""
+		if autoAnswer {
+			cite, filled, err = s.fillAnswer(ctx, projectID, &p, nil)
+			if err != nil {
+				if ctx.Err() != nil {
+					return nil, ctx.Err()
+				}
+				fillErr = fillErrorText(err)
+			}
+		}
+		conf := dbq.OfficialImportItemsConfidenceHigh
+		if filled || !RubricMatches(p) || needsFill(p) {
+			conf = dbq.OfficialImportItemsConfidenceMedium
+		}
+		if fillErr != "" {
+			conf = dbq.OfficialImportItemsConfidenceLow
+		}
+		b, _ := json.Marshal(p)
+		var cites dbtypes.NullJSON
+		if len(cite) > 0 {
+			cites, _ = json.Marshal(cite)
+		}
+		out = append(out, dbq.InsertOfficialImportItemParams{ItemType: dbq.OfficialImportItemsItemTypeQuestion, Payload: b, Citations: cites,
+			SourceText: nullStr(cutRunes(stem, 2000)), Page: uint32(line), Confidence: conf, FillError: nullStr(fillErr)})
 	}
 	return out, nil
 }
@@ -929,6 +1097,9 @@ func (s *Service) parseTable(ctx context.Context, projectID uint64, text string,
 	}
 	if isKPTable(col) {
 		return parseKPTable(rows, get)
+	}
+	if _, ok := col["qgroup"]; ok {
+		return s.parseGroupedTable(ctx, projectID, rows, col, autoAnswer)
 	}
 	for _, need := range []string{"qtype", "score", "stem"} {
 		if _, ok := col[need]; !ok {

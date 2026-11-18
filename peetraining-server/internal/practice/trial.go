@@ -489,7 +489,7 @@ func (s *Service) SaveTrial(ctx context.Context, userID, id uint64, action strin
 		if len(res.Out.Points) != len(ps) {
 			return apperr.New(apperr.Conflict, "批改结果不完整，不能加入题库")
 		}
-		if _, err := s.insertDone(ctx, q, userID, uint64(aid), dbq.GradingsTriggerReasonSubmit, 0, snap, snapJSON, res.Out, nil, extra, ai.Meta{}, false, ""); err != nil {
+		if _, err := s.insertDone(ctx, q, userID, uint64(aid), dbq.GradingsTriggerReasonSubmit, 0, snap, snapJSON, res.Out, nil, nil, extra, ai.Meta{}, false, ""); err != nil {
 			return err
 		}
 		if err := q.SetTrialSaved(ctx, dbq.SetTrialSavedParams{SavedQuestionID: qnull, ID: id, OwnerUserID: userID}); err != nil {

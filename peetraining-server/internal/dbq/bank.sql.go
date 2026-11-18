@@ -183,6 +183,15 @@ func (q *Queries) DeleteQuestionRubric(ctx context.Context, arg DeleteQuestionRu
 	return err
 }
 
+const deleteQuestionSubquestions = `-- name: DeleteQuestionSubquestions :exec
+DELETE FROM question_subquestions WHERE question_id = ?
+`
+
+func (q *Queries) DeleteQuestionSubquestions(ctx context.Context, questionID uint64) error {
+	_, err := q.db.ExecContext(ctx, deleteQuestionSubquestions, questionID)
+	return err
+}
+
 const getKP = `-- name: GetKP :one
 SELECT k.id, k.owner_user_id, k.bank_id, k.parent_id, k.level, k.name, k.original_text, k.source_material_id, k.source_page, k.origin, k.needs_review, k.ai_explanation, k.ai_explanation_at, k.exam_count, k.official_kp_id, k.sort_order, k.created_at, k.updated_at, k.official_hash, k.official_new_until, k.reference_text, b.subject_id FROM knowledge_points k JOIN banks b ON b.id = k.bank_id
 WHERE k.id = ? AND k.owner_user_id = ?
@@ -326,7 +335,7 @@ func (q *Queries) GetMaterialPage(ctx context.Context, arg GetMaterialPageParams
 }
 
 const getQuestionFull = `-- name: GetQuestionFull :one
-SELECT q.id, q.owner_user_id, q.bank_id, q.qtype, q.stem, q.options, q.answer, q.answer_origin, q.analysis, q.score, q.difficulty, q.exam_year, q.question_no, q.is_recollection, q.source_material_id, q.source_page, q.generated_from_kp_id, q.content_hash, q.rubric_version, q.status, q.needs_review, q.review_reasons, q.report_count, q.official_question_id, q.created_at, q.updated_at, q.required_words, q.official_hash, q.passage, q.passage_key, q.group_label, q.group_majors, q.answer_match, q.answer_material_id, q.answer_page, q.ai_answer_at, q.ai_answer_outcome, q.ai_answer_reports, q.source, q.answer_snapshot_id, q.reference_text, b.subject_id FROM questions q JOIN banks b ON b.id = q.bank_id
+SELECT q.id, q.owner_user_id, q.bank_id, q.stem, q.options, q.answer, q.answer_origin, q.analysis, q.score, q.difficulty, q.exam_year, q.question_no, q.is_recollection, q.source_material_id, q.source_page, q.generated_from_kp_id, q.content_hash, q.rubric_version, q.status, q.needs_review, q.review_reasons, q.report_count, q.official_question_id, q.created_at, q.updated_at, q.required_words, q.official_hash, q.passage, q.passage_key, q.group_label, q.group_majors, q.answer_match, q.answer_material_id, q.answer_page, q.ai_answer_at, q.ai_answer_outcome, q.ai_answer_reports, q.source, q.answer_snapshot_id, q.reference_text, q.qtype, b.subject_id FROM questions q JOIN banks b ON b.id = q.bank_id
 WHERE q.id = ? AND q.owner_user_id = ?
 `
 
@@ -339,7 +348,6 @@ type GetQuestionFullRow struct {
 	ID                 uint64
 	OwnerUserID        sql.NullInt64
 	BankID             uint64
-	Qtype              QuestionsQtype
 	Stem               string
 	Options            dbtypes.NullJSON
 	Answer             sql.NullString
@@ -377,6 +385,7 @@ type GetQuestionFullRow struct {
 	Source             QuestionsSource
 	AnswerSnapshotID   sql.NullInt64
 	ReferenceText      sql.NullString
+	Qtype              QuestionsQtype
 	SubjectID          sql.NullInt64
 }
 
@@ -387,7 +396,6 @@ func (q *Queries) GetQuestionFull(ctx context.Context, arg GetQuestionFullParams
 		&i.ID,
 		&i.OwnerUserID,
 		&i.BankID,
-		&i.Qtype,
 		&i.Stem,
 		&i.Options,
 		&i.Answer,
@@ -425,6 +433,7 @@ func (q *Queries) GetQuestionFull(ctx context.Context, arg GetQuestionFullParams
 		&i.Source,
 		&i.AnswerSnapshotID,
 		&i.ReferenceText,
+		&i.Qtype,
 		&i.SubjectID,
 	)
 	return i, err
@@ -500,6 +509,39 @@ type InsertKPMasteryCopyParams struct {
 func (q *Queries) InsertKPMasteryCopy(ctx context.Context, arg InsertKPMasteryCopyParams) error {
 	_, err := q.db.ExecContext(ctx, insertKPMasteryCopy, arg.TargetID, arg.UserID, arg.SourceID)
 	return err
+}
+
+const insertQuestionSubquestion = `-- name: InsertQuestionSubquestion :execlastid
+INSERT INTO question_subquestions (question_id, ordinal, label, stem, answer, full_score, score_source, needs_review)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type InsertQuestionSubquestionParams struct {
+	QuestionID  uint64
+	Ordinal     uint16
+	Label       string
+	Stem        string
+	Answer      sql.NullString
+	FullScore   sql.NullString
+	ScoreSource NullQuestionSubquestionsScoreSource
+	NeedsReview bool
+}
+
+func (q *Queries) InsertQuestionSubquestion(ctx context.Context, arg InsertQuestionSubquestionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertQuestionSubquestion,
+		arg.QuestionID,
+		arg.Ordinal,
+		arg.Label,
+		arg.Stem,
+		arg.Answer,
+		arg.FullScore,
+		arg.ScoreSource,
+		arg.NeedsReview,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
 }
 
 const listBankFilterKPLinks = `-- name: ListBankFilterKPLinks :many
@@ -700,7 +742,7 @@ func (q *Queries) ListBankQuestionsFull(ctx context.Context, arg ListBankQuestio
 }
 
 const listKPRubric = `-- name: ListKPRubric :many
-SELECT id, owner_user_id, question_id, kp_id, seq, content, keywords, score, origin, created_at, updated_at FROM rubric_points WHERE kp_id = ? AND owner_user_id = ? ORDER BY seq
+SELECT id, owner_user_id, question_id, kp_id, seq, content, keywords, score, origin, created_at, updated_at, subquestion_id FROM rubric_points WHERE kp_id = ? AND owner_user_id = ? ORDER BY seq
 `
 
 type ListKPRubricParams struct {
@@ -729,6 +771,7 @@ func (q *Queries) ListKPRubric(ctx context.Context, arg ListKPRubricParams) ([]R
 			&i.Origin,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SubquestionID,
 		); err != nil {
 			return nil, err
 		}
@@ -969,7 +1012,7 @@ func (q *Queries) ListQuestionKPs(ctx context.Context, arg ListQuestionKPsParams
 }
 
 const listQuestionRubric = `-- name: ListQuestionRubric :many
-SELECT id, owner_user_id, question_id, kp_id, seq, content, keywords, score, origin, created_at, updated_at FROM rubric_points WHERE question_id = ? AND owner_user_id = ? ORDER BY seq
+SELECT id, owner_user_id, question_id, kp_id, seq, content, keywords, score, origin, created_at, updated_at, subquestion_id FROM rubric_points WHERE question_id = ? AND owner_user_id = ? ORDER BY seq
 `
 
 type ListQuestionRubricParams struct {
@@ -996,6 +1039,46 @@ func (q *Queries) ListQuestionRubric(ctx context.Context, arg ListQuestionRubric
 			&i.Keywords,
 			&i.Score,
 			&i.Origin,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SubquestionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listQuestionSubquestions = `-- name: ListQuestionSubquestions :many
+SELECT id, question_id, ordinal, label, stem, answer, full_score, score_source, needs_review, created_at, updated_at FROM question_subquestions WHERE question_id = ? ORDER BY ordinal
+`
+
+func (q *Queries) ListQuestionSubquestions(ctx context.Context, questionID uint64) ([]QuestionSubquestion, error) {
+	rows, err := q.db.QueryContext(ctx, listQuestionSubquestions, questionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []QuestionSubquestion{}
+	for rows.Next() {
+		var i QuestionSubquestion
+		if err := rows.Scan(
+			&i.ID,
+			&i.QuestionID,
+			&i.Ordinal,
+			&i.Label,
+			&i.Stem,
+			&i.Answer,
+			&i.FullScore,
+			&i.ScoreSource,
+			&i.NeedsReview,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

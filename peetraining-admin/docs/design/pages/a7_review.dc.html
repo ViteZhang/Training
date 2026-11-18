@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>7.13 后台 · 审核队列</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; display: flex; overflow: hidden; background: #F7F7F5; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<aside style="width: 220px; flex-shrink: 0; background: #FFFFFF; border-right: 1px solid #EFEFEF; padding: 22px 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 2px">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 6px 14px"><span style="width: 32px; height: 32px; border-radius: 10px; background: #1A1A1A; display: flex; align-items: center; justify-content: center; gap: 3px"><span style="width: 6px; height: 6px; border-radius: 3px; background: #6FA8DC"></span><span style="width: 6px; height: 6px; border-radius: 3px; background: #F2956B"></span><span style="width: 6px; height: 6px; border-radius: 3px; background: #8C80E0"></span></span><span style="font-size: 15px; font-weight: 700">考研Training 后台</span></div>
+<span style="padding: 12px 14px 4px; font-size: 11px; color: #767676">运营</span>
+<a href="a7_overview.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; text-decoration: none; color: #1A1A1A">概览</a>
+<a href="a7_users.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; text-decoration: none; color: #1A1A1A">用户</a>
+<a href="a7_orders.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; text-decoration: none; color: #1A1A1A">会员与订单</a>
+<a href="a7_codes.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; text-decoration: none; color: #1A1A1A">兑换码</a>
+<span style="padding: 12px 14px 4px; font-size: 11px; color: #767676">质量</span>
+<a href="a7_parse.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; text-decoration: none; color: #1A1A1A">资料解析监控</a>
+<a href="a7_disputes.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; text-decoration: none; color: #1A1A1A">批改异议</a>
+<a href="a7_feedback.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; text-decoration: none; color: #1A1A1A">用户反馈</a>
+<span style="padding: 12px 14px 4px; font-size: 11px; color: #767676">配置</span>
+<a href="a7_config.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; text-decoration: none; color: #1A1A1A">AI 与额度</a>
+<a href="a7_notice.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; text-decoration: none; color: #1A1A1A">消息与公告</a>
+<span style="padding: 12px 14px 4px; font-size: 11px; color: #767676">官方题库 · 方案一</span>
+<a href="a7_demand.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; text-decoration: none; color: #1A1A1A">需求洞察</a>
+<a href="a7_official.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; text-decoration: none; color: #1A1A1A">官方题库</a>
+<a href="a7_produce.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; text-decoration: none; color: #1A1A1A">内容生产</a>
+<a href="a7_review.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; text-decoration: none; background: #1A1A1A; color: #FFFFFF; font-weight: 700">审核队列</a>
+<a href="a7_release.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; text-decoration: none; color: #1A1A1A">版本发布</a>
+<span style="padding: 12px 14px 4px; font-size: 11px; color: #767676">系统</span>
+<a href="a7_roles.dc.html" style="display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; text-decoration: none; color: #1A1A1A">后台账号与权限</a>
+</aside><div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0"><header style="height: 64px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; background: #FFFFFF; border-bottom: 1px solid #EFEFEF"><div style="display: flex; align-items: center; gap: 16px"><span style="font-size: 18px; font-weight: 700">审核队列</span></div><div style="display: flex; align-items: center; gap: 14px"><button style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid #E6E6E6; background: #FFFFFF; font-family: inherit; font-size: 13px; display: flex; align-items: center; gap: 6px">海南大学 · 654 官方题库 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6E6E6E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button><span style="font-size: 13px; color: #6E6E6E">内容负责人 · 阿杰</span><span style="width: 32px; height: 32px; border-radius: 16px; background: #1A1A1A; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 13px">林</span></div></header><main style="flex-grow: 1; padding: 24px 28px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; gap: 18px; min-height: 0"><div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; flex-grow: 1; min-height: 0">
+<section style="background: #FFFFFF; border-radius: 18px; border: 1px solid #EFEFEF; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; min-height: 0"><div style="display: flex; justify-content: space-between"><span style="font-size: 15px; font-weight: 700">待审核 · 6</span><span style="display: flex; gap: 8px"><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #1A1A1A; color: #FFFFFF">全部</span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #F7F7F5; color: #1A1A1A">全量审核</span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #F7F7F5; color: #1A1A1A">抽检</span></span></div><div style="display: grid; grid-template-columns: 76px minmax(150px, 1fr) 60px 44px 90px 74px; gap: 12px; padding: 0 0 10px; border-bottom: 1px solid #EFEFEF; font-size: 12px; color: #6E6E6E"><span>编辑</span><span>内容</span><span>类型</span><span>变更</span><span>提交时间</span><span>方式</span></div><div style="display: grid; grid-template-columns: 76px minmax(150px, 1fr) 60px 44px 90px 74px; gap: 12px; align-items: center; min-height: 48px; border-bottom: 1px solid #EFEFEF; font-size: 14px; background: #F7F7F5; border-radius: 10px; padding-left: 8px; margin-left: -8px;"><span>周同学</span><span>第三章 文学作品的构成</span><span>知识点</span><span><span style="font-family: DM Sans">31</span></span><span>今天 14:20</span><span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #F7F7F5; color: #1A1A1A">抽检 30%</span></span></div><div style="display: grid; grid-template-columns: 76px minmax(150px, 1fr) 60px 44px 90px 74px; gap: 12px; align-items: center; min-height: 48px; border-bottom: 1px solid #EFEFEF; font-size: 14px; "><span>小安（新）</span><span>2023 年真题解析</span><span>真题</span><span><span style="font-family: DM Sans">28</span></span><span>今天 11:05</span><span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #FDF1DC; color: #B26A00">全量</span></span></div><div style="display: grid; grid-template-columns: 76px minmax(150px, 1fr) 60px 44px 90px 74px; gap: 12px; align-items: center; min-height: 48px; border-bottom: 1px solid #EFEFEF; font-size: 14px; "><span>周同学</span><span>标准模拟卷 3</span><span>模拟卷</span><span><span style="font-family: DM Sans">12</span></span><span>昨天 21:40</span><span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #FDF1DC; color: #B26A00">全量</span></span></div><div style="display: grid; grid-template-columns: 76px minmax(150px, 1fr) 60px 44px 90px 74px; gap: 12px; align-items: center; min-height: 48px; border-bottom: 1px solid #EFEFEF; font-size: 14px; "><span>阿杰</span><span>命题画像 2026</span><span>画像</span><span><span style="font-family: DM Sans">6</span></span><span>昨天 18:12</span><span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #FDF1DC; color: #B26A00">全量</span></span></div></section>
+<section style="background: #FFFFFF; border-radius: 18px; border: 1px solid #EFEFEF; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; min-height: 0"><div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 15px; font-weight: 700">意境 · 修改对比</span><span style="font-size: 12px; color: #6E6E6E">3 / 9 条抽检</span></div>
+<div style="display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.8">
+<div style="padding: 12px 14px; border-radius: 12px; background: #F7F7F5"><span style="font-size: 12px; color: #6E6E6E">出处 · 修改前</span><br>童庆炳《文学理论教程》第 3 章</div>
+<div style="padding: 12px 14px; border-radius: 12px; background: #E4F4EB"><span style="font-size: 12px; color: #1F7A4D">出处 · 修改后</span><br>童庆炳《文学理论教程》第 3 章 · 第 12 页；<span style="background: #C8EBD6">补充来源：课堂笔记第 4 页</span></div>
+<div style="padding: 12px 14px; border-radius: 12px; background: #FCE9E5"><span style="font-size: 12px; color: #C23B22">采分点 · 删除</span><br><span style="text-decoration: line-through">诗画一律</span></div>
+</div>
+<div style="flex-grow: 1"></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><span style="font-size: 13px; font-weight: 700">退回原因（退回时必填）</span><div style="min-height: 64px; padding: 10px 14px; border-radius: 12px; border: 1px solid #E6E6E6; font-size: 14px; line-height: 1.7; box-sizing: border-box"><span style="color: #9E9E9E">说明需要修改的地方……</span></div></div>
+<div style="display: flex; justify-content: flex-end; gap: 10px"><button style="height: 36px; padding: 0 16px; border-radius: 18px; background: #FFFFFF; color: #1A1A1A; border: 1px solid #E6E6E6; font-family: inherit; font-size: 13px; cursor: pointer">直接修改</button><button style="height: 36px; padding: 0 16px; border-radius: 18px; background: #FFFFFF; color: #1A1A1A; border: 1px solid #E6E6E6; font-family: inherit; font-size: 13px; cursor: pointer">退回</button><button style="height: 36px; padding: 0 16px; border-radius: 18px; background: #1A1A1A; color: #FFFFFF; border: none; font-family: inherit; font-size: 13px; cursor: pointer">通过</button></div></section>
+</div></main></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

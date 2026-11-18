@@ -336,6 +336,9 @@ func TestSplitSectionPassage(t *testing.T) {
 	if got[2].Passage != "" {
 		t.Errorf("新题型开始后材料失效，短说明不算材料：%q", got[2].Passage)
 	}
+	if got[0].QType != "material_analysis" || got[2].QType != "discussion" {
+		t.Errorf("题型应保留语义：material_analysis/discussion，实际 %s/%s", got[0].QType, got[2].QType)
+	}
 }
 
 func TestIsGroupHead(t *testing.T) {

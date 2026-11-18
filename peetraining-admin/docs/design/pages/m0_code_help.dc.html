@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>0.3c 收不到验证码</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<main aria-hidden="true" style="flex-grow: 1; display: flex; flex-direction: column; gap: 18px; padding: 88px 22px 28px; box-sizing: border-box">
+<div style="display: flex; flex-direction: column; gap: 8px"><span style="font-size: 26px; line-height: 1.35; font-weight: 700">输入验证码</span><span style="font-size: 14px; color: #6E6E6E">6 位验证码已发送至 +86 138 0000 0000</span></div>
+<div style="display: flex; gap: 8px; justify-content: space-between; margin-top: 8px">
+<span style="width: 48px; height: 58px; border-radius: 14px; border: 1.5px solid #1A1A1A"></span><span style="width: 48px; height: 58px; border-radius: 14px; border: 1.5px solid #E6E6E6"></span><span style="width: 48px; height: 58px; border-radius: 14px; border: 1.5px solid #E6E6E6"></span><span style="width: 48px; height: 58px; border-radius: 14px; border: 1.5px solid #E6E6E6"></span><span style="width: 48px; height: 58px; border-radius: 14px; border: 1.5px solid #E6E6E6"></span><span style="width: 48px; height: 58px; border-radius: 14px; border: 1.5px solid #E6E6E6"></span>
+</div>
+</main>
+<div style="position: absolute; left: 0; top: 0; width: 390px; height: 844px; background: rgba(20,20,20,0.45); display: flex; flex-direction: column; justify-content: flex-end">
+<div role="dialog" aria-label="收不到验证码" style="padding: 26px 22px 34px; border-radius: 24px 24px 0 0; background: #FFFFFF; display: flex; flex-direction: column; gap: 14px">
+<span style="font-size: 18px; font-weight: 700">收不到验证码？</span>
+<ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.65; color: #4A4A4A">
+<li>确认手机号 <span style="font-family: 'DM Sans',sans-serif; color: #1A1A1A">138 0000 0000</span> 是否正确</li>
+<li>看看短信是否被手机的骚扰拦截或垃圾短信收走</li>
+<li>信号不好时短信会延迟，稍等 1 分钟再试</li>
+<li>同一手机号每天最多获取 10 次验证码</li>
+</ol>
+<div style="display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 8px">
+<a href="m0_login.dc.html" style="display: flex; align-items: center; justify-content: center; height: 46px; border-radius: 23px; border: 1px solid #E6E6E6; text-decoration: none; font-size: 15px; color: #1A1A1A">更换手机号</a>
+<a href="m0_code.dc.html" style="display: flex; align-items: center; justify-content: center; height: 46px; border-radius: 23px; background: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 500">我知道了</a>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

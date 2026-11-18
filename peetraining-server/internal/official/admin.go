@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"regexp"
 	"slices"
@@ -471,6 +472,30 @@ func (s *Service) validateDraft(ctx context.Context, bankID uint64, entityType, 
 		if ai.Subjective(p.QType) && len(p.Rubric) == 0 {
 			return apperr.New(apperr.BadRequest, "主观题要有采分点")
 		}
+		if len(p.Subquestions) > 0 {
+			seen := map[int]bool{}
+			total := 0.0
+			allScored := true
+			for _, sub := range p.Subquestions {
+				if sub.Ordinal <= 0 || seen[sub.Ordinal] || strings.TrimSpace(sub.Stem) == "" {
+					return apperr.New(apperr.BadRequest, "分问序号重复或设问为空")
+				}
+				seen[sub.Ordinal] = true
+				if sub.FullScore == nil {
+					allScored = false
+				} else {
+					total += *sub.FullScore
+				}
+			}
+			for _, pt := range p.Rubric {
+				if pt.SubquestionOrdinal != 0 && !seen[pt.SubquestionOrdinal] {
+					return apperr.New(apperr.BadRequest, "采分点指向了不存在的分问")
+				}
+			}
+			if allScored && p.Score != nil && math.Abs(total-*p.Score) > 0.01 {
+				return apperr.New(apperr.BadRequest, "分问分值合计与大题分值不一致")
+			}
+		}
 		if g := p.Group; g != nil {
 			if l := utf8.RuneCountInString(strings.TrimSpace(g.Label)); l == 0 || l > 32 {
 				return apperr.New(apperr.BadRequest, "限选题要写组名（如「第一组」，32 字以内）")
@@ -667,13 +692,17 @@ func (s *Service) Reviews(ctx context.Context, projectID uint64) ([]Review, erro
 
 // payloadOf 把官方现有条目转成草稿格式（审核对比、回滚快照用）。
 func (c content) payloadOf(entityType string, id uint64) json.RawMessage {
-	pts := func(rs []dbq.ListOfficialRubricRow) []Point {
+	pts := func(rs []dbq.ListOfficialRubricRow, order map[uint64]int) []Point {
 		out := make([]Point, len(rs))
 		for i, r := range rs {
 			s, _ := strconv.ParseFloat(r.Score.String, 64)
 			var kw []string
 			_ = json.Unmarshal(r.Keywords, &kw)
-			out[i] = Point{Content: r.Content, Score: s, Keywords: kw}
+			pt := Point{Content: r.Content, Score: s, Keywords: kw}
+			if r.SubquestionID.Valid {
+				pt.SubquestionOrdinal = order[uint64(r.SubquestionID.Int64)]
+			}
+			out[i] = pt
 		}
 		return out
 	}
@@ -686,7 +715,7 @@ func (c content) payloadOf(entityType string, id uint64) json.RawMessage {
 		if !ok {
 			return nil
 		}
-		p := KPPayload{Name: k.Name, OriginalText: k.OriginalText.String, Rubric: pts(c.kpRubric[k.ID]), Reference: k.ReferenceText.String}
+		p := KPPayload{Name: k.Name, OriginalText: k.OriginalText.String, Rubric: pts(c.kpRubric[k.ID], nil), Reference: k.ReferenceText.String}
 		if ch, ok := names[uint64(k.ParentID.Int64)]; ok {
 			p.Chapter = ch.Name
 			if sec, ok := names[uint64(ch.ParentID.Int64)]; ok {
@@ -700,8 +729,20 @@ func (c content) payloadOf(entityType string, id uint64) json.RawMessage {
 		if x.ID != id {
 			continue
 		}
-		p := QuestionPayload{AnswerSnapshotID: uint64(x.AnswerSnapshotID.Int64), QType: string(x.Qtype), Stem: x.Stem, Answer: x.Answer.String, Analysis: x.Analysis.String, Reference: x.ReferenceText.String, Rubric: pts(c.qRubric[x.ID]), KPNames: []string{},
-			AnswerAI: x.AnswerOrigin.Valid && x.AnswerOrigin.QuestionsAnswerOrigin == dbq.QuestionsAnswerOriginAiGenerated, Group: groupOf(x.GroupLabel, x.GroupMajors)}
+		order := map[uint64]int{}
+		subs := make([]SubquestionPayload, 0, len(c.qSubs[x.ID]))
+		for _, sub := range c.qSubs[x.ID] {
+			order[sub.ID] = int(sub.Ordinal)
+			sp := SubquestionPayload{Ordinal: int(sub.Ordinal), Label: sub.Label, Stem: sub.Stem, Answer: sub.Answer.String, ScoreSource: string(sub.ScoreSource.QuestionSubquestionsScoreSource)}
+			if sub.FullScore.Valid {
+				if v, err := strconv.ParseFloat(sub.FullScore.String, 64); err == nil {
+					sp.FullScore = &v
+				}
+			}
+			subs = append(subs, sp)
+		}
+		p := QuestionPayload{AnswerSnapshotID: uint64(x.AnswerSnapshotID.Int64), QType: string(x.Qtype), Stem: x.Stem, Answer: x.Answer.String, Analysis: x.Analysis.String, Reference: x.ReferenceText.String, Rubric: pts(c.qRubric[x.ID], order), KPNames: []string{},
+			Subquestions: subs, AnswerAI: x.AnswerOrigin.Valid && x.AnswerOrigin.QuestionsAnswerOrigin == dbq.QuestionsAnswerOriginAiGenerated, Group: groupOf(x.GroupLabel, x.GroupMajors)}
 		_ = json.Unmarshal(x.Options, &p.Options)
 		if x.Score.Valid {
 			v, _ := strconv.ParseFloat(x.Score.String, 64)
@@ -1251,7 +1292,7 @@ func (s *Service) apply(ctx context.Context, q *dbq.Queries, bankID uint64, enti
 				return 0, err
 			}
 		}
-		return id, insertPoints(ctx, q, sql.NullInt64{}, sql.NullInt64{Int64: int64(id), Valid: true}, p.Rubric)
+		return id, insertPoints(ctx, q, sql.NullInt64{}, sql.NullInt64{Int64: int64(id), Valid: true}, p.Rubric, nil)
 	}
 	var p QuestionPayload
 	if err := json.Unmarshal(payload, &p); err != nil {
@@ -1316,7 +1357,11 @@ func (s *Service) apply(ctx context.Context, q *dbq.Queries, bankID uint64, enti
 	if err := q.SetQuestionAnswerSnapshot(ctx, dbq.SetQuestionAnswerSnapshotParams{ID: id, AnswerSnapshotID: sql.NullInt64{Int64: int64(p.AnswerSnapshotID), Valid: p.AnswerSnapshotID > 0}}); err != nil {
 		return 0, err
 	}
-	if err := insertPoints(ctx, q, sql.NullInt64{Int64: int64(id), Valid: true}, sql.NullInt64{}, p.Rubric); err != nil {
+	subIDs, err := replaceSubquestions(ctx, q, id, p.Subquestions)
+	if err != nil {
+		return 0, err
+	}
+	if err := insertPoints(ctx, q, sql.NullInt64{Int64: int64(id), Valid: true}, sql.NullInt64{}, p.Rubric, subIDs); err != nil {
 		return 0, err
 	}
 	kps, err := q.ListOfficialKPs(ctx, bankID)
@@ -1336,10 +1381,40 @@ func (s *Service) apply(ctx context.Context, q *dbq.Queries, bankID uint64, enti
 	return id, nil
 }
 
-func insertPoints(ctx context.Context, q *dbq.Queries, questionID, kpID sql.NullInt64, pts []Point) error {
+func replaceSubquestions(ctx context.Context, q *dbq.Queries, questionID uint64, subs []SubquestionPayload) (map[int]uint64, error) {
+	if err := q.DeleteQuestionSubquestions(ctx, questionID); err != nil {
+		return nil, err
+	}
+	out := make(map[int]uint64, len(subs))
+	for _, sub := range subs {
+		score := sql.NullString{}
+		if sub.FullScore != nil {
+			score = scoreStr(sub.FullScore)
+		}
+		source := dbq.NullQuestionSubquestionsScoreSource{}
+		if sub.ScoreSource == "team" {
+			source = dbq.NullQuestionSubquestionsScoreSource{QuestionSubquestionsScoreSource: dbq.QuestionSubquestionsScoreSourceTeam, Valid: true}
+		} else if sub.FullScore != nil {
+			source = dbq.NullQuestionSubquestionsScoreSource{QuestionSubquestionsScoreSource: dbq.QuestionSubquestionsScoreSourceOriginal, Valid: true}
+		}
+		id, err := q.InsertQuestionSubquestion(ctx, dbq.InsertQuestionSubquestionParams{QuestionID: questionID, Ordinal: uint16(sub.Ordinal), Label: sub.Label,
+			Stem: sub.Stem, Answer: nullStr(sub.Answer), FullScore: score, ScoreSource: source, NeedsReview: sub.FullScore == nil || sub.ScoreSource == "team"})
+		if err != nil {
+			return nil, err
+		}
+		out[sub.Ordinal] = uint64(id)
+	}
+	return out, nil
+}
+
+func insertPoints(ctx context.Context, q *dbq.Queries, questionID, kpID sql.NullInt64, pts []Point, subIDs map[int]uint64) error {
 	for i, pt := range pts {
 		sc := pt.Score
-		if err := q.InsertOfficialRubricPoint(ctx, dbq.InsertOfficialRubricPointParams{QuestionID: questionID, KpID: kpID, Seq: uint16(i + 1), Content: pt.Content,
+		sub := sql.NullInt64{}
+		if id, ok := subIDs[pt.SubquestionOrdinal]; ok {
+			sub = sql.NullInt64{Int64: int64(id), Valid: true}
+		}
+		if err := q.InsertOfficialRubricPoint(ctx, dbq.InsertOfficialRubricPointParams{QuestionID: questionID, KpID: kpID, SubquestionID: sub, Seq: uint16(i + 1), Content: pt.Content,
 			Keywords: pointsJSON(pt), Score: scoreStr(&sc)}); err != nil {
 			return err
 		}

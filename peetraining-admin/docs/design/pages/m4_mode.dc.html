@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>4.19 选择作答模式</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 12px; padding: 44px 22px 28px; box-sizing: border-box; overflow: hidden">
+<div style="display: flex; justify-content: space-between; align-items: center; min-height: 44px"><a href="m4_papers.dc.html" aria-label="返回" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-left: -12px; color: #1A1A1A"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a><span style="font-size: 15px; font-weight: 500">2022 年真题</span><span style="width: 44px"></span></div>
+<div style="display: flex; gap: 16px; font-family: 'DM Sans',sans-serif; font-size: 13px; color: #6E6E6E"><span>12 题</span><span>150 分</span><span>180 分钟</span></div>
+<button onClick="{{pickMock}}" style="display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 16px; border-radius: 20px; border: 1.5px solid {{mockBorder}}; background: #FFFFFF; font-family: inherit; text-align: left; cursor: pointer"><span style="display: flex; justify-content: space-between; align-items: center; width: 100%"><span style="font-size: 16px; font-weight: 700; color: #1A1A1A">模拟考试模式</span><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #E4F4EB; color: #1F5C3E">推荐</span></span><span style="display: flex; gap: 8px; font-size: 13px; color: #4A4A4A"><span style="color: #767676">·</span>180 分钟严格计时，不能暂停</span><span style="display: flex; gap: 8px; font-size: 13px; color: #4A4A4A"><span style="color: #767676">·</span>按建议用时提醒，像真实考场一样分配时间</span><span style="display: flex; gap: 8px; font-size: 13px; color: #4A4A4A"><span style="color: #767676">·</span>交卷后有分数报告和时间分析报告</span></button>
+<button onClick="{{pickPractice}}" style="display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 16px; border-radius: 20px; border: 1.5px solid {{practiceBorder}}; background: #FFFFFF; font-family: inherit; text-align: left; cursor: pointer"><span style="display: flex; justify-content: space-between; align-items: center; width: 100%"><span style="font-size: 16px; font-weight: 700; color: #1A1A1A">练习模式</span></span><span style="display: flex; gap: 8px; font-size: 13px; color: #4A4A4A"><span style="color: #767676">·</span>可以暂停、离开，适合分段完成</span><span style="display: flex; gap: 8px; font-size: 13px; color: #4A4A4A"><span style="color: #767676">·</span>没有时间提醒</span><span style="display: flex; gap: 8px; font-size: 13px; color: #4A4A4A"><span style="color: #767676">·</span>交卷后有分数报告</span></button>
+<section style="padding: 14px 16px; border-radius: 22px; border: 1px solid #EFEFEF; background: #FFFFFF; display: flex; flex-direction: column; gap: 10px"><span style="font-size: 13px; font-weight: 700">建议用时 · 按你真题的题型分值折算</span><div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px"><div style="display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'DM Sans',sans-serif; font-size: 18px; font-weight: 600">25′</span><span style="font-size: 11px; color: #6E6E6E">名词解释</span></div><div style="display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'DM Sans',sans-serif; font-size: 18px; font-weight: 600">60′</span><span style="font-size: 11px; color: #6E6E6E">简答</span></div><div style="display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'DM Sans',sans-serif; font-size: 18px; font-weight: 600">80′</span><span style="font-size: 11px; color: #6E6E6E">论述</span></div><div style="display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'DM Sans',sans-serif; font-size: 18px; font-weight: 600">15′</span><span style="font-size: 11px; color: #6E6E6E">检查</span></div></div></section>
+<div style="flex-grow: 1"></div>
+<sc-if value="{{isMock}}" hint-placeholder-val="{{ true }}"><a href="m4_mock.dc.html" style="display: flex; align-items: center; justify-content: center; height: 50px; border-radius: 25px; background: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 500">开始模拟考试</a></sc-if>
+<sc-if value="{{isPractice}}" hint-placeholder-val="{{ false }}"><a href="m4_exam.dc.html" style="display: flex; align-items: center; justify-content: center; height: 50px; border-radius: 25px; background: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 500">开始练习</a></sc-if></main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const self = this;
+    const m = (this.state && this.state.m) || 'mock';
+    return {
+      isMock: m === 'mock',
+      isPractice: m === 'practice',
+      pickMock: function () { self.setState({ m: 'mock' }); },
+      pickPractice: function () { self.setState({ m: 'practice' }); },
+      mockBorder: m === 'mock' ? '#1A1A1A' : '#EFEFEF',
+      practiceBorder: m === 'practice' ? '#1A1A1A' : '#EFEFEF'
+    };
+  }
+}
+</script>
+</body>
+</html>

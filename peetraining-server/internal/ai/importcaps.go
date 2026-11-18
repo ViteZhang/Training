@@ -64,12 +64,12 @@ type StructureOut struct {
 }
 
 // QTypes 是题型（与 questions.qtype 一致）。
-var QTypes = []string{"single_choice", "multi_choice", "true_false", "fill_blank", "term", "short_answer", "discussion", "essay", "calculation", "other"}
+var QTypes = []string{"single_choice", "multi_choice", "true_false", "fill_blank", "term", "short_answer", "discussion", "essay", "calculation", "other", "discrimination", "material_analysis", "analytical_discussion"}
 
 // Subjective 判断是否主观题（按采分点批改）。
 func Subjective(qtype string) bool {
 	switch qtype {
-	case "term", "short_answer", "discussion", "essay":
+	case "term", "short_answer", "discussion", "essay", "discrimination", "material_analysis", "analytical_discussion":
 		return true
 	}
 	return false
@@ -85,7 +85,7 @@ var Structure = &Cap[StructureIn, StructureOut]{
 			"properties": {
 				"block": {"type": "integer"},
 				"kind": {"type": "string", "enum": ["question", "answer"]},
-				"qtype": {"type": "string", "nullable": true, "enum": ["single_choice","multi_choice","true_false","fill_blank","term","short_answer","discussion","essay","calculation","other", null]},
+				"qtype": {"type": "string", "nullable": true, "enum": ["single_choice","multi_choice","true_false","fill_blank","term","short_answer","discussion","essay","calculation","other","discrimination","material_analysis","analytical_discussion", null]},
 				"stem": {"type": "string", "nullable": true},
 				"options": {"type": "array", "nullable": true, "items": {"type": "object", "required": ["key","text"], "properties": {"key": {"type": "string"}, "text": {"type": "string"}}}},
 				"answer": {"type": "string", "nullable": true},

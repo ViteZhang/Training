@@ -141,7 +141,7 @@ func (q *Queries) FinishPracticeSession(ctx context.Context, arg FinishPracticeS
 }
 
 const getAttemptByKey = `-- name: GetAttemptByKey :one
-SELECT id, owner_user_id, question_id, practice_session_id, paper_session_id, answer_mode, selected, answer_text, photo_keys, is_correct, score, full_score, revealed_answer, self_assess, duration_seconds, timed, offline, verified_at, idempotency_key, answered_at, created_at, reference_only FROM attempts WHERE owner_user_id = ? AND idempotency_key = ?
+SELECT id, owner_user_id, question_id, practice_session_id, paper_session_id, answer_mode, selected, answer_text, photo_keys, is_correct, score, full_score, revealed_answer, self_assess, duration_seconds, timed, offline, verified_at, idempotency_key, answered_at, created_at, reference_only, subanswers FROM attempts WHERE owner_user_id = ? AND idempotency_key = ?
 `
 
 type GetAttemptByKeyParams struct {
@@ -175,6 +175,7 @@ func (q *Queries) GetAttemptByKey(ctx context.Context, arg GetAttemptByKeyParams
 		&i.AnsweredAt,
 		&i.CreatedAt,
 		&i.ReferenceOnly,
+		&i.Subanswers,
 	)
 	return i, err
 }
@@ -321,8 +322,8 @@ func (q *Queries) GetWrongBookForUpdate(ctx context.Context, arg GetWrongBookFor
 
 const insertAttempt = `-- name: InsertAttempt :execlastid
 INSERT INTO attempts (owner_user_id, question_id, practice_session_id, answer_mode, selected, answer_text, is_correct, score, full_score,
-  revealed_answer, self_assess, duration_seconds, offline, verified_at, idempotency_key, answered_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  revealed_answer, self_assess, duration_seconds, offline, verified_at, idempotency_key, answered_at, subanswers)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertAttemptParams struct {
@@ -342,6 +343,7 @@ type InsertAttemptParams struct {
 	VerifiedAt        sql.NullTime
 	IdempotencyKey    sql.NullString
 	AnsweredAt        time.Time
+	Subanswers        dbtypes.NullJSON
 }
 
 func (q *Queries) InsertAttempt(ctx context.Context, arg InsertAttemptParams) (int64, error) {
@@ -362,6 +364,7 @@ func (q *Queries) InsertAttempt(ctx context.Context, arg InsertAttemptParams) (i
 		arg.VerifiedAt,
 		arg.IdempotencyKey,
 		arg.AnsweredAt,
+		arg.Subanswers,
 	)
 	if err != nil {
 		return 0, err

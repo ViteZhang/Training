@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -23,7 +24,8 @@ import (
 // 主观题批改（PRD 4.4–4.9、11.7、11.14、12.2；T18）。
 
 // defaultScore 是题目没有分值、采分点也没有分值时的满分（按题型）。
-var defaultScore = map[string]float64{"term": 10, "short_answer": 20, "discussion": 30, "essay": 50, "calculation": 10, "other": 10}
+var defaultScore = map[string]float64{"term": 10, "short_answer": 20, "discussion": 30, "essay": 50, "calculation": 10, "other": 10,
+	"discrimination": 15, "material_analysis": 15, "analytical_discussion": 30}
 
 // grantHours 是异议授权后台查看的时长（PRD 10.1）。
 const grantHours = 72
@@ -45,13 +47,22 @@ type rubricSnap struct {
 
 // PointResult 是一个采分点的批改结果。
 type PointResult struct {
-	Seq     int     `json:"seq"`
-	Content string  `json:"content"`
-	Score   float64 `json:"score"`
-	Got     float64 `json:"got"`
-	Verdict string  `json:"verdict"`
-	Quote   string  `json:"quote,omitempty"`
-	Reason  string  `json:"reason,omitempty"`
+	Seq           int     `json:"seq"`
+	Content       string  `json:"content"`
+	Score         float64 `json:"score"`
+	Got           float64 `json:"got"`
+	Verdict       string  `json:"verdict"`
+	Quote         string  `json:"quote,omitempty"`
+	Reason        string  `json:"reason,omitempty"`
+	SubquestionID uint64  `json:"subquestion_id,omitempty"`
+}
+
+// SubquestionResult 是一个子问的批改汇总。
+type SubquestionResult struct {
+	SubquestionID uint64  `json:"subquestion_id"`
+	Score         float64 `json:"score"`
+	FullScore     float64 `json:"full_score"`
+	Feedback      string  `json:"feedback,omitempty"`
 }
 
 // LossItem 是一类失分（PRD 11.7）。
@@ -77,6 +88,7 @@ type Grading struct {
 	Score                     *float64
 	FullScore                 float64
 	Points                    []PointResult
+	Subquestions              []SubquestionResult
 	Rubric                    rubricSnap
 	Extra                     gradingExtra
 	Loss                      []LossItem
@@ -102,6 +114,14 @@ type SubjectiveInput struct {
 	Timed      bool
 	// PhotoKeys 是拍手写稿的照片（Mode=photo），Answer 是识别后用户核对过的文字。
 	PhotoKeys []string
+	// Subanswers 是多子问的分问作答；为空表示按整题作答。
+	Subanswers []Subanswer
+}
+
+// Subanswer 是一个子问的作答。
+type Subanswer struct {
+	SubquestionID uint64 `json:"subquestion_id"`
+	Text          string `json:"text"`
 }
 
 func parseScore(s sql.NullString) (float64, bool) {
@@ -147,6 +167,9 @@ func (s *Service) snapshotLocked(ctx context.Context, q *dbq.Queries, userID uin
 		}
 		sum += v
 		gp := ai.GradePoint{Seq: int(p.Seq), Content: p.Content, Score: v}
+		if p.SubquestionID.Valid {
+			gp.SubquestionID = uint64(p.SubquestionID.Int64)
+		}
 		if p.Keywords != nil {
 			_ = json.Unmarshal(p.Keywords, &gp.Keywords)
 		}
@@ -246,7 +269,8 @@ func lossJSON(items []LossItem) dbtypes.NullJSON {
 func points(snap rubricSnap, out ai.GradeOut) []PointResult {
 	res := make([]PointResult, len(out.Points))
 	for i, r := range out.Points {
-		res[i] = PointResult{Seq: r.Seq, Content: snap.Points[i].Content, Score: snap.Points[i].Score, Got: r.Score, Verdict: r.Verdict, Quote: r.Quote, Reason: r.Reason}
+		res[i] = PointResult{Seq: r.Seq, Content: snap.Points[i].Content, Score: snap.Points[i].Score, Got: r.Score, Verdict: r.Verdict, Quote: r.Quote, Reason: r.Reason,
+			SubquestionID: snap.Points[i].SubquestionID}
 	}
 	return res
 }
@@ -312,6 +336,40 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 	if rules.IsObjective(rules.QType(qr.Qtype)) {
 		return Grading{}, apperr.New(apperr.BadRequest, "客观题直接提交选项")
 	}
+	subs, err := s.q.ListQuestionSubquestions(ctx, qr.ID)
+	if err != nil {
+		return Grading{}, err
+	}
+	if len(in.Subanswers) > 0 {
+		if len(subs) == 0 {
+			return Grading{}, apperr.New(apperr.BadRequest, "这道题没有分问，不能提交分问答案")
+		}
+		byID := make(map[uint64]dbq.QuestionSubquestion, len(subs))
+		for _, sub := range subs {
+			byID[sub.ID] = sub
+		}
+		seen := make(map[uint64]bool, len(in.Subanswers))
+		parts := make([]string, 0, len(in.Subanswers))
+		for _, a := range in.Subanswers {
+			sub, ok := byID[a.SubquestionID]
+			if !ok {
+				return Grading{}, apperr.New(apperr.BadRequest, "分问不属于这道题")
+			}
+			if seen[a.SubquestionID] {
+				return Grading{}, apperr.New(apperr.BadRequest, "分问重复提交")
+			}
+			seen[a.SubquestionID] = true
+			txt := strings.TrimSpace(a.Text)
+			if txt == "" {
+				continue
+			}
+			parts = append(parts, fmt.Sprintf("%s %s\n%s", sub.Label, sub.Stem, txt))
+		}
+		if len(parts) == 0 {
+			return Grading{}, apperr.New(apperr.BadRequest, "先写点内容再提交")
+		}
+		answer = strings.Join(parts, "\n\n")
+	}
 	// 还没有任何答案的题：先生成 AI 参考答案再批改（计入每日 AI 出题额度），按它批改的结果仅供参考（4.7b）。
 	if qr, err = s.ensureAnswer(ctx, userID, qr, true); err != nil {
 		return Grading{}, importer.SyncAIError(err)
@@ -319,6 +377,21 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 	snap, err := s.snapshot(ctx, userID, qr)
 	if err != nil {
 		return Grading{}, err
+	}
+	if len(subs) > 0 {
+		labels := make(map[uint64]string, len(subs))
+		for _, sub := range subs {
+			label := sub.Label
+			if strings.TrimSpace(label) == "" {
+				label = fmt.Sprintf("(%d)", sub.Ordinal)
+			}
+			labels[sub.ID] = label
+		}
+		for i := range snap.Points {
+			if id := snap.Points[i].SubquestionID; id != 0 {
+				snap.Points[i].Content = labels[id] + " " + snap.Points[i].Content
+			}
+		}
 	}
 	mode := dbq.AttemptsAnswerModeTyped
 	if in.Mode == "voice" || in.Mode == "photo" {
@@ -330,9 +403,14 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 		}
 	}
 	now := s.now().UTC()
+	var subJSON dbtypes.NullJSON
+	if len(in.Subanswers) > 0 {
+		b, _ := json.Marshal(in.Subanswers)
+		subJSON = dbtypes.NullJSON(b)
+	}
 	attempt := dbq.InsertAttemptParams{OwnerUserID: userID, QuestionID: qr.ID, PracticeSessionID: sql.NullInt64{Int64: int64(sessionID), Valid: true},
 		AnswerMode: mode, AnswerText: sql.NullString{String: answer, Valid: true}, FullScore: fmtScore(snap.FullScore),
-		DurationSeconds: uint32(max(in.Duration, 0)), AnsweredAt: now}
+		DurationSeconds: uint32(max(in.Duration, 0)), AnsweredAt: now, Subanswers: subJSON}
 	snapJSON, _ := json.Marshal(snap)
 	advance := func(q *dbq.Queries) error {
 		if next := uint32(idx + 1); next > row.CursorIndex {
@@ -406,7 +484,7 @@ func (s *Service) SubmitSubjective(ctx context.Context, userID, sessionID uint64
 			return err
 		}
 		extra := gradingExtra{Items: out.Suggestions, StructureOK: out.StructureOK, StructureNote: out.StructureNote, KPs: eff.KPs, WrongBook: eff.WrongBook}
-		gid, err = s.insertDone(ctx, q, userID, uint64(aid), dbq.GradingsTriggerReasonSubmit, 0, snap, snapJSON, out, loss, extra, meta, !free, in.Key)
+		gid, err = s.insertDone(ctx, q, userID, uint64(aid), dbq.GradingsTriggerReasonSubmit, 0, snap, snapJSON, out, loss, subResults(subs, snap, out), extra, meta, !free, in.Key)
 		if err != nil {
 			return err
 		}
@@ -444,13 +522,62 @@ func (s *Service) annotate(ctx context.Context, q *dbq.Queries, userID, attemptI
 	return q.SetAttemptPhotos(ctx, dbq.SetAttemptPhotosParams{PhotoKeys: keys, ID: attemptID, OwnerUserID: userID})
 }
 
+// subResults 把逐采分点结果按子问汇总；没有子问时返回 nil。
+func subResults(subs []dbq.QuestionSubquestion, snap rubricSnap, out ai.GradeOut) []SubquestionResult {
+	if len(subs) == 0 {
+		return nil
+	}
+	full := make(map[uint64]float64, len(subs))
+	label := make(map[uint64]string, len(subs))
+	for _, sub := range subs {
+		label[sub.ID] = sub.Label
+		if v, ok := parseScore(sub.FullScore); ok {
+			full[sub.ID] = v
+		}
+	}
+	got := make(map[uint64]float64, len(subs))
+	feedback := make(map[uint64][]string, len(subs))
+	for i, r := range out.Points {
+		if i >= len(snap.Points) {
+			break
+		}
+		id := snap.Points[i].SubquestionID
+		if id == 0 {
+			continue
+		}
+		got[id] += r.Score
+		if r.Verdict != "hit" && r.Reason != "" && len(feedback[id]) < 2 {
+			feedback[id] = append(feedback[id], r.Reason)
+		}
+	}
+	outSubs := make([]SubquestionResult, 0, len(subs))
+	for _, sub := range subs {
+		f := full[sub.ID]
+		if f == 0 {
+			for _, p := range snap.Points {
+				if p.SubquestionID == sub.ID {
+					f += p.Score
+				}
+			}
+		}
+		outSubs = append(outSubs, SubquestionResult{SubquestionID: sub.ID, Score: round1(got[sub.ID]), FullScore: round1(f),
+			Feedback: strings.Join(feedback[sub.ID], "；")})
+	}
+	return outSubs
+}
+
 func (s *Service) insertDone(ctx context.Context, q *dbq.Queries, userID, attemptID uint64, trigger dbq.GradingsTriggerReason, parent uint64, snap rubricSnap,
-	snapJSON []byte, out ai.GradeOut, loss []LossItem, extra gradingExtra, meta ai.Meta, charged bool, key string) (int64, error) {
+	snapJSON []byte, out ai.GradeOut, loss []LossItem, subSubs []SubquestionResult, extra gradingExtra, meta ai.Meta, charged bool, key string) (int64, error) {
 	pts, _ := json.Marshal(points(snap, out))
 	ex, _ := json.Marshal(extra)
+	var sr dbtypes.NullJSON
+	if len(subSubs) > 0 {
+		b, _ := json.Marshal(subSubs)
+		sr = dbtypes.NullJSON(b)
+	}
 	p := dbq.InsertGradingParams{OwnerUserID: userID, AttemptID: attemptID, TriggerReason: trigger, Status: dbq.GradingsStatusDone,
 		RubricVersion: sql.NullInt32{Int32: int32(snap.Version), Valid: true}, RubricSnapshot: snapJSON, Score: fmtScore(out.Total()), FullScore: fmtScore(snap.FullScore),
-		PointResults: pts, Loss: lossJSON(loss), Suggestions: ex, Model: sql.NullString{String: meta.Model, Valid: meta.Model != ""},
+		PointResults: pts, SubquestionResults: sr, Loss: lossJSON(loss), Suggestions: ex, Model: sql.NullString{String: meta.Model, Valid: meta.Model != ""},
 		PromptVersion: sql.NullString{String: ai.Grade.Name + "@" + meta.Version, Valid: true}, QuotaCharged: charged,
 		FinishedAt: sql.NullTime{Time: s.now().UTC(), Valid: true}}
 	if parent != 0 {
@@ -495,6 +622,12 @@ func (s *Service) Grading(ctx context.Context, userID, id uint64) (Grading, erro
 	if g.PointResults != nil {
 		_ = json.Unmarshal(g.PointResults, &out.Points)
 	}
+	if g.SubquestionResults != nil {
+		_ = json.Unmarshal(g.SubquestionResults, &out.Subquestions)
+	}
+	if out.Subquestions == nil {
+		out.Subquestions = []SubquestionResult{}
+	}
 	if g.Loss != nil {
 		var m map[string]LossItem
 		_ = json.Unmarshal(g.Loss, &m)
@@ -534,6 +667,7 @@ func (s *Service) regrade(ctx context.Context, userID uint64, old Grading, trigg
 	if err != nil {
 		return Grading{}, err
 	}
+	subs, _ := s.q.ListQuestionSubquestions(ctx, qr.ID)
 	snap, err := s.snapshot(ctx, userID, qr)
 	if err != nil {
 		return Grading{}, err
@@ -574,7 +708,7 @@ func (s *Service) regrade(ctx context.Context, userID uint64, old Grading, trigg
 			return err
 		}
 		extra := gradingExtra{Items: out.Suggestions, StructureOK: out.StructureOK, StructureNote: out.StructureNote, KPs: kps, WrongBook: wb}
-		gid, err = s.insertDone(ctx, q, userID, old.AttemptID, trigger, old.ID, snap, snapJSON, out, loss, extra, meta, false, "")
+		gid, err = s.insertDone(ctx, q, userID, old.AttemptID, trigger, old.ID, snap, snapJSON, out, loss, subResults(subs, snap, out), extra, meta, false, "")
 		if err != nil {
 			return err
 		}

@@ -16,23 +16,24 @@ import (
 
 const completeGrading = `-- name: CompleteGrading :exec
 UPDATE gradings SET status = 'done', trigger_reason = 'pending_resubmit', rubric_version = ?, rubric_snapshot = ?, score = ?, full_score = ?,
-  point_results = ?, loss = ?, suggestions = ?, model = ?, prompt_version = ?, quota_charged = 1, finished_at = ?
+  point_results = ?, subquestion_results = ?, loss = ?, suggestions = ?, model = ?, prompt_version = ?, quota_charged = 1, finished_at = ?
 WHERE id = ? AND owner_user_id = ? AND status = 'queued_quota'
 `
 
 type CompleteGradingParams struct {
-	RubricVersion  sql.NullInt32
-	RubricSnapshot dbtypes.NullJSON
-	Score          sql.NullString
-	FullScore      sql.NullString
-	PointResults   dbtypes.NullJSON
-	Loss           dbtypes.NullJSON
-	Suggestions    dbtypes.NullJSON
-	Model          sql.NullString
-	PromptVersion  sql.NullString
-	FinishedAt     sql.NullTime
-	ID             uint64
-	OwnerUserID    uint64
+	RubricVersion      sql.NullInt32
+	RubricSnapshot     dbtypes.NullJSON
+	Score              sql.NullString
+	FullScore          sql.NullString
+	PointResults       dbtypes.NullJSON
+	SubquestionResults dbtypes.NullJSON
+	Loss               dbtypes.NullJSON
+	Suggestions        dbtypes.NullJSON
+	Model              sql.NullString
+	PromptVersion      sql.NullString
+	FinishedAt         sql.NullTime
+	ID                 uint64
+	OwnerUserID        uint64
 }
 
 // 待批改提交后写入结果。
@@ -43,6 +44,7 @@ func (q *Queries) CompleteGrading(ctx context.Context, arg CompleteGradingParams
 		arg.Score,
 		arg.FullScore,
 		arg.PointResults,
+		arg.SubquestionResults,
 		arg.Loss,
 		arg.Suggestions,
 		arg.Model,
@@ -142,7 +144,7 @@ func (q *Queries) DropPartialWrongBook(ctx context.Context, arg DropPartialWrong
 }
 
 const getGrading = `-- name: GetGrading :one
-SELECT g.id, g.owner_user_id, g.attempt_id, g.kind, g.trigger_reason, g.parent_grading_id, g.status, g.rubric_version, g.rubric_snapshot, g.score, g.full_score, g.point_results, g.loss, g.suggestions, g.model, g.prompt_version, g.quota_charged, g.fail_reason, g.idempotency_key, g.created_at, g.finished_at, a.question_id, a.answer_text, a.timed, a.answered_at, a.practice_session_id, a.reference_only
+SELECT g.id, g.owner_user_id, g.attempt_id, g.kind, g.trigger_reason, g.parent_grading_id, g.status, g.rubric_version, g.rubric_snapshot, g.score, g.full_score, g.point_results, g.loss, g.suggestions, g.model, g.prompt_version, g.quota_charged, g.fail_reason, g.idempotency_key, g.created_at, g.finished_at, g.subquestion_results, a.question_id, a.answer_text, a.timed, a.answered_at, a.practice_session_id, a.reference_only
 FROM gradings g JOIN attempts a ON a.id = g.attempt_id
 WHERE g.id = ? AND g.owner_user_id = ?
 `
@@ -153,33 +155,34 @@ type GetGradingParams struct {
 }
 
 type GetGradingRow struct {
-	ID                uint64
-	OwnerUserID       uint64
-	AttemptID         uint64
-	Kind              GradingsKind
-	TriggerReason     GradingsTriggerReason
-	ParentGradingID   sql.NullInt64
-	Status            GradingsStatus
-	RubricVersion     sql.NullInt32
-	RubricSnapshot    dbtypes.NullJSON
-	Score             sql.NullString
-	FullScore         sql.NullString
-	PointResults      dbtypes.NullJSON
-	Loss              dbtypes.NullJSON
-	Suggestions       dbtypes.NullJSON
-	Model             sql.NullString
-	PromptVersion     sql.NullString
-	QuotaCharged      bool
-	FailReason        sql.NullString
-	IdempotencyKey    sql.NullString
-	CreatedAt         time.Time
-	FinishedAt        sql.NullTime
-	QuestionID        uint64
-	AnswerText        sql.NullString
-	Timed             bool
-	AnsweredAt        time.Time
-	PracticeSessionID sql.NullInt64
-	ReferenceOnly     bool
+	ID                 uint64
+	OwnerUserID        uint64
+	AttemptID          uint64
+	Kind               GradingsKind
+	TriggerReason      GradingsTriggerReason
+	ParentGradingID    sql.NullInt64
+	Status             GradingsStatus
+	RubricVersion      sql.NullInt32
+	RubricSnapshot     dbtypes.NullJSON
+	Score              sql.NullString
+	FullScore          sql.NullString
+	PointResults       dbtypes.NullJSON
+	Loss               dbtypes.NullJSON
+	Suggestions        dbtypes.NullJSON
+	Model              sql.NullString
+	PromptVersion      sql.NullString
+	QuotaCharged       bool
+	FailReason         sql.NullString
+	IdempotencyKey     sql.NullString
+	CreatedAt          time.Time
+	FinishedAt         sql.NullTime
+	SubquestionResults dbtypes.NullJSON
+	QuestionID         uint64
+	AnswerText         sql.NullString
+	Timed              bool
+	AnsweredAt         time.Time
+	PracticeSessionID  sql.NullInt64
+	ReferenceOnly      bool
 }
 
 func (q *Queries) GetGrading(ctx context.Context, arg GetGradingParams) (GetGradingRow, error) {
@@ -207,6 +210,7 @@ func (q *Queries) GetGrading(ctx context.Context, arg GetGradingParams) (GetGrad
 		&i.IdempotencyKey,
 		&i.CreatedAt,
 		&i.FinishedAt,
+		&i.SubquestionResults,
 		&i.QuestionID,
 		&i.AnswerText,
 		&i.Timed,
@@ -219,7 +223,7 @@ func (q *Queries) GetGrading(ctx context.Context, arg GetGradingParams) (GetGrad
 
 const getGradingByKey = `-- name: GetGradingByKey :one
 
-SELECT id, owner_user_id, attempt_id, kind, trigger_reason, parent_grading_id, status, rubric_version, rubric_snapshot, score, full_score, point_results, loss, suggestions, model, prompt_version, quota_charged, fail_reason, idempotency_key, created_at, finished_at FROM gradings WHERE owner_user_id = ? AND idempotency_key = ?
+SELECT id, owner_user_id, attempt_id, kind, trigger_reason, parent_grading_id, status, rubric_version, rubric_snapshot, score, full_score, point_results, loss, suggestions, model, prompt_version, quota_charged, fail_reason, idempotency_key, created_at, finished_at, subquestion_results FROM gradings WHERE owner_user_id = ? AND idempotency_key = ?
 `
 
 type GetGradingByKeyParams struct {
@@ -253,6 +257,7 @@ func (q *Queries) GetGradingByKey(ctx context.Context, arg GetGradingByKeyParams
 		&i.IdempotencyKey,
 		&i.CreatedAt,
 		&i.FinishedAt,
+		&i.SubquestionResults,
 	)
 	return i, err
 }
@@ -313,28 +318,29 @@ func (q *Queries) InsertDispute(ctx context.Context, arg InsertDisputeParams) (i
 
 const insertGrading = `-- name: InsertGrading :execlastid
 INSERT INTO gradings (owner_user_id, attempt_id, kind, trigger_reason, parent_grading_id, status, rubric_version, rubric_snapshot,
-  score, full_score, point_results, loss, suggestions, model, prompt_version, quota_charged, idempotency_key, finished_at)
-VALUES (?, ?, 'subjective', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  score, full_score, point_results, subquestion_results, loss, suggestions, model, prompt_version, quota_charged, idempotency_key, finished_at)
+VALUES (?, ?, 'subjective', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertGradingParams struct {
-	OwnerUserID     uint64
-	AttemptID       uint64
-	TriggerReason   GradingsTriggerReason
-	ParentGradingID sql.NullInt64
-	Status          GradingsStatus
-	RubricVersion   sql.NullInt32
-	RubricSnapshot  dbtypes.NullJSON
-	Score           sql.NullString
-	FullScore       sql.NullString
-	PointResults    dbtypes.NullJSON
-	Loss            dbtypes.NullJSON
-	Suggestions     dbtypes.NullJSON
-	Model           sql.NullString
-	PromptVersion   sql.NullString
-	QuotaCharged    bool
-	IdempotencyKey  sql.NullString
-	FinishedAt      sql.NullTime
+	OwnerUserID        uint64
+	AttemptID          uint64
+	TriggerReason      GradingsTriggerReason
+	ParentGradingID    sql.NullInt64
+	Status             GradingsStatus
+	RubricVersion      sql.NullInt32
+	RubricSnapshot     dbtypes.NullJSON
+	Score              sql.NullString
+	FullScore          sql.NullString
+	PointResults       dbtypes.NullJSON
+	SubquestionResults dbtypes.NullJSON
+	Loss               dbtypes.NullJSON
+	Suggestions        dbtypes.NullJSON
+	Model              sql.NullString
+	PromptVersion      sql.NullString
+	QuotaCharged       bool
+	IdempotencyKey     sql.NullString
+	FinishedAt         sql.NullTime
 }
 
 func (q *Queries) InsertGrading(ctx context.Context, arg InsertGradingParams) (int64, error) {
@@ -349,6 +355,7 @@ func (q *Queries) InsertGrading(ctx context.Context, arg InsertGradingParams) (i
 		arg.Score,
 		arg.FullScore,
 		arg.PointResults,
+		arg.SubquestionResults,
 		arg.Loss,
 		arg.Suggestions,
 		arg.Model,
@@ -364,7 +371,7 @@ func (q *Queries) InsertGrading(ctx context.Context, arg InsertGradingParams) (i
 }
 
 const latestDoneGrading = `-- name: LatestDoneGrading :one
-SELECT id, owner_user_id, attempt_id, kind, trigger_reason, parent_grading_id, status, rubric_version, rubric_snapshot, score, full_score, point_results, loss, suggestions, model, prompt_version, quota_charged, fail_reason, idempotency_key, created_at, finished_at FROM gradings WHERE attempt_id = ? AND owner_user_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1
+SELECT id, owner_user_id, attempt_id, kind, trigger_reason, parent_grading_id, status, rubric_version, rubric_snapshot, score, full_score, point_results, loss, suggestions, model, prompt_version, quota_charged, fail_reason, idempotency_key, created_at, finished_at, subquestion_results FROM gradings WHERE attempt_id = ? AND owner_user_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1
 `
 
 type LatestDoneGradingParams struct {
@@ -397,6 +404,7 @@ func (q *Queries) LatestDoneGrading(ctx context.Context, arg LatestDoneGradingPa
 		&i.IdempotencyKey,
 		&i.CreatedAt,
 		&i.FinishedAt,
+		&i.SubquestionResults,
 	)
 	return i, err
 }

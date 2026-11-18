@@ -39,6 +39,18 @@ type Point struct {
 	Content  string   `json:"content"`
 	Score    float64  `json:"score"`
 	Keywords []string `json:"keywords,omitempty"`
+	// SubquestionOrdinal 是分问采分点所属子问序号；0 表示整题采分点。
+	SubquestionOrdinal int `json:"subquestion_ordinal,omitempty"`
+}
+
+// SubquestionPayload 是大题下的一个分问。
+type SubquestionPayload struct {
+	Ordinal     int      `json:"ordinal"`
+	Label       string   `json:"label,omitempty"`
+	Stem        string   `json:"stem"`
+	Answer      string   `json:"answer,omitempty"`
+	FullScore   *float64 `json:"full_score,omitempty"`
+	ScoreSource string   `json:"score_source,omitempty"`
 }
 
 // KPPayload 是知识点草稿：板块 / 章节 / 知识点，原文表述与采分点。
@@ -66,6 +78,8 @@ type QuestionPayload struct {
 	ExamYear  *int     `json:"exam_year,omitempty"`
 	KPNames   []string `json:"kp_names"`
 	Rubric    []Point  `json:"rubric"`
+	// Subquestions 是多子问大题的分问；单设问题为空。
+	Subquestions []SubquestionPayload `json:"subquestions,omitempty"`
 	// AnswerAI 表示参考答案由 AI 生成（T49）：经编辑审核发布后，用户端显示「AI 参考答案」，照常计入预估分。
 	AnswerAI bool `json:"answer_ai,omitempty"`
 	// ScoreInferred 表示分值是补答案时参考同项目同题型的给分填上的（原文没有分值），请编辑核对。
@@ -197,6 +211,7 @@ type content struct {
 	kpRubric  map[uint64][]dbq.ListOfficialRubricRow
 	qRubric   map[uint64][]dbq.ListOfficialRubricRow
 	qKPs      map[uint64][]dbq.ListOfficialQuestionKPsRow
+	qSubs     map[uint64][]dbq.QuestionSubquestion
 }
 
 func loadContent(ctx context.Context, q *dbq.Queries, bankID uint64) (content, error) {
@@ -210,6 +225,16 @@ func loadContent(ctx context.Context, q *dbq.Queries, bankID uint64) (content, e
 	sort.SliceStable(c.kps, func(i, j int) bool { return order[c.kps[i].Level] < order[c.kps[j].Level] })
 	if c.questions, err = q.ListOfficialQuestions(ctx, bankID); err != nil {
 		return c, err
+	}
+	c.qSubs = map[uint64][]dbq.QuestionSubquestion{}
+	for _, qq := range c.questions {
+		subs, err := q.ListQuestionSubquestions(ctx, qq.ID)
+		if err != nil {
+			return c, err
+		}
+		if len(subs) > 0 {
+			c.qSubs[qq.ID] = subs
+		}
 	}
 	rub, err := q.ListOfficialRubric(ctx, dbq.ListOfficialRubricParams{BankID: bankID})
 	if err != nil {

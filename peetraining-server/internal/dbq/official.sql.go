@@ -313,7 +313,7 @@ func (q *Queries) GetOfficialDraft(ctx context.Context, id uint64) (OfficialDraf
 }
 
 const getOfficialProject = `-- name: GetOfficialProject :one
-SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at, textbook_link_version, catalog_course_id FROM official_projects WHERE id = ?
+SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at, textbook_link_version, catalog_course_id, exam_system FROM official_projects WHERE id = ?
 `
 
 func (q *Queries) GetOfficialProject(ctx context.Context, id uint64) (OfficialProject, error) {
@@ -334,12 +334,13 @@ func (q *Queries) GetOfficialProject(ctx context.Context, id uint64) (OfficialPr
 		&i.UpdatedAt,
 		&i.TextbookLinkVersion,
 		&i.CatalogCourseID,
+		&i.ExamSystem,
 	)
 	return i, err
 }
 
 const getOfficialProjectByBank = `-- name: GetOfficialProjectByBank :one
-SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at, textbook_link_version, catalog_course_id FROM official_projects WHERE bank_id = ?
+SELECT id, school, major, subject_code, subject_name, bank_id, stage, editor_ids, authorized_materials, created_by, created_at, updated_at, textbook_link_version, catalog_course_id, exam_system FROM official_projects WHERE bank_id = ?
 `
 
 func (q *Queries) GetOfficialProjectByBank(ctx context.Context, bankID sql.NullInt64) (OfficialProject, error) {
@@ -360,6 +361,7 @@ func (q *Queries) GetOfficialProjectByBank(ctx context.Context, bankID sql.NullI
 		&i.UpdatedAt,
 		&i.TextbookLinkVersion,
 		&i.CatalogCourseID,
+		&i.ExamSystem,
 	)
 	return i, err
 }
@@ -679,17 +681,18 @@ func (q *Queries) InsertOfficialReferenceSegment(ctx context.Context, arg Insert
 }
 
 const insertOfficialRubricPoint = `-- name: InsertOfficialRubricPoint :exec
-INSERT INTO rubric_points (owner_user_id, question_id, kp_id, seq, content, keywords, score, origin) VALUES (?, ?, ?, ?, ?, ?, ?, 'official')
+INSERT INTO rubric_points (owner_user_id, question_id, kp_id, subquestion_id, seq, content, keywords, score, origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'official')
 `
 
 type InsertOfficialRubricPointParams struct {
-	OwnerUserID sql.NullInt64
-	QuestionID  sql.NullInt64
-	KpID        sql.NullInt64
-	Seq         uint16
-	Content     string
-	Keywords    dbtypes.NullJSON
-	Score       sql.NullString
+	OwnerUserID   sql.NullInt64
+	QuestionID    sql.NullInt64
+	KpID          sql.NullInt64
+	SubquestionID sql.NullInt64
+	Seq           uint16
+	Content       string
+	Keywords      dbtypes.NullJSON
+	Score         sql.NullString
 }
 
 func (q *Queries) InsertOfficialRubricPoint(ctx context.Context, arg InsertOfficialRubricPointParams) error {
@@ -697,6 +700,7 @@ func (q *Queries) InsertOfficialRubricPoint(ctx context.Context, arg InsertOffic
 		arg.OwnerUserID,
 		arg.QuestionID,
 		arg.KpID,
+		arg.SubquestionID,
 		arg.Seq,
 		arg.Content,
 		arg.Keywords,
@@ -1087,7 +1091,7 @@ func (q *Queries) ListOfficialKPs(ctx context.Context, bankID uint64) ([]ListOff
 }
 
 const listOfficialProjects = `-- name: ListOfficialProjects :many
-SELECT p.id, p.school, p.major, p.subject_code, p.subject_name, p.bank_id, p.stage, p.editor_ids, p.authorized_materials, p.created_by, p.created_at, p.updated_at, p.textbook_link_version, p.catalog_course_id,
+SELECT p.id, p.school, p.major, p.subject_code, p.subject_name, p.bank_id, p.stage, p.editor_ids, p.authorized_materials, p.created_by, p.created_at, p.updated_at, p.textbook_link_version, p.catalog_course_id, p.exam_system,
   (SELECT COUNT(*) FROM knowledge_points k WHERE k.bank_id = p.bank_id AND k.owner_user_id IS NULL AND k.level = 'point') AS kp_count,
   (SELECT COUNT(*) FROM questions q WHERE q.bank_id = p.bank_id AND q.owner_user_id IS NULL AND q.status = 'active') AS question_count,
   (SELECT COUNT(*) FROM questions q WHERE q.bank_id = p.bank_id AND q.owner_user_id IS NULL AND q.status = 'active' AND q.source = 'official' AND q.exam_year IS NOT NULL) AS exam_count,
@@ -1111,6 +1115,7 @@ type ListOfficialProjectsRow struct {
 	UpdatedAt           time.Time
 	TextbookLinkVersion uint64
 	CatalogCourseID     sql.NullInt64
+	ExamSystem          string
 	KpCount             int64
 	QuestionCount       int64
 	ExamCount           int64
@@ -1142,6 +1147,7 @@ func (q *Queries) ListOfficialProjects(ctx context.Context) ([]ListOfficialProje
 			&i.UpdatedAt,
 			&i.TextbookLinkVersion,
 			&i.CatalogCourseID,
+			&i.ExamSystem,
 			&i.KpCount,
 			&i.QuestionCount,
 			&i.ExamCount,
@@ -1340,7 +1346,7 @@ func (q *Queries) ListOfficialReferences(ctx context.Context, projectID uint64) 
 }
 
 const listOfficialRubric = `-- name: ListOfficialRubric :many
-SELECT r.id, r.question_id, r.kp_id, r.seq, r.content, r.keywords, r.score FROM rubric_points r
+SELECT r.id, r.question_id, r.kp_id, r.subquestion_id, r.seq, r.content, r.keywords, r.score FROM rubric_points r
 WHERE r.owner_user_id IS NULL AND (r.question_id IN (SELECT q.id FROM questions q WHERE q.bank_id = ? AND q.owner_user_id IS NULL)
    OR r.kp_id IN (SELECT k.id FROM knowledge_points k WHERE k.bank_id = ? AND k.owner_user_id IS NULL))
 ORDER BY r.question_id, r.kp_id, r.seq
@@ -1351,13 +1357,14 @@ type ListOfficialRubricParams struct {
 }
 
 type ListOfficialRubricRow struct {
-	ID         uint64
-	QuestionID sql.NullInt64
-	KpID       sql.NullInt64
-	Seq        uint16
-	Content    string
-	Keywords   dbtypes.NullJSON
-	Score      sql.NullString
+	ID            uint64
+	QuestionID    sql.NullInt64
+	KpID          sql.NullInt64
+	SubquestionID sql.NullInt64
+	Seq           uint16
+	Content       string
+	Keywords      dbtypes.NullJSON
+	Score         sql.NullString
 }
 
 // 官方题库的全部采分点（题目的与知识点的）。
@@ -1374,6 +1381,7 @@ func (q *Queries) ListOfficialRubric(ctx context.Context, arg ListOfficialRubric
 			&i.ID,
 			&i.QuestionID,
 			&i.KpID,
+			&i.SubquestionID,
 			&i.Seq,
 			&i.Content,
 			&i.Keywords,

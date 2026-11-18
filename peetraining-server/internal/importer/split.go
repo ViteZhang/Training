@@ -96,8 +96,9 @@ func sectionQType(title string) string {
 		{"多项选择", "multi_choice"}, {"多选", "multi_choice"},
 		{"单项选择", "single_choice"}, {"单选", "single_choice"}, {"选择", "single_choice"},
 		{"判断", "true_false"}, {"填空", "fill_blank"},
-		{"论述", "discussion"}, {"材料分析", "discussion"}, {"分析题", "discussion"},
-		{"简答", "short_answer"}, {"简述", "short_answer"}, {"辨析", "short_answer"},
+		{"分析论述", "analytical_discussion"},
+		{"论述", "discussion"}, {"材料分析", "material_analysis"}, {"分析题", "discussion"},
+		{"简答", "short_answer"}, {"简述", "short_answer"}, {"辨析", "discrimination"},
 		{"作文", "essay"}, {"写作", "essay"},
 		{"计算", "calculation"},
 	}

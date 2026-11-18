@@ -10,13 +10,13 @@ WHERE g.id = ? AND g.owner_user_id = ?;
 
 -- name: InsertGrading :execlastid
 INSERT INTO gradings (owner_user_id, attempt_id, kind, trigger_reason, parent_grading_id, status, rubric_version, rubric_snapshot,
-  score, full_score, point_results, loss, suggestions, model, prompt_version, quota_charged, idempotency_key, finished_at)
-VALUES (?, ?, 'subjective', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  score, full_score, point_results, subquestion_results, loss, suggestions, model, prompt_version, quota_charged, idempotency_key, finished_at)
+VALUES (?, ?, 'subjective', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: CompleteGrading :exec
 -- 待批改提交后写入结果。
 UPDATE gradings SET status = 'done', trigger_reason = 'pending_resubmit', rubric_version = ?, rubric_snapshot = ?, score = ?, full_score = ?,
-  point_results = ?, loss = ?, suggestions = ?, model = ?, prompt_version = ?, quota_charged = 1, finished_at = ?
+  point_results = ?, subquestion_results = ?, loss = ?, suggestions = ?, model = ?, prompt_version = ?, quota_charged = 1, finished_at = ?
 WHERE id = ? AND owner_user_id = ? AND status = 'queued_quota';
 
 -- name: ListQueuedGradings :many
