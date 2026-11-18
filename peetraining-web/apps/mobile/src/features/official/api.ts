@@ -19,12 +19,12 @@ export const officialKeys = {
   supplement: (subjectId: number) => ['supplement-prompt', subjectId] as const,
 };
 
-export function useCatalogSchools(q: string) {
+export function useCatalogSchools(q: string, enabled = true) {
   const term = q.trim();
   return useQuery({
     queryKey: officialKeys.schools(term),
     queryFn: () => unwrap(api.GET('/catalog/schools', { params: { query: { q: term } } })),
-    enabled: term.length > 0,
+    enabled,
     staleTime: 60_000,
   });
 }
@@ -48,7 +48,11 @@ export function useTrialStatus(enabled = true) {
   return useQuery({ queryKey: officialKeys.trialStatus, queryFn: () => unwrap(api.GET('/trials/status')), enabled });
 }
 
-export const qtypeLabel: Record<string, string> = { term: '名词解释', short_answer: '简答', discussion: '论述' };
+export const qtypeLabel: Record<string, string> = {
+  single_choice: '单选', multi_choice: '多选', true_false: '判断', fill_blank: '填空',
+  term: '名词解释', short_answer: '简答', discrimination: '辨析', discussion: '论述',
+  analytical_discussion: '分析论述', material_analysis: '材料分析', essay: '作文', calculation: '计算', other: '其他',
+};
 
 /** 题型 · 分值，如「简答 · 15 分」。 */
 export const qtypeScore = (qtype: string, score: number) => `${qtypeLabel[qtype] ?? qtype} · ${score} 分`;

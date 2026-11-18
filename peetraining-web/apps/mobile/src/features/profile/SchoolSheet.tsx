@@ -17,7 +17,7 @@ export function SchoolSheet({ value, onClose, onSave }: { value?: string | null;
     const t = setTimeout(() => setTerm(query.trim() === school ? '' : query), 300);
     return () => clearTimeout(t);
   }, [query, school]);
-  const schools = useCatalogSchools(term);
+  const schools = useCatalogSchools(term, !!term);
   const items = schools.data?.items ?? [];
   const typed = query.trim();
   const searching = !!term && typed !== school;

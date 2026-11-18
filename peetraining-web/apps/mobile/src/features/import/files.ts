@@ -1,7 +1,7 @@
 import type { Schemas } from '@training/api-client';
 import { ApiError } from '@training/api-client';
 import * as Crypto from 'expo-crypto';
-import { File } from 'expo-file-system';
+import { File } from '@/lib/fs';
 import { api, unwrap } from '@/lib/api';
 
 export type Format = Schemas['MaterialFormat'];

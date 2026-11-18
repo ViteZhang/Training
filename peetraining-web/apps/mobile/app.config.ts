@@ -6,10 +6,12 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
  *   APP_ID              iOS Bundle ID 与安卓包名，默认 cn.dreamerlab.training（D4）
  *   API_BASE_URL        接口地址，默认生产 https://training.dreamerlab.cn/api/v1；本地开发指向 mock 或本机后端
  *   APP_VARIANT         development / preview / production（EAS 三个配置，T05）
+ *   WEB_BASE_PATH       只在导出 H5 时设置（如 /h5）：网页部署在域名下的子路径。不设置时配置与原来完全一样，不影响 App 打包
  */
 const variant = process.env.APP_VARIANT ?? 'development';
 const appId = process.env.APP_ID ?? 'cn.dreamerlab.training';
 const baseName = process.env.APP_NAME ?? '考研Training';
+const webBasePath = process.env.WEB_BASE_PATH;
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -79,7 +81,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // 安卓只打真机用的 ARM 架构；默认还会带 x86 / x86_64（只有模拟器用），安装包会大一倍左右
     ['expo-build-properties', { android: { buildArchs: ['armeabi-v7a', 'arm64-v8a'] } }],
   ],
-  experiments: { typedRoutes: true },
+  experiments: { typedRoutes: true, ...(webBasePath ? { baseUrl: webBasePath } : {}) },
   extra: {
     eas: { projectId: '3f07ec04-8c0e-474c-abb8-fa5b89eb596d' },
     apiBaseUrl: process.env.API_BASE_URL ?? 'https://training.dreamerlab.cn/api/v1',

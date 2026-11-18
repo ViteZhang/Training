@@ -76,6 +76,9 @@ func toGenGrading(g practice.Grading, reference string) gen.GradingResult {
 		if p.Reason != "" {
 			x.Reason = ptr(p.Reason)
 		}
+		if p.SubquestionID != 0 {
+			x.SubquestionId = ptr(int64(p.SubquestionID))
+		}
 		out.Points[i] = x
 		if out.Counts != nil {
 			switch p.Verdict {
@@ -94,6 +97,23 @@ func toGenGrading(g practice.Grading, reference string) gen.GradingResult {
 	for i, k := range g.Extra.KPs {
 		out.KpChanges[i] = gen.MasteryChange{KpId: int64(k.KPID), Name: k.Name, From: gen.MasteryState(k.From), To: gen.MasteryState(k.To), M: float32(k.M)}
 	}
+	if len(g.Subquestions) > 0 {
+		subs := make([]struct {
+			Feedback      *string `json:"feedback,omitempty"`
+			FullScore     float32 `json:"full_score"`
+			Score         float32 `json:"score"`
+			SubquestionId int64   `json:"subquestion_id"`
+		}, len(g.Subquestions))
+		for i, s := range g.Subquestions {
+			subs[i].SubquestionId = int64(s.SubquestionID)
+			subs[i].Score = float32(s.Score)
+			subs[i].FullScore = float32(s.FullScore)
+			if s.Feedback != "" {
+				subs[i].Feedback = ptr(s.Feedback)
+			}
+		}
+		out.Subquestions = &subs
+	}
 	return out
 }
 
@@ -106,6 +126,11 @@ func (h *Handlers) SubmitSubjective(c *gin.Context, sessionID gen.SessionId) {
 		Timed: body.Timed != nil && *body.Timed}
 	if body.PhotoKeys != nil {
 		in.PhotoKeys = *body.PhotoKeys
+	}
+	if body.Subanswers != nil {
+		for _, a := range *body.Subanswers {
+			in.Subanswers = append(in.Subanswers, practice.Subanswer{SubquestionID: uint64(a.SubquestionId), Text: a.Text})
+		}
 	}
 	if body.AnswerMode != nil {
 		in.Mode = string(*body.AnswerMode)

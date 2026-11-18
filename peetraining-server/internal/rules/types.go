@@ -60,10 +60,13 @@ const (
 type QType string
 
 const (
-	QTermExplain QType = "term"         // 名词解释
-	QShortAnswer QType = "short_answer" // 简答
-	QDiscussion  QType = "discussion"   // 论述
-	QEssay       QType = "essay"        // 作文
+	QTermExplain          QType = "term"                  // 名词解释
+	QShortAnswer          QType = "short_answer"          // 简答
+	QDiscussion           QType = "discussion"            // 论述
+	QEssay                QType = "essay"                 // 作文
+	QDiscrimination       QType = "discrimination"        // 辨析
+	QMaterialAnalysis     QType = "material_analysis"     // 材料分析
+	QAnalyticalDiscussion QType = "analytical_discussion" // 分析论述
 )
 
 // IsObjective 报告题型是否客观题（选择、判断、填空）。

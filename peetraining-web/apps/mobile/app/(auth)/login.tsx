@@ -3,13 +3,25 @@
 // 邀请开关打开时可填邀请码（选填，T26）；从邀请链接进入时（?invite=）自动带上。
 import { colors, fontFamily, layout, radius, semantic, spacing } from '@training/ui-tokens';
 import { ApiError } from '@training/api-client';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { BottomSheet, Button, Icon, Logo, Screen, Text } from '@/components';
 import { formatPhone, isValidPhone, normalizePhone } from '@/features/auth/phone';
 import { api, unwrap } from '@/lib/api';
 import { useFeatureFlag } from '@/lib/flags';
+import { isWeb } from '@/lib/platform';
+import { useSession } from '@/lib/session';
+
+/** H5：登录后按浏览器的返回键会回到登录页，这时已经登录，直接回启动页分流。只在浏览器里挂载。 */
+function WebLoggedInRedirect() {
+  useFocusEffect(
+    useCallback(() => {
+      if (useSession.getState().session) router.replace('/');
+    }, []),
+  );
+  return null;
+}
 
 export default function Login() {
   const [phone, setPhone] = useState('');
@@ -53,6 +65,7 @@ export default function Login() {
 
   return (
     <Screen>
+      {isWeb ? <WebLoggedInRedirect /> : null}
       <View style={styles.header}>
         <Logo size={56} />
         <Text variant="h1" style={styles.title}>

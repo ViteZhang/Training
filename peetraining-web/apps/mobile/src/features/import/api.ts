@@ -70,6 +70,9 @@ export const qtypeNames: Record<Schemas['QuestionType'], string> = {
   essay: '作文',
   calculation: '计算',
   other: '其他',
+  discrimination: '辨析',
+  material_analysis: '材料分析',
+  analytical_discussion: '分析论述',
 };
 
 export const essayTypeNames: Partial<Record<Schemas['ImportItemType'], string>> = {
@@ -81,7 +84,7 @@ export const essayTypeNames: Partial<Record<Schemas['ImportItemType'], string>> 
 };
 
 export function isSubjective(q?: QuestionDraft) {
-  return !!q && ['term', 'short_answer', 'discussion', 'essay'].includes(q.qtype);
+  return !!q && ['term', 'short_answer', 'discussion', 'essay', 'discrimination', 'material_analysis', 'analytical_discussion'].includes(q.qtype);
 }
 
 /** 1.7 每条的状态：已确认、需核对、缺答案、采分点待确认、疑似重复。 */

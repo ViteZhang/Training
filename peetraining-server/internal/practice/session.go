@@ -52,6 +52,18 @@ type Question struct {
 	Answered   *Answered
 	// 专业分组与共用材料（迁移 00020）：组名、适用专业、材料原文与归组键
 	GroupLabel, GroupMajors, Passage, PassageKey string
+	// Subquestions 是多子问大题的分问（教育学 311/333）；单设问题为空。
+	Subquestions []Subquestion
+}
+
+// Subquestion 是大题内的一个设问。
+type Subquestion struct {
+	ID        uint64
+	Ordinal   int
+	Label     string
+	Stem      string
+	Answer    string
+	FullScore *float64
 }
 
 // Session 是练习会话。
@@ -184,6 +196,17 @@ func (s *Service) question(ctx context.Context, userID uint64, qr dbq.GetQuestio
 	}
 	rp, err := s.q.ListQuestionRubric(ctx, dbq.ListQuestionRubricParams{QuestionID: sql.NullInt64{Int64: int64(qr.ID), Valid: true}, OwnerUserID: owner(userID)})
 	qu.RubricN = len(rp)
+	subs, err := s.q.ListQuestionSubquestions(ctx, qr.ID)
+	if err != nil {
+		return qu, err
+	}
+	for _, sub := range subs {
+		x := Subquestion{ID: sub.ID, Ordinal: int(sub.Ordinal), Label: sub.Label, Stem: sub.Stem, Answer: sub.Answer.String}
+		if v, ok := parseScore(sub.FullScore); ok {
+			x.FullScore = &v
+		}
+		qu.Subquestions = append(qu.Subquestions, x)
+	}
 	qu.AnswerTier = string(answerTier(qr))
 	return qu, err
 }

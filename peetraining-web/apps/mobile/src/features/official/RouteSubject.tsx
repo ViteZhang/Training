@@ -76,6 +76,7 @@ export function RouteSubject() {
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [quota, setQuota] = useState(false);
+  const [open, setOpen] = useState(false);
   const upgrade = useUpgradeActions(() => setQuota(false));
 
   const selectedYear = years.data?.items.find((y) => y.exam_year === year) ?? years.data?.items[0];
@@ -84,7 +85,7 @@ export function RouteSubject() {
     const t = setTimeout(() => setTerm(query.trim() === school ? '' : query), 300);
     return () => clearTimeout(t);
   }, [query, school]);
-  const schools = useCatalogSchools(term);
+  const schools = useCatalogSchools(term, open);
   const courses = useCatalogCourses(school, selectedYear?.exam_year);
   const list = useMemo(() => courses.data?.items ?? [], [courses.data]);
   const groups = useMemo(() => groupCourses(list), [list]);
@@ -163,7 +164,7 @@ export function RouteSubject() {
   if (years.isLoading || subjects.isLoading) return <Screen><Loading rows={6} /></Screen>;
   if (years.isError) return <Screen><ErrorState error={years.error} onRetry={() => void years.refetch()} /></Screen>;
 
-  const showResults = !!term && query.trim() !== school;
+  const showResults = open;
   // 搜索结果里没有同名院校时，可以直接用输入的院校名（PRD v3 增补 1.1：库里没有时手动添加），专业课手动添加后去 1.1c。
   const exact = (schools.data?.items ?? []).some((s) => s.name === query.trim());
   return (
@@ -183,17 +184,22 @@ export function RouteSubject() {
             <Icon name="search" size={18} color={semantic.textSecondary} />
             <TextInput
               accessibilityLabel="搜索院校"
-              placeholder="输入院校名称，如 四川大学"
+              placeholder="输入或选择院校，如 四川大学"
               placeholderTextColor={colors.faint}
               value={query}
+              onFocus={() => setOpen(true)}
               onChangeText={(v) => {
                 setQuery(v);
+                setOpen(true);
                 if (v.trim() !== school) setSchool(undefined);
               }}
               style={styles.input}
               maxLength={64}
               maxFontSizeMultiplier={layout.maxFontScale}
             />
+            <Pressable accessibilityRole="button" accessibilityLabel="展开院校列表" hitSlop={8} onPress={() => setOpen((v) => !v)}>
+              <Icon name="down" size={18} color={semantic.textSecondary} />
+            </Pressable>
           </View>
           {showResults ? (
             <View style={styles.list}>
@@ -206,6 +212,7 @@ export function RouteSubject() {
                     setSchool(s.name);
                     setQuery(s.name);
                     setPicked([]);
+                    setOpen(false);
                   }}
                   style={[styles.row, i > 0 && styles.divider]}
                 >
@@ -213,7 +220,7 @@ export function RouteSubject() {
                   <Text variant="small" num>{s.course_count} 门课</Text>
                 </Pressable>
               ))}
-              {schools.data && !exact ? (
+              {schools.data && !exact && query.trim() !== '' ? (
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => {
@@ -221,6 +228,7 @@ export function RouteSubject() {
                     setSchool(name);
                     setQuery(name);
                     setPicked([]);
+                    setOpen(false);
                   }}
                   style={[styles.row, schools.data.items.length > 0 && styles.divider, styles.custom]}
                 >
@@ -230,6 +238,9 @@ export function RouteSubject() {
                   </View>
                   <Icon name="chevron" size={16} color={semantic.textSecondary} />
                 </Pressable>
+              ) : null}
+              {schools.data && schools.data.items.length === 0 && query.trim() === '' ? (
+                <Text variant="small" style={styles.row}>暂无可选院校</Text>
               ) : null}
             </View>
           ) : null}

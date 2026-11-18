@@ -5,10 +5,10 @@ import { getJSON } from '@/lib/storage';
 import { practiceVoiceQueue } from './voiceQueue';
 import { PracticeVoiceInput, PracticeVoiceTool, voiceEditsKey } from './PracticeVoiceInput';
 import { ApiError } from '@training/api-client';
-import { semantic, spacing } from '@training/ui-tokens';
+import { semantic, spacing, radius } from '@training/ui-tokens';
 import * as Crypto from 'expo-crypto';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { BackHandler, StyleSheet, View } from 'react-native';
+import { BackHandler, StyleSheet, TextInput, View } from 'react-native';
 import { AIFailed, Button, QuotaSheet, Text, toast } from '@/components';
 import type { PracticeQuestion } from './api';
 import { HandwritingFlow } from './handwriting';
@@ -16,6 +16,19 @@ import { GradingProgress, SubjectiveInput, useDraft, useSubmitSubjective, type G
 import { useUpgradeActions } from '@/features/membership/purchase';
 
 type Level = 'unknown' | 'vague' | 'mastered';
+
+const subsOf = (q: PracticeQuestion) => q.subquestions ?? [];
+const parseSubDraft = (text: string): Record<number, string> => {
+  if (!text.trim().startsWith('{')) return {};
+  try {
+    const raw = JSON.parse(text) as Record<string, unknown>;
+    const out: Record<number, string> = {};
+    for (const [k, v] of Object.entries(raw)) if (typeof v === 'string') out[Number(k)] = v;
+    return out;
+  } catch {
+    return {};
+  }
+};
 
 export function SubjectiveFlow({
   q,
@@ -34,7 +47,17 @@ export function SubjectiveFlow({
   onActions?: (node: ReactNode) => void;
 }) {
   const draft = useDraft(sessionId, q.id);
-  const voiceEnabled = useFeatureFlag('voice_answer');
+  const subs = subsOf(q);
+  const [subTexts, setSubTexts] = useState<Record<number, string>>(() => parseSubDraft(draft.text));
+  const setSub = (id: number, v: string) =>
+    setSubTexts((prev) => {
+      const next = { ...prev, [id]: v };
+      draft.setText(JSON.stringify(next));
+      return next;
+    });
+  const subAnswer = (sub: { id: number; ordinal: number; label?: string | null; stem: string }) =>
+    `${sub.label || `(${sub.ordinal})`} ${sub.stem}\n${(subTexts[sub.id] ?? '').trim()}`;
+  const voiceEnabled = useFeatureFlag('voice_answer') && subs.length === 0;
   const voiceQueue = practiceVoiceQueue(sessionId, q.id);
   const [recording, setRecording] = useState(false);
   const [preparing, setPreparing] = useState(false);
@@ -48,7 +71,7 @@ export function SubjectiveFlow({
   });
   const [failed, setFailed] = useState(false);
   const [photo, setPhoto] = useState(false);
-  const last = useRef<{ text: string; keys?: string[] }>({ text: '' });
+  const last = useRef<{ text: string; keys?: string[]; subanswers?: { subquestion_id: number; text: string }[] }>({ text: '' });
   const [started] = useState(() => Date.now());
   const key = useRef('');
   const submit = useSubmitSubjective(sessionId);
@@ -66,9 +89,18 @@ export function SubjectiveFlow({
   }, [inSubView]);
 
   // 拍照作答时提交的是识别后核对过的文字与照片；重试沿用上一次的内容。
-  const send = async (answer?: { text: string; keys?: string[] }, retry = false) => {
+  const send = async (answer?: { text: string; keys?: string[]; subanswers?: { subquestion_id: number; text: string }[] }, retry = false) => {
     if (recording) { toast('请先结束录音再提交'); return; }
     if (preparing) return;
+    if (subs.length && !answer) {
+      const subanswers = subs
+        .map((s) => ({ subquestion_id: s.id, text: (subTexts[s.id] ?? '').trim() }))
+        .filter((a) => a.text !== '');
+      answer = {
+        text: subs.filter((s) => (subTexts[s.id] ?? '').trim() !== '').map(subAnswer).join('\n\n'),
+        subanswers,
+      };
+    }
     if (voiceEnabled && !retry) {
       setPreparing(true);
       try {
@@ -99,6 +131,7 @@ export function SubjectiveFlow({
         photo_keys: last.current.keys,
         duration_seconds: Math.round((Date.now() - started) / 1000),
         timed,
+        subanswers: last.current.subanswers,
       },
       {
         onSuccess: (g) => {
@@ -124,7 +157,9 @@ export function SubjectiveFlow({
     sendRef.current = send;
   });
   const answering = !submit.isPending && !failed && !photo && !showRef;
-  const submitDisabled = recording || preparing || (!draft.text.trim() && !voiceEnabled);
+  const submitDisabled = recording || preparing || (subs.length
+    ? !subs.some((s) => (subTexts[s.id] ?? '').trim() !== '')
+    : !draft.text.trim() && !voiceEnabled);
   const renderActions = () => (
     <View style={styles.row}>
       <Button title="看参考答案" kind="secondary" style={styles.flex} onPress={() => { if (recording) toast('请先结束录音'); else setShowRef(true); }} />
@@ -146,12 +181,23 @@ export function SubjectiveFlow({
   if (showRef) {
     return (
       <View style={styles.gap}>
-        <View style={styles.ref}>
-          <Text variant="small">参考答案</Text>
-          <Text variant="caption" color={semantic.textPrimary} style={styles.lh}>
-            {q.answer ?? '这道题还没有参考答案'}
-          </Text>
-        </View>
+        {subs.length ? (
+          subs.map((sub) => (
+            <View key={sub.id} style={styles.ref}>
+              <Text variant="small">{sub.label || `(${sub.ordinal})`} 参考答案</Text>
+              <Text variant="caption" color={semantic.textPrimary} style={styles.lh}>
+                {sub.answer ?? '这道分问还没有参考答案'}
+              </Text>
+            </View>
+          ))
+        ) : (
+          <View style={styles.ref}>
+            <Text variant="small">参考答案</Text>
+            <Text variant="caption" color={semantic.textPrimary} style={styles.lh}>
+              {q.answer ?? '这道题还没有参考答案'}
+            </Text>
+          </View>
+        )}
         <Text variant="caption" color={semantic.textPrimary} style={styles.bold}>
           对照参考答案，你掌握得怎么样？
         </Text>
@@ -173,18 +219,41 @@ export function SubjectiveFlow({
 
   return (
     <View style={styles.gap}>
-      <SubjectiveInput
-        q={q}
-        text={draft.text}
-        onChange={draft.setText}
-        timed={timed}
-        onTimed={setTimed}
-        onPhoto={() => { if (recording) toast('请先结束录音'); else setPhoto(true); }}
-        voice={voiceEnabled ? <PracticeVoiceTool queue={voiceQueue} onRecordingChange={setRecording} /> : undefined}
-      >
-        {voiceEnabled && recording ? <Text variant="small">正在录音，结束后可切题。单段接近 5 分钟时自动保存；只转写原话，请核对专业术语。</Text> : null}
-        {voiceEnabled ? <PracticeVoiceInput queue={voiceQueue} applied={draft.voices} onConfirm={(job,value) => { try { draft.appendVoice(job.idempotency_key,value); } catch(error) { toast(error instanceof Error ? error.message : '保存失败'); } }} /> : null}
-      </SubjectiveInput>
+      {subs.length ? (
+        <View style={styles.gap}>
+          <Text variant="small">按分问作答，每问单独评分；未作答的分问会计 0 分。</Text>
+          {subs.map((sub) => (
+            <View key={sub.id} style={styles.gap}>
+              <Text variant="small" style={styles.label}>
+                {sub.label || `(${sub.ordinal})`} {sub.stem}
+              </Text>
+              <TextInput
+                accessibilityLabel={`分问 ${sub.label || sub.ordinal} 答案`}
+                multiline
+                value={subTexts[sub.id] ?? ''}
+                onChangeText={(v) => setSub(sub.id, v)}
+                placeholder="写下这一问的答案"
+                placeholderTextColor={semantic.textSecondary}
+                style={styles.answer}
+                textAlignVertical="top"
+              />
+            </View>
+          ))}
+        </View>
+      ) : (
+        <SubjectiveInput
+          q={q}
+          text={draft.text}
+          onChange={draft.setText}
+          timed={timed}
+          onTimed={setTimed}
+          onPhoto={() => { if (recording) toast('请先结束录音'); else setPhoto(true); }}
+          voice={voiceEnabled ? <PracticeVoiceTool queue={voiceQueue} onRecordingChange={setRecording} /> : undefined}
+        >
+          {voiceEnabled && recording ? <Text variant="small">正在录音，结束后可切题。单段接近 5 分钟时自动保存；只转写原话，请核对专业术语。</Text> : null}
+          {voiceEnabled ? <PracticeVoiceInput queue={voiceQueue} applied={draft.voices} onConfirm={(job,value) => { try { draft.appendVoice(job.idempotency_key,value); } catch(error) { toast(error instanceof Error ? error.message : '保存失败'); } }} /> : null}
+        </SubjectiveInput>
+      )}
       {onActions ? null : renderActions()}
       <QuotaSheet
         visible={quotaOut}
@@ -244,4 +313,6 @@ const styles = StyleSheet.create({
   bold: { fontWeight: '700' },
   lh: { lineHeight: 22 },
   ref: { gap: 6, padding: 16, borderRadius: 18, backgroundColor: semantic.fill },
+  label: { fontWeight: '600' },
+  answer: { minHeight: 140, borderWidth: 1, borderColor: semantic.border, borderRadius: radius.xl, padding: 14, fontSize: 15, lineHeight: 28, color: semantic.textPrimary, backgroundColor: semantic.surface },
 });

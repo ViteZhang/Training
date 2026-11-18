@@ -1,4 +1,4 @@
-import { File } from 'expo-file-system';
+import { File } from '@/lib/fs';
 import { api, unwrap } from '@/lib/api';
 export type VoiceClip = { uri: string; mimeType: 'audio/m4a'; size: number };
 export async function uploadVoice(clip: VoiceClip) {

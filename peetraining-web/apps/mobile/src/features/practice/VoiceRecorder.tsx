@@ -1,5 +1,5 @@
 import { AudioModule, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, type AudioRecorder } from 'expo-audio';
-import { File } from 'expo-file-system';
+import { File } from '@/lib/fs';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { radius, semantic, spacing } from '@training/ui-tokens';

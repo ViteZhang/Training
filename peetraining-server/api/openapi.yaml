@@ -5497,9 +5497,9 @@ paths:
       tags: [profile]
       operationId: searchCatalogSchools
       summary: 1.1 搜索目标院校（院校专业课库）
-      description: 受 onboarding_route 开关控制，关闭时返回 404（App 回到旧 1.1）。
+      description: 受 onboarding_route 开关控制，关闭时返回 404（App 回到旧 1.1）。q 为空串时返回已发布院校，按课数排序，供下拉列表展开。
       parameters:
-        - { name: q, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
+        - { name: q, in: query, required: true, schema: { type: string, maxLength: 64 }, description: 院校名关键词；传空串时返回已发布院校 }
       responses:
         "200":
           description: OK
@@ -10899,6 +10899,16 @@ components:
         photo_keys: { type: array, maxItems: 6, items: { type: string }, description: 拍手写稿的照片（answer_mode=photo 时），答案原文为识别后用户核对过的文字 }
         duration_seconds: { type: integer, minimum: 0 }
         timed: { type: boolean, default: false, description: 限时作答（失分诊断「时间不够」只在这里判定） }
+        subanswers:
+          type: array
+          description: 多子问的分问作答；answer_text 仍需传（可为各问拼接文本），服务端以分问为准
+          maxItems: 20
+          items:
+            type: object
+            required: [subquestion_id, text]
+            properties:
+              subquestion_id: { type: integer, format: int64 }
+              text: { type: string, maxLength: 20000 }
     RubricSource:
       type: string
       description: 批改依据的来源：用户确认 / AI 提取待确认 / AI 生成 / 官方 / 没有采分点时按参考答案整体批改
@@ -10951,6 +10961,7 @@ components:
         verdict: { type: string, enum: [hit, partial, miss] }
         quote: { type: string, description: 考生原话 }
         reason: { type: string }
+        subquestion_id: { type: integer, format: int64, description: 所属子问；整题采分点不传 }
     LossItem:
       type: object
       required: [type, points, reason]
@@ -10997,6 +11008,17 @@ components:
           type: boolean
           description: 这次作答不计入预估分（11 月 4 日以前按 AI 参考答案批改的）。11 月 4 日起按 AI 参考答案批改照常计入，不再返回（T49）
         answer_confirmed: { type: boolean, description: 题目的 AI 参考答案已经被确认（4.7b 不再显示「这份参考答案对吗？」） }
+        subquestions:
+          type: array
+          description: 分问得分；多子问大题按问展示，单设问题为空数组
+          items:
+            type: object
+            required: [subquestion_id, score, full_score]
+            properties:
+              subquestion_id: { type: integer, format: int64 }
+              score: { type: number }
+              full_score: { type: number }
+              feedback: { type: string }
     DisputeRequest:
       type: object
       required: [reason]
@@ -11099,6 +11121,20 @@ components:
         rubric_count: { type: integer, description: 采分点个数（主观题「按你资料里的 N 个采分点批改」） }
         answer_tier: { $ref: "#/components/schemas/AnswerTier" }
         answered: { $ref: "#/components/schemas/AttemptBrief" }
+        subquestions:
+          type: array
+          description: 多子问大题（材料分析/分析论述/简答）的分问设问；单设问题为空数组
+          items: { $ref: "#/components/schemas/PracticeSubquestion" }
+    PracticeSubquestion:
+      type: object
+      required: [id, ordinal, stem]
+      properties:
+        id: { type: integer, format: int64 }
+        ordinal: { type: integer }
+        label: { type: string, description: 展示序号，如 (1) }
+        stem: { type: string }
+        answer: { type: string, description: 分问参考答案（批改后展示） }
+        full_score: { type: number, description: 原卷分问分值；缺省表示原卷未提供 }
     PracticeSession:
       type: object
       required: [id, kind, title, subject_id, status, cursor_index, started_at, questions, done_count]
@@ -14699,8 +14735,9 @@ components:
       type: string
       description: |
         single_choice 单选、multi_choice 多选、true_false 判断、fill_blank 填空、term 名词解释、short_answer 简答、
-        discussion 论述、essay 作文、calculation 计算（只能自评）、other 其他
-      enum: [single_choice, multi_choice, true_false, fill_blank, term, short_answer, discussion, essay, calculation, other]
+        discussion 论述、essay 作文、calculation 计算（只能自评）、other 其他；
+        discrimination 辨析（自由论证，不是判断题）、analytical_discussion 分析论述、material_analysis 材料分析（支持材料与多个子问）
+      enum: [single_choice, multi_choice, true_false, fill_blank, term, short_answer, discussion, essay, calculation, other, discrimination, material_analysis, analytical_discussion]
     QuestionSource:
       type: string
       description: 历年真题 / 习题 / 来源待确认 / AI 出题 / 官方

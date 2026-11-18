@@ -75,6 +75,10 @@ func TestOfficialFirstRoute(t *testing.T) {
 	if got, err := s.SearchSchools(ctx, "四川"); err != nil || len(got) != 1 || got[0].CourseCount != 2 {
 		t.Fatalf("搜索院校：%+v %v", got, err)
 	}
+	// 空关键词给下拉列表用：返回已发布院校，课多的在前。
+	if all, err := s.SearchSchools(ctx, ""); err != nil || len(all) == 0 || all[0].CourseCount < 2 {
+		t.Fatalf("空关键词院校列表：%+v %v", all, err)
+	}
 	uid, sid := f.user(t)
 	cs, err := s.Courses(ctx, uid, "四川大学", 2027, true, false)
 	if err != nil || len(cs) != 2 || cs[0].OfficialStatus != official.OfficialNone {

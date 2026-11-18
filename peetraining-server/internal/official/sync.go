@@ -437,7 +437,7 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 					return fmt.Errorf("知识点副本没有写进去：官方知识点 %d", oid)
 				}
 				kpMap[oid] = id
-				rubrics = appendRubricRows(rubrics, owner, sql.NullInt64{}, sql.NullInt64{Int64: int64(id), Valid: true}, oc.kpRubric[oid])
+				rubrics = appendRubricRows(rubrics, owner, sql.NullInt64{}, sql.NullInt64{Int64: int64(id), Valid: true}, oc.kpRubric[oid], nil)
 			}
 			newKPs, newKPIDs = nil, nil
 			clear(pending)
@@ -492,7 +492,7 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 				if err := q.DeleteUserKPRubric(ctx, dbq.DeleteUserKPRubricParams{KpID: sql.NullInt64{Int64: int64(u.ID), Valid: true}, OwnerUserID: owner}); err != nil {
 					return err
 				}
-				if err := copyRubric(ctx, q, owner, sql.NullInt64{}, sql.NullInt64{Int64: int64(u.ID), Valid: true}, oc.kpRubric[o.ID]); err != nil {
+				if err := copyRubric(ctx, q, owner, sql.NullInt64{}, sql.NullInt64{Int64: int64(u.ID), Valid: true}, oc.kpRubric[o.ID], nil); err != nil {
 					return err
 				}
 				// 采分点有实质变化：对应背诵重新进入复习。
@@ -560,7 +560,11 @@ func (s *Service) Sync(ctx context.Context, userID, bankID uint64, initial bool)
 			if err := q.DeleteUserQuestionRubric(ctx, dbq.DeleteUserQuestionRubricParams{QuestionID: sql.NullInt64{Int64: int64(u.ID), Valid: true}, OwnerUserID: owner}); err != nil {
 				return err
 			}
-			if err := copyRubric(ctx, q, owner, sql.NullInt64{Int64: int64(u.ID), Valid: true}, sql.NullInt64{}, oc.qRubric[o.ID]); err != nil {
+			subMap, err := copySubquestions(ctx, q, u.ID, oc.qSubs[o.ID])
+			if err != nil {
+				return err
+			}
+			if err := copyRubric(ctx, q, owner, sql.NullInt64{Int64: int64(u.ID), Valid: true}, sql.NullInt64{}, oc.qRubric[o.ID], subMap); err != nil {
 				return err
 			}
 			if err := q.DeleteUserQuestionKPs(ctx, dbq.DeleteUserQuestionKPsParams{QuestionID: u.ID, OwnerUserID: owner}); err != nil {
@@ -630,16 +634,39 @@ const (
 	insertKPCopies       = "INSERT INTO knowledge_points (owner_user_id, bank_id, parent_id, level, name, original_text, reference_text, origin, official_kp_id, official_hash, official_new_until, sort_order) VALUES"
 	insertQuestionCopies = "INSERT INTO questions (owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, reference_text, score, source, exam_year, content_hash, " +
 		"official_question_id, official_hash, group_label, group_majors, answer_snapshot_id) VALUES"
-	insertRubricCopies   = "INSERT INTO rubric_points (owner_user_id, question_id, kp_id, seq, content, keywords, score, origin) VALUES"
+	insertRubricCopies   = "INSERT INTO rubric_points (owner_user_id, question_id, kp_id, subquestion_id, seq, content, keywords, score, origin) VALUES"
 	insertQuestionKPs    = "INSERT IGNORE INTO question_kps (question_id, kp_id, is_primary, owner_user_id) VALUES"
 	insertSnapshotCopies = "INSERT INTO answer_evidence_snapshots (owner_user_id, answer_hash, payload, created_at) VALUES"
 )
 
-func appendRubricRows(rows [][]any, owner, questionID, kpID sql.NullInt64, rs []dbq.ListOfficialRubricRow) [][]any {
+func appendRubricRows(rows [][]any, owner, questionID, kpID sql.NullInt64, rs []dbq.ListOfficialRubricRow, subMap map[uint64]uint64) [][]any {
 	for _, r := range rs {
-		rows = append(rows, []any{owner, questionID, kpID, r.Seq, r.Content, r.Keywords, r.Score, "official"})
+		sub := sql.NullInt64{}
+		if r.SubquestionID.Valid {
+			if id, ok := subMap[uint64(r.SubquestionID.Int64)]; ok {
+				sub = sql.NullInt64{Int64: int64(id), Valid: true}
+			}
+		}
+		rows = append(rows, []any{owner, questionID, kpID, sub, r.Seq, r.Content, r.Keywords, r.Score, "official"})
 	}
 	return rows
+}
+
+// copySubquestions 先清空用户副本的分问，再按官方分问重建，返回官方分问 → 用户分问 id。
+func copySubquestions(ctx context.Context, q *dbq.Queries, userQuestionID uint64, subs []dbq.QuestionSubquestion) (map[uint64]uint64, error) {
+	if err := q.DeleteQuestionSubquestions(ctx, userQuestionID); err != nil {
+		return nil, err
+	}
+	out := make(map[uint64]uint64, len(subs))
+	for _, sub := range subs {
+		id, err := q.InsertQuestionSubquestion(ctx, dbq.InsertQuestionSubquestionParams{QuestionID: userQuestionID, Ordinal: sub.Ordinal, Label: sub.Label,
+			Stem: sub.Stem, Answer: sub.Answer, FullScore: sub.FullScore, ScoreSource: sub.ScoreSource, NeedsReview: sub.NeedsReview})
+		if err != nil {
+			return nil, err
+		}
+		out[sub.ID] = uint64(id)
+	}
+	return out, nil
 }
 
 // insertQuestionCopies 批量写新增的题目副本：先复制仍有效的答案依据快照，题目带上快照 id 一次写入，
@@ -677,7 +704,11 @@ func (s *Service) insertQuestionCopies(ctx context.Context, q *dbq.Queries, oc c
 			return nil, fmt.Errorf("题目副本没有写进去：官方题目 %d", o.ID)
 		}
 		qid := sql.NullInt64{Int64: int64(id), Valid: true}
-		rubrics = appendRubricRows(rubrics, owner, qid, sql.NullInt64{}, oc.qRubric[o.ID])
+		subMap, err := copySubquestions(ctx, q, id, oc.qSubs[o.ID])
+		if err != nil {
+			return nil, err
+		}
+		rubrics = appendRubricRows(rubrics, owner, qid, sql.NullInt64{}, oc.qRubric[o.ID], subMap)
 		for _, l := range oc.qKPs[o.ID] {
 			if kp, ok := kpMap[l.KpID]; ok {
 				links = append(links, []any{id, kp, l.IsPrimary, owner})
@@ -764,8 +795,8 @@ func (s *Service) copySnapshots(ctx context.Context, q *dbq.Queries, qs []dbq.Li
 	return out, nil
 }
 
-func copyRubric(ctx context.Context, q *dbq.Queries, owner, questionID, kpID sql.NullInt64, rs []dbq.ListOfficialRubricRow) error {
-	return q.InsertRows(ctx, insertRubricCopies, appendRubricRows(nil, owner, questionID, kpID, rs), nil)
+func copyRubric(ctx context.Context, q *dbq.Queries, owner, questionID, kpID sql.NullInt64, rs []dbq.ListOfficialRubricRow, subMap map[uint64]uint64) error {
+	return q.InsertRows(ctx, insertRubricCopies, appendRubricRows(nil, owner, questionID, kpID, rs, subMap), nil)
 }
 
 func copyQuestionKPs(ctx context.Context, q *dbq.Queries, owner sql.NullInt64, questionID uint64, links []dbq.ListOfficialQuestionKPsRow, kpMap map[uint64]uint64) error {

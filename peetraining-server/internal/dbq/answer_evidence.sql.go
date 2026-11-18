@@ -421,7 +421,7 @@ func (q *Queries) LockImportAnswer(ctx context.Context, arg LockImportAnswerPara
 }
 
 const lockQuestionAnswer = `-- name: LockQuestionAnswer :one
-SELECT id, owner_user_id, bank_id, qtype, stem, options, answer, answer_origin, analysis, score, difficulty, exam_year, question_no, is_recollection, source_material_id, source_page, generated_from_kp_id, content_hash, rubric_version, status, needs_review, review_reasons, report_count, official_question_id, created_at, updated_at, required_words, official_hash, passage, passage_key, group_label, group_majors, answer_match, answer_material_id, answer_page, ai_answer_at, ai_answer_outcome, ai_answer_reports, source, answer_snapshot_id, reference_text FROM questions WHERE id=? AND owner_user_id=? FOR UPDATE
+SELECT id, owner_user_id, bank_id, stem, options, answer, answer_origin, analysis, score, difficulty, exam_year, question_no, is_recollection, source_material_id, source_page, generated_from_kp_id, content_hash, rubric_version, status, needs_review, review_reasons, report_count, official_question_id, created_at, updated_at, required_words, official_hash, passage, passage_key, group_label, group_majors, answer_match, answer_material_id, answer_page, ai_answer_at, ai_answer_outcome, ai_answer_reports, source, answer_snapshot_id, reference_text, qtype FROM questions WHERE id=? AND owner_user_id=? FOR UPDATE
 `
 
 type LockQuestionAnswerParams struct {
@@ -436,7 +436,6 @@ func (q *Queries) LockQuestionAnswer(ctx context.Context, arg LockQuestionAnswer
 		&i.ID,
 		&i.OwnerUserID,
 		&i.BankID,
-		&i.Qtype,
 		&i.Stem,
 		&i.Options,
 		&i.Answer,
@@ -474,6 +473,7 @@ func (q *Queries) LockQuestionAnswer(ctx context.Context, arg LockQuestionAnswer
 		&i.Source,
 		&i.AnswerSnapshotID,
 		&i.ReferenceText,
+		&i.Qtype,
 	)
 	return i, err
 }

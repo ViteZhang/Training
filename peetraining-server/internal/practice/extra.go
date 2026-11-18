@@ -182,7 +182,7 @@ type InProgress struct {
 }
 
 // qtypeOrder 是题型显示顺序：主观题在前（本产品以主观题为主），客观题在后。
-var qtypeOrder = map[string]int{"term": 0, "short_answer": 1, "discussion": 2, "essay": 3, "single_choice": 4, "multi_choice": 5, "true_false": 6, "fill_blank": 7, "calculation": 8, "other": 9}
+var qtypeOrder = map[string]int{"term": 0, "short_answer": 1, "discrimination": 2, "discussion": 3, "analytical_discussion": 4, "material_analysis": 5, "essay": 6, "single_choice": 7, "multi_choice": 8, "true_false": 9, "fill_blank": 10, "calculation": 11, "other": 12}
 
 func (s *Service) Home(ctx context.Context, userID, subjectID uint64) (Home, error) {
 	b, err := s.subject(ctx, userID, subjectID)

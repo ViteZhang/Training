@@ -1,5 +1,5 @@
 import * as Crypto from 'expo-crypto';
-import { Directory, File, Paths } from 'expo-file-system';
+import { Directory, File, Paths } from '@/lib/fs';
 import type { ResolvedSharePayload } from 'expo-sharing';
 import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';

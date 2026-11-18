@@ -3,7 +3,7 @@
 import type { Schemas } from '@training/api-client';
 import { colors, semantic, spacing } from '@training/ui-tokens';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Directory, Paths } from 'expo-file-system';
+import { Directory, Paths } from '@/lib/fs';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
@@ -13,6 +13,7 @@ import { PageHeader } from '@/features/import/ui';
 import { mineKeys, useMe, useOverview, useProfile } from '@/features/mine/api';
 import { NicknameSheet } from '@/features/mine/NicknameSheet';
 import { api, unwrap } from '@/lib/api';
+import { isWeb } from '@/lib/platform';
 import { appConfig } from '@/lib/config';
 
 const reminderOptions = ['07:30', '12:30', '19:00', '20:00', '21:00', '22:00'];
@@ -93,6 +94,9 @@ export default function SettingsPage() {
           <Row title="账号与安全" desc={me.data.phone_masked} onPress={() => router.push('/settings/account')} />
         </ListCard>
 
+        {/* H5 版排不了本地通知，不显示这一组 */}
+        {isWeb ? null : (
+          <>
         <Text variant="small" style={styles.section}>通知</Text>
         <ListCard>
           <Row
@@ -110,6 +114,8 @@ export default function SettingsPage() {
             right={<Switch accessibilityLabel="资料解析和批改完成提醒开关" value={p.notify_task_done} onValueChange={(v) => save.mutate({ notify_task_done: v })} trackColor={{ true: semantic.primary, false: semantic.border }} thumbColor={colors.white} />}
           />
         </ListCard>
+          </>
+        )}
 
         <Text variant="small" style={styles.section}>资料与隐私</Text>
         <ListCard>
@@ -120,13 +126,15 @@ export default function SettingsPage() {
 
         <Text variant="small" style={styles.section}>通用</Text>
         <ListCard>
-          <Row title="清除缓存" desc={fmtSize(cache)} onPress={clearCache} />
+          {isWeb ? null : <Row title="清除缓存" desc={fmtSize(cache)} onPress={clearCache} />}
           <Row title="意见反馈" onPress={() => router.push('/mine/feedback')} />
           <Row title={`关于${appConfig.appName}`} desc={`v${appConfig.version}${appConfig.variant === 'production' ? '' : ' 内测版'}`} />
         </ListCard>
-        <Text variant="small" color={semantic.textSecondary}>
-          清除缓存只删除临时文件（导出文档、图片缓存），不会删除没写完的草稿。
-        </Text>
+        {isWeb ? null : (
+          <Text variant="small" color={semantic.textSecondary}>
+            清除缓存只删除临时文件（导出文档、图片缓存），不会删除没写完的草稿。
+          </Text>
+        )}
         <Button title="退出登录" kind="secondary" color={semantic.danger} onPress={() => setConfirmLogout(true)} />
       </ScrollView>
       <BottomSheet visible={timeSheet} onClose={() => setTimeSheet(false)} title="每日训练提醒时间">

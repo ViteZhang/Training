@@ -15,3 +15,14 @@ export function deviceId(): string {
 }
 
 export const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+
+/** 登录设备的平台：H5 版报 web（6.11 登录设备里显示「网页版」）。 */
+export const devicePlatform: 'ios' | 'android' | 'web' = Platform.OS === 'web' ? 'web' : platform;
+
+/** H5 版的设备名：浏览器拿不到机型，按 UA 粗分。 */
+export function webDeviceName(): string {
+  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent;
+  const device = /iPhone/.test(ua) ? 'iPhone' : /iPad|Macintosh/.test(ua) ? (/Mobile|iPad/.test(ua) ? 'iPad' : 'Mac') : /Android/.test(ua) ? '安卓' : /Windows/.test(ua) ? 'Windows' : '';
+  const app = /MicroMessenger/.test(ua) ? '微信' : '浏览器';
+  return `网页版（${device ? device + ' ' : ''}${app}）`;
+}

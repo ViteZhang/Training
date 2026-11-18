@@ -21,7 +21,10 @@ export type GradingResult = Schemas['GradingResult'];
 const suggestedWords: Partial<Record<Schemas['QuestionType'], [number, number?]>> = {
   term: [80, 150],
   short_answer: [300, 500],
+  discrimination: [300, 500],
   discussion: [800],
+  analytical_discussion: [600, 900],
+  material_analysis: [400, 700],
 };
 
 export function wordHint(qtype: Schemas['QuestionType'], n: number) {
@@ -218,10 +221,13 @@ export function GradingResultView({
   onRegrade,
   regrading,
   question,
+  subquestions,
 }: {
   g: GradingResult;
   /** 这道题的解析与出处（T56）：展开参考答案时一起显示 */
   question?: { analysis?: string; reference?: string; source?: string };
+  /** 多子问：用于把分问得分对上设问 */
+  subquestions?: { id: number; ordinal: number; label?: string | null; stem: string }[];
   kpId?: number;
   /** 「看规范写法」去 4.13 */
   norm?: { subjectId: number; qtype: string };
@@ -256,6 +262,26 @@ export function GradingResultView({
         <Text variant="small" color={semantic.info}>
           {g.trigger === 'dispute_recheck' ? '复核重批的结果，未消耗批改次数' : g.trigger === 'rubric_changed' ? '按新采分点重批，未消耗批改次数' : '待批改已提交'}
         </Text>
+      ) : null}
+      {g.subquestions?.length ? (
+        <View style={styles.points}>
+          {g.subquestions.map((s, i) => {
+            const sub = subquestions?.find((x) => x.id === s.subquestion_id);
+            return (
+              <View key={s.subquestion_id} style={[styles.point, i > 0 && styles.divider]}>
+                <View style={[styles.flex, styles.gap4]}>
+                  <Text variant="body" style={styles.bold}>
+                    {sub ? `${sub.label || `(${sub.ordinal})`} ${sub.stem}` : `分问 ${i + 1}`}
+                  </Text>
+                  {s.feedback ? <Text variant="small">{s.feedback}</Text> : null}
+                </View>
+                <Text variant="body" num style={styles.bold}>
+                  {s.score} / {s.full_score}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
       ) : null}
       <View style={styles.points}>
         {g.points.map((p, i) => (

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>4.14 背诵 · 挖空</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1A1A1A}a:hover{color:#1A1A1A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: 'Noto Sans SC','PingFang SC',sans-serif; color: #1A1A1A">
+<main style="flex-grow: 1; display: flex; flex-direction: column; gap: 14px; padding: 44px 22px 28px; box-sizing: border-box; overflow: hidden">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: center; min-height: 44px"><a href="m4_practice.dc.html" aria-label="退出背诵" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-left: -12px; color: #1A1A1A"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></a><span style="font-size: 15px; font-weight: 500">背诵</span><span style="font-family: 'DM Sans',sans-serif; font-size: 13px; color: #6E6E6E; width: 44px; text-align: right">3 / 10</span></div>
+<div style="height: 4px; background: #EFEFEF; border-radius: 2px"><div style="width: 30%; height: 4px; background: #8C80E0; border-radius: 2px"></div></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; background: #F7F7F5; border-radius: 14px"><a href="m4_recite.dc.html" style="height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #1A1A1A; text-decoration: none; background: #FFFFFF; font-weight: 700">挖空</a><a href="m4_recite_write.dc.html" style="height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #1A1A1A; text-decoration: none; background: transparent; font-weight: 400">默写</a><a href="m4_recite_speak.dc.html" style="height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #1A1A1A; text-decoration: none; background: transparent; font-weight: 400">口述</a></div>
+<section style="flex-grow: 1; padding: 22px 20px; border-radius: 24px; border: 1px solid #EFEFEF; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #EEEBFB; color: #3E3190">中国古代文学 · 魏晋南北朝</span><span style="font-size: 12px; color: #6E6E6E">点空格查看</span></div>
+<span style="display: flex; flex-direction: column; gap: 4px"><h2 style="margin: 0; font-size: 26px; font-weight: 700">建安风骨</h2><span style="font-size: 12px; color: #6E6E6E">原文出自 654 历年真题汇编.pdf · 2021 年参考答案</span></span>
+<p style="margin: 0; font-size: 17px; line-height: 2.2">
+<sc-for list="{{segs}}" as="g" hint-placeholder-count="9">
+<sc-if value="{{g.blank}}" hint-placeholder-val="{{ false }}"><button onClick="{{g.reveal}}" style="display: inline-block; min-width: 64px; min-height: 30px; margin: 0 2px; padding: 0 6px; border: none; border-bottom: 2px solid {{g.line}}; background: {{g.bg}}; font-family: inherit; font-size: 17px; color: #3E3190; cursor: pointer">{{g.shown}}</button></sc-if>
+<sc-if value="{{g.plain}}" hint-placeholder-val="{{ true }}"><span>{{g.text}}</span></sc-if>
+</sc-for></p>
+<div style="flex-grow: 1"></div>
+<button onClick="{{showAll}}" style="align-self: flex-start; height: 38px; padding: 0 16px; border-radius: 19px; border: none; background: #F7F7F5; font-family: inherit; font-size: 13px; color: #1A1A1A; cursor: pointer">全部显示</button>
+</section>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<a href="m4_recite_done.dc.html" style="height: 50px; border-radius: 25px; border: 1px solid #E6E6E6; display: flex; align-items: center; justify-content: center; font-size: 15px; color: #C23B22; text-decoration: none">没记住</a>
+<a href="m4_recite_done.dc.html" style="height: 50px; border-radius: 25px; background: #F7F7F5; display: flex; align-items: center; justify-content: center; font-size: 15px; color: #1A1A1A; text-decoration: none">模糊</a>
+<a href="m4_recite_done.dc.html" style="height: 50px; border-radius: 25px; background: #1A1A1A; display: flex; align-items: center; justify-content: center; font-size: 15px; color: #FFFFFF; text-decoration: none">记住了</a></div></main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const self = this;
+    const s = this.state || {};
+    const shown = s.shown || {};
+    const parts = [
+      { b: false, t: '建安风骨，指汉末建安时期以' },
+      { b: true, t: '三曹' },
+      { b: false, t: '和' },
+      { b: true, t: '建安七子' },
+      { b: false, t: '为代表的作家，其诗文反映社会动乱与民生疾苦，抒发建功立业的抱负，形成' },
+      { b: true, t: '慷慨悲凉' },
+      { b: false, t: '、' },
+      { b: true, t: '刚健有力' },
+      { b: false, t: '的时代风格。' }
+    ];
+    return {
+      segs: parts.map(function (p, i) {
+        const open = !!shown[i];
+        return {
+          blank: p.b,
+          plain: !p.b,
+          text: p.t,
+          shown: open ? p.t : '',
+          bg: open ? '#EEEBFB' : '#F7F7F5',
+          line: open ? '#8C80E0' : '#1A1A1A',
+          reveal: function () {
+            const copy = Object.assign({}, shown);
+            copy[i] = true;
+            self.setState({ shown: copy });
+          }
+        };
+      }),
+      showAll: function () { self.setState({ shown: { 1: true, 3: true, 5: true, 7: true } }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

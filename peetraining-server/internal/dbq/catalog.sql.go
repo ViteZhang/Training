@@ -31,7 +31,7 @@ func (q *Queries) AddCatalogPendingUser(ctx context.Context, arg AddCatalogPendi
 }
 
 const adminGetCatalogCourse = `-- name: AdminGetCatalogCourse :one
-SELECT id, school, major, discipline, subject_name, subject_code, textbooks, exam_year, status, created_by, created_at, updated_at, scope, majors, course_key FROM catalog_courses WHERE id = ?
+SELECT id, school, major, discipline, subject_name, subject_code, textbooks, exam_year, status, created_by, created_at, updated_at, scope, majors, course_key, exam_system FROM catalog_courses WHERE id = ?
 `
 
 func (q *Queries) AdminGetCatalogCourse(ctx context.Context, id uint64) (CatalogCourse, error) {
@@ -53,12 +53,13 @@ func (q *Queries) AdminGetCatalogCourse(ctx context.Context, id uint64) (Catalog
 		&i.Scope,
 		&i.Majors,
 		&i.CourseKey,
+		&i.ExamSystem,
 	)
 	return i, err
 }
 
 const adminListCatalogCourses = `-- name: AdminListCatalogCourses :many
-SELECT c.id, c.school, c.major, c.discipline, c.subject_name, c.subject_code, c.textbooks, c.exam_year, c.status, c.created_by, c.created_at, c.updated_at, c.scope, c.majors, c.course_key,
+SELECT c.id, c.school, c.major, c.discipline, c.subject_name, c.subject_code, c.textbooks, c.exam_year, c.status, c.created_by, c.created_at, c.updated_at, c.scope, c.majors, c.course_key, c.exam_system,
   CAST(COALESCE((SELECT p.stage FROM official_projects p WHERE p.catalog_course_id = c.id
     OR (p.catalog_course_id IS NULL AND c.scope = 'school' AND p.school = c.school
       AND (p.subject_code = c.subject_code OR (c.subject_code IS NULL AND p.subject_name = c.subject_name)))
@@ -101,6 +102,7 @@ type AdminListCatalogCoursesRow struct {
 	Scope        CatalogCoursesScope
 	Majors       dbtypes.NullJSON
 	CourseKey    string
+	ExamSystem   string
 	ProjectStage interface{}
 	ProjectID    int64
 	ChosenCount  int64
@@ -143,6 +145,7 @@ func (q *Queries) AdminListCatalogCourses(ctx context.Context, arg AdminListCata
 			&i.Scope,
 			&i.Majors,
 			&i.CourseKey,
+			&i.ExamSystem,
 			&i.ProjectStage,
 			&i.ProjectID,
 			&i.ChosenCount,
@@ -271,7 +274,7 @@ func (q *Queries) FindOfficialFirstSession(ctx context.Context, ownerUserID uint
 }
 
 const getCatalogCourse = `-- name: GetCatalogCourse :one
-SELECT id, school, major, discipline, subject_name, subject_code, textbooks, exam_year, status, created_by, created_at, updated_at, scope, majors, course_key FROM catalog_courses WHERE id = ? AND status = 'active'
+SELECT id, school, major, discipline, subject_name, subject_code, textbooks, exam_year, status, created_by, created_at, updated_at, scope, majors, course_key, exam_system FROM catalog_courses WHERE id = ? AND status = 'active'
 `
 
 func (q *Queries) GetCatalogCourse(ctx context.Context, id uint64) (CatalogCourse, error) {
@@ -293,6 +296,7 @@ func (q *Queries) GetCatalogCourse(ctx context.Context, id uint64) (CatalogCours
 		&i.Scope,
 		&i.Majors,
 		&i.CourseKey,
+		&i.ExamSystem,
 	)
 	return i, err
 }

@@ -108,7 +108,7 @@ describe('1.1c 暂无官方题库', () => {
     mockResponses['GET /feature-flags'] = flags([]);
     await wrap(<NoOfficial />);
     expect(await screen.findByText('直接导入我的资料')).toBeTruthy();
-    expect(screen.queryByText('申请收录这门课')).toBeNull();
+    await waitFor(() => expect(screen.queryByText('申请收录这门课')).toBeNull());
   });
 });
 
@@ -158,6 +158,18 @@ describe('1.1 考试科目分组', () => {
     expect(many.disciplines).toEqual(['文学', '哲学', '教育学', '历史学']);
     expect(courseNote({ scope: 'national', majors: [] })).toBe('全国统考');
     expect(courseNote({ scope: 'school', majors: ['文艺学', '古代文学'] })).toBe('文艺学、古代文学');
+  });
+
+  it('目标院校下拉直接列出已发布院校，可点选', async () => {
+    saveDraft({ examYear: undefined, school: undefined, picked: [], noOfficial: [], major: undefined });
+    mockResponses['GET /subjects'] = () => ({ status: 200, data: { items: [] } });
+    mockResponses['GET /catalog/schools'] = () => ({ status: 200, data: { items: [{ name: '北京师范大学', course_count: 4 }] } });
+    mockResponses['GET /catalog/courses'] = () => ({ status: 200, data: { items: [] } });
+    await wrap(<RouteSubject />);
+    await fireEvent.press(await screen.findByLabelText('展开院校列表'));
+    expect(await screen.findByText('北京师范大学')).toBeTruthy();
+    await fireEvent.press(screen.getByText('北京师范大学'));
+    expect(screen.getByDisplayValue('北京师范大学')).toBeTruthy();
   });
 
   it('科目多时先选学科；选的统考科目带上目标院校和选填的专业', async () => {

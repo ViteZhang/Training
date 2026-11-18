@@ -522,7 +522,8 @@ func placement(items []poolItem, r *rand.Rand) []uint64 {
 }
 
 var qtypeNames = map[string]string{"single_choice": "单选", "multi_choice": "多选", "true_false": "判断", "fill_blank": "填空", "term": "名词解释",
-	"short_answer": "简答", "discussion": "论述", "essay": "作文", "calculation": "计算", "other": "其他"}
+	"short_answer": "简答", "discussion": "论述", "essay": "作文", "calculation": "计算", "other": "其他",
+	"discrimination": "辨析", "material_analysis": "材料分析", "analytical_discussion": "分析论述"}
 
 func qtypeName(t string) string {
 	if n, ok := qtypeNames[t]; ok {

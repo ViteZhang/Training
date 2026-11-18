@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { api, unwrap } from './api';
 import { appConfig } from './config';
 
@@ -14,6 +15,7 @@ export type ReminderSettings = { reminder_times?: string[] | null; notify_daily:
  * 本地通知不经服务器，不依赖厂商推送通道（CLAUDE.md 必须遵守第 10 条）。返回排了几条。
  */
 export async function syncReminders(s: ReminderSettings): Promise<number> {
+  if (Platform.OS === 'web') return 0;
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   await Promise.all(scheduled.filter((n) => n.identifier.startsWith(PREFIX)).map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)));
   const times = s.notify_daily ? (s.reminder_times ?? []) : [];

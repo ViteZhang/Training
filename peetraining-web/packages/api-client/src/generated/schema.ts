@@ -2957,6 +2957,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/users/{userId}/journey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 7.2 用户详情 · 使用进度
+         * @description 用户在使用阶梯（注册 → 完成引导 → 有题库 → 首次作答 → 看到批改 → 隔天再练 → 7 日后仍在练 → 付费）上各级第一次达成的时间，加最近 30 天每天的作答次数。只有时间与数量，不含内容。
+         */
+        get: operations["getAdminUserJourney"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/activation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 7.20 激活漏斗
+         * @description 注册日期（北京时间，含两端，最多一年）内的用户在使用阶梯上各级的达成人数、停在这一级的人数、从注册到达成的用时中位数。实时按业务表计算，不依赖埋点。
+         */
+        get: operations["getAdminActivation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/activation/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 7.20 激活漏斗 · 停在某一级的用户
+         * @description 注册日期内、最远停在 stage 这一级的用户，按用户 ID 倒序，50 条一页；手机号脱敏。
+         */
+        get: operations["listAdminActivationUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/users/{userId}/phone": {
         parameters: {
             query?: never;
@@ -3245,7 +3305,7 @@ export interface paths {
         /**
          * 7.4 单个发码 · 手动收款
          * @description 客服在企业微信收款后生成一个兑换码，同时记一笔渠道为企业微信客服的已支付订单（收入计入 7.3），码归入「企业微信客服 · 单个发码」批次。
-         *     码不绑定手机号，手机号只记在订单上用于对账；码的明文只在这次响应里返回。
+         *     码不绑定手机号，手机号只记在订单上用于对账；码的明文同时存入批次明细，发放备注自动写「单个发码 · 脱敏手机号 · 备注」。
          */
         post: operations["issueManualRedeemCode"];
         delete?: never;
@@ -3265,6 +3325,66 @@ export interface paths {
         get: operations["findRedeemCode"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/redeem/codes/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查找兑换码
+         * @description 输入完整的码（旧码没补录明文也能按哈希找到），或备注里的文字（如发给了谁）；最多 50 条，新的在前。
+         */
+        get: operations["searchRedeemCodes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/redeem/codes/{codeId}/note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 写发放备注
+         * @description 记下这个码发给了谁，避免重复发放；空字符串清除备注（回到未发放）。
+         */
+        put: operations["setRedeemCodeNote"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/redeem/batches/{batchId}/plain-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 旧码补录明文
+         * @description 粘贴当初生成时导出的完整兑换码，服务端逐个核对哈希，只有属于这个批次的码才写入明文；不属于本批次或输错的忽略。
+         */
+        post: operations["backfillRedeemCodes"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3918,7 +4038,7 @@ export interface paths {
         };
         /**
          * 1.1 搜索目标院校（院校专业课库）
-         * @description 受 onboarding_route 开关控制，关闭时返回 404（App 回到旧 1.1）。
+         * @description 受 onboarding_route 开关控制，关闭时返回 404（App 回到旧 1.1）。q 为空串时返回已发布院校，按课数排序，供下拉列表展开。
          */
         get: operations["searchCatalogSchools"];
         put?: never;
@@ -6474,6 +6594,12 @@ export interface components {
              * @default false
              */
             timed: boolean;
+            /** @description 多子问的分问作答；answer_text 仍需传（可为各问拼接文本），服务端以分问为准 */
+            subanswers?: {
+                /** Format: int64 */
+                subquestion_id: number;
+                text: string;
+            }[];
         };
         /**
          * @description 批改依据的来源：用户确认 / AI 提取待确认 / AI 生成 / 官方 / 没有采分点时按参考答案整体批改
@@ -6531,6 +6657,11 @@ export interface components {
             /** @description 考生原话 */
             quote?: string;
             reason?: string;
+            /**
+             * Format: int64
+             * @description 所属子问；整题采分点不传
+             */
+            subquestion_id?: number;
         };
         LossItem: {
             /** @enum {string} */
@@ -6581,6 +6712,14 @@ export interface components {
             reference_only?: boolean;
             /** @description 题目的 AI 参考答案已经被确认（4.7b 不再显示「这份参考答案对吗？」） */
             answer_confirmed?: boolean;
+            /** @description 分问得分；多子问大题按问展示，单设问题为空数组 */
+            subquestions?: {
+                /** Format: int64 */
+                subquestion_id: number;
+                score: number;
+                full_score: number;
+                feedback?: string;
+            }[];
         };
         DisputeRequest: {
             /**
@@ -6698,6 +6837,20 @@ export interface components {
             rubric_count: number;
             answer_tier?: components["schemas"]["AnswerTier"];
             answered?: components["schemas"]["AttemptBrief"];
+            /** @description 多子问大题（材料分析/分析论述/简答）的分问设问；单设问题为空数组 */
+            subquestions?: components["schemas"]["PracticeSubquestion"][];
+        };
+        PracticeSubquestion: {
+            /** Format: int64 */
+            id: number;
+            ordinal: number;
+            /** @description 展示序号，如 (1) */
+            label?: string;
+            stem: string;
+            /** @description 分问参考答案（批改后展示） */
+            answer?: string;
+            /** @description 原卷分问分值；缺省表示原卷未提供 */
+            full_score?: number;
         };
         PracticeSession: {
             /** Format: int64 */
@@ -7630,6 +7783,74 @@ export interface components {
             subject_stats: components["schemas"]["AdminSubjectStat"][];
             quota: components["schemas"]["QuotaItem"][];
         };
+        /**
+         * @description 使用阶梯的一级
+         * @enum {string}
+         */
+        ActivationStage: "registered" | "onboarded" | "has_bank" | "first_answer" | "first_grading" | "return_day" | "week_later" | "paid";
+        AdminActivationStep: {
+            key: components["schemas"]["ActivationStage"];
+            label: string;
+            /** @description 这一级怎么算 */
+            hint: string;
+            /** @description 达成过这一级的人数 */
+            reached: number;
+            /** @description 最远停在这一级的人数 */
+            stuck: number;
+            /**
+             * Format: float
+             * @description 达成者从注册到达成的用时中位数（小时）；没有时间记录的一级（完成引导）不返回
+             */
+            median_hours?: number;
+        };
+        AdminActivation: {
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** @description 这批注册用户的人数 */
+            total: number;
+            steps: components["schemas"]["AdminActivationStep"][];
+        };
+        AdminMilestone: {
+            key: components["schemas"]["ActivationStage"];
+            label: string;
+            reached: boolean;
+            /**
+             * Format: date-time
+             * @description 第一次达成的时间；完成引导没有记录时间
+             */
+            at?: string;
+        };
+        AdminJourney: {
+            /** Format: int64 */
+            user_id: number;
+            phone_masked: string;
+            /** Format: date-time */
+            created_at: string;
+            /**
+             * Format: date-time
+             * @description 最后一次登录、刷新令牌或作答，取最晚的
+             */
+            last_active_at?: string;
+            /** Format: date-time */
+            last_answer_at?: string;
+            current: components["schemas"]["ActivationStage"];
+            milestones: components["schemas"]["AdminMilestone"][];
+        };
+        AdminUserJourney: components["schemas"]["AdminJourney"] & {
+            /** @description 最近 30 天有作答的天数 */
+            active_days_30: number;
+            /** @description 最近 30 天的作答次数 */
+            answers_30: number;
+            /** @description 最近 30 天每天（北京时间）的作答次数，没作答的日子不列 */
+            days: components["schemas"]["AdminDayAnswers"][];
+        };
+        AdminDayAnswers: {
+            /** Format: date */
+            day: string;
+            answers: number;
+        };
         AdminAudit: {
             /** Format: int64 */
             id: number;
@@ -7773,6 +7994,14 @@ export interface components {
             days?: number;
             /** Format: date-time */
             expires_at: string;
+            /** @description 兑换码明文；旧码在补录前不返回（只有末 3 位） */
+            code?: string;
+            /** @description 发放备注（发给了谁）；有备注即视为已发放 */
+            note?: string;
+            /** Format: date-time */
+            noted_at?: string;
+            /** @description 最后改备注的后台账号 */
+            noted_by_name?: string;
         };
         AdminFormatStat: {
             format: string;
@@ -9665,10 +9894,11 @@ export interface components {
         };
         /**
          * @description single_choice 单选、multi_choice 多选、true_false 判断、fill_blank 填空、term 名词解释、short_answer 简答、
-         *     discussion 论述、essay 作文、calculation 计算（只能自评）、other 其他
+         *     discussion 论述、essay 作文、calculation 计算（只能自评）、other 其他；
+         *     discrimination 辨析（自由论证，不是判断题）、analytical_discussion 分析论述、material_analysis 材料分析（支持材料与多个子问）
          * @enum {string}
          */
-        QuestionType: "single_choice" | "multi_choice" | "true_false" | "fill_blank" | "term" | "short_answer" | "discussion" | "essay" | "calculation" | "other";
+        QuestionType: "single_choice" | "multi_choice" | "true_false" | "fill_blank" | "term" | "short_answer" | "discussion" | "essay" | "calculation" | "other" | "discrimination" | "material_analysis" | "analytical_discussion";
         /**
          * @description 历年真题 / 习题 / 来源待确认 / AI 出题 / 官方
          * @enum {string}
@@ -14329,6 +14559,83 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    getAdminUserJourney: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserJourney"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAdminActivation: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminActivation"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    listAdminActivationUsers: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                stage: components["schemas"]["ActivationStage"];
+                /** @description 上一页响应里的 next_cursor */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminJourney"][];
+                        next_cursor?: string;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
     getAdminUserPhone: {
         parameters: {
             query?: never;
@@ -14832,6 +15139,95 @@ export interface operations {
                     "application/json": components["schemas"]["AdminCode"];
                 };
             };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    searchRedeemCodes: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminCode"][];
+                    };
+                };
+            };
+        };
+    };
+    setRedeemCodeNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                codeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    note: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 完成 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    backfillRedeemCodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batchId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    codes: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description 本次补上明文的码 */
+                        filled: number;
+                        /** @description 之前已有明文的码 */
+                        already: number;
+                        /** @description 不属于这个批次或输错的码 */
+                        unmatched: number;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -15888,6 +16284,7 @@ export interface operations {
     searchCatalogSchools: {
         parameters: {
             query: {
+                /** @description 院校名关键词；传空串时返回已发布院校 */
                 q: string;
             };
             header?: never;

@@ -131,8 +131,8 @@ GROUP BY q.qtype;
 -- name: InsertPaperAttempt :execlastid
 -- 整卷里的一道作答（模拟考试记为限时作答，失分诊断「时间不够」只在这里判定）。
 INSERT INTO attempts (owner_user_id, question_id, paper_session_id, answer_mode, selected, answer_text, is_correct, score, full_score,
-  duration_seconds, timed, answered_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  duration_seconds, timed, answered_at, subanswers)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: ListPaperHistory :many
 SELECT s.id, s.paper_title, s.paper_kind, s.mode, s.status, s.started_at, s.submitted_at, s.score, s.full_score,

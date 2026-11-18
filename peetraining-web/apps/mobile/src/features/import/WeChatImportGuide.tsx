@@ -11,6 +11,24 @@ export function WeChatImportGuide({ pickFile }: { pickFile: () => void }) {
     try { await Linking.openURL('weixin://'); }
     catch { toast('暂时无法打开微信，请手动打开微信并按步骤分享文件'); }
   };
+  if (Platform.OS === 'web') {
+    // H5 版接收不了微信的「用其他应用打开」，只能先把文件存到手机，再从「文件」里选。
+    return (
+      <>
+        <Button title="文件在微信里？" kind="secondary" onPress={() => setVisible(true)} />
+        <BottomSheet visible={visible} onClose={() => setVisible(false)} title="导入微信聊天里的文件">
+          <View style={styles.gap}>
+            <Text variant="body">1. 在微信聊天里点开要导入的文件，等待下载完成。</Text>
+            <Text variant="body">2. 点右上角「…」，选择「用其他应用打开」，再选「存储到文件」（安卓选「保存到手机」）。</Text>
+            <Text variant="body">3. 回到这里点下面的按钮，从「文件」里选中它。</Text>
+            <Text variant="small">支持 PDF、Word（.docx）、Excel（.xlsx）和图片；旧版 .doc／.xls 请先另存为新格式。</Text>
+            <Button title="已保存到手机，选择文件" onPress={() => { setVisible(false); pickFile(); }} />
+            <Button title="知道了" kind="text" onPress={() => setVisible(false)} />
+          </View>
+        </BottomSheet>
+      </>
+    );
+  }
   return (
     <>
       <Button title="从微信导入" kind="secondary" onPress={() => setVisible(true)} />

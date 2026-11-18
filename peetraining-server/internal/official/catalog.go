@@ -69,12 +69,9 @@ type CatalogCourse struct {
 	Official       *OfficialSummary
 }
 
-// SearchSchools 是 1.1 的院校搜索。
+// SearchSchools 是 1.1 的院校搜索；q 为空时返回已发布院校（按课数排序），供下拉列表直接展开。
 func (s *Service) SearchSchools(ctx context.Context, q string) ([]School, error) {
 	q = strings.TrimSpace(q)
-	if q == "" {
-		return []School{}, nil
-	}
 	rows, err := s.q.SearchCatalogSchools(ctx, dbq.SearchCatalogSchoolsParams{Q: q})
 	if err != nil {
 		return nil, err

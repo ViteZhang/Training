@@ -71,6 +71,7 @@
 - 管理后台：peetraining-admin 仓库 Docker 构建，部署在阿里云 47.95.34.95（training-admin），阿里云 Nginx 反代 /admin/
 - App 调的 API 在京东云 111.228.45.235，由阿里云 Nginx 经 WireGuard 隧道（10.88.0.0/24）反代，App 侧地址不变；见 peetraining-server/docs/runbook.md「生产拓扑」
 - App：EAS Build 三个配置 development / preview（内测）/ production；安卓内测包放 OSS，iOS 走 TestFlight
+- H5 版（网页版，iOS 上架前给 iPhone 用户用）：同一份代码的 Web 导出，`pnpm --filter mobile build:h5`，部署在 /h5/；浏览器专用实现放 `*.web.ts`，页面分支用 `isWeb`，不得改变 App 的行为。见 docs/h5.md
 
 ## 约定
 

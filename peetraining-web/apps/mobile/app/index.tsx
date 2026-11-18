@@ -44,7 +44,7 @@ async function fetchBootstrap(): Promise<Schemas['Bootstrap'] | null> {
 
 /** 先看版本更新：强制更新不可跳过；普通更新每个版本只提示一次。 */
 function decide(b: Schemas['Bootstrap'], setPending: (p: Pending | null) => void) {
-  const update = b.update;
+  const update = Platform.OS === 'web' ? undefined : b.update;
   if (update && (update.force || (update.has_update && storage.getString('update_prompted') !== update.latest_version))) {
     setPending({ kind: 'update', update });
     return;

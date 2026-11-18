@@ -346,8 +346,8 @@ func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) er
 
 const insertPaperAttempt = `-- name: InsertPaperAttempt :execlastid
 INSERT INTO attempts (owner_user_id, question_id, paper_session_id, answer_mode, selected, answer_text, is_correct, score, full_score,
-  duration_seconds, timed, answered_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  duration_seconds, timed, answered_at, subanswers)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertPaperAttemptParams struct {
@@ -363,6 +363,7 @@ type InsertPaperAttemptParams struct {
 	DurationSeconds uint32
 	Timed           bool
 	AnsweredAt      time.Time
+	Subanswers      dbtypes.NullJSON
 }
 
 // 整卷里的一道作答（模拟考试记为限时作答，失分诊断「时间不够」只在这里判定）。
@@ -380,6 +381,7 @@ func (q *Queries) InsertPaperAttempt(ctx context.Context, arg InsertPaperAttempt
 		arg.DurationSeconds,
 		arg.Timed,
 		arg.AnsweredAt,
+		arg.Subanswers,
 	)
 	if err != nil {
 		return 0, err

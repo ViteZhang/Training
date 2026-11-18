@@ -190,3 +190,13 @@ FROM kp_mastery src WHERE src.kp_id = sqlc.arg(source_id) AND src.owner_user_id 
 -- name: ListBankFilterKPLinks :many
 SELECT qk.question_id, qk.kp_id FROM question_kps qk JOIN questions q ON q.id = qk.question_id
 WHERE q.bank_id = ? AND q.owner_user_id = ? AND qk.owner_user_id = ?;
+
+-- name: ListQuestionSubquestions :many
+SELECT * FROM question_subquestions WHERE question_id = ? ORDER BY ordinal;
+
+-- name: DeleteQuestionSubquestions :exec
+DELETE FROM question_subquestions WHERE question_id = ?;
+
+-- name: InsertQuestionSubquestion :execlastid
+INSERT INTO question_subquestions (question_id, ordinal, label, stem, answer, full_score, score_source, needs_review)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);

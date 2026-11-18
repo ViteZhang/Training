@@ -11,7 +11,7 @@ import { saveTokens } from '@/features/auth/actions';
 import { formatPhone } from '@/features/auth/phone';
 import { routeFor } from '@/features/auth/routing';
 import { api, unwrap } from '@/lib/api';
-import { deviceId, platform } from '@/lib/device';
+import { deviceId, devicePlatform, webDeviceName } from '@/lib/device';
 import { track } from '@/lib/analytics';
 
 const LEN = 6;
@@ -42,7 +42,7 @@ export default function Code() {
           body: {
             phone,
             code: value,
-            device: { device_id: deviceId(), platform, device_name: Device.modelName ?? Device.deviceName ?? undefined },
+            device: { device_id: deviceId(), platform: devicePlatform, device_name: devicePlatform === 'web' ? webDeviceName() : (Device.modelName ?? Device.deviceName ?? undefined) },
             ...(params.invite ? { invite_code: params.invite } : {}),
           },
         }),

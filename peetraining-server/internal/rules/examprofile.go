@@ -132,8 +132,8 @@ func BuildExamProfile(qs []ExamQuestion, p ExamProfileParams) ExamProfile {
 	return prof
 }
 
-// qtypeOrder 让结构按「名词解释 → 简答 → 论述 → 作文 → 其他」排列，与试卷常见顺序一致。
-var qtypeOrder = map[QType]int{QTermExplain: 1, QShortAnswer: 2, QDiscussion: 3, QEssay: 4}
+// qtypeOrder 让结构按「名词解释 → 简答 → 辨析 → 论述 → 分析论述 → 材料分析 → 作文 → 其他」排列，与试卷常见顺序一致。
+var qtypeOrder = map[QType]int{QTermExplain: 1, QShortAnswer: 2, QDiscrimination: 3, QDiscussion: 4, QAnalyticalDiscussion: 5, QMaterialAnalysis: 6, QEssay: 7}
 
 func structureOf(qs []ExamQuestion) []StructureSlot {
 	m := map[QType]*StructureSlot{}

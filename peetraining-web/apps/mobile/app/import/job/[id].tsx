@@ -14,6 +14,7 @@ import { PageHeader } from '@/features/import/ui';
 import { Footer } from '@/features/onboarding/ui';
 import { usePermissionPrompt } from '@/features/permissions/PermissionPrompt';
 import { api, unwrap } from '@/lib/api';
+import { isWeb } from '@/lib/platform';
 
 type JobMaterial = Schemas['ImportJobMaterial'];
 
@@ -251,7 +252,7 @@ export default function JobScreen() {
             ))}
           {j.materials.length === 0 ? <Text variant="caption">没有文件了</Text> : null}
         </Card>
-        {running ? <ReminderPicker /> : null}
+        {running && !isWeb ? <ReminderPicker /> : null}
         {j.detected_essay ? (
           <Card style={styles.essay}>
             <Icon name="sparkle" color={semantic.primary} size={18} />

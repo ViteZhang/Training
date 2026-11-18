@@ -44,3 +44,5 @@ yarn-error.*
 
 expo-env.d.ts
 # @end expo-cli
+# H5 版构建产物（scripts/build-h5.sh）
+dist-h5/

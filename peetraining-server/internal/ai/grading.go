@@ -15,6 +15,8 @@ type GradePoint struct {
 	Content  string   `json:"content"`
 	Score    float64  `json:"score"`
 	Keywords []string `json:"keywords,omitempty"`
+	// SubquestionID 只用于服务端把采分点归到子问，不发给模型。
+	SubquestionID uint64 `json:"-"`
 }
 
 // GradeIn 是主观题批改的输入（PRD 12.1：题目、采分点、参考答案、用户答案 → 逐采分点判定）。

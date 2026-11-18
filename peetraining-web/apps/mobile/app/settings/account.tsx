@@ -62,7 +62,7 @@ export default function AccountSecurity() {
         {devices.data?.items.map((d) => (
           <View key={d.device_id} style={styles.row}>
             <View style={styles.flex}>
-              <Text variant="bodyStrong">{d.device_name || (d.platform === 'ios' ? 'iPhone' : '安卓手机')}</Text>
+              <Text variant="bodyStrong">{d.device_name || (d.platform === 'ios' ? 'iPhone' : d.platform === 'web' ? '网页版' : '安卓手机')}</Text>
               <Text variant="caption">{d.current ? '本机' : `最近使用 ${shortDate(d.last_used_at)}`}</Text>
             </View>
             {d.current ? <Tag label="本机" tone="brand" /> : <Button title="移除" kind="text" onPress={() => setRemoving(d)} />}

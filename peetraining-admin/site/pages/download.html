@@ -1,0 +1,56 @@
+<!--{"title":"下载 · 考研Training","description":"下载考研Training：安卓安装包与 iPhone 版本。","nav":"download"}-->
+<div class="wrap">
+  <div class="page-head">
+    <span class="eyebrow">下载</span>
+    <h1>下载考研<span class="num">Training</span></h1>
+    <p class="lead">手机号登录即可使用，免费版就能建题库、每天批改 3 道主观题。</p>
+  </div>
+
+  <div class="dl section" style="padding-top: 32px">
+    <section class="panel" data-download="android" id="android">
+      <h2>安卓</h2>
+      <p>下载安装包后直接安装。系统提示「未知来源」时，选择允许本次安装。</p>
+      <a class="btn btn--indigo" data-download-btn {{androidLink}}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>下载安卓安装包</a>
+      <span class="dl__ver num" data-download-ver hidden></span>
+      <p class="alert" data-download-empty hidden>安卓安装包暂时通过客服发放：添加下方的客服企业微信，回复「安卓」获取。</p>
+    </section>
+
+    <section class="panel" data-download="ios" id="ios">
+      <h2>iPhone</h2>
+      <p>点下面的按钮前往安装。内测期间通过 TestFlight 安装，需要先在 App Store 安装 TestFlight。</p>
+      <a class="btn btn--indigo" data-download-btn {{iosLink}}>前往安装 iPhone 版</a>
+      <span class="dl__ver num" data-download-ver hidden></span>
+      <p class="alert" data-download-empty hidden>iPhone 版暂未开放下载。添加下方的客服企业微信，开放时第一时间通知你。</p>
+    </section>
+  </div>
+
+  <section class="panel" style="margin-top: 20px" data-wecom>
+    <h2>客服企业微信</h2>
+    <div class="contact" data-wecom-card hidden>
+      <img alt="客服企业微信二维码" width="168" height="168">
+      <div class="contact__info">
+        <b data-wecom-name></b>
+        <span data-wecom-time></span>
+        <span data-wecom-id></span>
+        <span>用微信扫码添加，安装或使用中遇到问题都可以问。</span>
+      </div>
+    </div>
+    <p data-wecom-empty hidden>客服二维码暂时无法显示。已安装 App 的话，可以在「我的 → 意见反馈」里联系我们。</p>
+  </section>
+
+  <section class="panel" style="margin-top: 20px">
+    <h2>安装后三步开始</h2>
+    <ol class="steps">
+      <li>用手机号和短信验证码登录，填写你考的专业课。</li>
+      <li>导入第一份资料：真题汇编、讲义或笔记，AI 解析后由你确认入库。</li>
+      <li>第二天打开就有今日计划，按计划练习和背诵。</li>
+    </ol>
+  </section>
+</div>
+
+<div class="wx" id="wx-tip" hidden role="dialog" aria-modal="true" aria-label="请在浏览器打开">
+  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#FFB547" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg>
+  <p>微信里不能直接下载安装包<br>请点右上角「···」<br>选择「在浏览器打开」</p>
+  <button class="btn btn--amber" type="button">知道了</button>
+</div>
